@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(cmake_sample LANGUAGES CXX VERSION 0.0.1 DESCRIPTION "cmake sample")
+set(PROJECT_NAME cpu_renderer)
+project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.0.1 DESCRIPTION "cpu renderer")
 
 set(CMAKE_VERBOSE_MAKEFILE TRUE)
 
@@ -24,7 +25,7 @@ set(CMAKE_CXX_FLAGS "-std=c++14 -W4 -EHsc")
 endif()
 
 # Search package example: OpenGL
-find_package(OpenGL REQUIRED)
+# find_package(OpenGL REQUIRED)
 
 # global include setting
 #include_directories(
@@ -32,27 +33,43 @@ find_package(OpenGL REQUIRED)
 #    src/include
 #    third_party)
 
+# naort
+# add_subdirectory(third_party/nanort)
+# include_directories(third_party/nanort/examples/common)
 
+
+set(PUBLIC_LIB_NAME cpu_renderer)
 # sample to make library from source
 # SHARED: .dll and .lib
 # STATIC: .lib only
-add_library(lib_public
+add_library(${PUBLIC_LIB_NAME}
     STATIC
-    src/public_lib.cpp
-    src/private_lib.cpp
+    src/cpu_renderer.cpp
+    src/camera.cpp
+    src/pose.cpp
+    src/mesh.cpp
+    src/image.cpp
+	third_party/nanort/nanort.cc
+	#third_party/tinyobjloader/tiny_obj_loader.cc
 )
+target_include_directories(${PUBLIC_LIB_NAME} PRIVATE include)
+target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/nanort)
+target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/glm)
+target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/tinyobjloader)
+target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/stb)
 
-target_include_directories(lib_public PRIVATE include)
-target_include_directories(lib_public PRIVATE src/include)
-target_include_directories(lib_public PRIVATE third_party)
+set_target_properties(${PUBLIC_LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
-set_target_properties(lib_public PROPERTIES VERSION ${PROJECT_VERSION})
-
-add_executable(cmake_sample_run
+set(EXE_NAME ${PUBLIC_LIB_NAME}_run)
+add_executable(${EXE_NAME}
     pc/main.cpp)
 
-target_include_directories(cmake_sample_run PRIVATE include)
+target_include_directories(${EXE_NAME} PRIVATE include)
+target_include_directories(${EXE_NAME} PRIVATE third_party/nanort)
+target_include_directories(${EXE_NAME} PRIVATE third_party/glm)
+target_include_directories(${EXE_NAME} PRIVATE third_party/tinyobjloader)
+target_include_directories(${EXE_NAME} PRIVATE third_party/stb)
 
-target_link_libraries(cmake_sample_run
-    lib_public
+target_link_libraries(${EXE_NAME}
+    ${PUBLIC_LIB_NAME}
     )
