@@ -211,7 +211,9 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
       ray.org[2] = t[2];
 
       glm::vec3 dir;
-      camera_->ray_w(static_cast<float>(x), static_cast<float>(y), dir);
+      // ray direction is flipped for y axis
+      camera_->ray_w(static_cast<float>(x),
+                     static_cast<float>(height - y - 1), dir);
 
       ray.dir[0] = dir[0];
       ray.dir[1] = dir[1];
@@ -230,8 +232,8 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
       glm::vec3 hit_pos_c = hit_pos_w;
       w2c.transform(hit_pos_c);
       assert(0.0f <= hit_pos_c[2]);  // depth should be positive
-      mask.at(x, height - y - 1, 0) = 255;
-      depth.at(x, height - y - 1, 0) =
+      mask.at(x, y, 0) = 255;
+      depth.at(x, y, 0) =
           static_cast<unsigned short>(hit_pos_c[2] * option_.depth_scale);
 
       unsigned int fid = isect.prim_id;
@@ -275,6 +277,7 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
           float local_v = f_tex_pos[1] - tex_pos_min[1];
 
           for (int k = 0; k < 3; k++) {
+            // bilinear interpolation of pixel color
             interp_color[k] =
                 (1.0f - local_u) * (1.0f - local_v) *
                     mesh_->diffuse_tex().at(tex_pos_min[0], tex_pos_min[1], k) +
@@ -293,8 +296,7 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
           break;
         }
         for (int k = 0; k < 3; k++) {
-          color.at(x, height - y - 1, k) =
-              static_cast<unsigned char>(interp_color[k]);
+          color.at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
         }
 
       } else {

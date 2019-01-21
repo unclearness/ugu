@@ -7,15 +7,49 @@ namespace unclearness {
 Mesh::Mesh(){};
 Mesh::~Mesh(){};
 
-const std::vector<glm::vec3>& Mesh::vertices() { return vertices_; }
-const std::vector<glm::vec3>& Mesh::vertex_colors() { return vertex_colors_; }
-const std::vector<glm::ivec3>& Mesh::vertex_indices() {
+const std::vector<glm::vec3>& Mesh::vertices() const { return vertices_; }
+const std::vector<glm::vec3>& Mesh::vertex_colors() const {
+  return vertex_colors_;
+}
+const std::vector<glm::ivec3>& Mesh::vertex_indices() const {
   return vertex_indices_;
 }
-const std::vector<glm::vec2>& Mesh::uv() { return uv_; }
-const std::vector<glm::ivec3>& Mesh::uv_indices() { return uv_indices_; }
+const std::vector<glm::vec2>& Mesh::uv() const { return uv_; }
+const std::vector<glm::ivec3>& Mesh::uv_indices() const { return uv_indices_; }
 
-const Image3b& Mesh::diffuse_tex() { return diffuse_tex_; }
+const MeshStats& Mesh::stats() const { return stats_; }
+
+const Image3b& Mesh::diffuse_tex() const { return diffuse_tex_; }
+
+void Mesh::calc_stats() {
+  stats_.bb_min = glm::vec3(std::numeric_limits<float>::max());
+  stats_.bb_max = glm::vec3(std::numeric_limits<float>::lowest());
+
+  if (vertex_indices_.empty()) {
+    return;
+  }
+
+  double sum[3] = {0.0, 0.0, 0.0};  // use double to avoid overflow
+  for (const auto& v : vertices_) {
+
+    for (int i = 0; i < 3; i++) {
+
+      sum[i] += v[i];
+
+      if (v[i] < stats_.bb_min[i]) {
+        stats_.bb_min[i] = v[i];
+      }
+
+      if (stats_.bb_max[i] < v[i]) {
+        stats_.bb_max[i] = v[i];
+      }
+    }
+  }
+
+  for (int i = 0; i < 3; i++) {
+    stats_.center[i] = sum[i] / vertices_.size();
+  }
+}
 
 void Mesh::clear() {
   vertices_.clear();
@@ -169,6 +203,8 @@ bool Mesh::load_obj(const std::string& obj_path, const std::string& mtl_dir) {
     calc_normal();
   }
 
+  calc_stats();
+
   diffuse_texname_ = materials[0].diffuse_texname;
   diffuse_texpath_ = mtl_dir + diffuse_texname_;
 
@@ -177,7 +213,7 @@ bool Mesh::load_obj(const std::string& obj_path, const std::string& mtl_dir) {
   return true;
 }
 bool Mesh::load_ply(const std::string& ply_path) {
-  (void) ply_path;
+  (void)ply_path;
   LOGE("Haven't been implemented\n");
   return false;
 }
