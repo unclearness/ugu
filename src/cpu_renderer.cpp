@@ -150,7 +150,7 @@ bool CpuRenderer::prepare_mesh() {
   }
 
   t.end();
-  printf("  BVH build time: %f secs\n", t.msec() / 1000.0);
+  LOGI("  BVH build time: %f secs\n", t.msec() / 1000.0);
 
   stats = accel.GetStatistics();
 
@@ -194,6 +194,8 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
   int width = camera_->width();
   int height = camera_->height();
 
+  timerutil time;
+  time.start();
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
@@ -301,6 +303,9 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
       }
     }
   }
+
+  time.end();
+  LOGI("  Rendering main loop time: %f secs\n", time.msec() / 1000.0);
 
   return true;
 }

@@ -12,9 +12,6 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 # .dll and .exe
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin) 
 
-# .exe
-#set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/bin)
-
 if (WIN32)
 # -EHsc (enable proper Exxeption Handling) needs to avoid C4530
 # -Wall is too noisy so that set -W4. 
@@ -24,24 +21,14 @@ if (WIN32)
 set(CMAKE_CXX_FLAGS "-std=c++14 -W4 -EHsc")
 endif()
 
-# Search package example: OpenGL
-# find_package(OpenGL REQUIRED)
-
-# global include setting
-#include_directories(
-#    include
-#    src/include
-#    third_party)
-
-# naort
-# add_subdirectory(third_party/nanort)
-# include_directories(third_party/nanort/examples/common)
-
+# For OpenMP
+find_package(OpenMP REQUIRED)
+if(OpenMP_FOUND)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
 
 set(PUBLIC_LIB_NAME cpu_renderer)
-# sample to make library from source
-# SHARED: .dll and .lib
-# STATIC: .lib only
 add_library(${PUBLIC_LIB_NAME}
     STATIC
     src/cpu_renderer.cpp
@@ -49,8 +36,6 @@ add_library(${PUBLIC_LIB_NAME}
     src/pose.cpp
     src/mesh.cpp
     src/image.cpp
-	third_party/nanort/nanort.cc
-	#third_party/tinyobjloader/tiny_obj_loader.cc
 )
 target_include_directories(${PUBLIC_LIB_NAME} PRIVATE include)
 target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/nanort)

@@ -11,8 +11,6 @@ int main(int argc, char *argv[]) {
   std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
   mesh->load_obj(obj_path, data_dir);
 
-  //mesh->diffuse_tex().write_png(data_dir + "out_texture.png");
-
   CpuRenderer renderer;
 
   // set mesh
@@ -49,12 +47,6 @@ int main(int argc, char *argv[]) {
 
   color.write_png(data_dir + "render_color.png");
   mask.write_png(data_dir + "render_mask.png");
-
-  Image3b test(width, height);
-  test.at(100, 200, 0) = 255;
-
-  test.at(300, 400, 1) = 255;
-  test.write_png(data_dir + "test.png");
 
   return 0;
 }
