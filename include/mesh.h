@@ -25,10 +25,11 @@ class Mesh {
   ~Mesh();
   void clear();
   void calc_normal();
-  const std::vector<glm::vec2>& uv();
   const std::vector<glm::vec3>& vertices();
   const std::vector<glm::vec3>& vertex_colors();
   const std::vector<glm::ivec3>& vertex_indices();
+  const std::vector<glm::vec2>& uv();
+  const std::vector<glm::ivec3>& uv_indices();
   const Image3b& diffuse_tex();
   bool load_obj(const std::string& obj_path, const std::string& mtl_dir);
   bool load_ply(const std::string& ply_path);

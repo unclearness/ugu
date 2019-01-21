@@ -16,9 +16,9 @@ class CpuRendererOption {
   float depth_scale{1.0f};
   enum ColorInterpolation{
       NN = 0,
-      LINEAR = 1
+      BILINEAR = 1
   };
-  ColorInterpolation interp {NN};
+  ColorInterpolation interp {BILINEAR};
 };
 
 class CpuRenderer {

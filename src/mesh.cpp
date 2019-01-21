@@ -7,12 +7,14 @@ namespace unclearness {
 Mesh::Mesh(){};
 Mesh::~Mesh(){};
 
-const std::vector<glm::vec2>& Mesh::uv() { return uv_; }
 const std::vector<glm::vec3>& Mesh::vertices() { return vertices_; }
 const std::vector<glm::vec3>& Mesh::vertex_colors() { return vertex_colors_; }
 const std::vector<glm::ivec3>& Mesh::vertex_indices() {
   return vertex_indices_;
 }
+const std::vector<glm::vec2>& Mesh::uv() { return uv_; }
+const std::vector<glm::ivec3>& Mesh::uv_indices() { return uv_indices_; }
+
 const Image3b& Mesh::diffuse_tex() { return diffuse_tex_; }
 
 void Mesh::clear() {
@@ -97,6 +99,7 @@ bool Mesh::load_obj(const std::string& obj_path, const std::string& mtl_dir) {
   uv_.resize(attrib.texcoords.size());
   vertex_colors_.resize(attrib.colors.size());
 
+  size_t face_offset = 0;
   // Loop over shapes
   for (size_t s = 0; s < shapes.size(); s++) {
     // Loop over faces(polygon)
@@ -111,14 +114,14 @@ bool Mesh::load_obj(const std::string& obj_path, const std::string& mtl_dir) {
       }
 
       // Loop over vertices in the face.
-      for (size_t v = 0; v < fv; v++) {
+      for (int v = 0; v < fv; v++) {
         // access to vertex
         tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
         tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
         tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
         tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
 
-        vertex_indices_[f][v] = idx.vertex_index;
+        vertex_indices_[face_offset][v] = idx.vertex_index;
 
         vertices_[idx.vertex_index][0] = vx;
         vertices_[idx.vertex_index][1] = vy;
@@ -129,7 +132,7 @@ bool Mesh::load_obj(const std::string& obj_path, const std::string& mtl_dir) {
           tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
           tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
 
-          normal_indices_[f][v] = idx.normal_index;
+          normal_indices_[face_offset][v] = idx.normal_index;
           normals_[idx.normal_index][0] = nx;
           normals_[idx.normal_index][1] = ny;
           normals_[idx.normal_index][2] = nz;
@@ -139,7 +142,7 @@ bool Mesh::load_obj(const std::string& obj_path, const std::string& mtl_dir) {
           tinyobj::real_t tx = attrib.texcoords[2 * idx.texcoord_index + 0];
           tinyobj::real_t ty = attrib.texcoords[2 * idx.texcoord_index + 1];
 
-          uv_indices_[f][v] = idx.texcoord_index;
+          uv_indices_[face_offset][v] = idx.texcoord_index;
           uv_[idx.texcoord_index][0] = tx;
           uv_[idx.texcoord_index][1] = ty;
         }
@@ -155,6 +158,7 @@ bool Mesh::load_obj(const std::string& obj_path, const std::string& mtl_dir) {
         }
       }
       index_offset += fv;
+      face_offset++;
 
       // per-face material
       shapes[s].mesh.material_ids[f];
@@ -173,6 +177,7 @@ bool Mesh::load_obj(const std::string& obj_path, const std::string& mtl_dir) {
   return true;
 }
 bool Mesh::load_ply(const std::string& ply_path) {
+  (void) ply_path;
   LOGE("Haven't been implemented\n");
   return false;
 }

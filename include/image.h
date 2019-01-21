@@ -19,8 +19,11 @@ class Image {
   const int channel_{N};
 
  public:
-  int width() const { return width_;}
-  int height() const { return height_;}
+  Image(){};
+  ~Image(){};
+  Image(int width, int height) { init(width, height); }
+  int width() const { return width_; }
+  int height() const { return height_; }
   void clear() {
     data.clear();
     width_ = -1;
@@ -32,8 +35,8 @@ class Image {
     height_ = height;
     data.resize(height_ * width_ * channel_, 0);
   }
-  T* at(int x, int y) { 
-      return &data[0] + (width_ * channel_ * y + x * channel_);
+  T* at(int x, int y) {
+    return &data[0] + (width_ * channel_ * y + x * channel_);
   }
   const T* at(int x, int y) const {
     return &data[0] + (width_ * channel_ * y + x * channel_);
@@ -69,13 +72,12 @@ class Image {
     delete in_pixels_tmp;
     return true;
   };
-  
+
   bool write_png(const std::string& path) const {
     stbi_write_png(path.c_str(), width_, height_, channel_, &data[0],
                    width_ * channel_ * sizeof(T));
     return true;
   }
-
 };
 
 using Image1b = Image<unsigned char, 1>;

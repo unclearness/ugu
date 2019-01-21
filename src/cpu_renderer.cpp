@@ -1,4 +1,5 @@
 #include <array>
+#include <cassert>
 #include <iterator>
 
 #ifdef _WIN32
@@ -136,11 +137,12 @@ bool CpuRenderer::prepare_mesh() {
   triangle_pred.reset(new nanort::TriangleSAHPred<float>(
       &flatten_vertices[0], &flatten_faces[0], sizeof(float) * 3));
 
-  LOGI("num_triangles = %lu\n", mesh_->vertex_indices().size());
+  LOGI("num_triangles = %lu\n",
+       static_cast<unsigned long>(mesh_->vertex_indices().size()));
   // LOGI("faces = %p\n", mesh_->vertex_indices().size());
 
-  ret = accel.Build(mesh_->vertex_indices().size(), *triangle_mesh,
-                    *triangle_pred, build_options);
+  ret = accel.Build(static_cast<unsigned int>(mesh_->vertex_indices().size()),
+                    *triangle_mesh, *triangle_pred, build_options);
 
   if (!ret) {
     LOGE("BVH building failed\n");
@@ -186,12 +188,17 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
   const std::vector<glm::vec2>& uv = mesh_->uv();
   const Pose& w2c = camera_->w2c();
   const std::vector<glm::ivec3>& faces = mesh_->vertex_indices();
+  const std::vector<glm::ivec3>& uv_indices = mesh_->uv_indices();
   const std::vector<glm::vec3>& vertex_colors = mesh_->vertex_colors();
+
+  int width = camera_->width();
+  int height = camera_->height();
+
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
-  for (int y = 0; y < camera_->height(); y++) {
-    for (int x = 0; x < camera_->width(); x++) {
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
       nanort::Ray<float> ray;
       float kFar = 1.0e+30f;
       ray.min_t = 0.0001f;
@@ -202,7 +209,7 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
       ray.org[2] = t[2];
 
       glm::vec3 dir;
-      camera_->ray_w(x, y, dir);
+      camera_->ray_w(static_cast<float>(x), static_cast<float>(y), dir);
 
       ray.dir[0] = dir[0];
       ray.dir[1] = dir[1];
@@ -220,54 +227,77 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
       glm::vec3 hit_pos_w = t + dir * isect.t;
       glm::vec3 hit_pos_c = hit_pos_w;
       w2c.transform(hit_pos_c);
-      mask.at(x, y, 0) = 255;
-      depth.at(x, y, 0) = hit_pos_c[2] * option_.depth_scale;
-
-      glm::vec3 rpj;
-      camera_->project(hit_pos_c, rpj);
+      assert(0.0f <= hit_pos_c[2]);  // depth should be positive
+      mask.at(x, height - y - 1, 0) = 255;
+      depth.at(x, height - y - 1, 0) =
+          static_cast<unsigned short>(hit_pos_c[2] * option_.depth_scale);
 
       unsigned int fid = isect.prim_id;
       float u = isect.u;
       float v = isect.v;
-      glm::vec2 local_uv{u, v};
+      glm::vec3 interp_color;
       if (option_.use_vertex_color && !vertex_colors.empty()) {
-        // todo: interpolate based on vertex color
+        // barycentric interpolation of vertex color
+        interp_color = (1.0f - u - v) * vertex_colors[faces[fid][0]] +
+                       u * vertex_colors[faces[fid][1]] +
+                       v * vertex_colors[faces[fid][2]];
       } else if (!uv.empty()) {
-        glm::vec2 interp_uv = (1.0f - u - v) * uv[faces[fid][0]] + u *
-        uv[faces[fid][1]] +
-               v * uv[faces[fid][2]];
-        std::array<float, 3> dist;
-        std::array<glm::vec2, 3> local_uv_list{glm::vec2(0.0f, 0.0f),
-                                               glm::vec2(1.0f, 0.0f),
-                                               glm::vec2(0.0f, 1.0f)};
-        dist[0] = glm::distance(local_uv, local_uv_list[0]);
-        dist[1] = glm::distance(local_uv, local_uv_list[1]);
-        dist[2] = glm::distance(local_uv, local_uv_list[2]);
+        // barycentric interpolation of uv
+        glm::vec2 interp_uv = (1.0f - u - v) * uv[uv_indices[fid][0]] +
+                              u * uv[uv_indices[fid][1]] +
+                              v * uv[uv_indices[fid][2]];
+        float f_tex_pos[2];
+        f_tex_pos[0] = interp_uv[0] * (mesh_->diffuse_tex().width() - 1);
+        f_tex_pos[1] =
+            (1.0f - interp_uv[1]) * (mesh_->diffuse_tex().height() - 1);
+
         if (option_.interp == CpuRendererOption::ColorInterpolation::NN) {
-          auto min_it = std::min_element(dist.begin(), dist.end());
-          size_t min_index = std::distance(dist.begin(), min_it);
-#if 0
-				          int uv_x = uv[faces[fid][min_index]][0] * mesh_->diffuse_tex().width();
-          int uv_y =
-              (1.0f - uv[faces[fid][min_index]][1]) * mesh_->diffuse_tex().height();
+          int tex_pos[2] = {0, 0};
+          tex_pos[0] = static_cast<int>(std::round(f_tex_pos[0]));
+          tex_pos[1] = static_cast<int>(std::round(f_tex_pos[1]));
+          for (int k = 0; k < 3; k++) {
+            interp_color[k] =
+                mesh_->diffuse_tex().at(tex_pos[0], tex_pos[1], k);
+          }
 
-#endif  // 0
+        } else if (option_.interp ==
+                   CpuRendererOption::ColorInterpolation::BILINEAR) {
+          int tex_pos_min[2] = {0, 0};
+          int tex_pos_max[2] = {0, 0};
+          tex_pos_min[0] = static_cast<int>(std::floor(f_tex_pos[0]));
+          tex_pos_min[1] = static_cast<int>(std::floor(f_tex_pos[1]));
+          tex_pos_max[0] = tex_pos_min[0] + 1;
+          tex_pos_max[1] = tex_pos_min[1] + 1;
 
-				  int uv_x = u * mesh_->diffuse_tex().width();
-          int uv_y = (1.0f - v) *
-                     mesh_->diffuse_tex().height();
+          float local_u = f_tex_pos[0] - tex_pos_min[0];
+          float local_v = f_tex_pos[1] - tex_pos_min[1];
 
-          color.at(x, y, 0) = mesh_->diffuse_tex().at(uv_x, uv_y, 0);
-          color.at(x, y, 1) = mesh_->diffuse_tex().at(uv_x, uv_y, 1);
-          color.at(x, y, 2) = mesh_->diffuse_tex().at(uv_x, uv_y, 2);
+          for (int k = 0; k < 3; k++) {
+            interp_color[k] =
+                (1.0f - local_u) * (1.0f - local_v) *
+                    mesh_->diffuse_tex().at(tex_pos_min[0], tex_pos_min[1], k) +
+                local_u * (1.0f - local_v) *
+                    mesh_->diffuse_tex().at(tex_pos_max[0], tex_pos_min[1], k) +
+                (1.0f - local_u) * local_v *
+                    mesh_->diffuse_tex().at(tex_pos_min[0], tex_pos_max[1], k) +
+                local_u * local_v *
+                    mesh_->diffuse_tex().at(tex_pos_max[0], tex_pos_max[1], k);
+
+            assert(0.0f <= interp_color[k] && interp_color[k] <= 255.0f);
+          }
+
         } else {
           LOGE("Specified color interpolation is not implemented\n");
           break;
         }
+        for (int k = 0; k < 3; k++) {
+          color.at(x, height - y - 1, k) =
+              static_cast<unsigned char>(interp_color[k]);
+        }
 
       } else {
         // no color on gemetry
-        color.at(x, y, 1) = 255;
+        color.at(x, y, 1) = static_cast<unsigned char>(255);
       }
     }
   }
