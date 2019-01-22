@@ -35,6 +35,9 @@ class Mesh {
   void clear();
   void calc_normal();
   void calc_stats();
+  void rotate(const glm::mat3& R);
+  void translate(const glm::vec3& t);
+  void transform(const glm::mat3& R, const glm::vec3& t);
   const std::vector<glm::vec3>& vertices() const;
   const std::vector<glm::vec3>& vertex_colors() const;
   const std::vector<glm::ivec3>& vertex_indices() const;

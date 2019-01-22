@@ -1,5 +1,9 @@
 #include "camera.h"
 
+// right-handed coordinate system
+// z:forward, y:down, x:right
+// same to OpenCV
+
 namespace unclearness {
 Camera::Camera(){};
 

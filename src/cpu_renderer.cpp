@@ -213,7 +213,7 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
       glm::vec3 dir;
       // ray direction is flipped for y axis
       camera_->ray_w(static_cast<float>(x),
-                     static_cast<float>(height - y - 1), dir);
+                     static_cast<float>(y), dir);
 
       ray.dir[0] = dir[0];
       ray.dir[1] = dir[1];

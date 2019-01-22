@@ -31,9 +31,7 @@ void Mesh::calc_stats() {
 
   double sum[3] = {0.0, 0.0, 0.0};  // use double to avoid overflow
   for (const auto& v : vertices_) {
-
     for (int i = 0; i < 3; i++) {
-
       sum[i] += v[i];
 
       if (v[i] < stats_.bb_min[i]) {
@@ -49,6 +47,27 @@ void Mesh::calc_stats() {
   for (int i = 0; i < 3; i++) {
     stats_.center[i] = sum[i] / vertices_.size();
   }
+}
+
+void Mesh::rotate(const glm::mat3& R) {
+  for (auto& v : vertices_) {
+    v = R * v;
+  }
+  for (auto& n : normals_) {
+    n = R * n;
+  }
+  calc_stats();
+}
+void Mesh::translate(const glm::vec3& t) {
+  for (auto& v : vertices_) {
+    v = v + t;
+  }
+  calc_stats();
+}
+
+void Mesh::transform(const glm::mat3& R, const glm::vec3& t) {
+  rotate(R);
+  translate(t);
 }
 
 void Mesh::clear() {
