@@ -1,5 +1,9 @@
 #pragma once
 
+// right-handed coordinate system
+// z:forward, y:down, x:right
+// same to OpenCV
+
 #include "common.h"
 #include "pose.h"
 
@@ -8,8 +12,8 @@ class Camera {
  protected:
   int width_;
   int height_;
-  Pose c2w_;  // camera->world
-  Pose w2c_;  // world->camera
+  Pose c2w_;  // camera -> world
+  Pose w2c_;  // world -> camera
  public:
   Camera();
   ~Camera();
