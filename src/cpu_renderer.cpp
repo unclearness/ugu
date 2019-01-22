@@ -280,9 +280,10 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
                          vertices[faces[isect.prim_id][0]];
         vec2 = glm::normalize(vec2);
 
-        glm::vec3 face_normal = glm::cross(vec2, vec1);
+        glm::vec3 face_normal = glm::cross(vec1, vec2);
 
-        if (glm::dot(face_normal, dir) < 0) {
+        // back-face if face normal has same direction to ray
+        if (glm::dot(face_normal, dir) > 0) {
           continue;
         }
       }
