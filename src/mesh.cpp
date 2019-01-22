@@ -45,7 +45,7 @@ void Mesh::calc_stats() {
   }
 
   for (int i = 0; i < 3; i++) {
-    stats_.center[i] = sum[i] / vertices_.size();
+    stats_.center[i] = static_cast<float>(sum[i] / vertices_.size());
   }
 }
 

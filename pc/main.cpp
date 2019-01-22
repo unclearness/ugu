@@ -10,7 +10,7 @@ glm::mat4 make_c2w(const glm::vec3& eye, const glm::vec3& center,
   glm::mat4 w2c_gl = glm::lookAtRH(eye, center, up);
   glm::mat4 c2w_gl = glm::inverse(w2c_gl);
 
-  // rotate 180 deg. around x_axis to align z:forward, y:down, x:right,
+  // rotate 180 deg.around x_axis to align z:forward, y:down, x:right,
   glm::vec3 x_axis(1, 0, 0);
   glm::mat4 c2w = glm::rotate(c2w_gl, glm::radians<float>(180), x_axis);
 
@@ -141,6 +141,9 @@ void align_mesh(std::shared_ptr<Mesh> mesh) {
 }
 
 int main(int argc, char* argv[]) {
+  (void)argc;
+  (void)argv;
+
   std::string data_dir = "../data/bunny/";
   std::string obj_path = data_dir + "bunny.obj";
 
@@ -152,7 +155,9 @@ int main(int argc, char* argv[]) {
   // align z:forward, y:down, x:right
   align_mesh(mesh);
 
-  CpuRenderer renderer;
+  // initialize renderer with default option
+  CpuRendererOption option;
+  CpuRenderer renderer(option);
 
   // set mesh
   renderer.set_mesh(mesh);

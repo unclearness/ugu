@@ -14,11 +14,13 @@ class CpuRendererOption {
  public:
   bool use_vertex_color{false};
   float depth_scale{1.0f};
-  enum ColorInterpolation{
-      NN = 0,
-      BILINEAR = 1
-  };
-  ColorInterpolation interp {BILINEAR};
+  enum ColorInterpolation { NN = 0, BILINEAR = 1 };
+  ColorInterpolation interp{BILINEAR};
+  bool backface_culling{true};
+
+  CpuRendererOption();
+  ~CpuRendererOption();
+  void copy_to(CpuRendererOption& dst) const;
 };
 
 class CpuRenderer {
@@ -40,6 +42,8 @@ class CpuRenderer {
  public:
   CpuRenderer();
   ~CpuRenderer();
+  explicit CpuRenderer(const CpuRendererOption& option);
+  void set_option(const CpuRendererOption& option);
   void set_mesh(std::shared_ptr<Mesh> mesh);
   bool prepare_mesh();
   void set_camera(std::shared_ptr<Camera> camera);

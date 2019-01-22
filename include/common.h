@@ -6,4 +6,5 @@
 #define LOGI printf
 #define LOGV printf
 #define LOGD printf
+#define LOGW printf
 #define LOGE printf

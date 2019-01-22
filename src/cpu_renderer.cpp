@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 #include "cpu_renderer.h"
+#include "pixel_shader.h"
 
 namespace {
 // This class is NOT thread-safe timer!
@@ -90,8 +91,30 @@ class timerutil {
 }  // namespace
 
 namespace unclearness {
+
+CpuRendererOption::CpuRendererOption() {}
+
+CpuRendererOption::~CpuRendererOption() {}
+
+void CpuRendererOption::copy_to(CpuRendererOption& dst) const {
+  dst.use_vertex_color = use_vertex_color;
+  dst.depth_scale = depth_scale;
+  dst.interp = interp;
+  dst.backface_culling = backface_culling;
+}
+
 CpuRenderer::CpuRenderer() {}
+
 CpuRenderer::~CpuRenderer() {}
+
+CpuRenderer::CpuRenderer(const CpuRendererOption& option) {
+  set_option(option);
+}
+
+void CpuRenderer::set_option(const CpuRendererOption& option) {
+  option.copy_to(option_);
+}
+
 void CpuRenderer::set_mesh(std::shared_ptr<Mesh> mesh) {
   mesh_initialized_ = false;
   mesh_ = mesh;
@@ -185,14 +208,34 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
   mask.init(camera_->width(), camera_->height());
 
   const glm::vec3& t = camera_->c2w().t();
-  const std::vector<glm::vec2>& uv = mesh_->uv();
   const Pose& w2c = camera_->w2c();
+  const std::vector<glm::vec3>& vertices = mesh_->vertices();
   const std::vector<glm::ivec3>& faces = mesh_->vertex_indices();
   const std::vector<glm::ivec3>& uv_indices = mesh_->uv_indices();
+  const std::vector<glm::vec2>& uv = mesh_->uv();
   const std::vector<glm::vec3>& vertex_colors = mesh_->vertex_colors();
+  const Image3b& diffuse_texture = mesh_->diffuse_tex();
 
   int width = camera_->width();
   int height = camera_->height();
+
+  // set pixel shader
+  auto pixel_shader = default_shader;
+  if (option_.use_vertex_color && !vertex_colors.empty()) {
+    pixel_shader = vertex_color_shader;
+  } else if (!uv.empty()) {
+    if (option_.interp == CpuRendererOption::ColorInterpolation::NN) {
+      pixel_shader = diffuse_nn_shader;
+    } else if (option_.interp ==
+               CpuRendererOption::ColorInterpolation::BILINEAR) {
+      pixel_shader = diffuse_bilinear_shader;
+    } else {
+      LOGE("Specified color interpolation is not implemented\n");
+      return false;
+    }
+  } else {
+    LOGW("No color on geometry\n");
+  }
 
   timerutil time;
   time.start();
@@ -206,19 +249,19 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
       ray.min_t = 0.0001f;
       ray.max_t = kFar;
 
+      // camera position in world coordinate
       ray.org[0] = t[0];
       ray.org[1] = t[1];
       ray.org[2] = t[2];
 
+      // ray in world coordinate
       glm::vec3 dir;
-      // ray direction is flipped for y axis
-      camera_->ray_w(static_cast<float>(x),
-                     static_cast<float>(y), dir);
-
+      camera_->ray_w(static_cast<float>(x), static_cast<float>(y), dir);
       ray.dir[0] = dir[0];
       ray.dir[1] = dir[1];
       ray.dir[2] = dir[2];
 
+      // shoot ray
       nanort::TriangleIntersector<> triangle_intersector(
           &flatten_vertices[0], &flatten_faces[0], sizeof(float) * 3);
       nanort::TriangleIntersection<> isect;
@@ -228,81 +271,36 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
         continue;
       }
 
+      // back-face culling
+      if (option_.backface_culling) {
+        glm::vec3 vec1 = vertices[faces[isect.prim_id][1]] -
+                         vertices[faces[isect.prim_id][0]];
+        vec1 = glm::normalize(vec1);
+        glm::vec3 vec2 = vertices[faces[isect.prim_id][2]] -
+                         vertices[faces[isect.prim_id][0]];
+        vec2 = glm::normalize(vec2);
+
+        glm::vec3 face_normal = glm::cross(vec2, vec1);
+
+        if (glm::dot(face_normal, dir) < 0) {
+          continue;
+        }
+      }
+
+      // fill mask
+      mask.at(x, y, 0) = 255;
+
+      // convert hit position to camera coordinate to get depth value
       glm::vec3 hit_pos_w = t + dir * isect.t;
       glm::vec3 hit_pos_c = hit_pos_w;
       w2c.transform(hit_pos_c);
       assert(0.0f <= hit_pos_c[2]);  // depth should be positive
-      mask.at(x, y, 0) = 255;
       depth.at(x, y, 0) =
           static_cast<unsigned short>(hit_pos_c[2] * option_.depth_scale);
 
-      unsigned int fid = isect.prim_id;
-      float u = isect.u;
-      float v = isect.v;
-      glm::vec3 interp_color;
-      if (option_.use_vertex_color && !vertex_colors.empty()) {
-        // barycentric interpolation of vertex color
-        interp_color = (1.0f - u - v) * vertex_colors[faces[fid][0]] +
-                       u * vertex_colors[faces[fid][1]] +
-                       v * vertex_colors[faces[fid][2]];
-      } else if (!uv.empty()) {
-        // barycentric interpolation of uv
-        glm::vec2 interp_uv = (1.0f - u - v) * uv[uv_indices[fid][0]] +
-                              u * uv[uv_indices[fid][1]] +
-                              v * uv[uv_indices[fid][2]];
-        float f_tex_pos[2];
-        f_tex_pos[0] = interp_uv[0] * (mesh_->diffuse_tex().width() - 1);
-        f_tex_pos[1] =
-            (1.0f - interp_uv[1]) * (mesh_->diffuse_tex().height() - 1);
-
-        if (option_.interp == CpuRendererOption::ColorInterpolation::NN) {
-          int tex_pos[2] = {0, 0};
-          tex_pos[0] = static_cast<int>(std::round(f_tex_pos[0]));
-          tex_pos[1] = static_cast<int>(std::round(f_tex_pos[1]));
-          for (int k = 0; k < 3; k++) {
-            interp_color[k] =
-                mesh_->diffuse_tex().at(tex_pos[0], tex_pos[1], k);
-          }
-
-        } else if (option_.interp ==
-                   CpuRendererOption::ColorInterpolation::BILINEAR) {
-          int tex_pos_min[2] = {0, 0};
-          int tex_pos_max[2] = {0, 0};
-          tex_pos_min[0] = static_cast<int>(std::floor(f_tex_pos[0]));
-          tex_pos_min[1] = static_cast<int>(std::floor(f_tex_pos[1]));
-          tex_pos_max[0] = tex_pos_min[0] + 1;
-          tex_pos_max[1] = tex_pos_min[1] + 1;
-
-          float local_u = f_tex_pos[0] - tex_pos_min[0];
-          float local_v = f_tex_pos[1] - tex_pos_min[1];
-
-          for (int k = 0; k < 3; k++) {
-            // bilinear interpolation of pixel color
-            interp_color[k] =
-                (1.0f - local_u) * (1.0f - local_v) *
-                    mesh_->diffuse_tex().at(tex_pos_min[0], tex_pos_min[1], k) +
-                local_u * (1.0f - local_v) *
-                    mesh_->diffuse_tex().at(tex_pos_max[0], tex_pos_min[1], k) +
-                (1.0f - local_u) * local_v *
-                    mesh_->diffuse_tex().at(tex_pos_min[0], tex_pos_max[1], k) +
-                local_u * local_v *
-                    mesh_->diffuse_tex().at(tex_pos_max[0], tex_pos_max[1], k);
-
-            assert(0.0f <= interp_color[k] && interp_color[k] <= 255.0f);
-          }
-
-        } else {
-          LOGE("Specified color interpolation is not implemented\n");
-          break;
-        }
-        for (int k = 0; k < 3; k++) {
-          color.at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
-        }
-
-      } else {
-        // no color on gemetry
-        color.at(x, y, 1) = static_cast<unsigned char>(255);
-      }
+      // delegate color calculation to pixel_shader
+      pixel_shader(color, x, y, isect, faces, uv_indices, uv, vertex_colors,
+                   diffuse_texture);
     }
   }
 
