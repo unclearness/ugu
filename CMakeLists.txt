@@ -58,3 +58,29 @@ target_include_directories(${EXE_NAME} PRIVATE third_party/stb)
 target_link_libraries(${EXE_NAME}
     ${PUBLIC_LIB_NAME}
     )
+
+# test data preparation
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny/bunny.obj)
+
+# download test data
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip)
+file(DOWNLOAD http://www.kunzhou.net/tex-models/bunny.zip ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip)
+endif()
+
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny)
+add_custom_target(makeDirectory ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory  ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny)
+endif()
+
+# unzip test data
+if (WIN32)
+add_custom_target( unZip ALL)
+add_custom_command(TARGET unZip PRE_BUILD
+   COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip
+WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny
+DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip
+COMMENT "Unpacking bunny.zip"
+VERBATIM)
+endif()
+
+endif()

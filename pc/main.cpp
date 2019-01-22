@@ -1,3 +1,5 @@
+#include <fstream>
+
 #include "cpu_renderer.h"
 #include "glm/ext/matrix_transform.hpp"
 
@@ -144,8 +146,17 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
+  // CMake downloads and unzip this data automatically
+  // Please download and unzip manually if it got wrong
+  // http://www.kunzhou.net/tex-models/bunny.zip
   std::string data_dir = "../data/bunny/";
   std::string obj_path = data_dir + "bunny.obj";
+
+  std::ifstream ifs(obj_path);
+  if(!ifs.is_open()) {
+    LOGE("Please put %s\n", obj_path.c_str());
+    return -1;
+  }
 
   // load mesh
   std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
