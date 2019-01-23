@@ -7,9 +7,9 @@
 
 #include <vector>
 
+#include "nanort/nanort.h"
 #include "include/common.h"
 #include "include/image.h"
-#include "nanort/nanort.h"
 
 namespace crender {
 

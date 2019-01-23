@@ -10,9 +10,9 @@
 #include <string>
 #include <vector>
 
-#include "include/common.h"
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
+#include "include/common.h"
 
 namespace crender {
 

@@ -12,7 +12,6 @@
 #pragma once
 
 #include "include/pose.h"
-
 #include "include/common.h"
 
 namespace crender {
