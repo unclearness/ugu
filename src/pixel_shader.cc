@@ -3,13 +3,9 @@
  * All rights reserved.
  */
 
-#pragma once
+#include "src/pixel_shader.h"
 
 #include <vector>
-
-#include "include/common.h"
-#include "include/image.h"
-#include "nanort/nanort.h"
 
 namespace crender {
 

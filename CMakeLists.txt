@@ -31,11 +31,12 @@ endif()
 set(PUBLIC_LIB_NAME crender)
 add_library(${PUBLIC_LIB_NAME}
     STATIC
-    src/renderer.cpp
-    src/camera.cpp
-    src/pose.cpp
-    src/mesh.cpp
-    src/image.cpp
+    src/renderer.cc
+    src/camera.cc
+    src/pose.cc
+    src/mesh.cc
+    src/image.cc
+    src/pixel_shader.cc
 )
 target_include_directories(${PUBLIC_LIB_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party)

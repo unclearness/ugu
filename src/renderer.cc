@@ -24,7 +24,7 @@ extern "C" {
 #endif
 #endif
 
-#include "include/pixel_shader.h"
+#include "src/pixel_shader.h"
 
 namespace {
 // This class is NOT thread-safe timer!
