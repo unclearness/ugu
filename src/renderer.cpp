@@ -5,8 +5,8 @@
 
 #include "include/renderer.h"
 
-#include <cassert>
 #include <array>
+#include <cassert>
 #ifdef _WIN32
 #ifdef __cplusplus
 extern "C" {
@@ -46,7 +46,7 @@ class timerutil {
 
 #else
 #if defined(__unix__) || defined(__APPLE__)
-  typedef unsigned long int time_t; //NOLINT
+  typedef unsigned long int time_t;  // NOLINT
 
   void start() { gettimeofday(tv + 0, &tz); }
   void end() { gettimeofday(tv + 1, &tz); }
@@ -100,23 +100,21 @@ RendererOption::RendererOption() {}
 
 RendererOption::~RendererOption() {}
 
-void RendererOption::copy_to(RendererOption& dst) const {
-  dst.use_vertex_color = use_vertex_color;
-  dst.depth_scale = depth_scale;
-  dst.interp = interp;
-  dst.backface_culling = backface_culling;
+void RendererOption::copy_to(RendererOption* dst) const {
+  dst->use_vertex_color = use_vertex_color;
+  dst->depth_scale = depth_scale;
+  dst->interp = interp;
+  dst->backface_culling = backface_culling;
 }
 
 Renderer::Renderer() {}
 
 Renderer::~Renderer() {}
 
-Renderer::Renderer(const RendererOption& option) {
-  set_option(option);
-}
+Renderer::Renderer(const RendererOption& option) { set_option(option); }
 
 void Renderer::set_option(const RendererOption& option) {
-  option.copy_to(option_);
+  option.copy_to(&option_);
 }
 
 void Renderer::set_mesh(std::shared_ptr<Mesh> mesh) {
@@ -194,10 +192,8 @@ bool Renderer::prepare_mesh() {
 
   return true;
 }
-void Renderer::set_camera(std::shared_ptr<Camera> camera) {
-  camera_ = camera;
-}
-bool Renderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
+void Renderer::set_camera(std::shared_ptr<Camera> camera) { camera_ = camera; }
+bool Renderer::render(Image3b* color, Image1w* depth, Image1b* mask) const {
   if (camera_ == nullptr) {
     LOGE("camera has not been set\n");
     return false;
@@ -207,9 +203,9 @@ bool Renderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
     return false;
   }
 
-  color.init(camera_->width(), camera_->height());
-  depth.init(camera_->width(), camera_->height());
-  mask.init(camera_->width(), camera_->height());
+  color->init(camera_->width(), camera_->height());
+  depth->init(camera_->width(), camera_->height());
+  mask->init(camera_->width(), camera_->height());
 
   const glm::vec3& t = camera_->c2w().t();
   const Pose& w2c = camera_->w2c();
@@ -230,8 +226,7 @@ bool Renderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
   } else if (!uv.empty()) {
     if (option_.interp == RendererOption::ColorInterpolation::NN) {
       pixel_shader = diffuse_nn_shader;
-    } else if (option_.interp ==
-               RendererOption::ColorInterpolation::BILINEAR) {
+    } else if (option_.interp == RendererOption::ColorInterpolation::BILINEAR) {
       pixel_shader = diffuse_bilinear_shader;
     } else {
       LOGE("Specified color interpolation is not implemented\n");
@@ -293,14 +288,14 @@ bool Renderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
       }
 
       // fill mask
-      mask.at(x, y, 0) = 255;
+      mask->at(x, y, 0) = 255;
 
       // convert hit position to camera coordinate to get depth value
       glm::vec3 hit_pos_w = t + dir * isect.t;
       glm::vec3 hit_pos_c = hit_pos_w;
       w2c.transform(hit_pos_c);
       assert(0.0f <= hit_pos_c[2]);  // depth should be positive
-      depth.at(x, y, 0) =
+      depth->at(x, y, 0) =
           static_cast<uint16_t>(hit_pos_c[2] * option_.depth_scale);
 
       // delegate color calculation to pixel_shader

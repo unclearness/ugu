@@ -13,7 +13,7 @@
 
 namespace crender {
 
-void default_shader(crender::Image3b& color, int x, int y,
+void default_shader(crender::Image3b* color, int x, int y,
                     const nanort::TriangleIntersection<>& isect,
                     const std::vector<glm::ivec3>& faces,
                     const std::vector<glm::ivec3>& uv_indices,
@@ -28,12 +28,12 @@ void default_shader(crender::Image3b& color, int x, int y,
   (void)diffuse_texture;
 
   // set Green
-  color.at(x, y, 0) = 0;
-  color.at(x, y, 1) = 255;
-  color.at(x, y, 2) = 0;
+  color->at(x, y, 0) = 0;
+  color->at(x, y, 1) = 255;
+  color->at(x, y, 2) = 0;
 }
 
-void vertex_color_shader(crender::Image3b& color, int x, int y,
+void vertex_color_shader(crender::Image3b* color, int x, int y,
                          const nanort::TriangleIntersection<>& isect,
                          const std::vector<glm::ivec3>& faces,
                          const std::vector<glm::ivec3>& uv_indices,
@@ -54,11 +54,11 @@ void vertex_color_shader(crender::Image3b& color, int x, int y,
                  v * vertex_colors[faces[fid][2]];
 
   for (int k = 0; k < 3; k++) {
-    color.at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
+    color->at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
   }
 }
 
-void diffuse_nn_shader(crender::Image3b& color, int x, int y,
+void diffuse_nn_shader(crender::Image3b* color, int x, int y,
                        const nanort::TriangleIntersection<>& isect,
                        const std::vector<glm::ivec3>& faces,
                        const std::vector<glm::ivec3>& uv_indices,
@@ -88,11 +88,11 @@ void diffuse_nn_shader(crender::Image3b& color, int x, int y,
   }
 
   for (int k = 0; k < 3; k++) {
-    color.at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
+    color->at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
   }
 }
 
-void diffuse_bilinear_shader(crender::Image3b& color, int x, int y,
+void diffuse_bilinear_shader(crender::Image3b* color, int x, int y,
                              const nanort::TriangleIntersection<>& isect,
                              const std::vector<glm::ivec3>& faces,
                              const std::vector<glm::ivec3>& uv_indices,
@@ -140,7 +140,7 @@ void diffuse_bilinear_shader(crender::Image3b& color, int x, int y,
   }
 
   for (int k = 0; k < 3; k++) {
-    color.at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
+    color->at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
   }
 }
 

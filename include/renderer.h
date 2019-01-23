@@ -5,12 +5,12 @@
 
 #pragma once
 
-#include <vector>
 #include <memory>
+#include <vector>
 
-#include "nanort/nanort.h"
 #include "include/camera.h"
 #include "include/mesh.h"
+#include "nanort/nanort.h"
 
 namespace crender {
 
@@ -24,7 +24,7 @@ class RendererOption {
 
   RendererOption();
   ~RendererOption();
-  void copy_to(RendererOption& dst) const;
+  void copy_to(RendererOption* dst) const;
 };
 
 class Renderer {
@@ -51,7 +51,7 @@ class Renderer {
   void set_mesh(std::shared_ptr<Mesh> mesh);
   bool prepare_mesh();
   void set_camera(std::shared_ptr<Camera> camera);
-  bool render(Image3b& color, Image1w& depth, Image1b& mask);
+  bool render(Image3b* color, Image1w* depth, Image1b* mask) const;
 };
 
 }  // namespace crender

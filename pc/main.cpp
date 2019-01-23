@@ -24,12 +24,12 @@ glm::mat4 make_c2w(const glm::vec3& eye, const glm::vec3& center,
   return c2w;
 }
 
-void visualize_depth(const Image1w& depth, Image1b& vis_depth,
+void visualize_depth(const Image1w& depth, Image1b* vis_depth,
                      float min_d = 200.0f, float max_d = 1500.0f) {
-  vis_depth.init(depth.width(), depth.height());
+  vis_depth->init(depth.width(), depth.height());
 
-  for (int y = 0; y < vis_depth.height(); y++) {
-    for (int x = 0; x < vis_depth.width(); x++) {
+  for (int y = 0; y < vis_depth->height(); y++) {
+    for (int x = 0; x < vis_depth->width(); x++) {
       auto d = depth.at(x, y, 0);
       if (d < 1) {
         continue;
@@ -44,13 +44,13 @@ void visualize_depth(const Image1w& depth, Image1b& vis_depth,
         color = 255;
       }
 
-      vis_depth.at(x, y, 0) = static_cast<unsigned char>(color);
+      vis_depth->at(x, y, 0) = static_cast<uint8_t>(color);
     }
   }
 }
 
 void test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
-          std::shared_ptr<Camera> camera, Renderer& renderer) {
+          std::shared_ptr<Camera> camera, const Renderer& renderer) {
   // images
   Image3b color;
   Image1w depth;
@@ -71,10 +71,10 @@ void test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   eye[2] -= offset;
   c2w = make_c2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.render(color, depth, mask);
+  renderer.render(&color, &depth, &mask);
   color.write_png(out_dir + "front_color.png");
   mask.write_png(out_dir + "front_mask.png");
-  visualize_depth(depth, vis_depth);
+  visualize_depth(depth, &vis_depth);
   vis_depth.write_png(out_dir + "front_vis_depth.png");
 
   // from back
@@ -82,10 +82,10 @@ void test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   eye[2] += offset;
   c2w = make_c2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.render(color, depth, mask);
+  renderer.render(&color, &depth, &mask);
   color.write_png(out_dir + "back_color.png");
   mask.write_png(out_dir + "back_mask.png");
-  visualize_depth(depth, vis_depth);
+  visualize_depth(depth, &vis_depth);
   vis_depth.write_png(out_dir + "back_vis_depth.png");
 
   // from right
@@ -93,10 +93,10 @@ void test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   eye[0] += offset;
   c2w = make_c2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.render(color, depth, mask);
+  renderer.render(&color, &depth, &mask);
   color.write_png(out_dir + "right_color.png");
   mask.write_png(out_dir + "right_mask.png");
-  visualize_depth(depth, vis_depth);
+  visualize_depth(depth, &vis_depth);
   vis_depth.write_png(out_dir + "right_vis_depth.png");
 
   // from left
@@ -104,10 +104,10 @@ void test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   eye[0] -= offset;
   c2w = make_c2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.render(color, depth, mask);
+  renderer.render(&color, &depth, &mask);
   color.write_png(out_dir + "left_color.png");
   mask.write_png(out_dir + "left_mask.png");
-  visualize_depth(depth, vis_depth);
+  visualize_depth(depth, &vis_depth);
   vis_depth.write_png(out_dir + "left_vis_depth.png");
 
   // from top
@@ -115,10 +115,10 @@ void test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   eye[1] -= offset;
   c2w = make_c2w(eye, center, glm::vec3(0, 0, 1));
   camera->set_c2w(Pose(c2w));
-  renderer.render(color, depth, mask);
+  renderer.render(&color, &depth, &mask);
   color.write_png(out_dir + "top_color.png");
   mask.write_png(out_dir + "top_mask.png");
-  visualize_depth(depth, vis_depth);
+  visualize_depth(depth, &vis_depth);
   vis_depth.write_png(out_dir + "top_vis_depth.png");
 
   // from bottom
@@ -126,10 +126,10 @@ void test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   eye[1] += offset;
   c2w = make_c2w(eye, center, glm::vec3(0, 0, -1));
   camera->set_c2w(Pose(c2w));
-  renderer.render(color, depth, mask);
+  renderer.render(&color, &depth, &mask);
   color.write_png(out_dir + "bottom_color.png");
   mask.write_png(out_dir + "bottom_mask.png");
-  visualize_depth(depth, vis_depth);
+  visualize_depth(depth, &vis_depth);
   vis_depth.write_png(out_dir + "bottom_vis_depth.png");
 }
 
