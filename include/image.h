@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <stdint.h>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -84,8 +85,8 @@ class Image {
   }
 };
 
-using Image1b = Image<unsigned char, 1>;
-using Image3b = Image<unsigned char, 3>;
-using Image1w = Image<unsigned short, 1>;
+using Image1b = Image<uint8_t, 1>;
+using Image3b = Image<uint8_t, 3>;
+using Image1w = Image<uint16_t, 1>;
 
 }  // namespace crender

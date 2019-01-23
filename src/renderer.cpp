@@ -46,7 +46,7 @@ class timerutil {
 
 #else
 #if defined(__unix__) || defined(__APPLE__)
-  typedef unsigned long int time_t;
+  typedef unsigned long int time_t; //NOLINT
 
   void start() { gettimeofday(tv + 0, &tz); }
   void end() { gettimeofday(tv + 1, &tz); }
@@ -164,8 +164,8 @@ bool Renderer::prepare_mesh() {
   triangle_pred.reset(new nanort::TriangleSAHPred<float>(
       &flatten_vertices[0], &flatten_faces[0], sizeof(float) * 3));
 
-  LOGI("num_triangles = %lu\n",
-       static_cast<unsigned long>(mesh_->vertex_indices().size()));
+  LOGI("num_triangles = %llu\n",
+       static_cast<uint64_t>(mesh_->vertex_indices().size()));
   // LOGI("faces = %p\n", mesh_->vertex_indices().size());
 
   ret = accel.Build(static_cast<unsigned int>(mesh_->vertex_indices().size()),
@@ -301,7 +301,7 @@ bool Renderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
       w2c.transform(hit_pos_c);
       assert(0.0f <= hit_pos_c[2]);  // depth should be positive
       depth.at(x, y, 0) =
-          static_cast<unsigned short>(hit_pos_c[2] * option_.depth_scale);
+          static_cast<uint16_t>(hit_pos_c[2] * option_.depth_scale);
 
       // delegate color calculation to pixel_shader
       pixel_shader(color, x, y, isect, faces, uv_indices, uv, vertex_colors,

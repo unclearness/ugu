@@ -30,7 +30,7 @@ void visualize_depth(const Image1w& depth, Image1b& vis_depth,
 
   for (int y = 0; y < vis_depth.height(); y++) {
     for (int x = 0; x < vis_depth.width(); x++) {
-      unsigned short d = depth.at(x, y, 0);
+      auto d = depth.at(x, y, 0);
       if (d < 1) {
         continue;
       }
