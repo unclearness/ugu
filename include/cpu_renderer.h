@@ -1,12 +1,11 @@
 #pragma once
 
+#include <vector>
 #include <memory>
 
-#include "camera.h"
-#include "common.h"
-#include "mesh.h"
-
-#include "nanort.h"
+#include "nanort/nanort.h"
+#include "include/camera.h"
+#include "include/mesh.h"
 
 namespace unclearness {
 

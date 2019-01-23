@@ -4,10 +4,9 @@
 #include <string>
 #include <vector>
 
-#include "common.h"
-
-#include "stb_image.h"
-#include "stb_image_write.h"
+#include "stb/stb_image.h"
+#include "stb/stb_image_write.h"
+#include "include/common.h"
 
 namespace unclearness {
 
@@ -19,8 +18,8 @@ class Image {
   const int channel_{N};
 
  public:
-  Image(){};
-  ~Image(){};
+  Image() {}
+  ~Image() {}
   Image(int width, int height) { init(width, height); }
   int width() const { return width_; }
   int height() const { return height_; }
@@ -71,7 +70,7 @@ class Image {
 
     delete in_pixels_tmp;
     return true;
-  };
+  }
 
   bool write_png(const std::string& path) const {
     stbi_write_png(path.c_str(), width_, height_, channel_, &data[0],

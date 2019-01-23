@@ -1,14 +1,14 @@
-#include "camera.h"
+#include "include/camera.h"
 
 namespace unclearness {
-Camera::Camera(){};
+Camera::Camera() {}
 
-Camera::~Camera(){};
+Camera::~Camera() {}
 
 Camera::Camera(int width, int height, const Pose& c2w)
     : width_(width), height_(height), c2w_(c2w) {
   w2c_.set_T(glm::inverse(c2w_.T()));
-};
+}
 
 int Camera::width() { return width_; }
 

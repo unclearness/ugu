@@ -1,9 +1,10 @@
 #pragma once
 
 #include <vector>
+#include <string>
 
-#include "common.h"
-#include "image.h"
+#include "include/common.h"
+#include "include/image.h"
 
 namespace unclearness {
 
@@ -29,6 +30,7 @@ class Mesh {
   std::string diffuse_texpath_;
   Image3b diffuse_tex_;
   MeshStats stats_;
+
  public:
   Mesh();
   ~Mesh();
@@ -37,7 +39,7 @@ class Mesh {
   void calc_stats();
   void rotate(const glm::mat3& R);
   void translate(const glm::vec3& t);
-  void transform(const glm::mat3& R, const glm::vec3& t);
+  void transform(const glm::mat3& R, const glm::vec3& t); // NOLINT
   const std::vector<glm::vec3>& vertices() const;
   const std::vector<glm::vec3>& vertex_colors() const;
   const std::vector<glm::ivec3>& vertex_indices() const;

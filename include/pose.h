@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "include/common.h"
 
 namespace unclearness {
 class Pose {
@@ -23,7 +23,7 @@ class Pose {
   void set_R(const glm::mat3& R);
   void set_t(const glm::vec3& t);
   Pose& operator=(const Pose& pose);
-  void transform(glm::vec3& src_dst) const;
+  void transform(glm::vec3& src_dst) const; //NOLINT
 };
 
 }  // namespace unclearness

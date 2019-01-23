@@ -1,8 +1,10 @@
 #pragma once
 
-#include "common.h"
-#include "image.h"
-#include "nanort.h"
+#include <vector>
+
+#include "nanort/nanort.h"
+#include "include/common.h"
+#include "include/image.h"
 
 namespace unclearness {
 

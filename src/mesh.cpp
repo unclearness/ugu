@@ -1,11 +1,12 @@
-#include "mesh.h"
+#include "include/mesh.h"
+
 #define TINYOBJLOADER_IMPLEMENTATION
-#include "tiny_obj_loader.h"
+#include "tinyobjloader/tiny_obj_loader.h"
 
 namespace unclearness {
 
-Mesh::Mesh(){};
-Mesh::~Mesh(){};
+Mesh::Mesh() {}
+Mesh::~Mesh() {}
 
 const std::vector<glm::vec3>& Mesh::vertices() const { return vertices_; }
 const std::vector<glm::vec3>& Mesh::vertex_colors() const {

@@ -37,7 +37,8 @@ add_library(${PUBLIC_LIB_NAME}
     src/mesh.cpp
     src/image.cpp
 )
-target_include_directories(${PUBLIC_LIB_NAME} PRIVATE include)
+target_include_directories(${PUBLIC_LIB_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party)
 target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/nanort)
 target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/glm)
 target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/tinyobjloader)
@@ -49,7 +50,8 @@ set(EXE_NAME ${PUBLIC_LIB_NAME}_run)
 add_executable(${EXE_NAME}
     pc/main.cpp)
 
-target_include_directories(${EXE_NAME} PRIVATE include)
+target_include_directories(${EXE_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${EXE_NAME} PRIVATE third_party)
 target_include_directories(${EXE_NAME} PRIVATE third_party/nanort)
 target_include_directories(${EXE_NAME} PRIVATE third_party/glm)
 target_include_directories(${EXE_NAME} PRIVATE third_party/tinyobjloader)

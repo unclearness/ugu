@@ -1,7 +1,7 @@
-#include <array>
-#include <cassert>
-#include <iterator>
+#include "include/cpu_renderer.h"
 
+#include <cassert>
+#include <array>
 #ifdef _WIN32
 #ifdef __cplusplus
 extern "C" {
@@ -19,8 +19,7 @@ extern "C" {
 #endif
 #endif
 
-#include "cpu_renderer.h"
-#include "pixel_shader.h"
+#include "include/pixel_shader.h"
 
 namespace {
 // This class is NOT thread-safe timer!

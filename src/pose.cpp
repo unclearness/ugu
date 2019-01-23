@@ -1,9 +1,9 @@
-#include "pose.h"
+#include "include/pose.h"
 
 namespace unclearness {
 
-Pose::Pose(){ set_I(); };
-Pose::~Pose(){};
+Pose::Pose() { set_I(); }
+Pose::~Pose() {}
 Pose::Pose(const Pose& pose) {
   set_I();
   set_T(pose.T());

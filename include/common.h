@@ -1,6 +1,7 @@
 #pragma once
+#include <stdio.h>
+
 #include "glm/glm.hpp"
-#include "stdio.h"
 
 // todo
 #define LOGI printf

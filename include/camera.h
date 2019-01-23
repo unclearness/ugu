@@ -1,11 +1,12 @@
-#pragma once
-
 // right-handed coordinate system
 // z:forward, y:down, x:right
 // same to OpenCV
 
-#include "common.h"
-#include "pose.h"
+#pragma once
+
+#include "include/pose.h"
+
+#include "include/common.h"
 
 namespace unclearness {
 class Camera {
@@ -14,6 +15,7 @@ class Camera {
   int height_;
   Pose c2w_;  // camera -> world
   Pose w2c_;  // world -> camera
+
  public:
   Camera();
   ~Camera();
