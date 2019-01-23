@@ -3,7 +3,7 @@
 #include "glm/ext/matrix_transform.hpp"
 #include "include/cpu_renderer.h"
 
-using namespace unclearness;
+using namespace crender;
 
 glm::mat4 make_c2w(const glm::vec3& eye, const glm::vec3& center,
                    const glm::vec3& up) {

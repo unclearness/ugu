@@ -7,7 +7,7 @@
 #include "include/camera.h"
 #include "include/mesh.h"
 
-namespace unclearness {
+namespace crender {
 
 class CpuRendererOption {
  public:
@@ -49,4 +49,4 @@ class CpuRenderer {
   bool render(Image3b& color, Image1w& depth, Image1b& mask);
 };
 
-}  // namespace unclearness
+}  // namespace crender

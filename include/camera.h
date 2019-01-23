@@ -8,7 +8,7 @@
 
 #include "include/common.h"
 
-namespace unclearness {
+namespace crender {
 class Camera {
  protected:
   int width_;
@@ -60,4 +60,4 @@ class PinholeCamera : public Camera {
   void ray_w(float x, float y, glm::vec3& dir);  // multiply R
 };
 
-}  // namespace unclearness
+}  // namespace crender

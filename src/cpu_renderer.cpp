@@ -89,7 +89,7 @@ class timerutil {
 };
 }  // namespace
 
-namespace unclearness {
+namespace crender {
 
 CpuRendererOption::CpuRendererOption() {}
 
@@ -310,4 +310,4 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
   return true;
 }
 
-}  // namespace unclearness
+}  // namespace crender

@@ -8,7 +8,7 @@
 #include "stb/stb_image_write.h"
 #include "include/common.h"
 
-namespace unclearness {
+namespace crender {
 
 template <typename T, int N>
 class Image {
@@ -83,4 +83,4 @@ using Image1b = Image<unsigned char, 1>;
 using Image3b = Image<unsigned char, 3>;
 using Image1w = Image<unsigned short, 1>;
 
-}  // namespace unclearness
+}  // namespace crender

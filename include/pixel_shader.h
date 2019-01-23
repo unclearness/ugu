@@ -6,15 +6,15 @@
 #include "include/common.h"
 #include "include/image.h"
 
-namespace unclearness {
+namespace crender {
 
-void default_shader(unclearness::Image3b& color, int x, int y,
+void default_shader(crender::Image3b& color, int x, int y,
                     const nanort::TriangleIntersection<>& isect,
                     const std::vector<glm::ivec3>& faces,
                     const std::vector<glm::ivec3>& uv_indices,
                     const std::vector<glm::vec2>& uv,
                     const std::vector<glm::vec3>& vertex_colors,
-                    const unclearness::Image3b& diffuse_texture) {
+                    const crender::Image3b& diffuse_texture) {
   (void)isect;
   (void)faces;
   (void)uv_indices;
@@ -28,13 +28,13 @@ void default_shader(unclearness::Image3b& color, int x, int y,
   color.at(x, y, 2) = 0;
 }
 
-void vertex_color_shader(unclearness::Image3b& color, int x, int y,
+void vertex_color_shader(crender::Image3b& color, int x, int y,
                          const nanort::TriangleIntersection<>& isect,
                          const std::vector<glm::ivec3>& faces,
                          const std::vector<glm::ivec3>& uv_indices,
                          const std::vector<glm::vec2>& uv,
                          const std::vector<glm::vec3>& vertex_colors,
-                         const unclearness::Image3b& diffuse_texture) {
+                         const crender::Image3b& diffuse_texture) {
   (void)uv_indices;
   (void)uv;
   (void)diffuse_texture;
@@ -53,13 +53,13 @@ void vertex_color_shader(unclearness::Image3b& color, int x, int y,
   }
 }
 
-void diffuse_nn_shader(unclearness::Image3b& color, int x, int y,
+void diffuse_nn_shader(crender::Image3b& color, int x, int y,
                        const nanort::TriangleIntersection<>& isect,
                        const std::vector<glm::ivec3>& faces,
                        const std::vector<glm::ivec3>& uv_indices,
                        const std::vector<glm::vec2>& uv,
                        const std::vector<glm::vec3>& vertex_colors,
-                       const unclearness::Image3b& diffuse_texture) {
+                       const crender::Image3b& diffuse_texture) {
   (void)faces;
   (void)vertex_colors;
 
@@ -87,13 +87,13 @@ void diffuse_nn_shader(unclearness::Image3b& color, int x, int y,
   }
 }
 
-void diffuse_bilinear_shader(unclearness::Image3b& color, int x, int y,
+void diffuse_bilinear_shader(crender::Image3b& color, int x, int y,
                              const nanort::TriangleIntersection<>& isect,
                              const std::vector<glm::ivec3>& faces,
                              const std::vector<glm::ivec3>& uv_indices,
                              const std::vector<glm::vec2>& uv,
                              const std::vector<glm::vec3>& vertex_colors,
-                             const unclearness::Image3b& diffuse_texture) {
+                             const crender::Image3b& diffuse_texture) {
   (void)faces;
   (void)vertex_colors;
 
@@ -139,4 +139,4 @@ void diffuse_bilinear_shader(unclearness::Image3b& color, int x, int y,
   }
 }
 
-}  // namespace unclearness
+}  // namespace crender

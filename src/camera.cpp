@@ -1,6 +1,6 @@
 #include "include/camera.h"
 
-namespace unclearness {
+namespace crender {
 Camera::Camera() {}
 
 Camera::~Camera() {}
@@ -102,4 +102,4 @@ void PinholeCamera::ray_w(float x, float y, glm::vec3& dir) {
   ray_c(x, y, dir);
   dir = c2w_.R() * dir;
 }
-};  // namespace unclearness
+};  // namespace crender

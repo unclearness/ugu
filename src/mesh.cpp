@@ -3,7 +3,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tinyobjloader/tiny_obj_loader.h"
 
-namespace unclearness {
+namespace crender {
 
 Mesh::Mesh() {}
 Mesh::~Mesh() {}
@@ -238,4 +238,4 @@ bool Mesh::load_ply(const std::string& ply_path) {
   return false;
 }
 
-};  // namespace unclearness
+};  // namespace crender

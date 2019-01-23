@@ -2,7 +2,7 @@
 
 #include "include/common.h"
 
-namespace unclearness {
+namespace crender {
 class Pose {
   glm::mat4 T_;
   glm::mat3 R_;
@@ -26,4 +26,4 @@ class Pose {
   void transform(glm::vec3& src_dst) const; //NOLINT
 };
 
-}  // namespace unclearness
+}  // namespace crender

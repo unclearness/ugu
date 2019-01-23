@@ -6,7 +6,7 @@
 #include "include/common.h"
 #include "include/image.h"
 
-namespace unclearness {
+namespace crender {
 
 class MeshStats {
  public:
@@ -51,4 +51,4 @@ class Mesh {
   bool load_ply(const std::string& ply_path);
 };
 
-}  // namespace unclearness
+}  // namespace crender

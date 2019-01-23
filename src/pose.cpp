@@ -1,6 +1,6 @@
 #include "include/pose.h"
 
-namespace unclearness {
+namespace crender {
 
 Pose::Pose() { set_I(); }
 Pose::~Pose() {}
@@ -64,4 +64,4 @@ Pose& Pose::operator=(const Pose& pose) {
 
 void Pose::transform(glm::vec3& src_dst) const { src_dst = R_ * src_dst + t_; }
 
-};  // namespace unclearness
+};  // namespace crender

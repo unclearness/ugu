@@ -12,6 +12,6 @@
 #include "stb/stb_image_write.h"
 #pragma warning(pop)
 
-namespace unclearness {
+namespace crender {
 
-};  // namespace unclearness
+};  // namespace crender
