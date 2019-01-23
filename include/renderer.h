@@ -9,7 +9,7 @@
 
 namespace crender {
 
-class CpuRendererOption {
+class RendererOption {
  public:
   bool use_vertex_color{false};
   float depth_scale{1.0f};
@@ -17,16 +17,16 @@ class CpuRendererOption {
   ColorInterpolation interp{BILINEAR};
   bool backface_culling{true};
 
-  CpuRendererOption();
-  ~CpuRendererOption();
-  void copy_to(CpuRendererOption& dst) const;
+  RendererOption();
+  ~RendererOption();
+  void copy_to(RendererOption& dst) const;
 };
 
-class CpuRenderer {
+class Renderer {
   bool mesh_initialized_{false};
   std::shared_ptr<Camera> camera_;
   std::shared_ptr<Mesh> mesh_;
-  CpuRendererOption option_;
+  RendererOption option_;
 
   std::vector<float> flatten_vertices;
   std::vector<unsigned int> flatten_faces;
@@ -39,10 +39,10 @@ class CpuRenderer {
   float bmin[3], bmax[3];
 
  public:
-  CpuRenderer();
-  ~CpuRenderer();
-  explicit CpuRenderer(const CpuRendererOption& option);
-  void set_option(const CpuRendererOption& option);
+  Renderer();
+  ~Renderer();
+  explicit Renderer(const RendererOption& option);
+  void set_option(const RendererOption& option);
   void set_mesh(std::shared_ptr<Mesh> mesh);
   bool prepare_mesh();
   void set_camera(std::shared_ptr<Camera> camera);

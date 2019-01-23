@@ -1,4 +1,4 @@
-#include "include/cpu_renderer.h"
+#include "include/renderer.h"
 
 #include <cassert>
 #include <array>
@@ -91,30 +91,30 @@ class timerutil {
 
 namespace crender {
 
-CpuRendererOption::CpuRendererOption() {}
+RendererOption::RendererOption() {}
 
-CpuRendererOption::~CpuRendererOption() {}
+RendererOption::~RendererOption() {}
 
-void CpuRendererOption::copy_to(CpuRendererOption& dst) const {
+void RendererOption::copy_to(RendererOption& dst) const {
   dst.use_vertex_color = use_vertex_color;
   dst.depth_scale = depth_scale;
   dst.interp = interp;
   dst.backface_culling = backface_culling;
 }
 
-CpuRenderer::CpuRenderer() {}
+Renderer::Renderer() {}
 
-CpuRenderer::~CpuRenderer() {}
+Renderer::~Renderer() {}
 
-CpuRenderer::CpuRenderer(const CpuRendererOption& option) {
+Renderer::Renderer(const RendererOption& option) {
   set_option(option);
 }
 
-void CpuRenderer::set_option(const CpuRendererOption& option) {
+void Renderer::set_option(const RendererOption& option) {
   option.copy_to(option_);
 }
 
-void CpuRenderer::set_mesh(std::shared_ptr<Mesh> mesh) {
+void Renderer::set_mesh(std::shared_ptr<Mesh> mesh) {
   mesh_initialized_ = false;
   mesh_ = mesh;
 
@@ -137,7 +137,7 @@ void CpuRenderer::set_mesh(std::shared_ptr<Mesh> mesh) {
     flatten_faces[i * 3 + 2] = vertex_indices[i][2];
   }
 }
-bool CpuRenderer::prepare_mesh() {
+bool Renderer::prepare_mesh() {
   if (mesh_ == nullptr) {
     LOGE("mesh has not been set\n");
     return false;
@@ -189,10 +189,10 @@ bool CpuRenderer::prepare_mesh() {
 
   return true;
 }
-void CpuRenderer::set_camera(std::shared_ptr<Camera> camera) {
+void Renderer::set_camera(std::shared_ptr<Camera> camera) {
   camera_ = camera;
 }
-bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
+bool Renderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
   if (camera_ == nullptr) {
     LOGE("camera has not been set\n");
     return false;
@@ -223,10 +223,10 @@ bool CpuRenderer::render(Image3b& color, Image1w& depth, Image1b& mask) {
   if (option_.use_vertex_color && !vertex_colors.empty()) {
     pixel_shader = vertex_color_shader;
   } else if (!uv.empty()) {
-    if (option_.interp == CpuRendererOption::ColorInterpolation::NN) {
+    if (option_.interp == RendererOption::ColorInterpolation::NN) {
       pixel_shader = diffuse_nn_shader;
     } else if (option_.interp ==
-               CpuRendererOption::ColorInterpolation::BILINEAR) {
+               RendererOption::ColorInterpolation::BILINEAR) {
       pixel_shader = diffuse_bilinear_shader;
     } else {
       LOGE("Specified color interpolation is not implemented\n");

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-set(PROJECT_NAME cpu_renderer)
+set(PROJECT_NAME crender)
 project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.0.1 DESCRIPTION "cpu renderer")
 
 set(CMAKE_VERBOSE_MAKEFILE TRUE)
@@ -28,10 +28,10 @@ if(OpenMP_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
 
-set(PUBLIC_LIB_NAME cpu_renderer)
+set(PUBLIC_LIB_NAME crender)
 add_library(${PUBLIC_LIB_NAME}
     STATIC
-    src/cpu_renderer.cpp
+    src/renderer.cpp
     src/camera.cpp
     src/pose.cpp
     src/mesh.cpp

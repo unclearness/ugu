@@ -1,7 +1,7 @@
 #include <fstream>
 
 #include "glm/ext/matrix_transform.hpp"
-#include "include/cpu_renderer.h"
+#include "include/renderer.h"
 
 using namespace crender;
 
@@ -45,7 +45,7 @@ void visualize_depth(const Image1w& depth, Image1b& vis_depth,
 }
 
 void test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
-          std::shared_ptr<Camera> camera, CpuRenderer& renderer) {
+          std::shared_ptr<Camera> camera, Renderer& renderer) {
   // images
   Image3b color;
   Image1w depth;
@@ -167,8 +167,8 @@ int main(int argc, char* argv[]) {
   align_mesh(mesh);
 
   // initialize renderer with default option
-  CpuRendererOption option;
-  CpuRenderer renderer(option);
+  RendererOption option;
+  Renderer renderer(option);
 
   // set mesh
   renderer.set_mesh(mesh);
