@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2019, unclearness
+ * All rights reserved.
+ */
+
 #include "include/mesh.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION

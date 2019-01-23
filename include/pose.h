@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2019, unclearness
+ * All rights reserved.
+ */
+
 #pragma once
 
 #include "include/common.h"

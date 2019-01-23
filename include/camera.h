@@ -1,6 +1,13 @@
-// right-handed coordinate system
-// z:forward, y:down, x:right
-// same to OpenCV
+/*
+ * Copyright (C) 2019, unclearness
+ * All rights reserved.
+ */
+
+/*
+ * right-handed coordinate system
+ * z:forward, y:down, x:right
+ * same to OpenCV
+ */
 
 #pragma once
 
