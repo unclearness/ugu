@@ -50,6 +50,7 @@ class Renderer {
   void set_mesh(std::shared_ptr<Mesh> mesh);
   bool PrepareMesh();
   void set_camera(std::shared_ptr<Camera> camera);
+  bool Render(Image3b* color, Image1f* depth, Image1b* mask) const;
   bool Render(Image3b* color, Image1w* depth, Image1b* mask) const;
 };
 

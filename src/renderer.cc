@@ -193,7 +193,7 @@ bool Renderer::PrepareMesh() {
   return true;
 }
 void Renderer::set_camera(std::shared_ptr<Camera> camera) { camera_ = camera; }
-bool Renderer::Render(Image3b* color, Image1w* depth, Image1b* mask) const {
+bool Renderer::Render(Image3b* color, Image1f* depth, Image1b* mask) const {
   if (camera_ == nullptr) {
     LOGE("camera has not been set\n");
     return false;
@@ -297,7 +297,7 @@ bool Renderer::Render(Image3b* color, Image1w* depth, Image1b* mask) const {
       w2c.Transform(&hit_pos_c);
       assert(0.0f <= hit_pos_c[2]);  // depth should be positive
       depth->at(x, y, 0) =
-          static_cast<uint16_t>(hit_pos_c[2] * option_.depth_scale);
+          static_cast<float>(hit_pos_c[2] * option_.depth_scale);
 
       // delegate color calculation to pixel_shader
       pixel_shader(color, x, y, isect, faces, uv_indices, uv, vertex_colors,
@@ -311,4 +311,14 @@ bool Renderer::Render(Image3b* color, Image1w* depth, Image1b* mask) const {
   return true;
 }
 
+bool Renderer::Render(Image3b* color, Image1w* depth, Image1b* mask) const {
+  Image1f f_depth;
+  bool org_ret = Render(color, &f_depth, mask);
+
+  if (org_ret) {
+    f_depth.ConvertTo(depth);
+  }
+
+  return org_ret;
+}
 }  // namespace crender

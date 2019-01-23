@@ -49,7 +49,7 @@ set_target_properties(${PUBLIC_LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
 set(EXE_NAME ${PUBLIC_LIB_NAME}_run)
 add_executable(${EXE_NAME}
-    pc/main.cpp)
+    pc/main.cc)
 
 target_include_directories(${EXE_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${EXE_NAME} PRIVATE third_party)

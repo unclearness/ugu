@@ -10,7 +10,7 @@
 
 using crender::Camera;
 using crender::Image1b;
-using crender::Image1w;
+using crender::Image1f;
 using crender::Image3b;
 using crender::Mesh;
 using crender::MeshStats;
@@ -34,7 +34,7 @@ glm::mat4 MakeC2w(const glm::vec3& eye, const glm::vec3& center,
   return c2w;
 }
 
-void VisualizeDepth(const Image1w& depth, Image1b* vis_depth,
+void VisualizeDepth(const Image1f& depth, Image1b* vis_depth,
                     float min_d = 200.0f, float max_d = 1500.0f) {
   vis_depth->Init(depth.width(), depth.height());
 
@@ -63,7 +63,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
           std::shared_ptr<Camera> camera, const Renderer& renderer) {
   // images
   Image3b color;
-  Image1w depth;
+  Image1f depth;
   Image1b mask;
   Image1b vis_depth;
 
