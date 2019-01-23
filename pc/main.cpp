@@ -8,19 +8,20 @@
 #include "glm/ext/matrix_transform.hpp"
 #include "include/renderer.h"
 
-using crender::Renderer;
-using crender::RendererOption;
-using crender::Image3b;
+using crender::Camera;
 using crender::Image1b;
 using crender::Image1w;
+using crender::Image3b;
 using crender::Mesh;
 using crender::MeshStats;
-using crender::Pose;
-using crender::Camera;
 using crender::PinholeCamera;
+using crender::Pose;
+using crender::Renderer;
+using crender::RendererOption;
 
-glm::mat4 make_c2w(const glm::vec3& eye, const glm::vec3& center,
-                   const glm::vec3& up) {
+namespace {
+glm::mat4 MakeC2w(const glm::vec3& eye, const glm::vec3& center,
+                  const glm::vec3& up) {
   // glm::lookAtRH returns view matrix (world -> camera) with z:backward, y:up,
   // x:right, like OpenGL
   glm::mat4 w2c_gl = glm::lookAtRH(eye, center, up);
@@ -33,9 +34,9 @@ glm::mat4 make_c2w(const glm::vec3& eye, const glm::vec3& center,
   return c2w;
 }
 
-void visualize_depth(const Image1w& depth, Image1b* vis_depth,
-                     float min_d = 200.0f, float max_d = 1500.0f) {
-  vis_depth->init(depth.width(), depth.height());
+void VisualizeDepth(const Image1w& depth, Image1b* vis_depth,
+                    float min_d = 200.0f, float max_d = 1500.0f) {
+  vis_depth->Init(depth.width(), depth.height());
 
   for (int y = 0; y < vis_depth->height(); y++) {
     for (int x = 0; x < vis_depth->width(); x++) {
@@ -58,7 +59,7 @@ void visualize_depth(const Image1w& depth, Image1b* vis_depth,
   }
 }
 
-void test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
+void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
           std::shared_ptr<Camera> camera, const Renderer& renderer) {
   // images
   Image3b color;
@@ -78,83 +79,84 @@ void test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   // from front
   eye = center;
   eye[2] -= offset;
-  c2w = make_c2w(eye, center, glm::vec3(0, -1, 0));
+  c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.render(&color, &depth, &mask);
-  color.write_png(out_dir + "front_color.png");
-  mask.write_png(out_dir + "front_mask.png");
-  visualize_depth(depth, &vis_depth);
-  vis_depth.write_png(out_dir + "front_vis_depth.png");
+  renderer.Render(&color, &depth, &mask);
+  color.WritePng(out_dir + "front_color.png");
+  mask.WritePng(out_dir + "front_mask.png");
+  VisualizeDepth(depth, &vis_depth);
+  vis_depth.WritePng(out_dir + "front_vis_depth.png");
 
   // from back
   eye = center;
   eye[2] += offset;
-  c2w = make_c2w(eye, center, glm::vec3(0, -1, 0));
+  c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.render(&color, &depth, &mask);
-  color.write_png(out_dir + "back_color.png");
-  mask.write_png(out_dir + "back_mask.png");
-  visualize_depth(depth, &vis_depth);
-  vis_depth.write_png(out_dir + "back_vis_depth.png");
+  renderer.Render(&color, &depth, &mask);
+  color.WritePng(out_dir + "back_color.png");
+  mask.WritePng(out_dir + "back_mask.png");
+  VisualizeDepth(depth, &vis_depth);
+  vis_depth.WritePng(out_dir + "back_vis_depth.png");
 
   // from right
   eye = center;
   eye[0] += offset;
-  c2w = make_c2w(eye, center, glm::vec3(0, -1, 0));
+  c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.render(&color, &depth, &mask);
-  color.write_png(out_dir + "right_color.png");
-  mask.write_png(out_dir + "right_mask.png");
-  visualize_depth(depth, &vis_depth);
-  vis_depth.write_png(out_dir + "right_vis_depth.png");
+  renderer.Render(&color, &depth, &mask);
+  color.WritePng(out_dir + "right_color.png");
+  mask.WritePng(out_dir + "right_mask.png");
+  VisualizeDepth(depth, &vis_depth);
+  vis_depth.WritePng(out_dir + "right_vis_depth.png");
 
   // from left
   eye = center;
   eye[0] -= offset;
-  c2w = make_c2w(eye, center, glm::vec3(0, -1, 0));
+  c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.render(&color, &depth, &mask);
-  color.write_png(out_dir + "left_color.png");
-  mask.write_png(out_dir + "left_mask.png");
-  visualize_depth(depth, &vis_depth);
-  vis_depth.write_png(out_dir + "left_vis_depth.png");
+  renderer.Render(&color, &depth, &mask);
+  color.WritePng(out_dir + "left_color.png");
+  mask.WritePng(out_dir + "left_mask.png");
+  VisualizeDepth(depth, &vis_depth);
+  vis_depth.WritePng(out_dir + "left_vis_depth.png");
 
   // from top
   eye = center;
   eye[1] -= offset;
-  c2w = make_c2w(eye, center, glm::vec3(0, 0, 1));
+  c2w = MakeC2w(eye, center, glm::vec3(0, 0, 1));
   camera->set_c2w(Pose(c2w));
-  renderer.render(&color, &depth, &mask);
-  color.write_png(out_dir + "top_color.png");
-  mask.write_png(out_dir + "top_mask.png");
-  visualize_depth(depth, &vis_depth);
-  vis_depth.write_png(out_dir + "top_vis_depth.png");
+  renderer.Render(&color, &depth, &mask);
+  color.WritePng(out_dir + "top_color.png");
+  mask.WritePng(out_dir + "top_mask.png");
+  VisualizeDepth(depth, &vis_depth);
+  vis_depth.WritePng(out_dir + "top_vis_depth.png");
 
   // from bottom
   eye = center;
   eye[1] += offset;
-  c2w = make_c2w(eye, center, glm::vec3(0, 0, -1));
+  c2w = MakeC2w(eye, center, glm::vec3(0, 0, -1));
   camera->set_c2w(Pose(c2w));
-  renderer.render(&color, &depth, &mask);
-  color.write_png(out_dir + "bottom_color.png");
-  mask.write_png(out_dir + "bottom_mask.png");
-  visualize_depth(depth, &vis_depth);
-  vis_depth.write_png(out_dir + "bottom_vis_depth.png");
+  renderer.Render(&color, &depth, &mask);
+  color.WritePng(out_dir + "bottom_color.png");
+  mask.WritePng(out_dir + "bottom_mask.png");
+  VisualizeDepth(depth, &vis_depth);
+  vis_depth.WritePng(out_dir + "bottom_vis_depth.png");
 }
 
-void align_mesh(std::shared_ptr<Mesh> mesh) {
+void AlignMesh(std::shared_ptr<Mesh> mesh) {
   // move center as origin
   MeshStats stats = mesh->stats();
-  mesh->translate(-stats.center);
+  mesh->Translate(-stats.center);
 
   // rotate 180 deg. around x_axis to align z:forward, y:down, x:right,
   glm::vec3 x_axis(1, 0, 0);
   glm::mat4 R = glm::rotate(glm::mat4(1), glm::radians<float>(180), x_axis);
-  mesh->rotate(R);
+  mesh->Rotate(R);
 
   // recover original translation
-  mesh->translate(stats.center);
+  mesh->Translate(stats.center);
 }
+}  // namespace
 
 int main(int argc, char* argv[]) {
   (void)argc;
@@ -174,11 +176,11 @@ int main(int argc, char* argv[]) {
 
   // load mesh
   std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
-  mesh->load_obj(obj_path, data_dir);
+  mesh->LoadObj(obj_path, data_dir);
 
   // original mesh with z:backward, y:up, x:right, like OpenGL
   // align z:forward, y:down, x:right
-  align_mesh(mesh);
+  AlignMesh(mesh);
 
   // initialize renderer with default option
   RendererOption option;
@@ -188,7 +190,7 @@ int main(int argc, char* argv[]) {
   renderer.set_mesh(mesh);
 
   // prepare mesh for rendering (e.g. make BVH)
-  renderer.prepare_mesh();
+  renderer.PrepareMesh();
 
   Pose pose;
   // Make PinholeCamera
@@ -205,7 +207,7 @@ int main(int argc, char* argv[]) {
   renderer.set_camera(camera);
 
   // test
-  test(data_dir, mesh, camera, renderer);
+  Test(data_dir, mesh, camera, renderer);
 
   return 0;
 }

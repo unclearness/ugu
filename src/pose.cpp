@@ -67,6 +67,8 @@ Pose& Pose::operator=(const Pose& pose) {
   return *this;
 }
 
-void Pose::transform(glm::vec3& src_dst) const { src_dst = R_ * src_dst + t_; }
+void Pose::Transform(glm::vec3* src_dst) const {
+  *src_dst = R_ * (*src_dst) + t_;
+}
 
-};  // namespace crender
+}  // namespace crender

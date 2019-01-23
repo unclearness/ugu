@@ -7,19 +7,19 @@
 
 #include <vector>
 
-#include "nanort/nanort.h"
 #include "include/common.h"
 #include "include/image.h"
+#include "nanort/nanort.h"
 
 namespace crender {
 
-void default_shader(crender::Image3b* color, int x, int y,
-                    const nanort::TriangleIntersection<>& isect,
-                    const std::vector<glm::ivec3>& faces,
-                    const std::vector<glm::ivec3>& uv_indices,
-                    const std::vector<glm::vec2>& uv,
-                    const std::vector<glm::vec3>& vertex_colors,
-                    const crender::Image3b& diffuse_texture) {
+void DefaultShader(crender::Image3b* color, int x, int y,
+                   const nanort::TriangleIntersection<>& isect,
+                   const std::vector<glm::ivec3>& faces,
+                   const std::vector<glm::ivec3>& uv_indices,
+                   const std::vector<glm::vec2>& uv,
+                   const std::vector<glm::vec3>& vertex_colors,
+                   const crender::Image3b& diffuse_texture) {
   (void)isect;
   (void)faces;
   (void)uv_indices;
@@ -33,13 +33,13 @@ void default_shader(crender::Image3b* color, int x, int y,
   color->at(x, y, 2) = 0;
 }
 
-void vertex_color_shader(crender::Image3b* color, int x, int y,
-                         const nanort::TriangleIntersection<>& isect,
-                         const std::vector<glm::ivec3>& faces,
-                         const std::vector<glm::ivec3>& uv_indices,
-                         const std::vector<glm::vec2>& uv,
-                         const std::vector<glm::vec3>& vertex_colors,
-                         const crender::Image3b& diffuse_texture) {
+void VertexColorShader(crender::Image3b* color, int x, int y,
+                       const nanort::TriangleIntersection<>& isect,
+                       const std::vector<glm::ivec3>& faces,
+                       const std::vector<glm::ivec3>& uv_indices,
+                       const std::vector<glm::vec2>& uv,
+                       const std::vector<glm::vec3>& vertex_colors,
+                       const crender::Image3b& diffuse_texture) {
   (void)uv_indices;
   (void)uv;
   (void)diffuse_texture;
@@ -58,13 +58,13 @@ void vertex_color_shader(crender::Image3b* color, int x, int y,
   }
 }
 
-void diffuse_nn_shader(crender::Image3b* color, int x, int y,
-                       const nanort::TriangleIntersection<>& isect,
-                       const std::vector<glm::ivec3>& faces,
-                       const std::vector<glm::ivec3>& uv_indices,
-                       const std::vector<glm::vec2>& uv,
-                       const std::vector<glm::vec3>& vertex_colors,
-                       const crender::Image3b& diffuse_texture) {
+void DiffuseNnShader(crender::Image3b* color, int x, int y,
+                     const nanort::TriangleIntersection<>& isect,
+                     const std::vector<glm::ivec3>& faces,
+                     const std::vector<glm::ivec3>& uv_indices,
+                     const std::vector<glm::vec2>& uv,
+                     const std::vector<glm::vec3>& vertex_colors,
+                     const crender::Image3b& diffuse_texture) {
   (void)faces;
   (void)vertex_colors;
 
@@ -92,13 +92,13 @@ void diffuse_nn_shader(crender::Image3b* color, int x, int y,
   }
 }
 
-void diffuse_bilinear_shader(crender::Image3b* color, int x, int y,
-                             const nanort::TriangleIntersection<>& isect,
-                             const std::vector<glm::ivec3>& faces,
-                             const std::vector<glm::ivec3>& uv_indices,
-                             const std::vector<glm::vec2>& uv,
-                             const std::vector<glm::vec3>& vertex_colors,
-                             const crender::Image3b& diffuse_texture) {
+void DiffuseBilinearShader(crender::Image3b* color, int x, int y,
+                           const nanort::TriangleIntersection<>& isect,
+                           const std::vector<glm::ivec3>& faces,
+                           const std::vector<glm::ivec3>& uv_indices,
+                           const std::vector<glm::vec2>& uv,
+                           const std::vector<glm::vec3>& vertex_colors,
+                           const crender::Image3b& diffuse_texture) {
   (void)faces;
   (void)vertex_colors;
 

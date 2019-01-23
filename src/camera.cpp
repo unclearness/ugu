@@ -57,7 +57,7 @@ void PinholeCamera::set_focal_length(const glm::vec2& focal_length) {
   focal_length_ = focal_length;
 }
 
-void PinholeCamera::project(const glm::vec3& camera_p,
+void PinholeCamera::Project(const glm::vec3& camera_p,
                             glm::vec3* image_p) const {
   (*image_p)[0] =
       focal_length_[0] / camera_p[2] * camera_p[0] + principal_point_[0];
@@ -66,7 +66,7 @@ void PinholeCamera::project(const glm::vec3& camera_p,
   (*image_p)[2] = camera_p[2];
 }
 
-void PinholeCamera::project(const glm::vec3& camera_p,
+void PinholeCamera::Project(const glm::vec3& camera_p,
                             glm::vec2* image_p) const {
   (*image_p)[0] =
       focal_length_[0] / camera_p[2] * camera_p[0] + principal_point_[0];
@@ -74,7 +74,7 @@ void PinholeCamera::project(const glm::vec3& camera_p,
       focal_length_[1] / camera_p[2] * camera_p[1] + principal_point_[1];
 }
 
-void PinholeCamera::project(const glm::vec3& camera_p, glm::vec2* image_p,
+void PinholeCamera::Project(const glm::vec3& camera_p, glm::vec2* image_p,
                             float* d) const {
   (*image_p)[0] =
       focal_length_[0] / camera_p[2] * camera_p[0] + principal_point_[0];
@@ -83,7 +83,7 @@ void PinholeCamera::project(const glm::vec3& camera_p, glm::vec2* image_p,
   *d = camera_p[2];
 }
 
-void PinholeCamera::unproject(const glm::vec3& image_p,
+void PinholeCamera::Unproject(const glm::vec3& image_p,
                               glm::vec3* camera_p) const {
   (*camera_p)[0] =
       (image_p[0] - principal_point_[0]) * image_p[2] / focal_length_[0];
@@ -92,7 +92,7 @@ void PinholeCamera::unproject(const glm::vec3& image_p,
   (*camera_p)[2] = image_p[2];
 }
 
-void PinholeCamera::unproject(const glm::vec2& image_p, float d,
+void PinholeCamera::Unproject(const glm::vec2& image_p, float d,
                               glm::vec3* camera_p) const {
   (*camera_p)[0] = (image_p[0] - principal_point_[0]) * d / focal_length_[0];
   (*camera_p)[1] = (image_p[1] - principal_point_[1]) * d / focal_length_[1];
@@ -110,4 +110,4 @@ void PinholeCamera::ray_w(float x, float y, glm::vec3* dir) const {
   ray_c(x, y, dir);
   *dir = c2w_.R() * *dir;
 }
-};  // namespace crender
+}  // namespace crender

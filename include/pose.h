@@ -28,7 +28,7 @@ class Pose {
   void set_R(const glm::mat3& R);
   void set_t(const glm::vec3& t);
   Pose& operator=(const Pose& pose);
-  void transform(glm::vec3& src_dst) const; //NOLINT
+  void Transform(glm::vec3* src_dst) const;
 };
 
 }  // namespace crender

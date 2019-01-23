@@ -27,7 +27,7 @@ const MeshStats& Mesh::stats() const { return stats_; }
 
 const Image3b& Mesh::diffuse_tex() const { return diffuse_tex_; }
 
-void Mesh::calc_stats() {
+void Mesh::CalcStats() {
   stats_.bb_min = glm::vec3(std::numeric_limits<float>::max());
   stats_.bb_max = glm::vec3(std::numeric_limits<float>::lowest());
 
@@ -55,28 +55,28 @@ void Mesh::calc_stats() {
   }
 }
 
-void Mesh::rotate(const glm::mat3& R) {
+void Mesh::Rotate(const glm::mat3& R) {
   for (auto& v : vertices_) {
     v = R * v;
   }
   for (auto& n : normals_) {
     n = R * n;
   }
-  calc_stats();
+  CalcStats();
 }
-void Mesh::translate(const glm::vec3& t) {
+void Mesh::Translate(const glm::vec3& t) {
   for (auto& v : vertices_) {
     v = v + t;
   }
-  calc_stats();
+  CalcStats();
 }
 
-void Mesh::transform(const glm::mat3& R, const glm::vec3& t) {
-  rotate(R);
-  translate(t);
+void Mesh::Transform(const glm::mat3& R, const glm::vec3& t) {
+  Rotate(R);
+  Translate(t);
 }
 
-void Mesh::clear() {
+void Mesh::Clear() {
   vertices_.clear();
   vertex_colors_.clear();
   vertex_indices_.clear();  // face
@@ -87,10 +87,10 @@ void Mesh::clear() {
   uv_.clear();
   uv_indices_.clear();
 
-  diffuse_tex_.clear();
+  diffuse_tex_.Clear();
 }
 
-void Mesh::calc_normal() {
+void Mesh::CalcNormal() {
   normals_.clear();
   normal_indices_.clear();
 
@@ -121,8 +121,8 @@ void Mesh::calc_normal() {
   }
 }
 
-bool Mesh::load_obj(const std::string& obj_path, const std::string& mtl_dir) {
-  clear();
+bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
+  Clear();
 
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -225,22 +225,22 @@ bool Mesh::load_obj(const std::string& obj_path, const std::string& mtl_dir) {
   }
 
   if (normals_.empty()) {
-    calc_normal();
+    CalcNormal();
   }
 
-  calc_stats();
+  CalcStats();
 
   diffuse_texname_ = materials[0].diffuse_texname;
   diffuse_texpath_ = mtl_dir + diffuse_texname_;
 
-  diffuse_tex_.load(diffuse_texpath_);
+  diffuse_tex_.Load(diffuse_texpath_);
 
   return true;
 }
-bool Mesh::load_ply(const std::string& ply_path) {
+bool Mesh::LoadPly(const std::string& ply_path) {
   (void)ply_path;
   LOGE("Haven't been implemented\n");
   return false;
 }
 
-};  // namespace crender
+}  // namespace crender

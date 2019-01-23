@@ -23,7 +23,7 @@ struct RendererOption {
 
   RendererOption();
   ~RendererOption();
-  void copy_to(RendererOption* dst) const;
+  void CopyTo(RendererOption* dst) const;
 };
 
 class Renderer {
@@ -32,15 +32,15 @@ class Renderer {
   std::shared_ptr<Mesh> mesh_;
   RendererOption option_;
 
-  std::vector<float> flatten_vertices;
-  std::vector<unsigned int> flatten_faces;
+  std::vector<float> flatten_vertices_;
+  std::vector<unsigned int> flatten_faces_;
 
-  nanort::BVHBuildOptions<float> build_options;
-  std::unique_ptr<nanort::TriangleMesh<float>> triangle_mesh;
-  std::unique_ptr<nanort::TriangleSAHPred<float>> triangle_pred;
-  nanort::BVHAccel<float> accel;
-  nanort::BVHBuildStatistics stats;
-  float bmin[3], bmax[3];
+  nanort::BVHBuildOptions<float> build_options_;
+  std::unique_ptr<nanort::TriangleMesh<float>> triangle_mesh_;
+  std::unique_ptr<nanort::TriangleSAHPred<float>> triangle_pred_;
+  nanort::BVHAccel<float> accel_;
+  nanort::BVHBuildStatistics stats_;
+  float bmin_[3], bmax_[3];
 
  public:
   Renderer();
@@ -48,9 +48,9 @@ class Renderer {
   explicit Renderer(const RendererOption& option);
   void set_option(const RendererOption& option);
   void set_mesh(std::shared_ptr<Mesh> mesh);
-  bool prepare_mesh();
+  bool PrepareMesh();
   void set_camera(std::shared_ptr<Camera> camera);
-  bool render(Image3b* color, Image1w* depth, Image1b* mask) const;
+  bool Render(Image3b* color, Image1w* depth, Image1b* mask) const;
 };
 
 }  // namespace crender
