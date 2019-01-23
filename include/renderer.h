@@ -14,12 +14,11 @@
 
 namespace crender {
 
-class RendererOption {
- public:
+struct RendererOption {
   bool use_vertex_color{false};
   float depth_scale{1.0f};
-  enum ColorInterpolation { NN = 0, BILINEAR = 1 };
-  ColorInterpolation interp{BILINEAR};
+  enum ColorInterpolation { kNn = 0, kBilinear = 1 };
+  ColorInterpolation interp{kBilinear};
   bool backface_culling{true};
 
   RendererOption();

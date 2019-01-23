@@ -224,9 +224,10 @@ bool Renderer::render(Image3b* color, Image1w* depth, Image1b* mask) const {
   if (option_.use_vertex_color && !vertex_colors.empty()) {
     pixel_shader = vertex_color_shader;
   } else if (!uv.empty()) {
-    if (option_.interp == RendererOption::ColorInterpolation::NN) {
+    if (option_.interp == RendererOption::ColorInterpolation::kNn) {
       pixel_shader = diffuse_nn_shader;
-    } else if (option_.interp == RendererOption::ColorInterpolation::BILINEAR) {
+    } else if (option_.interp ==
+               RendererOption::ColorInterpolation::kBilinear) {
       pixel_shader = diffuse_bilinear_shader;
     } else {
       LOGE("Specified color interpolation is not implemented\n");
