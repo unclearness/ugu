@@ -8,7 +8,16 @@
 #include "glm/ext/matrix_transform.hpp"
 #include "include/renderer.h"
 
-using namespace crender;
+using crender::Renderer;
+using crender::RendererOption;
+using crender::Image3b;
+using crender::Image1b;
+using crender::Image1w;
+using crender::Mesh;
+using crender::MeshStats;
+using crender::Pose;
+using crender::Camera;
+using crender::PinholeCamera;
 
 glm::mat4 make_c2w(const glm::vec3& eye, const glm::vec3& center,
                    const glm::vec3& up) {
