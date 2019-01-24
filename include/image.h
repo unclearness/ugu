@@ -14,7 +14,7 @@
 #include "stb/stb_image_write.h"
 #include "include/common.h"
 
-namespace crender {
+namespace currender {
 
 template <typename T, int N>
 class Image {
@@ -111,4 +111,4 @@ using Image3b = Image<uint8_t, 3>;
 using Image1w = Image<uint16_t, 1>;
 using Image1f = Image<float, 1>;
 
-}  // namespace crender
+}  // namespace currender

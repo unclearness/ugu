@@ -8,16 +8,16 @@
 #include "glm/ext/matrix_transform.hpp"
 #include "include/renderer.h"
 
-using crender::Camera;
-using crender::Image1b;
-using crender::Image1f;
-using crender::Image3b;
-using crender::Mesh;
-using crender::MeshStats;
-using crender::PinholeCamera;
-using crender::Pose;
-using crender::Renderer;
-using crender::RendererOption;
+using currender::Camera;
+using currender::Image1b;
+using currender::Image1f;
+using currender::Image3b;
+using currender::Mesh;
+using currender::MeshStats;
+using currender::PinholeCamera;
+using currender::Pose;
+using currender::Renderer;
+using currender::RendererOption;
 
 namespace {
 glm::mat4 MakeC2w(const glm::vec3& eye, const glm::vec3& center,

@@ -8,7 +8,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tinyobjloader/tiny_obj_loader.h"
 
-namespace crender {
+namespace currender {
 
 Mesh::Mesh() {}
 Mesh::~Mesh() {}
@@ -243,4 +243,4 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   return false;
 }
 
-}  // namespace crender
+}  // namespace currender

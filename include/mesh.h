@@ -11,7 +11,7 @@
 #include "include/common.h"
 #include "include/image.h"
 
-namespace crender {
+namespace currender {
 
 struct MeshStats {
   glm::vec3 center;
@@ -55,4 +55,4 @@ class Mesh {
   bool LoadPly(const std::string& ply_path);
 };
 
-}  // namespace crender
+}  // namespace currender

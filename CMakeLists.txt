@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-set(PROJECT_NAME crender)
+set(PROJECT_NAME currender)
 project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.0.1 DESCRIPTION "cpu renderer")
 
 set(CMAKE_VERBOSE_MAKEFILE TRUE)
@@ -28,9 +28,40 @@ if(OpenMP_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
 
-set(PUBLIC_LIB_NAME crender)
+set(PUBLIC_LIB_NAME ${PROJECT_NAME})
 add_library(${PUBLIC_LIB_NAME}
     STATIC
+    include/renderer.h
+    include/camera.h
+    include/pose.h
+    include/mesh.h
+    include/image.h
+
+    src/renderer.cc
+    src/camera.cc
+    src/pose.cc
+    src/mesh.cc
+    src/image.cc
+    src/pixel_shader.h
+    src/pixel_shader.cc
+)
+
+# set folders
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+SOURCE_GROUP("Public header files" FILES
+    include/renderer.h
+    include/camera.h
+    include/pose.h
+    include/mesh.h
+    include/image.h
+)
+
+SOURCE_GROUP("Private header files" FILES
+    src/pixel_shader.h
+)
+
+SOURCE_GROUP("Source files" FILES
     src/renderer.cc
     src/camera.cc
     src/pose.cc
@@ -38,12 +69,13 @@ add_library(${PUBLIC_LIB_NAME}
     src/image.cc
     src/pixel_shader.cc
 )
-target_include_directories(${PUBLIC_LIB_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party)
-target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/nanort)
-target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/glm)
-target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/tinyobjloader)
-target_include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/stb)
+
+include_directories(${PUBLIC_LIB_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party)
+include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/nanort)
+include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/glm)
+include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/tinyobjloader)
+include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/stb)
 
 set_target_properties(${PUBLIC_LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
@@ -51,12 +83,6 @@ set(EXE_NAME ${PUBLIC_LIB_NAME}_run)
 add_executable(${EXE_NAME}
     pc/main.cc)
 
-target_include_directories(${EXE_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(${EXE_NAME} PRIVATE third_party)
-target_include_directories(${EXE_NAME} PRIVATE third_party/nanort)
-target_include_directories(${EXE_NAME} PRIVATE third_party/glm)
-target_include_directories(${EXE_NAME} PRIVATE third_party/tinyobjloader)
-target_include_directories(${EXE_NAME} PRIVATE third_party/stb)
 
 target_link_libraries(${EXE_NAME}
     ${PUBLIC_LIB_NAME}

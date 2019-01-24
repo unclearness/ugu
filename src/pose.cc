@@ -5,7 +5,7 @@
 
 #include "include/pose.h"
 
-namespace crender {
+namespace currender {
 
 Pose::Pose() { set_I(); }
 Pose::~Pose() {}
@@ -71,4 +71,4 @@ void Pose::Transform(glm::vec3* src_dst) const {
   *src_dst = R_ * (*src_dst) + t_;
 }
 
-}  // namespace crender
+}  // namespace currender

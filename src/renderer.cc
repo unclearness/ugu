@@ -94,7 +94,7 @@ class timerutil {
 };
 }  // namespace
 
-namespace crender {
+namespace currender {
 
 RendererOption::RendererOption() {}
 
@@ -320,4 +320,4 @@ bool Renderer::Render(Image3b* color, Image1w* depth, Image1b* mask) const {
 
   return org_ret;
 }
-}  // namespace crender
+}  // namespace currender

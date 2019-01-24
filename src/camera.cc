@@ -5,7 +5,7 @@
 
 #include "include/camera.h"
 
-namespace crender {
+namespace currender {
 Camera::Camera() {}
 
 Camera::~Camera() {}
@@ -110,4 +110,4 @@ void PinholeCamera::ray_w(float x, float y, glm::vec3* dir) const {
   ray_c(x, y, dir);
   *dir = c2w_.R() * *dir;
 }
-}  // namespace crender
+}  // namespace currender

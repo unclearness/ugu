@@ -12,7 +12,7 @@
 #include "include/camera.h"
 #include "include/mesh.h"
 
-namespace crender {
+namespace currender {
 
 struct RendererOption {
   bool use_vertex_color{false};
@@ -54,4 +54,4 @@ class Renderer {
   bool Render(Image3b* color, Image1w* depth, Image1b* mask) const;
 };
 
-}  // namespace crender
+}  // namespace currender

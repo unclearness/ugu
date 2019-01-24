@@ -14,7 +14,7 @@
 #include "include/pose.h"
 #include "include/common.h"
 
-namespace crender {
+namespace currender {
 class Camera {
  protected:
   int width_;
@@ -69,4 +69,4 @@ class PinholeCamera : public Camera {
   void ray_w(float x, float y, glm::vec3* dir) const;
 };
 
-}  // namespace crender
+}  // namespace currender

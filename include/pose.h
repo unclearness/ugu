@@ -7,7 +7,7 @@
 
 #include "include/common.h"
 
-namespace crender {
+namespace currender {
 class Pose {
   glm::mat4 T_;
   glm::mat3 R_;
@@ -31,4 +31,4 @@ class Pose {
   void Transform(glm::vec3* src_dst) const;
 };
 
-}  // namespace crender
+}  // namespace currender
