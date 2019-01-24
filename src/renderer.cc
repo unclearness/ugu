@@ -244,7 +244,7 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image1b* mask) const {
 
   timerutil time;
   time.start();
-#ifdef _OPENMP
+#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int y = 0; y < height; y++) {
