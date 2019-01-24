@@ -24,7 +24,7 @@ class Image {
   std::vector<T> data_;
   int width_{-1};
   int height_{-1};
-  const int bit_depth_ { sizeof(T) };
+  const int bit_depth_{sizeof(T)};
   const int channel_{N};
 
  public:
@@ -46,15 +46,21 @@ class Image {
     data_.resize(height_ * width_ * channel_, 0);
   }
   T* at(int x, int y) {
+    assert(0 <= x && x < width_ && 0 <= y && y < height_);
     return &data_[0] + (width_ * channel_ * y + x * channel_);
   }
   const T* at(int x, int y) const {
+    assert(0 <= x && x < width_ && 0 <= y && y < height_);
     return &data_[0] + (width_ * channel_ * y + x * channel_);
   }
   T& at(int x, int y, int c) {
+    assert(0 <= x && x < width_ && 0 <= y && y < height_ && 0 <= c &&
+           c < channel_);
     return data_[width_ * channel_ * y + x * channel_ + c];
   }
   const T& at(int x, int y, int c) const {
+    assert(0 <= x && x < width_ && 0 <= y && y < height_ && 0 <= c &&
+           c < channel_);
     return data_[width_ * channel_ * y + x * channel_ + c];
   }
 
@@ -129,6 +135,6 @@ using Image1w = Image<uint16_t, 1>;
 using Image1f = Image<float, 1>;
 
 void GrayFromDepth(const Image1f& depth, Image1b* vis_depth,
-                    float min_d = 200.0f, float max_d = 1500.0f);
+                   float min_d = 200.0f, float max_d = 1500.0f);
 
 }  // namespace currender
