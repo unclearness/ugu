@@ -9,13 +9,13 @@
 
 namespace currender {
 
-void DefaultShader(currender::Image3b* color, int x, int y,
+void DefaultShader(Image3b* color, int x, int y,
                    const nanort::TriangleIntersection<>& isect,
                    const std::vector<glm::ivec3>& faces,
                    const std::vector<glm::ivec3>& uv_indices,
                    const std::vector<glm::vec2>& uv,
                    const std::vector<glm::vec3>& vertex_colors,
-                   const currender::Image3b& diffuse_texture) {
+                   const Image3b& diffuse_texture) {
   (void)isect;
   (void)faces;
   (void)uv_indices;
@@ -29,13 +29,13 @@ void DefaultShader(currender::Image3b* color, int x, int y,
   color->at(x, y, 2) = 0;
 }
 
-void VertexColorShader(currender::Image3b* color, int x, int y,
+void VertexColorShader(Image3b* color, int x, int y,
                        const nanort::TriangleIntersection<>& isect,
                        const std::vector<glm::ivec3>& faces,
                        const std::vector<glm::ivec3>& uv_indices,
                        const std::vector<glm::vec2>& uv,
                        const std::vector<glm::vec3>& vertex_colors,
-                       const currender::Image3b& diffuse_texture) {
+                       const Image3b& diffuse_texture) {
   (void)uv_indices;
   (void)uv;
   (void)diffuse_texture;
@@ -54,13 +54,13 @@ void VertexColorShader(currender::Image3b* color, int x, int y,
   }
 }
 
-void DiffuseNnShader(currender::Image3b* color, int x, int y,
+void DiffuseNnShader(Image3b* color, int x, int y,
                      const nanort::TriangleIntersection<>& isect,
                      const std::vector<glm::ivec3>& faces,
                      const std::vector<glm::ivec3>& uv_indices,
                      const std::vector<glm::vec2>& uv,
                      const std::vector<glm::vec3>& vertex_colors,
-                     const currender::Image3b& diffuse_texture) {
+                     const Image3b& diffuse_texture) {
   (void)faces;
   (void)vertex_colors;
 
@@ -88,13 +88,13 @@ void DiffuseNnShader(currender::Image3b* color, int x, int y,
   }
 }
 
-void DiffuseBilinearShader(currender::Image3b* color, int x, int y,
+void DiffuseBilinearShader(Image3b* color, int x, int y,
                            const nanort::TriangleIntersection<>& isect,
                            const std::vector<glm::ivec3>& faces,
                            const std::vector<glm::ivec3>& uv_indices,
                            const std::vector<glm::vec2>& uv,
                            const std::vector<glm::vec3>& vertex_colors,
-                           const currender::Image3b& diffuse_texture) {
+                           const Image3b& diffuse_texture) {
   (void)faces;
   (void)vertex_colors;
 
