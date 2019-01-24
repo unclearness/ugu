@@ -296,8 +296,7 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image1b* mask) const {
       glm::vec3 hit_pos_c = hit_pos_w;
       w2c.Transform(&hit_pos_c);
       assert(0.0f <= hit_pos_c[2]);  // depth should be positive
-      depth->at(x, y, 0) =
-          static_cast<float>(hit_pos_c[2] * option_.depth_scale);
+      depth->at(x, y, 0) = hit_pos_c[2] * option_.depth_scale;
 
       // delegate color calculation to pixel_shader
       pixel_shader(color, x, y, isect, faces, uv_indices, uv, vertex_colors,
