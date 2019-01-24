@@ -5,8 +5,10 @@
 
 #include "include/mesh.h"
 
+#ifdef CURRENDER_USE_TINYOBJLOADER
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tinyobjloader/tiny_obj_loader.h"
+#endif
 
 namespace {
 template <typename T>
@@ -147,6 +149,7 @@ void Mesh::uv_indices(const std::vector<glm::ivec3>& uv_indices) {
   CopyVec(uv_indices, &uv_indices_);
 }
 
+#ifdef CURRENDER_USE_TINYOBJLOADER
 bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   Clear();
 
@@ -259,10 +262,15 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   diffuse_texname_ = materials[0].diffuse_texname;
   diffuse_texpath_ = mtl_dir + diffuse_texname_;
 
+#ifdef CURRENDER_USE_STB
   diffuse_tex_.Load(diffuse_texpath_);
+#else
+  LOGW("define CURRENDER_USE_STB to load diffuse texture.\n");
+#endif
 
   return true;
 }
+#endif
 
 bool Mesh::LoadPly(const std::string& ply_path) {
   (void)ply_path;

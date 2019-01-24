@@ -58,7 +58,9 @@ class Mesh {
   void set_uv(const std::vector<glm::vec2>& uv);
   void uv_indices(const std::vector<glm::ivec3>& uv_indices);
 
+#ifdef CURRENDER_USE_TINYOBJLOADER
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);
+#endif
   bool LoadPly(const std::string& ply_path);
 };
 

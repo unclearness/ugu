@@ -8,6 +8,10 @@
 
 #include "glm/glm.hpp"
 
+// define to use stb or tinyobjloader
+#define CURRENDER_USE_STB
+#define CURRENDER_USE_TINYOBJLOADER
+
 // todo
 #define LOGI printf
 #define LOGV printf

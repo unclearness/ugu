@@ -5,6 +5,7 @@
 
 #include "include/image.h"
 
+#ifdef CURRENDER_USE_STB
 #pragma warning(push)
 #pragma warning(disable : 4100)
 #define STB_IMAGE_IMPLEMENTATION
@@ -16,6 +17,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
 #pragma warning(pop)
+#endif
 
 namespace currender {
 

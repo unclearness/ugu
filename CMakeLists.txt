@@ -31,6 +31,7 @@ endif()
 set(PUBLIC_LIB_NAME ${PROJECT_NAME})
 add_library(${PUBLIC_LIB_NAME}
     STATIC
+    include/common.h
     include/renderer.h
     include/camera.h
     include/pose.h
@@ -50,6 +51,7 @@ add_library(${PUBLIC_LIB_NAME}
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 SOURCE_GROUP("Public header files" FILES
+    include/common.h
     include/renderer.h
     include/camera.h
     include/pose.h

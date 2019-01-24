@@ -11,8 +11,11 @@
 #include <vector>
 
 #include "include/common.h"
+
+#ifdef CURRENDER_USE_STB
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
+#endif
 
 namespace currender {
 
@@ -55,6 +58,7 @@ class Image {
     return data_[width_ * channel_ * y + x * channel_ + c];
   }
 
+#ifdef CURRENDER_USE_STB
   bool Load(const std::string& path) {
     unsigned char* in_pixels_tmp;
     int width;
@@ -96,6 +100,7 @@ class Image {
                    width_ * channel_ * sizeof(T));
     return true;
   }
+#endif
 
   template <typename TT, int NN>
   bool ConvertTo(Image<TT, NN>* dst, float scale = 1.0f) const {
