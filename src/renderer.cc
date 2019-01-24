@@ -146,6 +146,11 @@ bool Renderer::PrepareMesh() {
     return false;
   }
 
+  if (flatten_vertices_.empty() || flatten_faces_.empty()) {
+    LOGE("mesh is empty\n");
+    return false;
+  }
+
   bool ret = false;
   build_options_.cache_bbox = false;
 

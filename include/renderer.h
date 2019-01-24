@@ -8,9 +8,9 @@
 #include <memory>
 #include <vector>
 
-#include "nanort/nanort.h"
 #include "include/camera.h"
 #include "include/mesh.h"
+#include "nanort/nanort.h"
 
 namespace currender {
 
@@ -28,8 +28,8 @@ struct RendererOption {
 
 class Renderer {
   bool mesh_initialized_{false};
-  std::shared_ptr<Camera> camera_;
-  std::shared_ptr<Mesh> mesh_;
+  std::shared_ptr<Camera> camera_{nullptr};
+  std::shared_ptr<Mesh> mesh_{nullptr};
   RendererOption option_;
 
   std::vector<float> flatten_vertices_;

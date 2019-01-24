@@ -10,9 +10,9 @@
 #include <string>
 #include <vector>
 
+#include "include/common.h"
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
-#include "include/common.h"
 
 namespace currender {
 
@@ -21,6 +21,7 @@ class Image {
   std::vector<T> data_;
   int width_{-1};
   int height_{-1};
+  const int bit_depth_ { sizeof(T) };
   const int channel_{N};
 
  public:
@@ -80,6 +81,17 @@ class Image {
   }
 
   bool WritePng(const std::string& path) const {
+    if (bit_depth_ != 1) {
+      LOGE("1 byte per channel is required to save by stb_image: actual %d\n",
+           bit_depth_);
+      return false;
+    }
+
+    if (width_ < 0 || height_ < 0) {
+      LOGE("image is empty\n");
+      return false;
+    }
+
     stbi_write_png(path.c_str(), width_, height_, channel_, &data_[0],
                    width_ * channel_ * sizeof(T));
     return true;
@@ -110,5 +122,8 @@ using Image1b = Image<uint8_t, 1>;
 using Image3b = Image<uint8_t, 3>;
 using Image1w = Image<uint16_t, 1>;
 using Image1f = Image<float, 1>;
+
+void GrayFromDepth(const Image1f& depth, Image1b* vis_depth,
+                    float min_d = 200.0f, float max_d = 1500.0f);
 
 }  // namespace currender

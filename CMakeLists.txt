@@ -79,14 +79,31 @@ include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/stb)
 
 set_target_properties(${PUBLIC_LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
-set(EXE_NAME ${PUBLIC_LIB_NAME}_run)
-add_executable(${EXE_NAME}
-    pc/main.cc)
-
-
-target_link_libraries(${EXE_NAME}
+set(MINIMUM_EXAMPLE_EXE minimum_example)
+add_executable(${MINIMUM_EXAMPLE_EXE}
+    minimum_example.cc)
+target_link_libraries(${MINIMUM_EXAMPLE_EXE}
     ${PUBLIC_LIB_NAME}
     )
+
+set(EXAMPLES_EXE examples)
+add_executable(${EXAMPLES_EXE}
+    examples.cc)
+target_link_libraries(${EXAMPLES_EXE}
+    ${PUBLIC_LIB_NAME}
+    )
+
+
+# make test data directory
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data)
+endif()
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny)
+endif()
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/minimum_example)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/minimum_example)
+endif()
 
 # test data preparation
 if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny/bunny.obj)
@@ -94,11 +111,6 @@ if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny/bunny.obj)
 # download test data
 if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip)
 file(DOWNLOAD http://www.kunzhou.net/tex-models/bunny.zip ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip)
-endif()
-
-if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny)
-add_custom_target(makeDirectory ALL
-    COMMAND ${CMAKE_COMMAND} -E make_directory  ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny)
 endif()
 
 # unzip test data

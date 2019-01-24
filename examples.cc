@@ -34,31 +34,6 @@ glm::mat4 MakeC2w(const glm::vec3& eye, const glm::vec3& center,
   return c2w;
 }
 
-void VisualizeDepth(const Image1f& depth, Image1b* vis_depth,
-                    float min_d = 200.0f, float max_d = 1500.0f) {
-  vis_depth->Init(depth.width(), depth.height());
-
-  for (int y = 0; y < vis_depth->height(); y++) {
-    for (int x = 0; x < vis_depth->width(); x++) {
-      auto d = depth.at(x, y, 0);
-      if (d < 1) {
-        continue;
-      }
-
-      int color = static_cast<int>((d - min_d) / (max_d - min_d) * 255.0);
-
-      if (color < 0) {
-        color = 0;
-      }
-      if (255 < color) {
-        color = 255;
-      }
-
-      vis_depth->at(x, y, 0) = static_cast<uint8_t>(color);
-    }
-  }
-}
-
 void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
           std::shared_ptr<Camera> camera, const Renderer& renderer) {
   // images
@@ -84,7 +59,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &mask);
   color.WritePng(out_dir + "front_color.png");
   mask.WritePng(out_dir + "front_mask.png");
-  VisualizeDepth(depth, &vis_depth);
+  GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "front_vis_depth.png");
 
   // from back
@@ -95,7 +70,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &mask);
   color.WritePng(out_dir + "back_color.png");
   mask.WritePng(out_dir + "back_mask.png");
-  VisualizeDepth(depth, &vis_depth);
+  GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "back_vis_depth.png");
 
   // from right
@@ -106,7 +81,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &mask);
   color.WritePng(out_dir + "right_color.png");
   mask.WritePng(out_dir + "right_mask.png");
-  VisualizeDepth(depth, &vis_depth);
+  GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "right_vis_depth.png");
 
   // from left
@@ -117,7 +92,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &mask);
   color.WritePng(out_dir + "left_color.png");
   mask.WritePng(out_dir + "left_mask.png");
-  VisualizeDepth(depth, &vis_depth);
+  GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "left_vis_depth.png");
 
   // from top
@@ -128,7 +103,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &mask);
   color.WritePng(out_dir + "top_color.png");
   mask.WritePng(out_dir + "top_mask.png");
-  VisualizeDepth(depth, &vis_depth);
+  GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "top_vis_depth.png");
 
   // from bottom
@@ -139,7 +114,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &mask);
   color.WritePng(out_dir + "bottom_color.png");
   mask.WritePng(out_dir + "bottom_mask.png");
-  VisualizeDepth(depth, &vis_depth);
+  GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "bottom_vis_depth.png");
 }
 

@@ -51,6 +51,13 @@ class Mesh {
   const std::vector<glm::ivec3>& uv_indices() const;
   const MeshStats& stats() const;
   const Image3b& diffuse_tex() const;
+
+  void set_vertices(const std::vector<glm::vec3>& vertices);
+  void set_vertex_colors(const std::vector<glm::vec3>& vertex_colors);
+  void set_vertex_indices(const std::vector<glm::ivec3>& vertex_indices);
+  void set_uv(const std::vector<glm::vec2>& uv);
+  void uv_indices(const std::vector<glm::ivec3>& uv_indices);
+
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);
   bool LoadPly(const std::string& ply_path);
 };

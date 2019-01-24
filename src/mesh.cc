@@ -8,6 +8,14 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tinyobjloader/tiny_obj_loader.h"
 
+namespace {
+template <typename T>
+void CopyVec(const std::vector<T>& src, std::vector<T>* dst) {
+  dst->clear();
+  std::copy(src.begin(), src.end(), std::back_inserter(*dst));
+}
+}  // namespace
+
 namespace currender {
 
 Mesh::Mesh() {}
@@ -119,6 +127,24 @@ void Mesh::CalcNormal() {
     normals_[i] /= static_cast<float>(add_count[i]);
     normals_[i] = glm::normalize(normals_[i]);
   }
+}
+
+void Mesh::set_vertices(const std::vector<glm::vec3>& vertices) {
+  CopyVec(vertices, &vertices_);
+}
+
+void Mesh::set_vertex_colors(const std::vector<glm::vec3>& vertex_colors) {
+  CopyVec(vertex_colors, &vertex_colors_);
+}
+
+void Mesh::set_vertex_indices(const std::vector<glm::ivec3>& vertex_indices) {
+  CopyVec(vertex_indices, &vertex_indices_);
+}
+
+void Mesh::set_uv(const std::vector<glm::vec2>& uv) { CopyVec(uv, &uv_); }
+
+void Mesh::uv_indices(const std::vector<glm::ivec3>& uv_indices) {
+  CopyVec(uv_indices, &uv_indices_);
 }
 
 bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
@@ -237,6 +263,7 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
 
   return true;
 }
+
 bool Mesh::LoadPly(const std::string& ply_path) {
   (void)ply_path;
   LOGE("Haven't been implemented\n");
