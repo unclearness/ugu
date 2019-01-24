@@ -56,7 +56,8 @@ class Mesh {
   void set_vertex_colors(const std::vector<glm::vec3>& vertex_colors);
   void set_vertex_indices(const std::vector<glm::ivec3>& vertex_indices);
   void set_uv(const std::vector<glm::vec2>& uv);
-  void uv_indices(const std::vector<glm::ivec3>& uv_indices);
+  void set_uv_indices(const std::vector<glm::ivec3>& uv_indices);
+  void set_diffuse_tex(const Image3b& diffuse_tex);
 
 #ifdef CURRENDER_USE_TINYOBJLOADER
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);

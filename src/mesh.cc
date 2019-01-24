@@ -145,8 +145,12 @@ void Mesh::set_vertex_indices(const std::vector<glm::ivec3>& vertex_indices) {
 
 void Mesh::set_uv(const std::vector<glm::vec2>& uv) { CopyVec(uv, &uv_); }
 
-void Mesh::uv_indices(const std::vector<glm::ivec3>& uv_indices) {
+void Mesh::set_uv_indices(const std::vector<glm::ivec3>& uv_indices) {
   CopyVec(uv_indices, &uv_indices_);
+}
+
+void Mesh::set_diffuse_tex(const Image3b& diffuse_tex) {
+  diffuse_tex.CopyTo(&diffuse_tex_);
 }
 
 #ifdef CURRENDER_USE_TINYOBJLOADER

@@ -127,6 +127,8 @@ class Image {
     }
     return true;
   }
+
+  bool CopyTo(Image<T, N>* dst) const { return ConvertTo(dst, 1.0f); }
 };
 
 using Image1b = Image<uint8_t, 1>;
