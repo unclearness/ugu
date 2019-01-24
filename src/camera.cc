@@ -97,19 +97,19 @@ void PinholeCamera::set_focal_length(const glm::vec2& focal_length) {
 }
 
 void PinholeCamera::set_fov_x(float fov_x_deg) {
+  // same focal length per pixel for x and y
   focal_length_[0] =
       width_ * 0.5f /
       static_cast<float>(std::tan(glm::radians<float>(fov_x_deg) * 0.5));
-  focal_length_[1] = focal_length_[0] / static_cast<float>(width_) *
-                     static_cast<float>(height_);
+  focal_length_[1] = focal_length_[0];
 }
 
 void PinholeCamera::set_fov_y(float fov_y_deg) {
+  // same focal length per pixel for x and y
   focal_length_[1] =
       height_ * 0.5f /
       static_cast<float>(std::tan(glm::radians<float>(fov_y_deg) * 0.5));
-  focal_length_[0] = focal_length_[1] / static_cast<float>(height_) *
-                     static_cast<float>(width_);
+  focal_length_[0] = focal_length_[1];
 }
 
 void PinholeCamera::Project(const glm::vec3& camera_p,
