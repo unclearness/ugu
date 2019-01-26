@@ -39,6 +39,12 @@ class Image {
     width_ = -1;
     height_ = -1;
   }
+  bool empty() const {
+    if (width_ < 0 || height_ < 0 || data_.empty()) {
+      return true;
+    }
+    return false;
+  }
   void Init(int width, int height, T val = 0) {
     Clear();
     width_ = width;
@@ -137,7 +143,7 @@ using Image1w = Image<uint16_t, 1>;
 using Image1f = Image<float, 1>;
 using Image3f = Image<float, 3>;  // XYZ order
 
-void GrayFromDepth(const Image1f& depth, Image1b* vis_depth,
+void Depth2Gray(const Image1f& depth, Image1b* vis_depth,
                    float min_d = 200.0f, float max_d = 1500.0f);
 
 void Normal2Color(const Image3f& normal, Image3b* vis_normal);

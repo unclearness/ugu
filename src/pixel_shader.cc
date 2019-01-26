@@ -5,78 +5,115 @@
 
 #include "src/pixel_shader.h"
 
-#include <vector>
+#include "src/singleton.h"
 
 namespace currender {
 
-void DefaultShader(Image3b* color, int x, int y,
-                   const nanort::TriangleIntersection<>& isect,
-                   const std::vector<glm::ivec3>& faces,
-                   const std::vector<glm::ivec3>& uv_indices,
-                   const std::vector<glm::vec2>& uv,
-                   const std::vector<glm::vec3>& vertex_colors,
-                   const Image3b& diffuse_texture) {
-  (void)isect;
-  (void)faces;
-  (void)uv_indices;
-  (void)uv;
-  (void)vertex_colors;
-  (void)diffuse_texture;
+PixelShader::PixelShader() {}
+PixelShader::~PixelShader() {}
 
-  // set Green
-  color->at(x, y, 0) = 0;
-  color->at(x, y, 1) = 255;
-  color->at(x, y, 2) = 0;
+PixelShaderFactory::PixelShaderFactory() {}
+
+PixelShaderFactory::~PixelShaderFactory() {}
+
+std::unique_ptr<PixelShader> PixelShaderFactory::Create(
+    DiffuseColor diffuse_color, ColorInterpolation interp,
+    DiffuseShading diffuse_shading) {
+  DiffuseColorizer* colorizer{nullptr};
+  DiffuseShader* shader{nullptr};
+
+  if (diffuse_color == DiffuseColor::kVertex) {
+    colorizer = &singleton<DiffuseVertexColorColorizer>::get_instance();
+
+  } else if (diffuse_color == DiffuseColor::kTexture) {
+    if (interp == ColorInterpolation::kNn) {
+      colorizer = &singleton<DiffuseTextureNnColorizer>::get_instance();
+
+    } else if (interp == ColorInterpolation::kBilinear) {
+      colorizer = &singleton<DiffuseTextureBilinearColorizer>::get_instance();
+    }
+  } else if (diffuse_color == DiffuseColor::kNone) {
+    colorizer = &singleton<DiffuseDefaultColorizer>::get_instance();
+  }
+  assert(colorizer != nullptr);
+
+  if (diffuse_shading == DiffuseShading::kNone) {
+    shader = &singleton<DiffuseDefaultShader>::get_instance();
+  } else if (diffuse_shading == DiffuseShading::kLambertian) {
+    shader = &singleton<DiffuseLambertianShader>::get_instance();
+  } else if (diffuse_shading == DiffuseShading::kOrenNayar) {
+    shader = &singleton<DiffuseOrenNayarShader>::get_instance();
+  }
+  assert(shader != nullptr);
+
+  return std::unique_ptr<PixelShader>(new PixelShader(colorizer, shader));
 }
 
-void VertexColorShader(Image3b* color, int x, int y,
-                       const nanort::TriangleIntersection<>& isect,
-                       const std::vector<glm::ivec3>& faces,
-                       const std::vector<glm::ivec3>& uv_indices,
-                       const std::vector<glm::vec2>& uv,
-                       const std::vector<glm::vec3>& vertex_colors,
-                       const Image3b& diffuse_texture) {
-  (void)uv_indices;
-  (void)uv;
-  (void)diffuse_texture;
+PixelShader::PixelShader(const DiffuseColorizer* diffuse_colorizer,
+                         const DiffuseShader* diffuse_shader)
+    : diffuse_colorizer_(diffuse_colorizer), diffuse_shader_(diffuse_shader) {}
 
+void PixelShader::Process(Image3b* color, int x, int y, float u, float v,
+                          uint32_t face_index, const Mesh& mesh) const {
+  diffuse_colorizer_->Process(color, x, y, u, v, face_index, mesh);
+  diffuse_shader_->Process(color, x, y, u, v, face_index, mesh);
+}
+
+DiffuseColorizer::DiffuseColorizer() {}
+DiffuseColorizer::~DiffuseColorizer() {}
+
+DiffuseDefaultColorizer::DiffuseDefaultColorizer() {}
+DiffuseDefaultColorizer::~DiffuseDefaultColorizer() {}
+void DiffuseDefaultColorizer::Process(Image3b* color, int x, int y, float u,
+                                      float v, uint32_t face_index,
+                                      const Mesh& mesh) const {
+  (void)u;
+  (void)v;
+  (void)face_index;
+  (void)mesh;
+  color->at(x, y, 0) = 255;
+  color->at(x, y, 1) = 255;
+  color->at(x, y, 2) = 255;
+}
+
+DiffuseVertexColorColorizer::DiffuseVertexColorColorizer() {}
+DiffuseVertexColorColorizer::~DiffuseVertexColorColorizer() {}
+void DiffuseVertexColorColorizer::Process(Image3b* color, int x, int y, float u,
+                                          float v, uint32_t face_index,
+                                          const Mesh& mesh) const {
+  const auto& vertex_colors = mesh.vertex_colors();
+  const auto& faces = mesh.vertex_indices();
   glm::vec3 interp_color;
-  unsigned int fid = isect.prim_id;
-  float u = isect.u;
-  float v = isect.v;
   // barycentric interpolation of vertex color
-  interp_color = (1.0f - u - v) * vertex_colors[faces[fid][0]] +
-                 u * vertex_colors[faces[fid][1]] +
-                 v * vertex_colors[faces[fid][2]];
+  interp_color = (1.0f - u - v) * vertex_colors[faces[face_index][0]] +
+                 u * vertex_colors[faces[face_index][1]] +
+                 v * vertex_colors[faces[face_index][2]];
 
   for (int k = 0; k < 3; k++) {
     color->at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
   }
 }
 
-void DiffuseNnShader(Image3b* color, int x, int y,
-                     const nanort::TriangleIntersection<>& isect,
-                     const std::vector<glm::ivec3>& faces,
-                     const std::vector<glm::ivec3>& uv_indices,
-                     const std::vector<glm::vec2>& uv,
-                     const std::vector<glm::vec3>& vertex_colors,
-                     const Image3b& diffuse_texture) {
-  (void)faces;
-  (void)vertex_colors;
+DiffuseTextureNnColorizer::DiffuseTextureNnColorizer() {}
+DiffuseTextureNnColorizer::~DiffuseTextureNnColorizer() {}
+void DiffuseTextureNnColorizer::Process(Image3b* color, int x, int y, float u,
+                                        float v, uint32_t face_index,
+                                        const Mesh& mesh) const {
+  const auto& uv = mesh.uv();
+  const auto& uv_indices = mesh.uv_indices();
+  const auto& diffuse_texture = mesh.diffuse_tex();
 
   glm::vec3 interp_color;
-  unsigned int fid = isect.prim_id;
-  float u = isect.u;
-  float v = isect.v;
-
   // barycentric interpolation of uv
-  glm::vec2 interp_uv = (1.0f - u - v) * uv[uv_indices[fid][0]] +
-                        u * uv[uv_indices[fid][1]] + v * uv[uv_indices[fid][2]];
+  glm::vec2 interp_uv = (1.0f - u - v) * uv[uv_indices[face_index][0]] +
+                        u * uv[uv_indices[face_index][1]] +
+                        v * uv[uv_indices[face_index][2]];
   float f_tex_pos[2];
   f_tex_pos[0] = interp_uv[0] * (diffuse_texture.width() - 1);
   f_tex_pos[1] = (1.0f - interp_uv[1]) * (diffuse_texture.height() - 1);
 
   int tex_pos[2] = {0, 0};
+  // get nearest integer index by round
   tex_pos[0] = static_cast<int>(std::round(f_tex_pos[0]));
   tex_pos[1] = static_cast<int>(std::round(f_tex_pos[1]));
   for (int k = 0; k < 3; k++) {
@@ -88,24 +125,22 @@ void DiffuseNnShader(Image3b* color, int x, int y,
   }
 }
 
-void DiffuseBilinearShader(Image3b* color, int x, int y,
-                           const nanort::TriangleIntersection<>& isect,
-                           const std::vector<glm::ivec3>& faces,
-                           const std::vector<glm::ivec3>& uv_indices,
-                           const std::vector<glm::vec2>& uv,
-                           const std::vector<glm::vec3>& vertex_colors,
-                           const Image3b& diffuse_texture) {
-  (void)faces;
-  (void)vertex_colors;
+DiffuseTextureBilinearColorizer::DiffuseTextureBilinearColorizer() {}
+DiffuseTextureBilinearColorizer::~DiffuseTextureBilinearColorizer() {}
+void DiffuseTextureBilinearColorizer::Process(Image3b* color, int x, int y,
+                                              float u, float v,
+                                              uint32_t face_index,
+                                              const Mesh& mesh) const {
+  const auto& uv = mesh.uv();
+  const auto& uv_indices = mesh.uv_indices();
+  const auto& diffuse_texture = mesh.diffuse_tex();
 
   glm::vec3 interp_color;
-  unsigned int fid = isect.prim_id;
-  float u = isect.u;
-  float v = isect.v;
 
   // barycentric interpolation of uv
-  glm::vec2 interp_uv = (1.0f - u - v) * uv[uv_indices[fid][0]] +
-                        u * uv[uv_indices[fid][1]] + v * uv[uv_indices[fid][2]];
+  glm::vec2 interp_uv = (1.0f - u - v) * uv[uv_indices[face_index][0]] +
+                        u * uv[uv_indices[face_index][1]] +
+                        v * uv[uv_indices[face_index][2]];
   float f_tex_pos[2];
   f_tex_pos[0] = interp_uv[0] * (diffuse_texture.width() - 1);
   f_tex_pos[1] = (1.0f - interp_uv[1]) * (diffuse_texture.height() - 1);
@@ -139,5 +174,26 @@ void DiffuseBilinearShader(Image3b* color, int x, int y,
     color->at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
   }
 }
+
+DiffuseShader::DiffuseShader() {}
+DiffuseShader::~DiffuseShader() {}
+
+DiffuseDefaultShader::DiffuseDefaultShader() {}
+DiffuseDefaultShader::~DiffuseDefaultShader() {}
+void DiffuseDefaultShader::Process(Image3b* color, int x, int y, float u,
+                                   float v, uint32_t face_index,
+                                   const Mesh& mesh) const {}
+
+DiffuseLambertianShader::DiffuseLambertianShader() {}
+DiffuseLambertianShader::~DiffuseLambertianShader() {}
+void DiffuseLambertianShader::Process(Image3b* color, int x, int y, float u,
+                                      float v, uint32_t face_index,
+                                      const Mesh& mesh) const {}
+
+DiffuseOrenNayarShader::DiffuseOrenNayarShader() {}
+DiffuseOrenNayarShader::~DiffuseOrenNayarShader() {}
+void DiffuseOrenNayarShader::Process(Image3b* color, int x, int y, float u,
+                                     float v, uint32_t face_index,
+                                     const Mesh& mesh) const {}
 
 }  // namespace currender

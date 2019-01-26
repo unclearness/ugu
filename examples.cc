@@ -9,7 +9,7 @@
 #include "include/renderer.h"
 
 using currender::Camera;
-using currender::GrayFromDepth;
+using currender::Depth2Gray;
 using currender::Image1b;
 using currender::Image1f;
 using currender::Image3b;
@@ -64,7 +64,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "front_color.png");
   mask.WritePng(out_dir + "front_mask.png");
-  GrayFromDepth(depth, &vis_depth);
+  Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "front_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "front_vis_normal.png");
@@ -77,7 +77,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "back_color.png");
   mask.WritePng(out_dir + "back_mask.png");
-  GrayFromDepth(depth, &vis_depth);
+  Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "back_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "back_vis_normal.png");
@@ -90,7 +90,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "right_color.png");
   mask.WritePng(out_dir + "right_mask.png");
-  GrayFromDepth(depth, &vis_depth);
+  Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "right_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "right_vis_normal.png");
@@ -103,7 +103,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "left_color.png");
   mask.WritePng(out_dir + "left_mask.png");
-  GrayFromDepth(depth, &vis_depth);
+  Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "left_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "left_vis_normal.png");
@@ -116,7 +116,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "top_color.png");
   mask.WritePng(out_dir + "top_mask.png");
-  GrayFromDepth(depth, &vis_depth);
+  Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "top_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "top_vis_normal.png");
@@ -129,7 +129,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "bottom_color.png");
   mask.WritePng(out_dir + "bottom_mask.png");
-  GrayFromDepth(depth, &vis_depth);
+  Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "bottom_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "bottom_vis_normal.png");

@@ -5,6 +5,8 @@
 
 #include "include/mesh.h"
 
+#include <fstream>
+
 #ifdef CURRENDER_USE_TINYOBJLOADER
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tinyobjloader/tiny_obj_loader.h"
@@ -294,6 +296,8 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
     }
   }
 
+  CalcFaceNormal();
+
   if (normals_.empty()) {
     CalcNormal();
   }
@@ -303,13 +307,18 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   diffuse_texname_ = materials[0].diffuse_texname;
   diffuse_texpath_ = mtl_dir + diffuse_texname_;
 
+  std::ifstream ifs(diffuse_texpath_);
+  if (ifs.is_open()) {
 #ifdef CURRENDER_USE_STB
-  diffuse_tex_.Load(diffuse_texpath_);
+    ret = diffuse_tex_.Load(diffuse_texpath_);
 #else
-  LOGW("define CURRENDER_USE_STB to load diffuse texture.\n");
+    LOGW("define CURRENDER_USE_STB to load diffuse texture.\n");
 #endif
+  } else {
+    LOGW("diffuse texture doesn't exist %s\n", diffuse_texpath_.c_str());
+  }
 
-  return true;
+  return ret;
 }
 #endif
 

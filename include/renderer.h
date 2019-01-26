@@ -14,16 +14,17 @@
 
 namespace currender {
 
-enum ShadingNormal { kFace = 0, kVertex = 1 };
-enum DiffuseShading { kNone = 0, kLambert = 1, kOrenNayar = 2 };
-enum ColorInterpolation { kNn = 0, kBilinear = 1 };
+enum class DiffuseColor { kNone = 0, kTexture = 1, kVertex = 2 };
+enum class ShadingNormal { kFace = 0, kVertex = 1 };
+enum class DiffuseShading { kNone = 0, kLambertian = 1, kOrenNayar = 2 };
+enum class ColorInterpolation { kNn = 0, kBilinear = 1 };
 
 struct RendererOption {
-  bool use_vertex_color{false};
+  DiffuseColor diffuse_color{DiffuseColor::kTexture};
   float depth_scale{1.0f};
   ColorInterpolation interp{ColorInterpolation::kBilinear};
   ShadingNormal shading_normal{ShadingNormal::kFace};
-  DiffuseShading diffuse_shading{kLambert};
+  DiffuseShading diffuse_shading{DiffuseShading::kLambertian};
   bool backface_culling{true};
 
   RendererOption();
@@ -33,8 +34,8 @@ struct RendererOption {
 
 class Renderer {
   bool mesh_initialized_{false};
-  std::shared_ptr<Camera> camera_{nullptr};
-  std::shared_ptr<Mesh> mesh_{nullptr};
+  std::shared_ptr<const Camera> camera_{nullptr};
+  std::shared_ptr<const Mesh> mesh_{nullptr};
   RendererOption option_;
 
   std::vector<float> flatten_vertices_;
@@ -47,16 +48,22 @@ class Renderer {
   nanort::BVHBuildStatistics stats_;
   float bmin_[3], bmax_[3];
 
+  bool ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
+                                   Image3f* normal, Image1b* mask) const;
+
  public:
   Renderer();
   ~Renderer();
   explicit Renderer(const RendererOption& option);
   void set_option(const RendererOption& option);
-  void set_mesh(std::shared_ptr<Mesh> mesh);
+  void set_mesh(std::shared_ptr<const Mesh> mesh);
   bool PrepareMesh();
-  void set_camera(std::shared_ptr<Camera> camera);
+  void set_camera(std::shared_ptr<const Camera> camera);
   bool Render(Image3b* color, Image1f* depth, Image3f* normal,
               Image1b* mask) const;
+
+  // This Image1w* depth interface is prepared for widely used 16 bit (unsigned
+  // short), mm scale depth image format
   bool Render(Image3b* color, Image1w* depth, Image3f* normal,
               Image1b* mask) const;
 };

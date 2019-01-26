@@ -11,6 +11,25 @@
 #include "src/pixel_shader.h"
 #include "src/timer.h"
 
+namespace {
+void PrepareRay(nanort::Ray<float>* ray, const glm::vec3& camera_pos_w,
+                const glm::vec3& ray_w) {
+  const float kFar = 1.0e+30f;
+  ray->min_t = 0.0001f;
+  ray->max_t = kFar;
+
+  // camera position in world coordinate
+  ray->org[0] = camera_pos_w[0];
+  ray->org[1] = camera_pos_w[1];
+  ray->org[2] = camera_pos_w[2];
+
+  // ray in world coordinate
+  ray->dir[0] = ray_w[0];
+  ray->dir[1] = ray_w[1];
+  ray->dir[2] = ray_w[2];
+}
+}  // namespace
+
 namespace currender {
 
 RendererOption::RendererOption() {}
@@ -18,7 +37,7 @@ RendererOption::RendererOption() {}
 RendererOption::~RendererOption() {}
 
 void RendererOption::CopyTo(RendererOption* dst) const {
-  dst->use_vertex_color = use_vertex_color;
+  dst->diffuse_color = diffuse_color;
   dst->depth_scale = depth_scale;
   dst->interp = interp;
   dst->shading_normal = shading_normal;
@@ -36,16 +55,16 @@ void Renderer::set_option(const RendererOption& option) {
   option.CopyTo(&option_);
 }
 
-void Renderer::set_mesh(std::shared_ptr<Mesh> mesh) {
+void Renderer::set_mesh(std::shared_ptr<const Mesh> mesh) {
   mesh_initialized_ = false;
   mesh_ = mesh;
 
   if (mesh_->face_normals().empty()) {
-    mesh_->CalcFaceNormal();
+    LOGW("face normal is empty. culling and shading may not work\n");
   }
 
   if (mesh_->normals().empty()) {
-    mesh_->CalcNormal();
+    LOGW("vertex normal is empty. shading may not work\n");
   }
 
   flatten_vertices_.clear();
@@ -125,16 +144,46 @@ bool Renderer::PrepareMesh() {
   return true;
 }
 
-void Renderer::set_camera(std::shared_ptr<Camera> camera) { camera_ = camera; }
+void Renderer::set_camera(std::shared_ptr<const Camera> camera) {
+  camera_ = camera;
+}
 
-bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
-                      Image1b* mask) const {
+bool Renderer::ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
+                                           Image3f* normal,
+                                           Image1b* mask) const {
   if (camera_ == nullptr) {
     LOGE("camera has not been set\n");
     return false;
   }
   if (!mesh_initialized_) {
     LOGE("mesh has not been initialized\n");
+    return false;
+  }
+  if (option_.backface_culling && mesh_->face_normals().empty()) {
+    LOGE("specified back-face culling but face normal is empty.\n");
+    return false;
+  }
+  if (option_.diffuse_color == DiffuseColor::kTexture &&
+      mesh_->diffuse_tex().empty()) {
+    LOGE("specified texture as diffuse color but texture is empty.\n");
+    return false;
+  }
+  if (option_.diffuse_color == DiffuseColor::kVertex &&
+      mesh_->vertex_colors().empty()) {
+    LOGE(
+        "specified vertex color as diffuse color but vertex color is empty.\n");
+    return false;
+  }
+  if (option_.shading_normal == ShadingNormal::kFace &&
+      mesh_->face_normals().empty()) {
+    LOGE("specified face normal as shading normal but face normal is empty.\n");
+    return false;
+  }
+  if (option_.shading_normal == ShadingNormal::kVertex &&
+      mesh_->normals().empty()) {
+    LOGE(
+        "specified vertex normal as shading normal but vertex normal is "
+        "empty.\n");
     return false;
   }
 
@@ -154,58 +203,31 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
     mask->Init(width, height);
   }
 
-  const glm::vec3& t = camera_->c2w().t();
-  const Pose& w2c = camera_->w2c();
-  const std::vector<glm::vec3>& vertices = mesh_->vertices();
-  const std::vector<glm::ivec3>& faces = mesh_->vertex_indices();
-  const std::vector<glm::vec3>& normals = mesh_->normals();
-  const std::vector<glm::vec3>& face_normals = mesh_->face_normals();
-  const std::vector<glm::ivec3>& normal_indices = mesh_->normal_indices();
-  const std::vector<glm::ivec3>& uv_indices = mesh_->uv_indices();
-  const std::vector<glm::vec2>& uv = mesh_->uv();
-  const std::vector<glm::vec3>& vertex_colors = mesh_->vertex_colors();
-  const Image3b& diffuse_texture = mesh_->diffuse_tex();
+  return true;
+}
 
-  // set pixel shader
-  auto pixel_shader = DefaultShader;
-  if (option_.use_vertex_color && !vertex_colors.empty()) {
-    pixel_shader = VertexColorShader;
-  } else if (!uv.empty()) {
-    if (option_.interp == ColorInterpolation::kNn) {
-      pixel_shader = DiffuseNnShader;
-    } else if (option_.interp == ColorInterpolation::kBilinear) {
-      pixel_shader = DiffuseBilinearShader;
-    } else {
-      LOGE("Specified color interpolation is not implemented\n");
-      return false;
-    }
-  } else {
-    LOGW("No color on geometry\n");
+bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
+                      Image1b* mask) const {
+  if (!ValidateAndInitBeforeRender(color, depth, normal, mask)) {
+    return false;
   }
+
+  // make pixel shader
+  std::unique_ptr<PixelShader> pixel_shader = PixelShaderFactory::Create(
+      option_.diffuse_color, option_.interp, option_.diffuse_shading);
 
   Timer<> timer;
   timer.Start();
 #if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
+  for (int y = 0; y < camera_->height(); y++) {
+    for (int x = 0; x < camera_->width(); x++) {
+      // ray from camera position in world coordinate
+      glm::vec3 ray_w;
+      camera_->ray_w(static_cast<float>(x), static_cast<float>(y), &ray_w);
       nanort::Ray<float> ray;
-      float kFar = 1.0e+30f;
-      ray.min_t = 0.0001f;
-      ray.max_t = kFar;
-
-      // camera position in world coordinate
-      ray.org[0] = t[0];
-      ray.org[1] = t[1];
-      ray.org[2] = t[2];
-
-      // ray in world coordinate
-      glm::vec3 dir;
-      camera_->ray_w(static_cast<float>(x), static_cast<float>(y), &dir);
-      ray.dir[0] = dir[0];
-      ray.dir[1] = dir[1];
-      ray.dir[2] = dir[2];
+      PrepareRay(&ray, camera_->c2w().t(), ray_w);
 
       // shoot ray
       nanort::TriangleIntersector<> triangle_intersector(
@@ -222,9 +244,9 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
       float v = isect.v;
 
       // back-face culling
-      if (option_.backface_culling && !face_normals.empty()) {
+      if (option_.backface_culling) {
         // back-face if face normal has same direction to ray
-        if (glm::dot(face_normals[fid], dir) > 0) {
+        if (glm::dot(mesh_->face_normals()[fid], ray_w) > 0) {
           continue;
         }
       }
@@ -236,9 +258,9 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
 
       // convert hit position to camera coordinate to get depth value
       if (depth != nullptr) {
-        glm::vec3 hit_pos_w = t + dir * isect.t;
+        glm::vec3 hit_pos_w = camera_->c2w().t() + ray_w * isect.t;
         glm::vec3 hit_pos_c = hit_pos_w;
-        w2c.Transform(&hit_pos_c);
+        camera_->w2c().Transform(&hit_pos_c);
         assert(0.0f <= hit_pos_c[2]);  // depth should be positive
         depth->at(x, y, 0) = hit_pos_c[2] * option_.depth_scale;
       }
@@ -246,14 +268,16 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
       // calculate shading normal
       glm::vec3 shading_normal;
       if (option_.shading_normal == ShadingNormal::kFace) {
-        shading_normal = face_normals[fid];
+        shading_normal = mesh_->face_normals()[fid];
       } else if (option_.shading_normal == ShadingNormal::kVertex) {
         // barycentric interpolation of normal
+        const auto& normals = mesh_->normals();
+        const auto& normal_indices = mesh_->normal_indices();
         shading_normal = (1.0f - u - v) * normals[normal_indices[fid][0]] +
                          u * normals[normal_indices[fid][1]] +
                          v * normals[normal_indices[fid][2]];
       }
-      w2c.Rotate(&shading_normal);  // rotate to camera coordinate
+      camera_->w2c().Rotate(&shading_normal);  // rotate to camera coordinate
 
       // set shading normal
       if (normal != nullptr) {
@@ -264,8 +288,7 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
 
       // delegate color calculation to pixel_shader
       if (color != nullptr) {
-        pixel_shader(color, x, y, isect, faces, uv_indices, uv, vertex_colors,
-                     diffuse_texture);
+        pixel_shader->Process(color, x, y, u, v, fid, *mesh_);
       }
     }
   }

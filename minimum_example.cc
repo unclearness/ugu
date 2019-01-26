@@ -5,7 +5,7 @@
 
 #include "include/renderer.h"
 
-using currender::GrayFromDepth;
+using currender::Depth2Gray;
 using currender::Normal2Color;
 using currender::Image1b;
 using currender::Image1f;
@@ -81,6 +81,9 @@ void SetCube(std::shared_ptr<Mesh> mesh) {
   mesh->set_vertices(vertices);
   mesh->set_vertex_colors(vertex_colors);
   mesh->set_vertex_indices(vertex_indices);
+
+  mesh->CalcNormal();
+
 }
 
 }  // namespace
@@ -89,13 +92,13 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  // make cube mesh
+  // make cube mesh with vertex color
   std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
   SetCube(mesh);
 
   // initialize renderer enabling vertex color rendering
   RendererOption option;
-  option.use_vertex_color = true;
+  option.diffuse_color = currender::DiffuseColor::kVertex;
   Renderer renderer(option);
 
   // set mesh
@@ -104,7 +107,7 @@ int main(int argc, char* argv[]) {
   // prepare mesh for rendering (e.g. make BVH)
   renderer.PrepareMesh();
 
-  // make PinholeCamera at origin
+  // make PinholeCamera (perspective camera) at origin
   int width = 640;
   int height = 480;
   float fov_y_deg = 50.0f;
@@ -126,7 +129,7 @@ int main(int argc, char* argv[]) {
   color.WritePng(save_dir + "color.png");
   mask.WritePng(save_dir + "mask.png");
   Image1b vis_depth;
-  GrayFromDepth(depth, &vis_depth);
+  Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(save_dir + "vis_depth.png");
   Image3b vis_normal;
   Normal2Color(normal, &vis_normal);

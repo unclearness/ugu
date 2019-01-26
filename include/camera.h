@@ -19,12 +19,12 @@ class Camera {
  protected:
   int width_;
   int height_;
-  Pose c2w_;  // camera -> world
-  Pose w2c_;  // world -> camera
+  Pose c2w_;  // camera -> world, sometimes called as "pose"
+  Pose w2c_;  // world -> camera, sometimes called as "extrinsic"
 
  public:
   Camera();
-  ~Camera();
+  virtual ~Camera();
   Camera(int width, int height);
   Camera(int width, int height, const Pose& c2w);
   int width() const;
