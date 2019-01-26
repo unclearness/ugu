@@ -23,10 +23,10 @@ struct RendererOption {
   DiffuseColor diffuse_color{DiffuseColor::kTexture};
   float depth_scale{1.0f};
   ColorInterpolation interp{ColorInterpolation::kBilinear};
-  ShadingNormal shading_normal{ShadingNormal::kFace};
+  ShadingNormal shading_normal{ShadingNormal::kVertex};
   DiffuseShading diffuse_shading{DiffuseShading::kLambertian};
   bool backface_culling{true};
-
+  float oren_nayar_sigma{0.3f};
   RendererOption();
   ~RendererOption();
   void CopyTo(RendererOption* dst) const;

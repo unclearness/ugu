@@ -216,6 +216,8 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
   std::unique_ptr<PixelShader> pixel_shader = PixelShaderFactory::Create(
       option_.diffuse_color, option_.interp, option_.diffuse_shading);
 
+  OrenNayarParam oren_nayar_param(option_.oren_nayar_sigma);
+
   Timer<> timer;
   timer.Start();
 #if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
@@ -266,29 +268,35 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
       }
 
       // calculate shading normal
-      glm::vec3 shading_normal;
+      glm::vec3 shading_normal_w{0};
       if (option_.shading_normal == ShadingNormal::kFace) {
-        shading_normal = mesh_->face_normals()[fid];
+        shading_normal_w = mesh_->face_normals()[fid];
       } else if (option_.shading_normal == ShadingNormal::kVertex) {
         // barycentric interpolation of normal
         const auto& normals = mesh_->normals();
         const auto& normal_indices = mesh_->normal_indices();
-        shading_normal = (1.0f - u - v) * normals[normal_indices[fid][0]] +
-                         u * normals[normal_indices[fid][1]] +
-                         v * normals[normal_indices[fid][2]];
+        shading_normal_w = (1.0f - u - v) * normals[normal_indices[fid][0]] +
+                           u * normals[normal_indices[fid][1]] +
+                           v * normals[normal_indices[fid][2]];
       }
-      camera_->w2c().Rotate(&shading_normal);  // rotate to camera coordinate
 
       // set shading normal
       if (normal != nullptr) {
+        glm::vec3 shading_normal_c = shading_normal_w;
+        camera_->w2c().Rotate(
+            &shading_normal_c);  // rotate to camera coordinate
         for (int k = 0; k < 3; k++) {
-          normal->at(x, y, k) = shading_normal[k];
+          normal->at(x, y, k) = shading_normal_c[k];
         }
       }
 
       // delegate color calculation to pixel_shader
       if (color != nullptr) {
-        pixel_shader->Process(color, x, y, u, v, fid, *mesh_);
+        glm::vec3 light_dir = ray_w;  // emit light same as ray
+        PixelShaderInput pixel_shader_input(color, x, y, u, v, fid, &ray_w,
+                                            &light_dir, &shading_normal_w,
+                                            &oren_nayar_param, mesh_);
+        pixel_shader->Process(pixel_shader_input);
       }
     }
   }

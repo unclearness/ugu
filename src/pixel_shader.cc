@@ -5,12 +5,39 @@
 
 #include "src/pixel_shader.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace currender {
 
-PixelShader::PixelShader() {}
-PixelShader::~PixelShader() {}
+OrenNayarParam::OrenNayarParam() {}
+OrenNayarParam::OrenNayarParam(float sigma) : sigma(sigma) {
+  assert(0 <= sigma);
+  float sigma_2 = sigma * sigma;
+  A = 1.0f - (0.5f * sigma_2 / (sigma_2 + 0.33f));
+  B = 0.45f * sigma_2 / (sigma_2 + 0.09f);
+}
+
+PixelShaderInput::PixelShaderInput() {}
+PixelShaderInput::~PixelShaderInput() {}
+PixelShaderInput::PixelShaderInput(Image3b* color, int x, int y, float u,
+                                   float v, uint32_t face_index,
+                                   const glm::vec3* ray_w,
+                                   const glm::vec3* light_dir,
+                                   const glm::vec3* shading_normal,
+                                   const OrenNayarParam* oren_nayar_param,
+                                   std::shared_ptr<const Mesh> mesh)
+    : color(color),
+      x(x),
+      y(y),
+      u(u),
+      v(v),
+      face_index(face_index),
+      ray_w(ray_w),
+      light_dir(light_dir),
+      shading_normal(shading_normal),
+      oren_nayar_param(oren_nayar_param),
+      mesh(mesh) {}
 
 PixelShaderFactory::PixelShaderFactory() {}
 
@@ -53,16 +80,18 @@ std::unique_ptr<PixelShader> PixelShaderFactory::Create(
       new PixelShader(std::move(colorizer), std::move(shader)));
 }
 
+PixelShader::PixelShader() {}
+PixelShader::~PixelShader() {}
+
 PixelShader::PixelShader(std::unique_ptr<DiffuseColorizer>&& diffuse_colorizer,
                          std::unique_ptr<DiffuseShader>&& diffuse_shader) {
   diffuse_colorizer_ = std::move(diffuse_colorizer);
   diffuse_shader_ = std::move(diffuse_shader);
 }
 
-void PixelShader::Process(Image3b* color, int x, int y, float u, float v,
-                          uint32_t face_index, const Mesh& mesh) const {
-  diffuse_colorizer_->Process(color, x, y, u, v, face_index, mesh);
-  diffuse_shader_->Process(color, x, y, u, v, face_index, mesh);
+void PixelShader::Process(const PixelShaderInput& input) const {
+  diffuse_colorizer_->Process(input);
+  diffuse_shader_->Process(input);
 }
 
 DiffuseColorizer::DiffuseColorizer() {}
@@ -70,13 +99,11 @@ DiffuseColorizer::~DiffuseColorizer() {}
 
 DiffuseDefaultColorizer::DiffuseDefaultColorizer() {}
 DiffuseDefaultColorizer::~DiffuseDefaultColorizer() {}
-void DiffuseDefaultColorizer::Process(Image3b* color, int x, int y, float u,
-                                      float v, uint32_t face_index,
-                                      const Mesh& mesh) const {
-  (void)u;
-  (void)v;
-  (void)face_index;
-  (void)mesh;
+void DiffuseDefaultColorizer::Process(const PixelShaderInput& input) const {
+  Image3b* color = input.color;
+  int x = input.x;
+  int y = input.y;
+
   color->at(x, y, 0) = 255;
   color->at(x, y, 1) = 255;
   color->at(x, y, 2) = 255;
@@ -84,11 +111,17 @@ void DiffuseDefaultColorizer::Process(Image3b* color, int x, int y, float u,
 
 DiffuseVertexColorColorizer::DiffuseVertexColorColorizer() {}
 DiffuseVertexColorColorizer::~DiffuseVertexColorColorizer() {}
-void DiffuseVertexColorColorizer::Process(Image3b* color, int x, int y, float u,
-                                          float v, uint32_t face_index,
-                                          const Mesh& mesh) const {
-  const auto& vertex_colors = mesh.vertex_colors();
-  const auto& faces = mesh.vertex_indices();
+void DiffuseVertexColorColorizer::Process(const PixelShaderInput& input) const {
+  Image3b* color = input.color;
+  int x = input.x;
+  int y = input.y;
+  float u = input.u;
+  float v = input.v;
+  uint32_t face_index = input.face_index;
+  std::shared_ptr<const Mesh> mesh = input.mesh;
+
+  const auto& vertex_colors = mesh->vertex_colors();
+  const auto& faces = mesh->vertex_indices();
   glm::vec3 interp_color;
   // barycentric interpolation of vertex color
   interp_color = (1.0f - u - v) * vertex_colors[faces[face_index][0]] +
@@ -102,12 +135,18 @@ void DiffuseVertexColorColorizer::Process(Image3b* color, int x, int y, float u,
 
 DiffuseTextureNnColorizer::DiffuseTextureNnColorizer() {}
 DiffuseTextureNnColorizer::~DiffuseTextureNnColorizer() {}
-void DiffuseTextureNnColorizer::Process(Image3b* color, int x, int y, float u,
-                                        float v, uint32_t face_index,
-                                        const Mesh& mesh) const {
-  const auto& uv = mesh.uv();
-  const auto& uv_indices = mesh.uv_indices();
-  const auto& diffuse_texture = mesh.diffuse_tex();
+void DiffuseTextureNnColorizer::Process(const PixelShaderInput& input) const {
+  Image3b* color = input.color;
+  int x = input.x;
+  int y = input.y;
+  float u = input.u;
+  float v = input.v;
+  uint32_t face_index = input.face_index;
+  std::shared_ptr<const Mesh> mesh = input.mesh;
+
+  const auto& uv = mesh->uv();
+  const auto& uv_indices = mesh->uv_indices();
+  const auto& diffuse_texture = mesh->diffuse_tex();
 
   glm::vec3 interp_color;
   // barycentric interpolation of uv
@@ -133,13 +172,19 @@ void DiffuseTextureNnColorizer::Process(Image3b* color, int x, int y, float u,
 
 DiffuseTextureBilinearColorizer::DiffuseTextureBilinearColorizer() {}
 DiffuseTextureBilinearColorizer::~DiffuseTextureBilinearColorizer() {}
-void DiffuseTextureBilinearColorizer::Process(Image3b* color, int x, int y,
-                                              float u, float v,
-                                              uint32_t face_index,
-                                              const Mesh& mesh) const {
-  const auto& uv = mesh.uv();
-  const auto& uv_indices = mesh.uv_indices();
-  const auto& diffuse_texture = mesh.diffuse_tex();
+void DiffuseTextureBilinearColorizer::Process(
+    const PixelShaderInput& input) const {
+  Image3b* color = input.color;
+  int x = input.x;
+  int y = input.y;
+  float u = input.u;
+  float v = input.v;
+  uint32_t face_index = input.face_index;
+  std::shared_ptr<const Mesh> mesh = input.mesh;
+
+  const auto& uv = mesh->uv();
+  const auto& uv_indices = mesh->uv_indices();
+  const auto& diffuse_texture = mesh->diffuse_tex();
 
   glm::vec3 interp_color;
 
@@ -186,20 +231,60 @@ DiffuseShader::~DiffuseShader() {}
 
 DiffuseDefaultShader::DiffuseDefaultShader() {}
 DiffuseDefaultShader::~DiffuseDefaultShader() {}
-void DiffuseDefaultShader::Process(Image3b* color, int x, int y, float u,
-                                   float v, uint32_t face_index,
-                                   const Mesh& mesh) const {}
+void DiffuseDefaultShader::Process(const PixelShaderInput& input) const {
+  // do nothing.
+  (void)input;
+}
 
 DiffuseLambertianShader::DiffuseLambertianShader() {}
 DiffuseLambertianShader::~DiffuseLambertianShader() {}
-void DiffuseLambertianShader::Process(Image3b* color, int x, int y, float u,
-                                      float v, uint32_t face_index,
-                                      const Mesh& mesh) const {}
+void DiffuseLambertianShader::Process(const PixelShaderInput& input) const {
+  Image3b* color = input.color;
+  int x = input.x;
+  int y = input.y;
+
+  // dot product of normal and inverse light direction
+  float coeff = glm::dot(-*input.light_dir, *input.shading_normal);
+
+  // if negative (may happen at back-face or occluding boundary), bound to 0
+  if (coeff < 0.0f) {
+    coeff = 0.0f;
+  }
+
+  for (int k = 0; k < 3; k++) {
+    color->at(x, y, k) = static_cast<uint8_t>(coeff * color->at(x, y, k));
+  }
+}
 
 DiffuseOrenNayarShader::DiffuseOrenNayarShader() {}
 DiffuseOrenNayarShader::~DiffuseOrenNayarShader() {}
-void DiffuseOrenNayarShader::Process(Image3b* color, int x, int y, float u,
-                                     float v, uint32_t face_index,
-                                     const Mesh& mesh) const {}
+void DiffuseOrenNayarShader::Process(const PixelShaderInput& input) const {
+  // angle against normal
+  float dot_light = glm::dot(-*input.light_dir, *input.shading_normal);
+  float theta_i = std::acos(dot_light);
+  float dot_ray = glm::dot(-*input.ray_w, *input.shading_normal);
+  float theta_r = std::acos(dot_ray);
+
+  // angle against binormal (perpendicular to normal)
+  glm::vec3 binormal_light =
+      -*input.shading_normal * dot_light - *input.light_dir;
+  glm::vec3 binormal_ray = -*input.shading_normal * dot_light - *input.ray_w;
+  float phi_diff_cos = std::max(0.0f, glm::dot(binormal_light, binormal_ray));
+
+  float alpha = std::max(theta_i, theta_r);
+  float beta = std::min(theta_i, theta_r);
+
+  float A = input.oren_nayar_param->A;
+  float B = input.oren_nayar_param->B;
+  float coeff = std::max(0.0f, dot_light) *
+                (A + (B * phi_diff_cos * std::sin(alpha) * std::tan(beta)));
+
+  Image3b* color = input.color;
+  int x = input.x;
+  int y = input.y;
+  for (int k = 0; k < 3; k++) {
+    color->at(x, y, k) = static_cast<uint8_t>(coeff * color->at(x, y, k));
+  }
+}
 
 }  // namespace currender

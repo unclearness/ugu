@@ -15,76 +15,101 @@
 
 namespace currender {
 
+struct OrenNayarParam {
+ public:
+  float sigma{0.0f};
+  float A{0.0f};
+  float B{0.0f};
+  OrenNayarParam();
+  explicit OrenNayarParam(float sigma);
+};
+
+struct PixelShaderInput {
+ private:
+  PixelShaderInput();
+
+ public:
+  Image3b* color{nullptr};
+  int x;
+  int y;
+  float u;
+  float v;
+  uint32_t face_index;
+  const glm::vec3* ray_w{nullptr};
+  const glm::vec3* light_dir{nullptr};
+  const glm::vec3* shading_normal{nullptr};
+  const OrenNayarParam* oren_nayar_param{nullptr};
+  std::shared_ptr<const Mesh> mesh{nullptr};
+
+  PixelShaderInput(Image3b* color, int x, int y, float u, float v,
+                   uint32_t face_index, const glm::vec3* ray_w,
+                   const glm::vec3* light_dir, const glm::vec3* shading_normal,
+                   const OrenNayarParam* oren_nayar_param,
+                   std::shared_ptr<const Mesh> mesh);
+  ~PixelShaderInput();
+};
+
 class DiffuseColorizer {
  public:
   DiffuseColorizer();
   virtual ~DiffuseColorizer();
-  virtual void Process(Image3b* color, int x, int y, float u, float v,
-                       uint32_t face_index, const Mesh& mesh) const = 0;
+  virtual void Process(const PixelShaderInput& input) const = 0;
 };
 
 class DiffuseDefaultColorizer : public DiffuseColorizer {
  public:
   DiffuseDefaultColorizer();
   ~DiffuseDefaultColorizer();
-  void Process(Image3b* color, int x, int y, float u, float v,
-               uint32_t face_index, const Mesh& mesh) const override;
+  void Process(const PixelShaderInput& input) const override;
 };
 
 class DiffuseVertexColorColorizer : public DiffuseColorizer {
  public:
   DiffuseVertexColorColorizer();
   ~DiffuseVertexColorColorizer();
-  void Process(Image3b* color, int x, int y, float u, float v,
-               uint32_t face_index, const Mesh& mesh) const override;
+  void Process(const PixelShaderInput& input) const override;
 };
 
 class DiffuseTextureNnColorizer : public DiffuseColorizer {
  public:
   DiffuseTextureNnColorizer();
   ~DiffuseTextureNnColorizer();
-  void Process(Image3b* color, int x, int y, float u, float v,
-               uint32_t face_index, const Mesh& mesh) const override;
+  void Process(const PixelShaderInput& input) const override;
 };
 
 class DiffuseTextureBilinearColorizer : public DiffuseColorizer {
  public:
   DiffuseTextureBilinearColorizer();
   ~DiffuseTextureBilinearColorizer();
-  void Process(Image3b* color, int x, int y, float u, float v,
-               uint32_t face_index, const Mesh& mesh) const override;
+  void Process(const PixelShaderInput& input) const override;
 };
 
 class DiffuseShader {
  public:
   DiffuseShader();
   virtual ~DiffuseShader();
-  virtual void Process(Image3b* color, int x, int y, float u, float v,
-                       uint32_t face_index, const Mesh& mesh) const = 0;
+  virtual void Process(const PixelShaderInput& input) const = 0;
 };
 
 class DiffuseDefaultShader : public DiffuseShader {
  public:
   DiffuseDefaultShader();
   ~DiffuseDefaultShader();
-  void Process(Image3b* color, int x, int y, float u, float v,
-               uint32_t face_index, const Mesh& mesh) const override;
+  void Process(const PixelShaderInput& input) const override;
 };
 
 class DiffuseLambertianShader : public DiffuseShader {
  public:
   DiffuseLambertianShader();
   ~DiffuseLambertianShader();
-  void Process(Image3b* color, int x, int y, float u, float v,
-               uint32_t face_index, const Mesh& mesh) const override;
+  void Process(const PixelShaderInput& input) const override;
 };
 
 class DiffuseOrenNayarShader : public DiffuseShader {
  public:
   DiffuseOrenNayarShader();
   ~DiffuseOrenNayarShader();
-  void Process(Image3b* color, int x, int y, float u, float v,
-               uint32_t face_index, const Mesh& mesh) const override;
+  void Process(const PixelShaderInput& input) const override;
 };
 
 class PixelShader {
@@ -103,8 +128,7 @@ class PixelShader {
   friend class PixelShaderFactory;
   PixelShader();
   ~PixelShader();
-  void Process(Image3b* color, int x, int y, float u, float v,
-               uint32_t face_index, const Mesh& mesh) const;
+  void Process(const PixelShaderInput& input) const;
 };
 
 class PixelShaderFactory {
