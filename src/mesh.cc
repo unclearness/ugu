@@ -30,6 +30,15 @@ const std::vector<glm::vec3>& Mesh::vertex_colors() const {
 const std::vector<glm::ivec3>& Mesh::vertex_indices() const {
   return vertex_indices_;
 }
+
+const std::vector<glm::vec3>& Mesh::normals() const { return normals_; }
+const std::vector<glm::vec3>& Mesh::face_normals() const {
+  return face_normals_;
+}
+const std::vector<glm::ivec3>& Mesh::normal_indices() const {
+  return normal_indices_;
+}
+
 const std::vector<glm::vec2>& Mesh::uv() const { return uv_; }
 const std::vector<glm::ivec3>& Mesh::uv_indices() const { return uv_indices_; }
 
@@ -72,6 +81,9 @@ void Mesh::Rotate(const glm::mat3& R) {
   for (auto& n : normals_) {
     n = R * n;
   }
+  for (auto& fn : face_normals_) {
+    fn = R * fn;
+  }
   CalcStats();
 }
 void Mesh::Translate(const glm::vec3& t) {
@@ -101,6 +113,8 @@ void Mesh::Clear() {
 }
 
 void Mesh::CalcNormal() {
+  CalcFaceNormal();
+
   normals_.clear();
   normal_indices_.clear();
 
@@ -112,22 +126,33 @@ void Mesh::CalcNormal() {
 
   std::vector<int> add_count(vertices_.size(), 0);
 
-  for (const auto& f : vertex_indices_) {
-    glm::vec3 v1 = glm::normalize(vertices_[f[1]] - vertices_[f[0]]);
-    glm::vec3 v2 = glm::normalize(vertices_[f[2]] - vertices_[f[0]]);
-
-    glm::vec3 face_normal = glm::cross(v1, v2);
-
-    for (int i = 0; i < 3; i++) {
-      int idx = f[i];
-      normals_[idx] += face_normal;
+  for (size_t i = 0; i < vertex_indices_.size(); i++) {
+    const auto& face = vertex_indices_[i];
+    for (int j = 0; j < 3; j++) {
+      int idx = face[j];
+      normals_[idx] += face_normals_[i];
       add_count[idx]++;
     }
   }
 
+  // get average normal
+  // caution: this does not work for cube
+  // https://answers.unity.com/questions/441722/splitting-up-verticies.html
   for (size_t i = 0; i < vertices_.size(); i++) {
     normals_[i] /= static_cast<float>(add_count[i]);
     normals_[i] = glm::normalize(normals_[i]);
+  }
+}
+
+void Mesh::CalcFaceNormal() {
+  face_normals_.clear();
+  face_normals_.resize(vertex_indices_.size());
+
+  for (size_t i = 0; i < vertex_indices_.size(); i++) {
+    const auto& f = vertex_indices_[i];
+    glm::vec3 v1 = glm::normalize(vertices_[f[1]] - vertices_[f[0]]);
+    glm::vec3 v2 = glm::normalize(vertices_[f[2]] - vertices_[f[0]]);
+    face_normals_[i] = glm::normalize(glm::cross(v1, v2));
   }
 }
 
@@ -141,6 +166,18 @@ void Mesh::set_vertex_colors(const std::vector<glm::vec3>& vertex_colors) {
 
 void Mesh::set_vertex_indices(const std::vector<glm::ivec3>& vertex_indices) {
   CopyVec(vertex_indices, &vertex_indices_);
+}
+
+void Mesh::set_normals(const std::vector<glm::vec3>& normals) {
+  CopyVec(normals, &normals_);
+}
+
+void Mesh::set_face_normals(const std::vector<glm::vec3>& face_normals) {
+  CopyVec(face_normals, &face_normals_);
+}
+
+void Mesh::set_normal_indices(const std::vector<glm::ivec3>& normal_indices) {
+  CopyVec(normal_indices, &normal_indices_);
 }
 
 void Mesh::set_uv(const std::vector<glm::vec2>& uv) { CopyVec(uv, &uv_); }

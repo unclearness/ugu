@@ -24,7 +24,8 @@ class Mesh {
   std::vector<glm::vec3> vertex_colors_;    // optional, RGB order
   std::vector<glm::ivec3> vertex_indices_;  // face
 
-  std::vector<glm::vec3> normals_;
+  std::vector<glm::vec3> normals_;       // normal per vertex
+  std::vector<glm::vec3> face_normals_;  // normal per face
   std::vector<glm::ivec3> normal_indices_;
 
   std::vector<glm::vec2> uv_;
@@ -39,7 +40,12 @@ class Mesh {
   Mesh();
   ~Mesh();
   void Clear();
+
+  // get average normal per vertex from face normal
+  // caution: this does not work for cube unless vertices are splitted
   void CalcNormal();
+
+  void CalcFaceNormal();
   void CalcStats();
   void Rotate(const glm::mat3& R);
   void Translate(const glm::vec3& t);
@@ -47,6 +53,9 @@ class Mesh {
   const std::vector<glm::vec3>& vertices() const;
   const std::vector<glm::vec3>& vertex_colors() const;
   const std::vector<glm::ivec3>& vertex_indices() const;
+  const std::vector<glm::vec3>& normals() const;
+  const std::vector<glm::vec3>& face_normals() const;
+  const std::vector<glm::ivec3>& normal_indices() const;
   const std::vector<glm::vec2>& uv() const;
   const std::vector<glm::ivec3>& uv_indices() const;
   const MeshStats& stats() const;
@@ -55,6 +64,9 @@ class Mesh {
   void set_vertices(const std::vector<glm::vec3>& vertices);
   void set_vertex_colors(const std::vector<glm::vec3>& vertex_colors);
   void set_vertex_indices(const std::vector<glm::ivec3>& vertex_indices);
+  void set_normals(const std::vector<glm::vec3>& normals);
+  void set_face_normals(const std::vector<glm::vec3>& face_normals);
+  void set_normal_indices(const std::vector<glm::ivec3>& normal_indices);
   void set_uv(const std::vector<glm::vec2>& uv);
   void set_uv_indices(const std::vector<glm::ivec3>& uv_indices);
   void set_diffuse_tex(const Image3b& diffuse_tex);

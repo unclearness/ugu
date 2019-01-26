@@ -39,11 +39,11 @@ class Image {
     width_ = -1;
     height_ = -1;
   }
-  void Init(int width, int height) {
+  void Init(int width, int height, T val = 0) {
     Clear();
     width_ = width;
     height_ = height;
-    data_.resize(height_ * width_ * channel_, 0);
+    data_.resize(height_ * width_ * channel_, val);
   }
   T* at(int x, int y) {
     assert(0 <= x && x < width_ && 0 <= y && y < height_);
@@ -132,11 +132,14 @@ class Image {
 };
 
 using Image1b = Image<uint8_t, 1>;
-using Image3b = Image<uint8_t, 3>;
+using Image3b = Image<uint8_t, 3>;  // RGB order
 using Image1w = Image<uint16_t, 1>;
 using Image1f = Image<float, 1>;
+using Image3f = Image<float, 3>;  // XYZ order
 
 void GrayFromDepth(const Image1f& depth, Image1b* vis_depth,
                    float min_d = 200.0f, float max_d = 1500.0f);
+
+void Normal2Color(const Image3f& normal, Image3b* vis_normal);
 
 }  // namespace currender

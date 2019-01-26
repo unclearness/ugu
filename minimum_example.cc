@@ -6,8 +6,10 @@
 #include "include/renderer.h"
 
 using currender::GrayFromDepth;
+using currender::Normal2Color;
 using currender::Image1b;
 using currender::Image1f;
+using currender::Image3f;
 using currender::Image3b;
 using currender::Mesh;
 using currender::PinholeCamera;
@@ -58,7 +60,7 @@ void SetCube(std::shared_ptr<Mesh> mesh) {
   vertex_colors[5] = glm::vec3(255, 255, 255);
   vertex_colors[2] = glm::vec3(255, 0, 255);
   vertex_colors[3] = glm::vec3(0, 255, 255);
-  vertex_colors[6] = glm::vec3(0, 0, 0);
+  vertex_colors[6] = glm::vec3(100, 200, 100);
   vertex_colors[7] = glm::vec3(255, 255, 0);
 
   // make triangular faces
@@ -115,8 +117,9 @@ int main(int argc, char* argv[]) {
   // render
   Image3b color;
   Image1f depth;
+  Image3f normal;
   Image1b mask;
-  renderer.Render(&color, &depth, &mask);
+  renderer.Render(&color, &depth, &normal, &mask);
 
   // save images
   std::string save_dir = "../data/minimum_example/";
@@ -125,6 +128,9 @@ int main(int argc, char* argv[]) {
   Image1b vis_depth;
   GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(save_dir + "vis_depth.png");
+  Image3b vis_normal;
+  Normal2Color(normal, &vis_normal);
+  vis_normal.WritePng(save_dir + "vis_normal.png");
 
   printf("images are saved in %s\n", save_dir.c_str());
 

@@ -29,6 +29,8 @@ class Pose {
   void set_t(const glm::vec3& t);
   Pose& operator=(const Pose& pose);
   void Transform(glm::vec3* src_dst) const;
+  void Rotate(glm::vec3* src_dst) const;
+  void Translate(glm::vec3* src_dst) const;
 };
 
 }  // namespace currender

@@ -14,11 +14,16 @@
 
 namespace currender {
 
+enum ShadingNormal { kFace = 0, kVertex = 1 };
+enum DiffuseShading { kNone = 0, kLambert = 1, kOrenNayar = 2 };
+enum ColorInterpolation { kNn = 0, kBilinear = 1 };
+
 struct RendererOption {
   bool use_vertex_color{false};
   float depth_scale{1.0f};
-  enum ColorInterpolation { kNn = 0, kBilinear = 1 };
-  ColorInterpolation interp{kBilinear};
+  ColorInterpolation interp{ColorInterpolation::kBilinear};
+  ShadingNormal shading_normal{ShadingNormal::kFace};
+  DiffuseShading diffuse_shading{kLambert};
   bool backface_culling{true};
 
   RendererOption();
@@ -50,8 +55,10 @@ class Renderer {
   void set_mesh(std::shared_ptr<Mesh> mesh);
   bool PrepareMesh();
   void set_camera(std::shared_ptr<Camera> camera);
-  bool Render(Image3b* color, Image1f* depth, Image1b* mask) const;
-  bool Render(Image3b* color, Image1w* depth, Image1b* mask) const;
+  bool Render(Image3b* color, Image1f* depth, Image3f* normal,
+              Image1b* mask) const;
+  bool Render(Image3b* color, Image1w* depth, Image3f* normal,
+              Image1b* mask) const;
 };
 
 }  // namespace currender

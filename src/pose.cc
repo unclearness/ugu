@@ -71,4 +71,8 @@ void Pose::Transform(glm::vec3* src_dst) const {
   *src_dst = R_ * (*src_dst) + t_;
 }
 
+void Pose::Rotate(glm::vec3* src_dst) const { *src_dst = R_ * (*src_dst); }
+
+void Pose::Translate(glm::vec3* src_dst) const { *src_dst = (*src_dst) + t_; }
+
 }  // namespace currender

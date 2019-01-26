@@ -9,11 +9,14 @@
 #include "include/renderer.h"
 
 using currender::Camera;
+using currender::GrayFromDepth;
 using currender::Image1b;
 using currender::Image1f;
 using currender::Image3b;
+using currender::Image3f;
 using currender::Mesh;
 using currender::MeshStats;
+using currender::Normal2Color;
 using currender::PinholeCamera;
 using currender::Pose;
 using currender::Renderer;
@@ -39,8 +42,10 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   // images
   Image3b color;
   Image1f depth;
+  Image3f normal;
   Image1b mask;
   Image1b vis_depth;
+  Image3b vis_normal;
 
   MeshStats stats = mesh->stats();
   glm::vec3 center = stats.center;
@@ -56,66 +61,78 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   eye[2] -= offset;
   c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.Render(&color, &depth, &mask);
+  renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "front_color.png");
   mask.WritePng(out_dir + "front_mask.png");
   GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "front_vis_depth.png");
+  Normal2Color(normal, &vis_normal);
+  vis_normal.WritePng(out_dir + "front_vis_normal.png");
 
   // from back
   eye = center;
   eye[2] += offset;
   c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.Render(&color, &depth, &mask);
+  renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "back_color.png");
   mask.WritePng(out_dir + "back_mask.png");
   GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "back_vis_depth.png");
+  Normal2Color(normal, &vis_normal);
+  vis_normal.WritePng(out_dir + "back_vis_normal.png");
 
   // from right
   eye = center;
   eye[0] += offset;
   c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.Render(&color, &depth, &mask);
+  renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "right_color.png");
   mask.WritePng(out_dir + "right_mask.png");
   GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "right_vis_depth.png");
+  Normal2Color(normal, &vis_normal);
+  vis_normal.WritePng(out_dir + "right_vis_normal.png");
 
   // from left
   eye = center;
   eye[0] -= offset;
   c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
   camera->set_c2w(Pose(c2w));
-  renderer.Render(&color, &depth, &mask);
+  renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "left_color.png");
   mask.WritePng(out_dir + "left_mask.png");
   GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "left_vis_depth.png");
+  Normal2Color(normal, &vis_normal);
+  vis_normal.WritePng(out_dir + "left_vis_normal.png");
 
   // from top
   eye = center;
   eye[1] -= offset;
   c2w = MakeC2w(eye, center, glm::vec3(0, 0, 1));
   camera->set_c2w(Pose(c2w));
-  renderer.Render(&color, &depth, &mask);
+  renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "top_color.png");
   mask.WritePng(out_dir + "top_mask.png");
   GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "top_vis_depth.png");
+  Normal2Color(normal, &vis_normal);
+  vis_normal.WritePng(out_dir + "top_vis_normal.png");
 
   // from bottom
   eye = center;
   eye[1] += offset;
   c2w = MakeC2w(eye, center, glm::vec3(0, 0, -1));
   camera->set_c2w(Pose(c2w));
-  renderer.Render(&color, &depth, &mask);
+  renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "bottom_color.png");
   mask.WritePng(out_dir + "bottom_mask.png");
   GrayFromDepth(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "bottom_vis_depth.png");
+  Normal2Color(normal, &vis_normal);
+  vis_normal.WritePng(out_dir + "bottom_vis_normal.png");
 }
 
 void AlignMesh(std::shared_ptr<Mesh> mesh) {
