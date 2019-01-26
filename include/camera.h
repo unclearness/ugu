@@ -69,13 +69,15 @@ class PinholeCamera : public Camera {
   void set_focal_length(const glm::vec2& focal_length);
   void set_fov_x(float fov_x_deg);
   void set_fov_y(float fov_y_deg);
-  void Project(const glm::vec3& camera_p, glm::vec3* image_p) const;
-  void Project(const glm::vec3& camera_p, glm::vec2* image_p) const;
-  void Project(const glm::vec3& camera_p, glm::vec2* image_p, float* d) const;
-  void Unproject(const glm::vec3& image_p, glm::vec3* camera_p) const;
-  void Unproject(const glm::vec2& image_p, float d, glm::vec3* camera_p) const;
-  void ray_c(float x, float y, glm::vec3* dir) const;
-  void ray_w(float x, float y, glm::vec3* dir) const;
+  void Project(const glm::vec3& camera_p, glm::vec3* image_p) const override;
+  void Project(const glm::vec3& camera_p, glm::vec2* image_p) const override;
+  void Project(const glm::vec3& camera_p, glm::vec2* image_p,
+               float* d) const override;
+  void Unproject(const glm::vec3& image_p, glm::vec3* camera_p) const override;
+  void Unproject(const glm::vec2& image_p, float d,
+                 glm::vec3* camera_p) const override;
+  void ray_c(float x, float y, glm::vec3* dir) const override;
+  void ray_w(float x, float y, glm::vec3* dir) const override;
 };
 
 }  // namespace currender

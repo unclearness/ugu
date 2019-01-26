@@ -46,35 +46,30 @@ PixelShaderFactory::~PixelShaderFactory() {}
 std::unique_ptr<PixelShader> PixelShaderFactory::Create(
     DiffuseColor diffuse_color, ColorInterpolation interp,
     DiffuseShading diffuse_shading) {
-  std::unique_ptr<DiffuseColorizer> colorizer{nullptr};
-  std::unique_ptr<DiffuseShader> shader{nullptr};
+  std::unique_ptr<DiffuseColorizer> colorizer;
+  std::unique_ptr<DiffuseShader> shader;
 
   if (diffuse_color == DiffuseColor::kVertex) {
-    colorizer =
-        std::unique_ptr<DiffuseColorizer>(new DiffuseVertexColorColorizer);
-
+    colorizer.reset(new DiffuseVertexColorColorizer);
   } else if (diffuse_color == DiffuseColor::kTexture) {
     if (interp == ColorInterpolation::kNn) {
-      colorizer =
-          std::unique_ptr<DiffuseColorizer>(new DiffuseTextureNnColorizer);
-
+      colorizer.reset(new DiffuseTextureNnColorizer);
     } else if (interp == ColorInterpolation::kBilinear) {
-      colorizer = std::unique_ptr<DiffuseColorizer>(
-          new DiffuseTextureBilinearColorizer);
+      colorizer.reset(new DiffuseTextureBilinearColorizer);
     }
   } else if (diffuse_color == DiffuseColor::kNone) {
-    colorizer = std::unique_ptr<DiffuseColorizer>(new DiffuseDefaultColorizer);
+    colorizer.reset(new DiffuseDefaultColorizer);
   }
-  assert(colorizer != nullptr);
+  assert(colorizer);
 
   if (diffuse_shading == DiffuseShading::kNone) {
-    shader = std::unique_ptr<DiffuseShader>(new DiffuseDefaultShader);
+    shader.reset(new DiffuseDefaultShader);
   } else if (diffuse_shading == DiffuseShading::kLambertian) {
-    shader = std::unique_ptr<DiffuseShader>(new DiffuseLambertianShader);
+    shader.reset(new DiffuseLambertianShader);
   } else if (diffuse_shading == DiffuseShading::kOrenNayar) {
-    shader = std::unique_ptr<DiffuseShader>(new DiffuseOrenNayarShader);
+    shader.reset(new DiffuseOrenNayarShader);
   }
-  assert(shader != nullptr);
+  assert(shader);
 
   return std::unique_ptr<PixelShader>(
       new PixelShader(std::move(colorizer), std::move(shader)));
