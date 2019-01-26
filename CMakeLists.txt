@@ -45,6 +45,7 @@ add_library(${PUBLIC_LIB_NAME}
     src/image.cc
     src/pixel_shader.h
     src/pixel_shader.cc
+	src/timer.h
 )
 
 # set folders
@@ -61,6 +62,7 @@ SOURCE_GROUP("Public header files" FILES
 
 SOURCE_GROUP("Private header files" FILES
     src/pixel_shader.h
+	src/timer.h
 )
 
 SOURCE_GROUP("Source files" FILES
