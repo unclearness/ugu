@@ -88,16 +88,16 @@ class DiffuseOrenNayarShader : public DiffuseShader {
 };
 
 class PixelShader {
-  const DiffuseColorizer* diffuse_colorizer_{nullptr};
-  const DiffuseShader* diffuse_shader_{nullptr};
+  std::unique_ptr<DiffuseColorizer> diffuse_colorizer_{nullptr};
+  std::unique_ptr<DiffuseShader> diffuse_shader_{nullptr};
 
   PixelShader(const PixelShader&) = delete;
   PixelShader& operator=(const PixelShader&) = delete;
   PixelShader(PixelShader&&) = delete;
   PixelShader& operator=(PixelShader&&) = delete;
 
-  PixelShader(const DiffuseColorizer* diffuse_colorizer,
-              const DiffuseShader* diffuse_shader);
+  PixelShader(std::unique_ptr<DiffuseColorizer>&& diffuse_colorizer,
+              std::unique_ptr<DiffuseShader>&& diffuse_shader);
 
  public:
   friend class PixelShaderFactory;

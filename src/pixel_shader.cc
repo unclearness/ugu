@@ -5,7 +5,7 @@
 
 #include "src/pixel_shader.h"
 
-#include "src/singleton.h"
+#include <utility>
 
 namespace currender {
 
@@ -19,39 +19,45 @@ PixelShaderFactory::~PixelShaderFactory() {}
 std::unique_ptr<PixelShader> PixelShaderFactory::Create(
     DiffuseColor diffuse_color, ColorInterpolation interp,
     DiffuseShading diffuse_shading) {
-  DiffuseColorizer* colorizer{nullptr};
-  DiffuseShader* shader{nullptr};
+  std::unique_ptr<DiffuseColorizer> colorizer{nullptr};
+  std::unique_ptr<DiffuseShader> shader{nullptr};
 
   if (diffuse_color == DiffuseColor::kVertex) {
-    colorizer = &singleton<DiffuseVertexColorColorizer>::get_instance();
+    colorizer =
+        std::unique_ptr<DiffuseColorizer>(new DiffuseVertexColorColorizer);
 
   } else if (diffuse_color == DiffuseColor::kTexture) {
     if (interp == ColorInterpolation::kNn) {
-      colorizer = &singleton<DiffuseTextureNnColorizer>::get_instance();
+      colorizer =
+          std::unique_ptr<DiffuseColorizer>(new DiffuseTextureNnColorizer);
 
     } else if (interp == ColorInterpolation::kBilinear) {
-      colorizer = &singleton<DiffuseTextureBilinearColorizer>::get_instance();
+      colorizer = std::unique_ptr<DiffuseColorizer>(
+          new DiffuseTextureBilinearColorizer);
     }
   } else if (diffuse_color == DiffuseColor::kNone) {
-    colorizer = &singleton<DiffuseDefaultColorizer>::get_instance();
+    colorizer = std::unique_ptr<DiffuseColorizer>(new DiffuseDefaultColorizer);
   }
   assert(colorizer != nullptr);
 
   if (diffuse_shading == DiffuseShading::kNone) {
-    shader = &singleton<DiffuseDefaultShader>::get_instance();
+    shader = std::unique_ptr<DiffuseShader>(new DiffuseDefaultShader);
   } else if (diffuse_shading == DiffuseShading::kLambertian) {
-    shader = &singleton<DiffuseLambertianShader>::get_instance();
+    shader = std::unique_ptr<DiffuseShader>(new DiffuseLambertianShader);
   } else if (diffuse_shading == DiffuseShading::kOrenNayar) {
-    shader = &singleton<DiffuseOrenNayarShader>::get_instance();
+    shader = std::unique_ptr<DiffuseShader>(new DiffuseOrenNayarShader);
   }
   assert(shader != nullptr);
 
-  return std::unique_ptr<PixelShader>(new PixelShader(colorizer, shader));
+  return std::unique_ptr<PixelShader>(
+      new PixelShader(std::move(colorizer), std::move(shader)));
 }
 
-PixelShader::PixelShader(const DiffuseColorizer* diffuse_colorizer,
-                         const DiffuseShader* diffuse_shader)
-    : diffuse_colorizer_(diffuse_colorizer), diffuse_shader_(diffuse_shader) {}
+PixelShader::PixelShader(std::unique_ptr<DiffuseColorizer>&& diffuse_colorizer,
+                         std::unique_ptr<DiffuseShader>&& diffuse_shader) {
+  diffuse_colorizer_ = std::move(diffuse_colorizer);
+  diffuse_shader_ = std::move(diffuse_shader);
+}
 
 void PixelShader::Process(Image3b* color, int x, int y, float u, float v,
                           uint32_t face_index, const Mesh& mesh) const {
