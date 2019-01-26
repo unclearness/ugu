@@ -4,7 +4,7 @@
  */
 
 #pragma once
-#include <chrono>
+#include <chrono> //NOLINT
 #include <vector>
 
 namespace currender {
@@ -19,7 +19,7 @@ class Timer {
  public:
   Timer() {}
   ~Timer() {}
-  Timer(size_t history_num) : history_num_(history_num) {}
+  explicit Timer(size_t history_num) : history_num_(history_num) {}
 
   std::chrono::system_clock::time_point start_t() const { return start_t_; }
   std::chrono::system_clock::time_point end_t() const { return end_t_; }
