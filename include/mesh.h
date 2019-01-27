@@ -50,6 +50,8 @@ class Mesh {
   void Rotate(const glm::mat3& R);
   void Translate(const glm::vec3& t);
   void Transform(const glm::mat3& R, const glm::vec3& t);
+  void Scale(float scale);
+  void Scale(float x_scale, float y_scale, float z_scale);
   const std::vector<glm::vec3>& vertices() const;
   const std::vector<glm::vec3>& vertex_colors() const;
   const std::vector<glm::ivec3>& vertex_indices() const;

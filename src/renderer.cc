@@ -242,10 +242,12 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
   for (int y = 0; y < camera_->height(); y++) {
     for (int x = 0; x < camera_->width(); x++) {
       // ray from camera position in world coordinate
-      glm::vec3 ray_w;
+      glm::vec3 ray_w, org_ray_w;
       camera_->ray_w(static_cast<float>(x), static_cast<float>(y), &ray_w);
+      camera_->org_ray_w(static_cast<float>(x), static_cast<float>(y),
+                         &org_ray_w);
       nanort::Ray<float> ray;
-      PrepareRay(&ray, camera_->c2w().t(), ray_w);
+      PrepareRay(&ray, org_ray_w, ray_w);
 
       // shoot ray
       nanort::TriangleIntersector<> triangle_intersector(
@@ -281,7 +283,7 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
 
       // convert hit position to camera coordinate to get depth value
       if (depth != nullptr) {
-        glm::vec3 hit_pos_w = camera_->c2w().t() + ray_w * isect.t;
+        glm::vec3 hit_pos_w = org_ray_w + ray_w * isect.t;
         glm::vec3 hit_pos_c = hit_pos_w;
         camera_->w2c().Transform(&hit_pos_c);
         assert(0.0f <= hit_pos_c[2]);  // depth should be positive

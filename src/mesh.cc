@@ -100,6 +100,16 @@ void Mesh::Transform(const glm::mat3& R, const glm::vec3& t) {
   Translate(t);
 }
 
+void Mesh::Scale(float scale) { Scale(scale, scale, scale); }
+
+void Mesh::Scale(float x_scale, float y_scale, float z_scale) {
+  for (auto& v : vertices_) {
+    v[0] = v[0] * x_scale;
+    v[1] = v[1] * y_scale;
+    v[2] = v[2] * z_scale;
+  }
+}
+
 void Mesh::Clear() {
   vertices_.clear();
   vertex_colors_.clear();
