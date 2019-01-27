@@ -158,6 +158,13 @@ int main(int argc, char* argv[]) {
   // CMake downloads and unzip this data automatically
   // Please do manually if it got wrong
   // http://www.kunzhou.net/tex-models/bunny.zip
+  /*
+   *  @article{Texturemontage05,
+   *  author = "Kun Zhou and Xi Wang and Yiying Tong and Mathieu Desbrun and
+   *  Baining Guo and Heung-Yeung Shum", title = "Texturemontage: Seamless Texturing
+   *  of Arbitrary Surfaces From Multiple Images", journal = "ACM Transactions on
+   *  Graphics", volume = "24", number = "3", year="2005", pages = "1148-1155"
+   */
   std::string data_dir = "../data/bunny/";
   std::string obj_path = data_dir + "bunny.obj";
 

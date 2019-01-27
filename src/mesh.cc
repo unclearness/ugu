@@ -6,6 +6,7 @@
 #include "include/mesh.h"
 
 #include <fstream>
+#include <random>
 
 #ifdef CURRENDER_USE_TINYOBJLOADER
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -336,6 +337,109 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   (void)ply_path;
   LOGE("Haven't been implemented\n");
   return false;
+}
+
+std::shared_ptr<Mesh> MakeCube(const glm::vec3& length, const glm::mat3& R,
+                               const glm::vec3& t) {
+  std::shared_ptr<Mesh> cube(new Mesh);
+  std::vector<glm::vec3> vertices(24);
+  std::vector<glm::ivec3> vertex_indices(12);
+  std::vector<glm::vec3> vertex_colors(24);
+
+  const float h_x = length.x / 2;
+  const float h_y = length.y / 2;
+  const float h_z = length.z / 2;
+
+  vertices[0] = glm::vec3(-h_x, h_y, -h_z);
+  vertices[1] = glm::vec3(h_x, h_y, -h_z);
+  vertices[2] = glm::vec3(h_x, h_y, h_z);
+  vertices[3] = glm::vec3(-h_x, h_y, h_z);
+  vertex_indices[0] = glm::ivec3(0, 2, 1);
+  vertex_indices[1] = glm::ivec3(0, 3, 2);
+
+  vertices[4] = glm::vec3(-h_x, -h_y, -h_z);
+  vertices[5] = glm::vec3(h_x, -h_y, -h_z);
+  vertices[6] = glm::vec3(h_x, -h_y, h_z);
+  vertices[7] = glm::vec3(-h_x, -h_y, h_z);
+  vertex_indices[2] = glm::ivec3(4, 5, 6);
+  vertex_indices[3] = glm::ivec3(4, 6, 7);
+
+  vertices[8] = vertices[1];
+  vertices[9] = vertices[2];
+  vertices[10] = vertices[6];
+  vertices[11] = vertices[5];
+  vertex_indices[4] = glm::ivec3(8, 9, 10);
+  vertex_indices[5] = glm::ivec3(8, 10, 11);
+
+  vertices[12] = vertices[0];
+  vertices[13] = vertices[3];
+  vertices[14] = vertices[7];
+  vertices[15] = vertices[4];
+  vertex_indices[6] = glm::ivec3(12, 14, 13);
+  vertex_indices[7] = glm::ivec3(12, 15, 14);
+
+  vertices[16] = vertices[0];
+  vertices[17] = vertices[1];
+  vertices[18] = vertices[5];
+  vertices[19] = vertices[4];
+  vertex_indices[8] = glm::ivec3(16, 17, 18);
+  vertex_indices[9] = glm::ivec3(16, 18, 19);
+
+  vertices[20] = vertices[3];
+  vertices[21] = vertices[2];
+  vertices[22] = vertices[6];
+  vertices[23] = vertices[7];
+  vertex_indices[10] = glm::ivec3(20, 22, 21);
+  vertex_indices[11] = glm::ivec3(20, 23, 22);
+
+  // set default color
+  for (int i = 0; i < 24; i++) {
+    vertex_colors[i][0] = (-vertices[i][0] + h_x) / length.x * 255;
+    vertex_colors[i][1] = (-vertices[i][1] + h_y) / length.y * 255;
+    vertex_colors[i][2] = (-vertices[i][2] + h_z) / length.z * 255;
+  }
+
+  cube->set_vertices(vertices);
+  cube->set_vertex_indices(vertex_indices);
+  cube->set_vertex_colors(vertex_colors);
+
+  cube->Transform(R, t);
+
+  cube->CalcNormal();
+
+  return cube;
+}
+
+std::shared_ptr<Mesh> MakeCube(const glm::vec3& length) {
+  const glm::mat3 R{1};
+  const glm::vec3 t{0};
+  return MakeCube(length, R, t);
+}
+
+std::shared_ptr<Mesh> MakeCube(float length, const glm::mat3& R,
+                               const glm::vec3& t) {
+  glm::vec3 length_xyz{length, length, length};
+  return MakeCube(length_xyz, R, t);
+}
+
+std::shared_ptr<Mesh> MakeCube(float length) {
+  const glm::mat3 R{1};
+  const glm::vec3 t{0};
+  return MakeCube(length, R, t);
+}
+
+void SetRandomVertexColor(std::shared_ptr<Mesh> mesh, int seed) {
+  std::mt19937 mt(seed);
+  std::uniform_int_distribution<int> random_color(0, 255);
+
+  std::vector<glm::vec3> vertex_colors(mesh->vertices().size());
+  for (auto& vc : vertex_colors) {
+    vc[0] = static_cast<float>(random_color(mt));
+    vc[1] = static_cast<float>(random_color(mt));
+    vc[2] = static_cast<float>(random_color(mt));
+  }
+
+  mesh->set_vertex_colors(vertex_colors);
 }
 
 }  // namespace currender

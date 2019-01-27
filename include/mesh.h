@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -42,7 +43,8 @@ class Mesh {
   void Clear();
 
   // get average normal per vertex from face normal
-  // caution: this does not work for cube unless vertices are splitted
+  // caution: this does not work for cube with 8 vertices unless vertices are
+  // splitted (24 vertices)
   void CalcNormal();
 
   void CalcFaceNormal();
@@ -78,5 +80,15 @@ class Mesh {
 #endif
   bool LoadPly(const std::string& ply_path);
 };
+
+// make cube with 24 vertices
+std::shared_ptr<Mesh> MakeCube(const glm::vec3& length, const glm::mat3& R,
+                               const glm::vec3& t);
+std::shared_ptr<Mesh> MakeCube(const glm::vec3& length);
+std::shared_ptr<Mesh> MakeCube(float length, const glm::mat3& R,
+                               const glm::vec3& t);
+std::shared_ptr<Mesh> MakeCube(float length);
+
+void SetRandomVertexColor(std::shared_ptr<Mesh> mesh, int seed = 0);
 
 }  // namespace currender
