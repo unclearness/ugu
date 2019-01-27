@@ -16,12 +16,12 @@ namespace currender {
 
 // Diffuse color
 enum class DiffuseColor {
-  kNone = 0,     // Defualt white color
+  kNone = 0,     // Default white color
   kTexture = 1,  // From diffuse uv texture
   kVertex = 2    // From vertex color
 };
 
-// Normal used for shading.
+// Normal used for shading
 // Also returned as output normal
 enum class ShadingNormal {
   kFace = 0,   // Face normal
@@ -29,7 +29,7 @@ enum class ShadingNormal {
 };
 
 // Diffuse shading
-// A point light at camera position is used for shading
+// Light ray same to viewing ray is used for shading
 enum class DiffuseShading {
   kNone = 0,        // No shading
   kLambertian = 1,  // Lambertian reflectance model
@@ -84,31 +84,33 @@ class Renderer {
   Renderer();
   ~Renderer();
 
-  // set option
+  // Set option
   explicit Renderer(const RendererOption& option);
   void set_option(const RendererOption& option);
 
-  // set mesh
+  // Set mesh
   void set_mesh(std::shared_ptr<const Mesh> mesh);
 
-  // Shoud call after set_mesh() and before Render()
+  // Should call after set_mesh() and before Render()
   // Don't modify mesh outside after calling PrepareMesh()
   bool PrepareMesh();
 
-  // set camera
+  // Set camera
   void set_camera(std::shared_ptr<const Camera> camera);
 
-  // Rendering interfaces
+  // Rendering all images and get face visibility
   bool Render(Image3b* color, Image1f* depth, Image3f* normal, Image1b* mask,
               std::vector<uint32_t>* visible_faces = nullptr) const;
+
+  // Rendering a image
   bool RenderColor(Image3b* color) const;
   bool RenderDepth(Image1f* depth) const;
   bool RenderNormal(Image3f* normal) const;
   bool RenderMask(Image1b* mask) const;
   bool VisibilityTest(std::vector<uint32_t>* visible_faces) const;
 
-  // These Image1w* depth interfaces are prepared for widely used 16 bit
-  // (unsigned short) and mm scale depth image format
+  // These Image1w* depth interfaces are prepared for widely used unsigned 16
+  // bit (unsigned short) and mm scale depth image format
   bool RenderW(Image3b* color, Image1w* depth, Image3f* normal, Image1b* mask,
                std::vector<uint32_t>* visible_faces = nullptr) const;
   bool RenderDepthW(Image1w* depth) const;
