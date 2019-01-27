@@ -63,5 +63,7 @@ Minor modifitation of code and CMakeLists.txt would be required.
 - Porting to other platforms.
 - Real-time rendering visualization sample with external library (maybe OpenGL).
 - Support point cloud rendering.
+- Replace GLM with own math.
+- Replace NanoRT with own ray intersection.
 - Introduce ambient and specular.
 

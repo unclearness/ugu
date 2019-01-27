@@ -8,9 +8,9 @@
 #include <memory>
 #include <vector>
 
+#include "nanort/nanort.h"
 #include "include/camera.h"
 #include "include/mesh.h"
-#include "nanort/nanort.h"
 
 namespace currender {
 

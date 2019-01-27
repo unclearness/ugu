@@ -4,18 +4,12 @@
  */
 
 #pragma once
-#include <stdio.h>
 
 #include "glm/glm.hpp"
+#include "include/log.h"
 
 // define to use optional libraries
 #define CURRENDER_USE_STB
 #define CURRENDER_USE_TINYOBJLOADER
 #define CURRENDER_USE_OPENMP
 
-// todo
-#define LOGI printf
-#define LOGV printf
-#define LOGD printf
-#define LOGW printf
-#define LOGE printf

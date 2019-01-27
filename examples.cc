@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#include <stdio.h>
 #include <fstream>
 
 #include "glm/ext/matrix_transform.hpp"
@@ -162,7 +163,7 @@ int main(int argc, char* argv[]) {
 
   std::ifstream ifs(obj_path);
   if (!ifs.is_open()) {
-    LOGE("Please put %s\n", obj_path.c_str());
+    printf("Please put %s\n", obj_path.c_str());
     return -1;
   }
 
