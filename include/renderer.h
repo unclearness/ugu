@@ -14,19 +14,47 @@
 
 namespace currender {
 
-enum class DiffuseColor { kNone = 0, kTexture = 1, kVertex = 2 };
-enum class ShadingNormal { kFace = 0, kVertex = 1 };
-enum class DiffuseShading { kNone = 0, kLambertian = 1, kOrenNayar = 2 };
-enum class ColorInterpolation { kNn = 0, kBilinear = 1 };
+// Diffuse color
+enum class DiffuseColor {
+  kNone = 0,     // Defualt white color
+  kTexture = 1,  // From diffuse uv texture
+  kVertex = 2    // From vertex color
+};
+
+// Normal used for shading.
+// Also returned as output normal
+enum class ShadingNormal {
+  kFace = 0,   // Face normal
+  kVertex = 1  // Vertex normal. Maybe average of face normals
+};
+
+// Diffuse shading
+// A point light at camera position is used for shading
+enum class DiffuseShading {
+  kNone = 0,        // No shading
+  kLambertian = 1,  // Lambertian reflectance model
+  kOrenNayar =
+      2  // Simplified Oren-Nayar reflectatnce model described in wikipedia
+         // https://en.wikipedia.org/wiki/Oren%E2%80%93Nayar_reflectance_model
+};
+
+// Interpolation method in texture uv space
+// Meaningful only if DiffuseColor::kTexture is specified otherwise ignored
+enum class ColorInterpolation {
+  kNn = 0,       // Nearest Neigbor
+  kBilinear = 1  // Bilinear interpolation
+};
 
 struct RendererOption {
   DiffuseColor diffuse_color{DiffuseColor::kTexture};
-  float depth_scale{1.0f};
   ColorInterpolation interp{ColorInterpolation::kBilinear};
   ShadingNormal shading_normal{ShadingNormal::kVertex};
   DiffuseShading diffuse_shading{DiffuseShading::kLambertian};
-  bool backface_culling{true};
-  float oren_nayar_sigma{0.3f};
+
+  float depth_scale{1.0f};       // Multiplied to output depth
+  bool backface_culling{true};   // Back-face culling flag
+  float oren_nayar_sigma{0.3f};  // Oren-Nayar's sigma
+
   RendererOption();
   ~RendererOption();
   void CopyTo(RendererOption* dst) const;
@@ -55,10 +83,19 @@ class Renderer {
  public:
   Renderer();
   ~Renderer();
+
+  // set option
   explicit Renderer(const RendererOption& option);
   void set_option(const RendererOption& option);
+
+  // set mesh
   void set_mesh(std::shared_ptr<const Mesh> mesh);
+
+  // Shoud call after set_mesh() and before Render()
+  // Don't modify mesh outside after calling PrepareMesh()
   bool PrepareMesh();
+
+  // set camera
   void set_camera(std::shared_ptr<const Camera> camera);
 
   // Rendering interfaces
