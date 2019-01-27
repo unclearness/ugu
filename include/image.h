@@ -31,9 +31,12 @@ class Image {
   Image() {}
   ~Image() {}
   Image(int width, int height) { Init(width, height); }
+  Image(int width, int height, T val) { Init(width, height, val); }
   int width() const { return width_; }
   int height() const { return height_; }
   int channel() const { return channel_; }
+  const std::vector<T>& data() const { return data_; }
+  std::vector<T>* data_ptr() { return &data_; }
   void Clear() {
     data_.clear();
     width_ = -1;
@@ -143,8 +146,8 @@ using Image1w = Image<uint16_t, 1>;
 using Image1f = Image<float, 1>;
 using Image3f = Image<float, 3>;  // XYZ order
 
-void Depth2Gray(const Image1f& depth, Image1b* vis_depth,
-                   float min_d = 200.0f, float max_d = 1500.0f);
+void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d = 200.0f,
+                float max_d = 1500.0f);
 
 void Normal2Color(const Image3f& normal, Image3b* vis_normal);
 

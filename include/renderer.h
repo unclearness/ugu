@@ -8,9 +8,9 @@
 #include <memory>
 #include <vector>
 
-#include "nanort/nanort.h"
 #include "include/camera.h"
 #include "include/mesh.h"
+#include "nanort/nanort.h"
 
 namespace currender {
 
@@ -49,7 +49,8 @@ class Renderer {
   float bmin_[3], bmax_[3];
 
   bool ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
-                                   Image3f* normal, Image1b* mask) const;
+                                   Image3f* normal, Image1b* mask,
+                                   std::vector<uint32_t>* visible_faces) const;
 
  public:
   Renderer();
@@ -59,13 +60,21 @@ class Renderer {
   void set_mesh(std::shared_ptr<const Mesh> mesh);
   bool PrepareMesh();
   void set_camera(std::shared_ptr<const Camera> camera);
-  bool Render(Image3b* color, Image1f* depth, Image3f* normal,
-              Image1b* mask) const;
 
-  // This Image1w* depth interface is prepared for widely used 16 bit (unsigned
-  // short), mm scale depth image format
-  bool Render(Image3b* color, Image1w* depth, Image3f* normal,
-              Image1b* mask) const;
+  // Rendering interfaces
+  bool Render(Image3b* color, Image1f* depth, Image3f* normal, Image1b* mask,
+              std::vector<uint32_t>* visible_faces = nullptr) const;
+  bool RenderColor(Image3b* color) const;
+  bool RenderDepth(Image1f* depth) const;
+  bool RenderNormal(Image3f* normal) const;
+  bool RenderMask(Image1b* mask) const;
+  bool VisibilityTest(std::vector<uint32_t>* visible_faces) const;
+
+  // These Image1w* depth interfaces are prepared for widely used 16 bit
+  // (unsigned short) and mm scale depth image format
+  bool RenderW(Image3b* color, Image1w* depth, Image3f* normal, Image1b* mask,
+               std::vector<uint32_t>* visible_faces = nullptr) const;
+  bool RenderDepthW(Image1w* depth) const;
 };
 
 }  // namespace currender

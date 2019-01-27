@@ -147,9 +147,9 @@ void Renderer::set_camera(std::shared_ptr<const Camera> camera) {
   camera_ = camera;
 }
 
-bool Renderer::ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
-                                           Image3f* normal,
-                                           Image1b* mask) const {
+bool Renderer::ValidateAndInitBeforeRender(
+    Image3b* color, Image1f* depth, Image3f* normal, Image1b* mask,
+    std::vector<uint32_t>* visible_faces) const {
   if (camera_ == nullptr) {
     LOGE("camera has not been set\n");
     return false;
@@ -185,6 +185,11 @@ bool Renderer::ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
         "empty.\n");
     return false;
   }
+  if (color == nullptr && depth == nullptr && normal == nullptr &&
+      mask == nullptr && visible_faces == nullptr) {
+    LOGE("all arguments are nullptr. nothing to do\n");
+    return false;
+  }
 
   int width = camera_->width();
   int height = camera_->height();
@@ -201,13 +206,17 @@ bool Renderer::ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
   if (mask != nullptr) {
     mask->Init(width, height);
   }
+  if (visible_faces != nullptr) {
+    visible_faces->clear();
+  }
 
   return true;
 }
 
 bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
-                      Image1b* mask) const {
-  if (!ValidateAndInitBeforeRender(color, depth, normal, mask)) {
+                      Image1b* mask,
+                      std::vector<uint32_t>* visible_faces) const {
+  if (!ValidateAndInitBeforeRender(color, depth, normal, mask, visible_faces)) {
     return false;
   }
 
@@ -216,6 +225,14 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
       option_.diffuse_color, option_.interp, option_.diffuse_shading);
 
   OrenNayarParam oren_nayar_param(option_.oren_nayar_sigma);
+
+  // intersected face id in image coordinate
+  // to avoid multi thread problem, don't push_back to visible_faces
+  Image<int64_t, 1> face_id_image;
+  if (visible_faces != nullptr) {
+    // initialize with -1
+    face_id_image.Init(camera_->width(), camera_->height(), -1);
+  }
 
   Timer<> timer;
   timer.Start();
@@ -250,6 +267,11 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
         if (glm::dot(mesh_->face_normals()[fid], ray_w) > 0) {
           continue;
         }
+      }
+
+      // fill face id
+      if (visible_faces != nullptr) {
+        face_id_image.at(x, y, 0) = fid;
       }
 
       // fill mask
@@ -299,17 +321,63 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
       }
     }
   }
-
   timer.End();
   LOGI("  Rendering main loop time: %.1f msecs\n", timer.elapsed_msec());
+
+  // remove same face ids and copy to visible_faces
+  if (visible_faces != nullptr) {
+    std::vector<int64_t>* face_id_list = face_id_image.data_ptr();
+
+    // remove -1 meaning no ray intersection
+    face_id_list->erase(
+        std::remove(face_id_list->begin(), face_id_list->end(), -1),
+        face_id_list->end());
+
+    // remove duplicate elements and unique face id list
+    std::sort(face_id_list->begin(), face_id_list->end());
+    face_id_list->erase(std::unique(face_id_list->begin(), face_id_list->end()),
+                        face_id_list->end());
+
+    // copy to return
+    visible_faces->resize(face_id_list->size());
+    for (size_t i = 0; i < visible_faces->size(); i++) {
+      (*visible_faces)[i] = static_cast<uint32_t>((*face_id_list)[i]);
+    }
+  }
 
   return true;
 }
 
-bool Renderer::Render(Image3b* color, Image1w* depth, Image3f* normal,
-                      Image1b* mask) const {
+bool Renderer::RenderColor(Image3b* color) const {
+  return Render(color, nullptr, nullptr, nullptr, nullptr);
+}
+
+bool Renderer::RenderDepth(Image1f* depth) const {
+  return Render(nullptr, depth, nullptr, nullptr, nullptr);
+}
+
+bool Renderer::RenderNormal(Image3f* normal) const {
+  return Render(nullptr, nullptr, normal, nullptr, nullptr);
+}
+
+bool Renderer::RenderMask(Image1b* mask) const {
+  return Render(nullptr, nullptr, nullptr, mask, nullptr);
+}
+
+bool Renderer::VisibilityTest(std::vector<uint32_t>* visible_faces) const {
+  return Render(nullptr, nullptr, nullptr, nullptr, visible_faces);
+}
+
+bool Renderer::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
+                       Image1b* mask,
+                       std::vector<uint32_t>* visible_faces) const {
+  if (depth == nullptr) {
+    LOGE("depth is nullptr");
+    return false;
+  }
+
   Image1f f_depth;
-  bool org_ret = Render(color, &f_depth, normal, mask);
+  bool org_ret = Render(color, &f_depth, normal, mask, visible_faces);
 
   if (org_ret) {
     f_depth.ConvertTo(depth);
@@ -317,4 +385,9 @@ bool Renderer::Render(Image3b* color, Image1w* depth, Image3f* normal,
 
   return org_ret;
 }
+
+bool Renderer::RenderDepthW(Image1w* depth) const {
+  return RenderW(nullptr, depth, nullptr, nullptr, nullptr);
+}
+
 }  // namespace currender
