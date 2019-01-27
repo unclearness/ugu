@@ -5,7 +5,6 @@
 
 #include "include/renderer.h"
 
-#include <array>
 #include <cassert>
 
 #include "src/pixel_shader.h"

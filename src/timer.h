@@ -6,6 +6,7 @@
 #pragma once
 #include <chrono> //NOLINT
 #include <vector>
+#include <numeric>
 
 namespace currender {
 
