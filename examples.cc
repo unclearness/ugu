@@ -53,9 +53,9 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   glm::vec3 eye;
   glm::mat4 c2w;
 
-  // translation offset is the largest edge length of bounding box * 2
+  // translation offset is the largest edge length of bounding box * 1.5
   glm::vec3 diff = stats.bb_max - stats.bb_min;
-  float offset = std::max(diff[0], std::max(diff[1], diff[2])) * 2;
+  float offset = std::max(diff[0], std::max(diff[1], diff[2])) * 1.5;
 
   // from front
   eye = center;
@@ -161,9 +161,10 @@ int main(int argc, char* argv[]) {
   /*
    *  @article{Texturemontage05,
    *  author = "Kun Zhou and Xi Wang and Yiying Tong and Mathieu Desbrun and
-   *  Baining Guo and Heung-Yeung Shum", title = "Texturemontage: Seamless Texturing
-   *  of Arbitrary Surfaces From Multiple Images", journal = "ACM Transactions on
-   *  Graphics", volume = "24", number = "3", year="2005", pages = "1148-1155"
+   *  Baining Guo and Heung-Yeung Shum", title = "Texturemontage: Seamless
+   *  Texturing of Arbitrary Surfaces From Multiple Images", journal = "ACM
+   *  Transactions on Graphics", volume = "24", number = "3", year="2005", pages
+   *  = "1148-1155"
    */
   std::string data_dir = "../data/bunny/";
   std::string obj_path = data_dir + "bunny.obj";
@@ -196,10 +197,11 @@ int main(int argc, char* argv[]) {
   // Make PinholeCamera
   // borrow KinectV1 intrinsics of Freiburg 1 RGB
   // https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
-  int width = 640;
-  int height = 480;
-  glm::vec2 principal_point(318.6f, 255.3f);
-  glm::vec2 focal_length(517.3f, 516.5f);
+  float r = 0.5f;  // scale to smaller size from VGA
+  int width = static_cast<int>(640 * r);
+  int height = static_cast<int>(480 * r);
+  glm::vec2 principal_point(318.6f * r, 255.3f * r);
+  glm::vec2 focal_length(517.3f * r, 516.5f * r);
   std::shared_ptr<Camera> camera = std::make_shared<PinholeCamera>(
       width, height, pose, principal_point, focal_length);
 
