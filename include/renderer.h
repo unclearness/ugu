@@ -109,8 +109,8 @@ class Renderer {
   bool RenderMask(Image1b* mask) const;
   bool VisibilityTest(std::vector<uint32_t>* visible_faces) const;
 
-  // These Image1w* depth interfaces are prepared for widely used unsigned 16
-  // bit (unsigned short) and mm scale depth image format
+  // These Image1w* depth interfaces are prepared for widely used 16 bit
+  // (unsigned short) and mm-scale depth image format
   bool RenderW(Image3b* color, Image1w* depth, Image3f* normal, Image1b* mask,
                std::vector<uint32_t>* visible_faces = nullptr) const;
   bool RenderDepthW(Image1w* depth) const;

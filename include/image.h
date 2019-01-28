@@ -140,11 +140,12 @@ class Image {
   bool CopyTo(Image<T, N>* dst) const { return ConvertTo(dst, 1.0f); }
 };
 
-using Image1b = Image<uint8_t, 1>;
-using Image3b = Image<uint8_t, 3>;  // RGB order
-using Image1w = Image<uint16_t, 1>;
-using Image1f = Image<float, 1>;
-using Image3f = Image<float, 3>;  // XYZ order
+using Image1b = Image<uint8_t, 1>;   // For gray image.
+using Image3b = Image<uint8_t, 3>;   // For color image. RGB order.
+using Image1w = Image<uint16_t, 1>;  // For depth image with 16 bit (unsigned
+                                     // short) mm-scale format
+using Image1f = Image<float, 1>;     // For depth image with any scale
+using Image3f = Image<float, 3>;     // For normal or point cloud. XYZ order.
 
 void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d = 200.0f,
                 float max_d = 1500.0f);
