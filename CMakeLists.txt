@@ -37,7 +37,7 @@ add_library(${PUBLIC_LIB_NAME}
     include/pose.h
     include/mesh.h
     include/image.h
-	include/log.h
+    include/log.h
 
     src/renderer.cc
     src/camera.cc
@@ -46,8 +46,8 @@ add_library(${PUBLIC_LIB_NAME}
     src/image.cc
     src/pixel_shader.h
     src/pixel_shader.cc
-	src/timer.h
-	src/log.cc
+    src/timer.h
+    src/log.cc
 )
 
 # set folders
@@ -60,12 +60,12 @@ SOURCE_GROUP("Public header files" FILES
     include/pose.h
     include/mesh.h
     include/image.h
-	include/log.h
+    include/log.h
 )
 
 SOURCE_GROUP("Private header files" FILES
     src/pixel_shader.h
-	src/timer.h
+    src/timer.h
 )
 
 SOURCE_GROUP("Source files" FILES
@@ -75,7 +75,7 @@ SOURCE_GROUP("Source files" FILES
     src/mesh.cc
     src/image.cc
     src/pixel_shader.cc
-	src/log.cc
+    src/log.cc
 )
 
 include_directories(${PUBLIC_LIB_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

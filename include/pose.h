@@ -33,4 +33,7 @@ class Pose {
   void Translate(glm::vec3* src_dst) const;
 };
 
+glm::mat3 EulerAngleDegYXZ(float yaw_deg, float pitch_deg, float roll_deg);
+glm::mat3 EulerAngleYXZ(float yaw_rad, float pitch_rad, float roll_rad);
+
 }  // namespace currender

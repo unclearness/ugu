@@ -5,6 +5,12 @@
 
 #include "include/pose.h"
 
+#pragma warning(push)
+#pragma warning(disable : 4201)
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/euler_angles.hpp"
+#pragma warning(pop)
+
 namespace currender {
 
 Pose::Pose() { set_I(); }
@@ -74,5 +80,23 @@ void Pose::Transform(glm::vec3* src_dst) const {
 void Pose::Rotate(glm::vec3* src_dst) const { *src_dst = R_ * (*src_dst); }
 
 void Pose::Translate(glm::vec3* src_dst) const { *src_dst = (*src_dst) + t_; }
+
+glm::mat3 EulerAngleDegYXZ(float yaw_deg, float pitch_deg, float roll_deg) {
+  return EulerAngleYXZ(glm::radians(yaw_deg), glm::radians(pitch_deg),
+                       glm::radians(roll_deg));
+}
+
+glm::mat3 EulerAngleYXZ(float yaw_rad, float pitch_rad, float roll_rad) {
+  glm::mat4 T = glm::eulerAngleYXZ(yaw_rad, pitch_rad, roll_rad);
+
+  glm::mat3 R;
+  for (int j = 0; j < 3; j++) {
+    for (int i = 0; i < 3; i++) {
+      R[i][j] = T[i][j];
+    }
+  }
+
+  return R;
+}
 
 }  // namespace currender

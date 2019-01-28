@@ -5,27 +5,51 @@
 
 #include "include/renderer.h"
 
-int main(int argc, char* argv[]) {
-  (void)argc;
-  (void)argv;
+namespace {
 
+std::shared_ptr<currender::Mesh> MakeExampleCube() {
+  // cube mesh parameters
   float length = 200;           // cube length
-  glm::vec3 center{0, 0, 600};  // cube center
-  // rotate cube 30 deg. around y axis
-  glm::mat3 R;
-  float deg = 30;
-  R[0][0] = cos(glm::radians(deg));
-  R[0][1] = 0;
-  R[0][2] = sin(glm::radians(deg));
-  R[1][0] = 0;
-  R[1][1] = 1;
-  R[1][2] = 0;
-  R[2][0] = -sin(glm::radians(deg));
-  R[2][1] = 0;
-  R[2][2] = cos(glm::radians(deg));
-  // make cube mesh with default vertex color
-  std::shared_ptr<currender::Mesh> mesh =
-      currender::MakeCube(length, R, center);
+  glm::vec3 center{0, 0, 600};  // cube center position
+
+  // mesh rotation matrix from eular angle. rotate cube -30 deg. around y axis
+  // and then rotate further 30 deg. around x axis
+  glm::mat3 R = currender::EulerAngleDegYXZ(-30.0f, 30.0f, 0.0f);
+
+  // make cube mesh with the above paramters and default vertex color
+  return currender::MakeCube(length, R, center);
+}
+
+void SaveImages(const currender::Image3b& color,
+                const currender::Image1f& depth,
+                const currender::Image3f& normal,
+                const currender::Image1b& mask) {
+  // dir to save images
+  std::string save_dir = "../data/minimum_example/";
+
+  // save color
+  color.WritePng(save_dir + "color.png");
+
+  // save mask
+  mask.WritePng(save_dir + "mask.png");
+
+  // convert depth to gray and save
+  currender::Image1b vis_depth;
+  currender::Depth2Gray(depth, &vis_depth);
+  vis_depth.WritePng(save_dir + "vis_depth.png");
+
+  // convert normal to color and save
+  currender::Image3b vis_normal;
+  currender::Normal2Color(normal, &vis_normal);
+  vis_normal.WritePng(save_dir + "vis_normal.png");
+
+  printf("images are saved in %s\n", save_dir.c_str());
+}
+}  // namespace
+
+int main() {
+  // make an inclined cube mesh with vertex color
+  auto mesh = MakeExampleCube();
 
   // initialize renderer enabling vertex color rendering
   currender::RendererOption option;
@@ -38,17 +62,14 @@ int main(int argc, char* argv[]) {
   // prepare mesh for rendering (e.g. make BVH)
   renderer.PrepareMesh();
 
-  // make PinholeCamera (perspective camera) at origin
-  int width = 320;
-  int height = 240;
-  float fov_y_deg = 50.0f;
-  std::shared_ptr<currender::Camera> camera =
-      std::make_shared<currender::PinholeCamera>(width, height, fov_y_deg);
+  // make PinholeCamera (perspective camera) at origin.
+  // its image size is 160 * 120 and its y (vertical) FoV is 50 deg.
+  auto camera = std::make_shared<currender::PinholeCamera>(160, 120, 50.0f);
 
   // set camera
   renderer.set_camera(camera);
 
-  // render
+  // render images
   currender::Image3b color;
   currender::Image1f depth;
   currender::Image3f normal;
@@ -56,17 +77,7 @@ int main(int argc, char* argv[]) {
   renderer.Render(&color, &depth, &normal, &mask);
 
   // save images
-  std::string save_dir = "../data/minimum_example/";
-  color.WritePng(save_dir + "color.png");
-  mask.WritePng(save_dir + "mask.png");
-  currender::Image1b vis_depth;
-  currender::Depth2Gray(depth, &vis_depth);
-  vis_depth.WritePng(save_dir + "vis_depth.png");
-  currender::Image3b vis_normal;
-  currender::Normal2Color(normal, &vis_normal);
-  vis_normal.WritePng(save_dir + "vis_normal.png");
-
-  printf("images are saved in %s\n", save_dir.c_str());
+  SaveImages(color, depth, normal, mask);
 
   return 0;
 }

@@ -1,16 +1,20 @@
-# Currender: A computer vision friendly CPU rendering library
+# Currender: A CPU rendering library for computer vision
 **Currender** is a CPU raytracing based rendering library written in C++.
-With 3D triangular mesh and camera parameters, you can easily render color, depth, normal and mask images ([input mesh](#Data)).
+With 3D triangular mesh and camera parameters, you can easily render color, depth, normal and mask images.
 
-|color|depth|normal|mask|
-|---|---|---|---|
-|![](data/bunny/front_color.png)|![](data/bunny/front_vis_depth.png)|![](data/bunny/front_vis_normal.png)|![](data/bunny/front_mask.png)
+|color|depth|
+|---|---|
+|![](data/bunny/front_color.png)|![](data/bunny/front_vis_depth.png)|
+
+|normal|mask|
+|---|---|
+|![](data/bunny/front_vis_normal.png)|![](data/bunny/front_mask.png)
 
 Currender is primarily designed for people who are involved in computer vision.
 Pros and cons against popular OpenGL based rendering are listed below.
 ## Pros
 - **Simple API, set mesh, set camera and render.**
-  - You do not need to waste time in complex OpenGL settings.
+  - You do not waste time in complex OpenGL settings.
 - **Standard coordinate system in computer vision community**
   - Identical to OpenCV (right-handed, z:forward, y:down, x:right). You are not irritated by coordinate conversion for OpenGL.
 - **Intrinsic parameters (principal point and focal length in pixel-scale) with pinhole camera model**
@@ -30,12 +34,50 @@ Pros and cons against popular OpenGL based rendering are listed below.
 - Not desgined to render beautiful and realistic color images. Only simple diffuse shading is implemented. 
 
 # Usage
-See `minimum_example.cc` for the shortest usage. `examples.cc` shows a varietiy of usage (Bunny image on the top of this document was rendered by  `examples.cc`).
+This is the main function of `minimum_example.cc` to show simple usage of API. 
+```C++
+int main() {
+  // make an inclined cube mesh with vertex color
+  auto mesh = MakeExampleCube();
+
+  // initialize renderer enabling vertex color rendering
+  currender::RendererOption option;
+  option.diffuse_color = currender::DiffuseColor::kVertex;
+  currender::Renderer renderer(option);
+
+  // set mesh
+  renderer.set_mesh(mesh);
+
+  // prepare mesh for rendering (e.g. make BVH)
+  renderer.PrepareMesh();
+
+  // make PinholeCamera (perspective camera) at origin.
+  // its image size is 160 * 120 and its y (vertical) FoV is 50 deg.
+  auto camera = std::make_shared<currender::PinholeCamera>(160, 120, 50.0f);
+
+  // set camera
+  renderer.set_camera(camera);
+
+  // render images
+  currender::Image3b color;
+  currender::Image1f depth;
+  currender::Image3f normal;
+  currender::Image1b mask;
+  renderer.Render(&color, &depth, &normal, &mask);
+
+  // save images
+  SaveImages(color, depth, normal, mask);
+
+  return 0;
+}
+```
+
+`examples.cc` shows a varietiy of usage (Bunny image on the top of this document was rendered by  `examples.cc`).
 
 # Use case
 Expected use cases are the following but not limited to
-- Embedded in computer vision algortihm with rendering. 
-    - Especially in the case that you don't want to use OpenGL for algorithm. For instance, OpenGL based visualization is running on the main thread and on another thread an algorithm should render images from explicit 3D model to estimate something without blocking the visualization.
+- Embedded in computer vision algortihm with rendering.
+  - Especially in the case that OpenGL is used for visualization, so you hesitate to use OpenGL for algorithm with rendering simultaneously.
 - Debugging of computer vision algortihm.
 - Data augumentation for machine learning.
 
@@ -73,7 +115,7 @@ Minor modifitation of code and CMakeLists.txt would be required.
 - Porting to other platforms.
 - Real-time rendering visualization sample with external library (maybe OpenGL).
 - Support point cloud rendering.
-- Replace GLM with own math.
+- Replace GLM (confusing column-major matrix!) with own math.
 - Replace NanoRT with own ray intersection.
 - Introduce ambient and specular.
 
