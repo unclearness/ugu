@@ -7,8 +7,8 @@
 
 #include "include/log.h"
 
-#include <stdarg.h>
-#include <stdio.h>
+#include <cstdarg>
+#include <cstdio>
 
 // multi line macro with do {...} while (0) guard
 #define PRINT_MACRO       \

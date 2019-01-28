@@ -55,7 +55,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
 
   // translation offset is the largest edge length of bounding box * 1.5
   glm::vec3 diff = stats.bb_max - stats.bb_min;
-  float offset = std::max(diff[0], std::max(diff[1], diff[2])) * 1.5;
+  float offset = std::max(diff[0], std::max(diff[1], diff[2])) * 1.5f;
 
   // from front
   eye = center;
