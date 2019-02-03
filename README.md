@@ -1,4 +1,4 @@
-# Currender: A CPU rendering library for computer vision
+# Currender: A CPU renderer for computer vision
 **Currender** is a CPU raytracing based rendering library written in C++.
 With 3D triangular mesh and camera parameters, you can easily render color, depth, normal and mask images.
 
