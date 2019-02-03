@@ -107,8 +107,11 @@ Expected use cases are the following but not limited to
   -  `reconfigure.bat` and `rebuild.bat` are command line CMake utilities for Windows 10 and Visual Studio 2017.
 
 # Platforms
-Tested on Windows 10 and Visual Studio 2017.
-Porting to the other platforms (Linux, Android, Mac and iOS) is under planning.
+Tested on
+- Windows 10 with Visual Studio 2017.
+- Ubuntu 18.04 LTS with gcc
+
+Porting to the other platforms (Android, Mac and iOS) is under planning.
 Minor modifitation of code and CMakeLists.txt would be required.
 
 # To do
