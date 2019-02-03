@@ -13,12 +13,18 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin) 
 
 if (WIN32)
+# option for Visual Studio
 # -EHsc (enable proper Exxeption Handling) needs to avoid C4530
 # -Wall is too noisy so that set -W4. 
 # https://docs.microsoft.com/en-us/cpp/build/reference/compiler-option-warning-level?view=vs-2017
 # "However, for a new project, it may be best to use /W4 in all compilations;
 # this will ensure the fewest possible hard-to-find code defects."
 set(CMAKE_CXX_FLAGS "-std=c++14 -W4 -EHsc")
+
+else()
+# g++ option for *nix
+set(CMAKE_CXX_FLAGS  "-std=c++14 -Wall -O2")
+
 endif()
 
 # For OpenMP
@@ -122,7 +128,6 @@ file(DOWNLOAD http://www.kunzhou.net/tex-models/bunny.zip ${CMAKE_CURRENT_SOURCE
 endif()
 
 # unzip test data
-if (WIN32)
 add_custom_target( unZip ALL)
 add_custom_command(TARGET unZip PRE_BUILD
    COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip
@@ -130,6 +135,5 @@ WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny
 DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip
 COMMENT "Unpacking bunny.zip"
 VERBATIM)
-endif()
 
 endif()
