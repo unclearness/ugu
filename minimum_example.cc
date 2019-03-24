@@ -95,7 +95,18 @@ int main() {
 
   // make PinholeCamera (perspective camera) at origin.
   // its image size is 160 * 120 and its y (vertical) FoV is 50 deg.
-  auto camera = std::make_shared<currender::PinholeCamera>(160, 120, 50.0f);
+  int width = 160;
+  int height = 120;
+  Eigen::Vector2f principal_point{width * 0.5f - 0.5f, height * 0.5f - 0.5f};
+  float fov_y_deg = 50.0f;
+  Eigen::Vector2f focal_length;
+  focal_length[1] =
+      height * 0.5f /
+      static_cast<float>(std::tan(currender::radians<float>(fov_y_deg) * 0.5));
+  focal_length[0] = focal_length[1];
+  auto camera = std::make_shared<currender::PinholeCamera>(
+      width, height, Eigen::Affine3d::Identity(), principal_point,
+      focal_length);
 
   // set camera
   renderer.set_camera(camera);
