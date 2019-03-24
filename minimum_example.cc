@@ -5,17 +5,48 @@
 
 #include "include/renderer.h"
 
+#ifdef CURRENDER_USE_TINYOBJLOADER
+#ifndef CURRENDER_TINYOBJLOADER_IMPLEMENTATION
+#define TINYOBJLOADER_IMPLEMENTATION
+#endif
+#include "tinyobjloader/tiny_obj_loader.h"
+#undef TINYOBJLOADER_IMPLEMENTATION
+#endif
+
+#ifdef CURRENDER_USE_STB
+#pragma warning(push)
+#pragma warning(disable : 4100)
+#ifndef CURRENDER_STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#endif
+#include "stb/stb_image.h"
+#pragma warning(pop)
+#undef STB_IMAGE_IMPLEMENTATION
+
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#ifndef CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#endif
+#include "stb/stb_image_write.h"
+#pragma warning(pop)
+#undef STB_IMAGE_WRITE_IMPLEMENTATION
+#endif
+
 namespace {
 
 std::shared_ptr<currender::Mesh> MakeExampleCube() {
   // cube mesh parameters
-  float length = 200;           // cube length
-  glm::vec3 center{0, 0, 600};  // cube center position
+  float length = 200;                 // cube length
+  Eigen::Vector3f center{0, 0, 600};  // cube center position
 
   // mesh rotation matrix from eular angle. rotate cube -30 deg. around y axis
   // and then rotate further 30 deg. around x axis
-  glm::mat3 R = currender::EulerAngleDegYXZ(-30.0f, 30.0f, 0.0f);
-
+  Eigen::Matrix3f R =
+      (Eigen::AngleAxisf(currender::radians(-30.0f), Eigen::Vector3f::UnitY()) *
+       Eigen::AngleAxisf(currender::radians(30.0f), Eigen::Vector3f::UnitX()) *
+       Eigen::AngleAxisf(currender::radians(0.0f), Eigen::Vector3f::UnitZ()))
+          .toRotationMatrix();
   // make cube mesh with the above paramters and default vertex color
   return currender::MakeCube(length, R, center);
 }

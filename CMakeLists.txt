@@ -34,20 +34,74 @@ if(OpenMP_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
 
+# third_party directries
+if(NOT DEFINED NANORT_INSTALL_DIR)
+  set(NANORT_INSTALL_DIR "third_party/nanort" CACHE PATH "NanoRT installed directory")
+endif()
+message("NANORT_INSTALL_DIR: ${NANORT_INSTALL_DIR}") 
+if(NOT DEFINED STB_INSTALL_DIR)
+  set(STB_INSTALL_DIR "third_party/stb" CACHE PATH "stb installed directory")
+endif()
+message("STB_INSTALL_DIR: ${STB_INSTALL_DIR}") 
+if(NOT DEFINED TINYOBJLOADER_INSTALL_DIR)
+  set(TINYOBJLOADER_INSTALL_DIR "third_party/tinyobjloader" CACHE PATH "tinyobjloader installed directory")
+endif()
+message("TINYOBJLOADER_INSTALL_DIR: ${TINYOBJLOADER_INSTALL_DIR}")
+if(NOT DEFINED EIGEN_INSTALL_DIR)
+  set(EIGEN_INSTALL_DIR "third_party/eigen" CACHE PATH "eigen installed directory")
+message("EIGEN_INSTALL_DIR: ${EIGEN_INSTALL_DIR}") 
+endif()
+
+# switch for optional libraries
+option(CURRENDER_USE_STB "Use stb to enable image i/o" ON)
+message("CURRENDER_USE_STB: ${CURRENDER_USE_STB}")
+if(CURRENDER_USE_STB)
+  add_definitions(-DCURRENDER_USE_STB)
+endif()
+
+option(CURRENDER_USE_TINYOBJLOADER "Use tinyobjloader to enable .obj input" ON)
+message("CURRENDER_USE_TINYOBJLOADER: ${CURRENDER_USE_TINYOBJLOADER}")
+if(CURRENDER_USE_TINYOBJLOADER)
+  add_definitions(-DCURRENDER_USE_TINYOBJLOADER)
+endif()
+
+option(CURRENDER_USE_OPENMP "Use OpenMP to enable parallelization" ON)
+message("CURRENDER_USE_OPENMP: ${CURRENDER_USE_OPENMP}")
+if(CURRENDER_USE_OPENMP)
+  add_definitions(-DCURRENDER_USE_OPENMP)
+endif()
+
+# switch for header-only library implementation
+option(CURRENDER_TINYOBJLOADER_IMPLEMENTATION "implement tinyobjloader" OFF)
+message("CURRENDER_TINYOBJLOADER_IMPLEMENTATION: ${CURRENDER_TINYOBJLOADER_IMPLEMENTATION}")
+if(CURRENDER_TINYOBJLOADER_IMPLEMENTATION)
+  add_definitions(-DCURRENDER_TINYOBJLOADER_IMPLEMENTATION)
+endif()
+
+option(CURRENDER_STB_IMAGE_IMPLEMENTATION "implement stb image" OFF)
+message("CURRENDER_STB_IMAGE_IMPLEMENTATION: ${CURRENDER_STB_IMAGE_IMPLEMENTATION}")
+if(CURRENDER_STB_IMAGE_IMPLEMENTATION)
+  add_definitions(-DCURRENDER_STB_IMAGE_IMPLEMENTATION)
+endif()
+
+option(CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION "implement stb image write" OFF)
+message("CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION: ${CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION}")
+if(CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION)
+  add_definitions(-DCURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION)
+endif()
+
 set(PUBLIC_LIB_NAME ${PROJECT_NAME})
 add_library(${PUBLIC_LIB_NAME}
     STATIC
     include/common.h
     include/renderer.h
     include/camera.h
-    include/pose.h
     include/mesh.h
     include/image.h
     include/log.h
 
     src/renderer.cc
     src/camera.cc
-    src/pose.cc
     src/mesh.cc
     src/image.cc
     src/pixel_shader.h
@@ -63,7 +117,6 @@ SOURCE_GROUP("Public header files" FILES
     include/common.h
     include/renderer.h
     include/camera.h
-    include/pose.h
     include/mesh.h
     include/image.h
     include/log.h
@@ -77,19 +130,18 @@ SOURCE_GROUP("Private header files" FILES
 SOURCE_GROUP("Source files" FILES
     src/renderer.cc
     src/camera.cc
-    src/pose.cc
     src/mesh.cc
     src/image.cc
     src/pixel_shader.cc
     src/log.cc
 )
 
-include_directories(${PUBLIC_LIB_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party)
-include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/nanort)
-include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/glm)
-include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/tinyobjloader)
-include_directories(${PUBLIC_LIB_NAME} PRIVATE third_party/stb)
+include_directories(${PUBLIC_LIB_NAME} ${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${PUBLIC_LIB_NAME} third_party)
+include_directories(${PUBLIC_LIB_NAME} ${NANORT_INSTALL_DIR})
+include_directories(${PUBLIC_LIB_NAME} ${EIGEN_INSTALL_DIR})
+include_directories(${PUBLIC_LIB_NAME} ${TINYOBJLOADER_INSTALL_DIR})
+include_directories(${PUBLIC_LIB_NAME} ${STB_INSTALL_DIR})
 
 set_target_properties(${PUBLIC_LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
@@ -106,7 +158,11 @@ add_executable(${EXAMPLES_EXE}
 target_link_libraries(${EXAMPLES_EXE}
     ${PUBLIC_LIB_NAME}
     )
-
+if (WIN32)
+    set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${EXAMPLES_EXE})
+    # suppress C2338 for eigen
+    add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
+endif()
 
 # make test data directory
 if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data)

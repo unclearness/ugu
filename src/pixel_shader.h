@@ -35,15 +35,16 @@ struct PixelShaderInput {
   float u;
   float v;
   uint32_t face_index;
-  const glm::vec3* ray_w{nullptr};
-  const glm::vec3* light_dir{nullptr};
-  const glm::vec3* shading_normal{nullptr};
+  const Eigen::Vector3f* ray_w{nullptr};
+  const Eigen::Vector3f* light_dir{nullptr};
+  const Eigen::Vector3f* shading_normal{nullptr};
   const OrenNayarParam* oren_nayar_param{nullptr};
   std::shared_ptr<const Mesh> mesh{nullptr};
 
   PixelShaderInput(Image3b* color, int x, int y, float u, float v,
-                   uint32_t face_index, const glm::vec3* ray_w,
-                   const glm::vec3* light_dir, const glm::vec3* shading_normal,
+                   uint32_t face_index, const Eigen::Vector3f* ray_w,
+                   const Eigen::Vector3f* light_dir,
+                   const Eigen::Vector3f* shading_normal,
                    const OrenNayarParam* oren_nayar_param,
                    std::shared_ptr<const Mesh> mesh);
   ~PixelShaderInput();

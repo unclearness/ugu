@@ -22,9 +22,9 @@ PixelShaderInput::PixelShaderInput() {}
 PixelShaderInput::~PixelShaderInput() {}
 PixelShaderInput::PixelShaderInput(Image3b* color, int x, int y, float u,
                                    float v, uint32_t face_index,
-                                   const glm::vec3* ray_w,
-                                   const glm::vec3* light_dir,
-                                   const glm::vec3* shading_normal,
+                                   const Eigen::Vector3f* ray_w,
+                                   const Eigen::Vector3f* light_dir,
+                                   const Eigen::Vector3f* shading_normal,
                                    const OrenNayarParam* oren_nayar_param,
                                    std::shared_ptr<const Mesh> mesh)
     : color(color),
@@ -117,7 +117,7 @@ void DiffuseVertexColorColorizer::Process(const PixelShaderInput& input) const {
 
   const auto& vertex_colors = mesh->vertex_colors();
   const auto& faces = mesh->vertex_indices();
-  glm::vec3 interp_color;
+  Eigen::Vector3f interp_color;
   // barycentric interpolation of vertex color
   interp_color = (1.0f - u - v) * vertex_colors[faces[face_index][0]] +
                  u * vertex_colors[faces[face_index][1]] +
@@ -143,11 +143,11 @@ void DiffuseTextureNnColorizer::Process(const PixelShaderInput& input) const {
   const auto& uv_indices = mesh->uv_indices();
   const auto& diffuse_texture = mesh->diffuse_tex();
 
-  glm::vec3 interp_color;
+  Eigen::Vector3f interp_color;
   // barycentric interpolation of uv
-  glm::vec2 interp_uv = (1.0f - u - v) * uv[uv_indices[face_index][0]] +
-                        u * uv[uv_indices[face_index][1]] +
-                        v * uv[uv_indices[face_index][2]];
+  Eigen::Vector2f interp_uv = (1.0f - u - v) * uv[uv_indices[face_index][0]] +
+                              u * uv[uv_indices[face_index][1]] +
+                              v * uv[uv_indices[face_index][2]];
   float f_tex_pos[2];
   f_tex_pos[0] = interp_uv[0] * (diffuse_texture.width() - 1);
   f_tex_pos[1] = (1.0f - interp_uv[1]) * (diffuse_texture.height() - 1);
@@ -181,12 +181,12 @@ void DiffuseTextureBilinearColorizer::Process(
   const auto& uv_indices = mesh->uv_indices();
   const auto& diffuse_texture = mesh->diffuse_tex();
 
-  glm::vec3 interp_color;
+  Eigen::Vector3f interp_color;
 
   // barycentric interpolation of uv
-  glm::vec2 interp_uv = (1.0f - u - v) * uv[uv_indices[face_index][0]] +
-                        u * uv[uv_indices[face_index][1]] +
-                        v * uv[uv_indices[face_index][2]];
+  Eigen::Vector2f interp_uv = (1.0f - u - v) * uv[uv_indices[face_index][0]] +
+                              u * uv[uv_indices[face_index][1]] +
+                              v * uv[uv_indices[face_index][2]];
   float f_tex_pos[2];
   f_tex_pos[0] = interp_uv[0] * (diffuse_texture.width() - 1);
   f_tex_pos[1] = (1.0f - interp_uv[1]) * (diffuse_texture.height() - 1);
@@ -239,7 +239,7 @@ void DiffuseLambertianShader::Process(const PixelShaderInput& input) const {
   int y = input.y;
 
   // dot product of normal and inverse light direction
-  float coeff = glm::dot(-*input.light_dir, *input.shading_normal);
+  float coeff = -input.light_dir->dot(*input.shading_normal);
 
   // if negative (may happen at back-face or occluding boundary), bound to 0
   if (coeff < 0.0f) {
@@ -255,16 +255,17 @@ DiffuseOrenNayarShader::DiffuseOrenNayarShader() {}
 DiffuseOrenNayarShader::~DiffuseOrenNayarShader() {}
 void DiffuseOrenNayarShader::Process(const PixelShaderInput& input) const {
   // angle against normal
-  float dot_light = glm::dot(-*input.light_dir, *input.shading_normal);
+  float dot_light = -input.light_dir->dot(*input.shading_normal);
   float theta_i = std::acos(dot_light);
-  float dot_ray = glm::dot(-*input.ray_w, *input.shading_normal);
+  float dot_ray = -input.ray_w->dot(*input.shading_normal);
   float theta_r = std::acos(dot_ray);
 
   // angle against binormal (perpendicular to normal)
-  glm::vec3 binormal_light =
+  Eigen::Vector3f binormal_light =
       -*input.shading_normal * dot_light - *input.light_dir;
-  glm::vec3 binormal_ray = -*input.shading_normal * dot_light - *input.ray_w;
-  float phi_diff_cos = std::max(0.0f, glm::dot(binormal_light, binormal_ray));
+  Eigen::Vector3f binormal_ray =
+      -*input.shading_normal * dot_light - *input.ray_w;
+  float phi_diff_cos = std::max(0.0f, binormal_light.dot(binormal_ray));
 
   float alpha = std::max(theta_i, theta_r);
   float beta = std::min(theta_i, theta_r);

@@ -6,8 +6,35 @@
 #include <stdio.h>
 #include <fstream>
 
-#include "glm/ext/matrix_transform.hpp"
 #include "include/renderer.h"
+
+#ifdef CURRENDER_USE_TINYOBJLOADER
+#ifndef CURRENDER_TINYOBJLOADER_IMPLEMENTATION
+#define TINYOBJLOADER_IMPLEMENTATION
+#endif
+#include "tinyobjloader/tiny_obj_loader.h"
+#undef TINYOBJLOADER_IMPLEMENTATION
+#endif
+
+#ifdef CURRENDER_USE_STB
+#pragma warning(push)
+#pragma warning(disable : 4100)
+#ifndef CURRENDER_STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#endif
+#include "stb/stb_image.h"
+#pragma warning(pop)
+#undef STB_IMAGE_IMPLEMENTATION
+
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#ifndef CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#endif
+#include "stb/stb_image_write.h"
+#pragma warning(pop)
+#undef STB_IMAGE_WRITE_IMPLEMENTATION
+#endif
 
 using currender::Camera;
 using currender::Depth2Gray;
@@ -19,25 +46,10 @@ using currender::Mesh;
 using currender::MeshStats;
 using currender::Normal2Color;
 using currender::PinholeCamera;
-using currender::Pose;
 using currender::Renderer;
 using currender::RendererOption;
 
 namespace {
-glm::mat4 MakeC2w(const glm::vec3& eye, const glm::vec3& center,
-                  const glm::vec3& up) {
-  // glm::lookAtRH returns view matrix (world -> camera) with z:backward, y:up,
-  // x:right, like OpenGL
-  glm::mat4 w2c_gl = glm::lookAtRH(eye, center, up);
-  glm::mat4 c2w_gl = glm::inverse(w2c_gl);
-
-  // rotate 180 deg.around x_axis to align z:forward, y:down, x:right,
-  glm::vec3 x_axis(1, 0, 0);
-  glm::mat4 c2w = glm::rotate(c2w_gl, glm::radians<float>(180), x_axis);
-
-  return c2w;
-}
-
 void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
           std::shared_ptr<Camera> camera, const Renderer& renderer) {
   // images
@@ -49,19 +61,20 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   Image3b vis_normal;
 
   MeshStats stats = mesh->stats();
-  glm::vec3 center = stats.center;
-  glm::vec3 eye;
-  glm::mat4 c2w;
+  Eigen::Vector3f center = stats.center;
+  Eigen::Vector3f eye;
+  Eigen::Matrix4f c2w;
 
   // translation offset is the largest edge length of bounding box * 1.5
-  glm::vec3 diff = stats.bb_max - stats.bb_min;
+  Eigen::Vector3f diff = stats.bb_max - stats.bb_min;
   float offset = std::max(diff[0], std::max(diff[1], diff[2])) * 1.5f;
 
   // from front
   eye = center;
   eye[2] -= offset;
-  c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
-  camera->set_c2w(Pose(c2w));
+  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
+
+  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "front_color.png");
   mask.WritePng(out_dir + "front_mask.png");
@@ -73,8 +86,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   // from back
   eye = center;
   eye[2] += offset;
-  c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
-  camera->set_c2w(Pose(c2w));
+  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
+  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "back_color.png");
   mask.WritePng(out_dir + "back_mask.png");
@@ -86,8 +99,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   // from right
   eye = center;
   eye[0] += offset;
-  c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
-  camera->set_c2w(Pose(c2w));
+  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
+  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "right_color.png");
   mask.WritePng(out_dir + "right_mask.png");
@@ -99,8 +112,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   // from left
   eye = center;
   eye[0] -= offset;
-  c2w = MakeC2w(eye, center, glm::vec3(0, -1, 0));
-  camera->set_c2w(Pose(c2w));
+  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
+  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "left_color.png");
   mask.WritePng(out_dir + "left_mask.png");
@@ -112,8 +125,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   // from top
   eye = center;
   eye[1] -= offset;
-  c2w = MakeC2w(eye, center, glm::vec3(0, 0, 1));
-  camera->set_c2w(Pose(c2w));
+  currender::c2w(eye, center, Eigen::Vector3f(0, 0, 1), &c2w);
+  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "top_color.png");
   mask.WritePng(out_dir + "top_mask.png");
@@ -125,8 +138,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   // from bottom
   eye = center;
   eye[1] += offset;
-  c2w = MakeC2w(eye, center, glm::vec3(0, 0, -1));
-  camera->set_c2w(Pose(c2w));
+  currender::c2w(eye, center, Eigen::Vector3f(0, 0, -1), &c2w);
+  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
   renderer.Render(&color, &depth, &normal, &mask);
   color.WritePng(out_dir + "bottom_color.png");
   mask.WritePng(out_dir + "bottom_mask.png");
@@ -142,8 +155,9 @@ void AlignMesh(std::shared_ptr<Mesh> mesh) {
   mesh->Translate(-stats.center);
 
   // rotate 180 deg. around x_axis to align z:forward, y:down, x:right,
-  glm::vec3 x_axis(1, 0, 0);
-  glm::mat4 R = glm::rotate(glm::mat4(1), glm::radians<float>(180), x_axis);
+  Eigen::Matrix3f R =
+      Eigen::AngleAxisf(currender::radians(180.0f), Eigen::Vector3f::UnitX())
+          .toRotationMatrix();
   mesh->Rotate(R);
 
   // recover original translation
@@ -193,17 +207,17 @@ int main(int argc, char* argv[]) {
   // prepare mesh for rendering (e.g. make BVH)
   renderer.PrepareMesh();
 
-  Pose pose;
   // Make PinholeCamera
   // borrow KinectV1 intrinsics of Freiburg 1 RGB
   // https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
   float r = 0.5f;  // scale to smaller size from VGA
   int width = static_cast<int>(640 * r);
   int height = static_cast<int>(480 * r);
-  glm::vec2 principal_point(318.6f * r, 255.3f * r);
-  glm::vec2 focal_length(517.3f * r, 516.5f * r);
+  Eigen::Vector2f principal_point(318.6f * r, 255.3f * r);
+  Eigen::Vector2f focal_length(517.3f * r, 516.5f * r);
   std::shared_ptr<Camera> camera = std::make_shared<PinholeCamera>(
-      width, height, pose, principal_point, focal_length);
+      width, height, Eigen::Affine3d::Identity(), principal_point,
+      focal_length);
 
   // set camera
   renderer.set_camera(camera);

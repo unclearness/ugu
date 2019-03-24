@@ -8,13 +8,17 @@
 #ifdef CURRENDER_USE_STB
 #pragma warning(push)
 #pragma warning(disable : 4100)
+#ifdef CURRENDER_STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
+#endif
 #include "stb/stb_image.h"
 #pragma warning(pop)
 
 #pragma warning(push)
 #pragma warning(disable : 4996)
+#ifdef CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+#endif
 #include "stb/stb_image_write.h"
 #pragma warning(pop)
 #endif
@@ -22,7 +26,7 @@
 namespace currender {
 
 void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
-                   float max_d) {
+                float max_d) {
   assert(min_d < max_d);
   assert(vis_depth != nullptr);
 

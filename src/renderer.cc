@@ -11,8 +11,8 @@
 #include "src/timer.h"
 
 namespace {
-void PrepareRay(nanort::Ray<float>* ray, const glm::vec3& camera_pos_w,
-                const glm::vec3& ray_w) {
+void PrepareRay(nanort::Ray<float>* ray, const Eigen::Vector3f& camera_pos_w,
+                const Eigen::Vector3f& ray_w) {
   const float kFar = 1.0e+30f;
   ray->min_t = 0.0001f;
   ray->max_t = kFar;
@@ -69,7 +69,7 @@ void Renderer::set_mesh(std::shared_ptr<const Mesh> mesh) {
   flatten_vertices_.clear();
   flatten_faces_.clear();
 
-  const std::vector<glm::vec3>& vertices = mesh_->vertices();
+  const std::vector<Eigen::Vector3f>& vertices = mesh_->vertices();
   flatten_vertices_.resize(vertices.size() * 3);
   for (size_t i = 0; i < vertices.size(); i++) {
     flatten_vertices_[i * 3 + 0] = vertices[i][0];
@@ -77,7 +77,7 @@ void Renderer::set_mesh(std::shared_ptr<const Mesh> mesh) {
     flatten_vertices_[i * 3 + 2] = vertices[i][2];
   }
 
-  const std::vector<glm::ivec3>& vertex_indices = mesh_->vertex_indices();
+  const std::vector<Eigen::Vector3i>& vertex_indices = mesh_->vertex_indices();
   flatten_faces_.resize(vertex_indices.size() * 3);
   for (size_t i = 0; i < vertex_indices.size(); i++) {
     flatten_faces_[i * 3 + 0] = vertex_indices[i][0];
@@ -234,6 +234,9 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
     face_id_image.Init(camera_->width(), camera_->height(), -1);
   }
 
+  const Eigen::Matrix3f w2c_R = camera_->w2c().rotation().cast<float>();
+  const Eigen::Vector3f w2c_t = camera_->w2c().translation().cast<float>();
+
   Timer<> timer;
   timer.Start();
 #if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
@@ -242,7 +245,7 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
   for (int y = 0; y < camera_->height(); y++) {
     for (int x = 0; x < camera_->width(); x++) {
       // ray from camera position in world coordinate
-      glm::vec3 ray_w, org_ray_w;
+      Eigen::Vector3f ray_w, org_ray_w;
       camera_->ray_w(static_cast<float>(x), static_cast<float>(y), &ray_w);
       camera_->org_ray_w(static_cast<float>(x), static_cast<float>(y),
                          &org_ray_w);
@@ -266,7 +269,7 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
       // back-face culling
       if (option_.backface_culling) {
         // back-face if face normal has same direction to ray
-        if (glm::dot(mesh_->face_normals()[fid], ray_w) > 0) {
+        if (mesh_->face_normals()[fid].dot(ray_w) > 0) {
           continue;
         }
       }
@@ -283,15 +286,14 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
 
       // convert hit position to camera coordinate to get depth value
       if (depth != nullptr) {
-        glm::vec3 hit_pos_w = org_ray_w + ray_w * isect.t;
-        glm::vec3 hit_pos_c = hit_pos_w;
-        camera_->w2c().Transform(&hit_pos_c);
+        Eigen::Vector3f hit_pos_w = org_ray_w + ray_w * isect.t;
+        Eigen::Vector3f hit_pos_c = w2c_R * hit_pos_w + w2c_t;
         assert(0.0f <= hit_pos_c[2]);  // depth should be positive
         depth->at(x, y, 0) = hit_pos_c[2] * option_.depth_scale;
       }
 
       // calculate shading normal
-      glm::vec3 shading_normal_w{0};
+      Eigen::Vector3f shading_normal_w = Eigen::Vector3f::Zero();
       if (option_.shading_normal == ShadingNormal::kFace) {
         shading_normal_w = mesh_->face_normals()[fid];
       } else if (option_.shading_normal == ShadingNormal::kVertex) {
@@ -305,9 +307,8 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
 
       // set shading normal
       if (normal != nullptr) {
-        glm::vec3 shading_normal_c = shading_normal_w;
-        camera_->w2c().Rotate(
-            &shading_normal_c);  // rotate to camera coordinate
+        Eigen::Vector3f shading_normal_c =
+            w2c_R * shading_normal_w;  // rotate to camera coordinate
         for (int k = 0; k < 3; k++) {
           normal->at(x, y, k) = shading_normal_c[k];
         }
@@ -315,7 +316,7 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
 
       // delegate color calculation to pixel_shader
       if (color != nullptr) {
-        glm::vec3 light_dir = ray_w;  // emit light same as ray
+        Eigen::Vector3f light_dir = ray_w;  // emit light same as ray
         PixelShaderInput pixel_shader_input(color, x, y, u, v, fid, &ray_w,
                                             &light_dir, &shading_normal_w,
                                             &oren_nayar_param, mesh_);
