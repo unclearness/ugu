@@ -56,8 +56,8 @@ void c2w(const Eigen::Matrix<genType, 3, 1>& position,
   Eigen::Matrix<genType, 3, 3> R;
   c2w(position, target, up, &R);
 
-  T->topLeftCorner<3, 3>() = R;
-  T->topRightCorner<3, 1>() = position;
+  T->topLeftCorner(3, 3) = R;
+  T->topRightCorner(3, 1) = position;
 }
 
 }  // namespace currender
