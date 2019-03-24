@@ -51,8 +51,8 @@ PinholeCamera::PinholeCamera(int width, int height)
 
 PinholeCamera::PinholeCamera(int width, int height, float fov_y_deg)
     : Camera(width, height) {
-  principal_point_[0] = width_ * 0.5f;
-  principal_point_[1] = height_ * 0.5f;
+  principal_point_[0] = width_ * 0.5f - 0.5f;
+  principal_point_[1] = height_ * 0.5f - 0.5f;
 
   set_fov_y(fov_y_deg);
 }
