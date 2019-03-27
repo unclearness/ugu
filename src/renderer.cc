@@ -70,7 +70,7 @@ class Renderer::Impl {
   Impl();
   ~Impl();
 
-  explicit Renderer::Impl(const RendererOption& option);
+  explicit Impl(const RendererOption& option);
   void set_option(const RendererOption& option);
 
   void set_mesh(std::shared_ptr<const Mesh> mesh);
