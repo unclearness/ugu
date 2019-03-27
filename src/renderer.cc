@@ -442,63 +442,63 @@ bool Renderer::Impl::RenderDepthW(Image1w* depth) const {
 }
 
 // Renderer implementation
-Renderer::Renderer() : impl(std::unique_ptr<Impl>(new Impl)) {}
+Renderer::Renderer() : pimpl(std::unique_ptr<Impl>(new Impl)) {}
 
 Renderer::~Renderer() {}
 
 Renderer::Renderer(const RendererOption& option)
-    : impl(std::unique_ptr<Impl>(new Impl)) {
-  impl->set_option(option);
+    : pimpl(std::unique_ptr<Impl>(new Impl)) {
+  pimpl->set_option(option);
 }
 
 void Renderer::set_option(const RendererOption& option) {
-  impl->set_option(option);
+  pimpl->set_option(option);
 }
 
 void Renderer::set_mesh(std::shared_ptr<const Mesh> mesh) {
-  impl->set_mesh(mesh);
+  pimpl->set_mesh(mesh);
 }
 
-bool Renderer::PrepareMesh() { return impl->PrepareMesh(); }
+bool Renderer::PrepareMesh() { return pimpl->PrepareMesh(); }
 
 void Renderer::set_camera(std::shared_ptr<const Camera> camera) {
-  impl->set_camera(camera);
+  pimpl->set_camera(camera);
 }
 
 bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
                       Image1b* mask,
                       std::vector<uint32_t>* visible_faces) const {
-  return impl->Render(color, depth, normal, mask, visible_faces);
+  return pimpl->Render(color, depth, normal, mask, visible_faces);
 }
 
 bool Renderer::RenderColor(Image3b* color) const {
-  return impl->RenderColor(color);
+  return pimpl->RenderColor(color);
 }
 
 bool Renderer::RenderDepth(Image1f* depth) const {
-  return impl->RenderDepth(depth);
+  return pimpl->RenderDepth(depth);
 }
 
 bool Renderer::RenderNormal(Image3f* normal) const {
-  return impl->RenderNormal(normal);
+  return pimpl->RenderNormal(normal);
 }
 
 bool Renderer::RenderMask(Image1b* mask) const {
-  return impl->RenderMask(mask);
+  return pimpl->RenderMask(mask);
 }
 
 bool Renderer::VisibilityTest(std::vector<uint32_t>* visible_faces) const {
-  return impl->VisibilityTest(visible_faces);
+  return pimpl->VisibilityTest(visible_faces);
 }
 
 bool Renderer::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
                        Image1b* mask,
                        std::vector<uint32_t>* visible_faces) const {
-  return impl->RenderW(color, depth, normal, mask, visible_faces);
+  return pimpl->RenderW(color, depth, normal, mask, visible_faces);
 }
 
 bool Renderer::RenderDepthW(Image1w* depth) const {
-  return impl->RenderDepthW(depth);
+  return pimpl->RenderDepthW(depth);
 }
 
 }  // namespace currender
