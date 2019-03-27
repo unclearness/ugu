@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "include/image.h"
+#include "currender/image.h"
 
 #ifdef CURRENDER_USE_STB
 #pragma warning(push)

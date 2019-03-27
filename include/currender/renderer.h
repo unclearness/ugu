@@ -8,8 +8,8 @@
 #include <memory>
 #include <vector>
 
-#include "include/camera.h"
-#include "include/mesh.h"
+#include "currender/camera.h"
+#include "currender/mesh.h"
 
 namespace currender {
 

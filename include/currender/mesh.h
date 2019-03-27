@@ -9,8 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "include/common.h"
-#include "include/image.h"
+#include "currender/common.h"
+#include "currender/image.h"
 
 namespace currender {
 

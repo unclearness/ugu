@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "include/camera.h"
+#include "currender/camera.h"
 
 namespace currender {
 

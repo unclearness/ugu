@@ -9,7 +9,7 @@
 #include <limits>
 
 #include "Eigen/Geometry"
-#include "include/log.h"
+#include "currender/log.h"
 
 namespace currender {
 

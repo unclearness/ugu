@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "include/common.h"
+#include "currender/common.h"
 
 #ifdef CURRENDER_USE_STB
 #include "stb/stb_image.h"

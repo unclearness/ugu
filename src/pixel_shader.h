@@ -7,10 +7,10 @@
 
 #include <memory>
 
-#include "include/common.h"
-#include "include/image.h"
-#include "include/mesh.h"
-#include "include/renderer.h"
+#include "currender/common.h"
+#include "currender/image.h"
+#include "currender/mesh.h"
+#include "currender/renderer.h"
 #include "nanort/nanort.h"
 
 namespace currender {

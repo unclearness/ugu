@@ -93,12 +93,12 @@ endif()
 set(PUBLIC_LIB_NAME ${PROJECT_NAME})
 add_library(${PUBLIC_LIB_NAME}
     STATIC
-    include/common.h
-    include/renderer.h
-    include/camera.h
-    include/mesh.h
-    include/image.h
-    include/log.h
+    include/currender/common.h
+    include/currender/renderer.h
+    include/currender/camera.h
+    include/currender/mesh.h
+    include/currender/image.h
+    include/currender/log.h
 
     src/renderer.cc
     src/camera.cc
@@ -114,12 +114,12 @@ add_library(${PUBLIC_LIB_NAME}
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 SOURCE_GROUP("Public header files" FILES
-    include/common.h
-    include/renderer.h
-    include/camera.h
-    include/mesh.h
-    include/image.h
-    include/log.h
+    include/currender/common.h
+    include/currender/renderer.h
+    include/currender/camera.h
+    include/currender/mesh.h
+    include/currender/image.h
+    include/currender/log.h
 )
 
 SOURCE_GROUP("Private header files" FILES
@@ -136,6 +136,7 @@ SOURCE_GROUP("Source files" FILES
     src/log.cc
 )
 
+include_directories(${PUBLIC_LIB_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${PUBLIC_LIB_NAME} ${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${PUBLIC_LIB_NAME} third_party)
 include_directories(${PUBLIC_LIB_NAME} ${NANORT_INSTALL_DIR})
@@ -145,14 +146,14 @@ include_directories(${PUBLIC_LIB_NAME} ${STB_INSTALL_DIR})
 
 set_target_properties(${PUBLIC_LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
-set(MINIMUM_EXAMPLE_EXE minimum_example)
+set(MINIMUM_EXAMPLE_EXE currender_minimum_example)
 add_executable(${MINIMUM_EXAMPLE_EXE}
     minimum_example.cc)
 target_link_libraries(${MINIMUM_EXAMPLE_EXE}
     ${PUBLIC_LIB_NAME}
     )
 
-set(EXAMPLES_EXE examples)
+set(EXAMPLES_EXE currender_examples)
 add_executable(${EXAMPLES_EXE}
     examples.cc)
 target_link_libraries(${EXAMPLES_EXE}

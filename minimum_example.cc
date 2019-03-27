@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "include/renderer.h"
+#include "currender/renderer.h"
 
 #ifdef CURRENDER_USE_TINYOBJLOADER
 #ifndef CURRENDER_TINYOBJLOADER_IMPLEMENTATION

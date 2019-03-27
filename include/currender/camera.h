@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "include/common.h"
+#include "currender/common.h"
 
 namespace currender {
 class Camera {
