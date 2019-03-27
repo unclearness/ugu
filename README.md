@@ -40,9 +40,10 @@ int main() {
   // make an inclined cube mesh with vertex color
   auto mesh = MakeExampleCube();
 
-  // initialize renderer enabling vertex color rendering
+  // initialize renderer enabling vertex color rendering and lambertian shading
   currender::RendererOption option;
   option.diffuse_color = currender::DiffuseColor::kVertex;
+  option.diffuse_shading = currender::DiffuseShading::kLambertian;
   currender::Renderer renderer(option);
 
   // set mesh

@@ -45,10 +45,10 @@ enum class ColorInterpolation {
 };
 
 struct RendererOption {
-  DiffuseColor diffuse_color{DiffuseColor::kTexture};
+  DiffuseColor diffuse_color{DiffuseColor::kNone};
   ColorInterpolation interp{ColorInterpolation::kBilinear};
   ShadingNormal shading_normal{ShadingNormal::kVertex};
-  DiffuseShading diffuse_shading{DiffuseShading::kLambertian};
+  DiffuseShading diffuse_shading{DiffuseShading::kNone};
 
   float depth_scale{1.0f};       // Multiplied to output depth
   bool backface_culling{true};   // Back-face culling flag

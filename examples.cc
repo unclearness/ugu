@@ -197,8 +197,10 @@ int main(int argc, char* argv[]) {
   // align z:forward, y:down, x:right
   AlignMesh(mesh);
 
-  // initialize renderer with default option
+  // initialize renderer with diffuse texture color and lambertian shading 
   RendererOption option;
+  option.diffuse_color = currender::DiffuseColor::kTexture;
+  option.diffuse_shading = currender::DiffuseShading::kLambertian;
   Renderer renderer(option);
 
   // set mesh
