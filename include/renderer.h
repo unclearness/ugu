@@ -10,7 +10,6 @@
 
 #include "include/camera.h"
 #include "include/mesh.h"
-#include "nanort/nanort.h"
 
 namespace currender {
 
@@ -61,24 +60,8 @@ struct RendererOption {
 };
 
 class Renderer {
-  bool mesh_initialized_{false};
-  std::shared_ptr<const Camera> camera_{nullptr};
-  std::shared_ptr<const Mesh> mesh_{nullptr};
-  RendererOption option_;
-
-  std::vector<float> flatten_vertices_;
-  std::vector<unsigned int> flatten_faces_;
-
-  nanort::BVHBuildOptions<float> build_options_;
-  std::unique_ptr<nanort::TriangleMesh<float>> triangle_mesh_;
-  std::unique_ptr<nanort::TriangleSAHPred<float>> triangle_pred_;
-  nanort::BVHAccel<float> accel_;
-  nanort::BVHBuildStatistics stats_;
-  float bmin_[3], bmax_[3];
-
-  bool ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
-                                   Image3f* normal, Image1b* mask,
-                                   std::vector<uint32_t>* visible_faces) const;
+  class Impl;
+  std::unique_ptr<Impl> impl;
 
  public:
   Renderer();

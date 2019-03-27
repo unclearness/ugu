@@ -7,6 +7,7 @@
 
 #include <cassert>
 
+#include "nanort/nanort.h"
 #include "src/pixel_shader.h"
 #include "src/timer.h"
 
@@ -44,17 +45,62 @@ void RendererOption::CopyTo(RendererOption* dst) const {
   dst->backface_culling = backface_culling;
 }
 
-Renderer::Renderer() {}
+// Renderer::Impl implementation
+class Renderer::Impl {
+  bool mesh_initialized_{false};
+  std::shared_ptr<const Camera> camera_{nullptr};
+  std::shared_ptr<const Mesh> mesh_{nullptr};
+  RendererOption option_;
 
-Renderer::~Renderer() {}
+  std::vector<float> flatten_vertices_;
+  std::vector<unsigned int> flatten_faces_;
 
-Renderer::Renderer(const RendererOption& option) { set_option(option); }
+  nanort::BVHBuildOptions<float> build_options_;
+  std::unique_ptr<nanort::TriangleMesh<float>> triangle_mesh_;
+  std::unique_ptr<nanort::TriangleSAHPred<float>> triangle_pred_;
+  nanort::BVHAccel<float> accel_;
+  nanort::BVHBuildStatistics stats_;
+  float bmin_[3], bmax_[3];
 
-void Renderer::set_option(const RendererOption& option) {
+  bool ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
+                                   Image3f* normal, Image1b* mask,
+                                   std::vector<uint32_t>* visible_faces) const;
+
+ public:
+  Impl();
+  ~Impl();
+
+  explicit Renderer::Impl(const RendererOption& option);
+  void set_option(const RendererOption& option);
+
+  void set_mesh(std::shared_ptr<const Mesh> mesh);
+
+  bool PrepareMesh();
+
+  void set_camera(std::shared_ptr<const Camera> camera);
+
+  bool Render(Image3b* color, Image1f* depth, Image3f* normal, Image1b* mask,
+              std::vector<uint32_t>* visible_faces = nullptr) const;
+
+  bool RenderColor(Image3b* color) const;
+  bool RenderDepth(Image1f* depth) const;
+  bool RenderNormal(Image3f* normal) const;
+  bool RenderMask(Image1b* mask) const;
+  bool VisibilityTest(std::vector<uint32_t>* visible_faces) const;
+
+  bool RenderW(Image3b* color, Image1w* depth, Image3f* normal, Image1b* mask,
+               std::vector<uint32_t>* visible_faces = nullptr) const;
+  bool RenderDepthW(Image1w* depth) const;
+};
+
+Renderer::Impl::Impl() {}
+Renderer::Impl::~Impl() {}
+
+void Renderer::Impl::set_option(const RendererOption& option) {
   option.CopyTo(&option_);
 }
 
-void Renderer::set_mesh(std::shared_ptr<const Mesh> mesh) {
+void Renderer::Impl::set_mesh(std::shared_ptr<const Mesh> mesh) {
   mesh_initialized_ = false;
   mesh_ = mesh;
 
@@ -85,7 +131,8 @@ void Renderer::set_mesh(std::shared_ptr<const Mesh> mesh) {
     flatten_faces_[i * 3 + 2] = vertex_indices[i][2];
   }
 }
-bool Renderer::PrepareMesh() {
+
+bool Renderer::Impl::PrepareMesh() {
   if (mesh_ == nullptr) {
     LOGE("mesh has not been set\n");
     return false;
@@ -143,11 +190,11 @@ bool Renderer::PrepareMesh() {
   return true;
 }
 
-void Renderer::set_camera(std::shared_ptr<const Camera> camera) {
+void Renderer::Impl::set_camera(std::shared_ptr<const Camera> camera) {
   camera_ = camera;
 }
 
-bool Renderer::ValidateAndInitBeforeRender(
+bool Renderer::Impl::ValidateAndInitBeforeRender(
     Image3b* color, Image1f* depth, Image3f* normal, Image1b* mask,
     std::vector<uint32_t>* visible_faces) const {
   if (camera_ == nullptr) {
@@ -213,9 +260,9 @@ bool Renderer::ValidateAndInitBeforeRender(
   return true;
 }
 
-bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
-                      Image1b* mask,
-                      std::vector<uint32_t>* visible_faces) const {
+bool Renderer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
+                            Image1b* mask,
+                            std::vector<uint32_t>* visible_faces) const {
   if (!ValidateAndInitBeforeRender(color, depth, normal, mask, visible_faces)) {
     return false;
   }
@@ -351,29 +398,30 @@ bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
   return true;
 }
 
-bool Renderer::RenderColor(Image3b* color) const {
+bool Renderer::Impl::RenderColor(Image3b* color) const {
   return Render(color, nullptr, nullptr, nullptr, nullptr);
 }
 
-bool Renderer::RenderDepth(Image1f* depth) const {
+bool Renderer::Impl::RenderDepth(Image1f* depth) const {
   return Render(nullptr, depth, nullptr, nullptr, nullptr);
 }
 
-bool Renderer::RenderNormal(Image3f* normal) const {
+bool Renderer::Impl::RenderNormal(Image3f* normal) const {
   return Render(nullptr, nullptr, normal, nullptr, nullptr);
 }
 
-bool Renderer::RenderMask(Image1b* mask) const {
+bool Renderer::Impl::RenderMask(Image1b* mask) const {
   return Render(nullptr, nullptr, nullptr, mask, nullptr);
 }
 
-bool Renderer::VisibilityTest(std::vector<uint32_t>* visible_faces) const {
+bool Renderer::Impl::VisibilityTest(
+    std::vector<uint32_t>* visible_faces) const {
   return Render(nullptr, nullptr, nullptr, nullptr, visible_faces);
 }
 
-bool Renderer::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
-                       Image1b* mask,
-                       std::vector<uint32_t>* visible_faces) const {
+bool Renderer::Impl::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
+                             Image1b* mask,
+                             std::vector<uint32_t>* visible_faces) const {
   if (depth == nullptr) {
     LOGE("depth is nullptr");
     return false;
@@ -389,8 +437,68 @@ bool Renderer::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
   return org_ret;
 }
 
-bool Renderer::RenderDepthW(Image1w* depth) const {
+bool Renderer::Impl::RenderDepthW(Image1w* depth) const {
   return RenderW(nullptr, depth, nullptr, nullptr, nullptr);
+}
+
+// Renderer implementation
+Renderer::Renderer() : impl(std::unique_ptr<Impl>(new Impl)) {}
+
+Renderer::~Renderer() {}
+
+Renderer::Renderer(const RendererOption& option)
+    : impl(std::unique_ptr<Impl>(new Impl)) {
+  impl->set_option(option);
+}
+
+void Renderer::set_option(const RendererOption& option) {
+  impl->set_option(option);
+}
+
+void Renderer::set_mesh(std::shared_ptr<const Mesh> mesh) {
+  impl->set_mesh(mesh);
+}
+
+bool Renderer::PrepareMesh() { return impl->PrepareMesh(); }
+
+void Renderer::set_camera(std::shared_ptr<const Camera> camera) {
+  impl->set_camera(camera);
+}
+
+bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
+                      Image1b* mask,
+                      std::vector<uint32_t>* visible_faces) const {
+  return impl->Render(color, depth, normal, mask, visible_faces);
+}
+
+bool Renderer::RenderColor(Image3b* color) const {
+  return impl->RenderColor(color);
+}
+
+bool Renderer::RenderDepth(Image1f* depth) const {
+  return impl->RenderDepth(depth);
+}
+
+bool Renderer::RenderNormal(Image3f* normal) const {
+  return impl->RenderNormal(normal);
+}
+
+bool Renderer::RenderMask(Image1b* mask) const {
+  return impl->RenderMask(mask);
+}
+
+bool Renderer::VisibilityTest(std::vector<uint32_t>* visible_faces) const {
+  return impl->VisibilityTest(visible_faces);
+}
+
+bool Renderer::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
+                       Image1b* mask,
+                       std::vector<uint32_t>* visible_faces) const {
+  return impl->RenderW(color, depth, normal, mask, visible_faces);
+}
+
+bool Renderer::RenderDepthW(Image1w* depth) const {
+  return impl->RenderDepthW(depth);
 }
 
 }  // namespace currender
