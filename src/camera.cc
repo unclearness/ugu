@@ -65,8 +65,8 @@ PinholeCamera::PinholeCamera(int width, int height, const Eigen::Affine3d& c2w)
 PinholeCamera::PinholeCamera(int width, int height, const Eigen::Affine3d& c2w,
                              float fov_y_deg)
     : Camera(width, height, c2w) {
-  principal_point_[0] = width_ * 0.5f;
-  principal_point_[1] = height_ * 0.5f;
+  principal_point_[0] = width_ * 0.5f - 0.5f;
+  principal_point_[1] = height_ * 0.5f - 0.5f;
 
   set_fov_y(fov_y_deg);
 }
