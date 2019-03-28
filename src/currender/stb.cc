@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2019, unclearness
+ * All rights reserved.
+ */
+
 #ifdef CURRENDER_USE_STB
 #ifdef _WIN32
 #pragma warning(push)
