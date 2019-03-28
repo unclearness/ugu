@@ -81,7 +81,8 @@ class Renderer {
   // Set camera
   void set_camera(std::shared_ptr<const Camera> camera);
 
-  // Rendering all images and get face visibility
+  // Rendering all images
+  // If you don't need some of them, pass nullptr
   bool Render(Image3b* color, Image1f* depth, Image3f* normal, Image1b* mask,
               Image1i* face_id) const;
 
