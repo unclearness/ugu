@@ -27,13 +27,6 @@ set(CMAKE_CXX_FLAGS  "-std=c++14 -Wall -O2")
 
 endif()
 
-# For OpenMP
-find_package(OpenMP REQUIRED)
-if(OpenMP_FOUND)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif()
-
 # third_party directries
 if(NOT DEFINED NANORT_INSTALL_DIR)
   set(NANORT_INSTALL_DIR "third_party/nanort" CACHE PATH "NanoRT installed directory")
@@ -57,12 +50,18 @@ option(CURRENDER_USE_STB "Use stb to enable image i/o" ON)
 message("CURRENDER_USE_STB: ${CURRENDER_USE_STB}")
 if(CURRENDER_USE_STB)
   add_definitions(-DCURRENDER_USE_STB)
+  add_library(stb
+    STATIC
+    src/currender/stb.cc)
+  set(STB_LIB_NAME stb)
 endif()
 
 option(CURRENDER_USE_TINYOBJLOADER "Use tinyobjloader to enable .obj input" ON)
 message("CURRENDER_USE_TINYOBJLOADER: ${CURRENDER_USE_TINYOBJLOADER}")
 if(CURRENDER_USE_TINYOBJLOADER)
   add_definitions(-DCURRENDER_USE_TINYOBJLOADER)
+  add_subdirectory(${TINYOBJLOADER_INSTALL_DIR})
+  set(TINYOBJLOADER_LIB_NAME tinyobjloader)
 endif()
 
 option(CURRENDER_USE_OPENMP "Use OpenMP to enable parallelization" ON)
@@ -71,69 +70,59 @@ if(CURRENDER_USE_OPENMP)
   add_definitions(-DCURRENDER_USE_OPENMP)
 endif()
 
-# switch for header-only library implementation
-option(CURRENDER_TINYOBJLOADER_IMPLEMENTATION "implement tinyobjloader" OFF)
-message("CURRENDER_TINYOBJLOADER_IMPLEMENTATION: ${CURRENDER_TINYOBJLOADER_IMPLEMENTATION}")
-if(CURRENDER_TINYOBJLOADER_IMPLEMENTATION)
-  add_definitions(-DCURRENDER_TINYOBJLOADER_IMPLEMENTATION)
-endif()
-
-option(CURRENDER_STB_IMAGE_IMPLEMENTATION "implement stb image" OFF)
-message("CURRENDER_STB_IMAGE_IMPLEMENTATION: ${CURRENDER_STB_IMAGE_IMPLEMENTATION}")
-if(CURRENDER_STB_IMAGE_IMPLEMENTATION)
-  add_definitions(-DCURRENDER_STB_IMAGE_IMPLEMENTATION)
-endif()
-
-option(CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION "implement stb image write" OFF)
-message("CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION: ${CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION}")
-if(CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION)
-  add_definitions(-DCURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION)
+# For OpenMP
+if(CURRENDER_USE_OPENMP)
+  find_package(OpenMP REQUIRED)
+  if(OpenMP_FOUND)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  endif()
 endif()
 
 set(PUBLIC_LIB_NAME ${PROJECT_NAME})
 add_library(${PUBLIC_LIB_NAME}
-    STATIC
-    include/currender/common.h
-    include/currender/renderer.h
-    include/currender/camera.h
-    include/currender/mesh.h
-    include/currender/image.h
-    include/currender/log.h
+  STATIC
+  include/currender/common.h
+  include/currender/renderer.h
+  include/currender/camera.h
+  include/currender/mesh.h
+  include/currender/image.h
+  include/currender/log.h
 
-    src/currender/renderer.cc
-    src/currender/camera.cc
-    src/currender/mesh.cc
-    src/currender/image.cc
-    src/currender/pixel_shader.h
-    src/currender/pixel_shader.cc
-    src/currender/timer.h
-    src/currender/log.cc
+  src/currender/renderer.cc
+  src/currender/camera.cc
+  src/currender/mesh.cc
+  src/currender/image.cc
+  src/currender/pixel_shader.h
+  src/currender/pixel_shader.cc
+  src/currender/timer.h
+  src/currender/log.cc
 )
 
 # set folders
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 SOURCE_GROUP("Public header files" FILES
-    include/currender/common.h
-    include/currender/renderer.h
-    include/currender/camera.h
-    include/currender/mesh.h
-    include/currender/image.h
-    include/currender/log.h
+  include/currender/common.h
+  include/currender/renderer.h
+  include/currender/camera.h
+  include/currender/mesh.h
+  include/currender/image.h
+  include/currender/log.h
 )
 
 SOURCE_GROUP("Private header files" FILES
-    src/currender/pixel_shader.h
-    src/currender/timer.h
+  src/currender/pixel_shader.h
+  src/currender/timer.h
 )
 
 SOURCE_GROUP("Source files" FILES
-    src/currender/renderer.cc
-    src/currender/camera.cc
-    src/currender/mesh.cc
-    src/currender/image.cc
-    src/currender/pixel_shader.cc
-    src/currender/log.cc
+  src/currender/renderer.cc
+  src/currender/camera.cc
+  src/currender/mesh.cc
+  src/currender/image.cc
+  src/currender/pixel_shader.cc
+  src/currender/log.cc
 )
 
 include_directories(${PUBLIC_LIB_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -148,21 +137,25 @@ set_target_properties(${PUBLIC_LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
 set(MINIMUM_EXAMPLE_EXE currender_minimum_example)
 add_executable(${MINIMUM_EXAMPLE_EXE}
-    minimum_example.cc)
+  minimum_example.cc)
 target_link_libraries(${MINIMUM_EXAMPLE_EXE}
-    ${PUBLIC_LIB_NAME}
-    )
+  ${PUBLIC_LIB_NAME}
+  ${STB_LIB_NAME}
+  ${TINYOBJLOADER_LIB_NAME}
+  )
 
 set(EXAMPLES_EXE currender_examples)
 add_executable(${EXAMPLES_EXE}
-    examples.cc)
+  examples.cc)
 target_link_libraries(${EXAMPLES_EXE}
-    ${PUBLIC_LIB_NAME}
-    )
+  ${PUBLIC_LIB_NAME}
+  ${STB_LIB_NAME}
+  ${TINYOBJLOADER_LIB_NAME}
+  )
 if (WIN32)
-    set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${EXAMPLES_EXE})
-    # suppress C2338 for eigen
-    add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
+  set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${EXAMPLES_EXE})
+  # suppress C2338 for eigen
+  add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
 endif()
 
 # make test data directory

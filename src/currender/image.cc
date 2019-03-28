@@ -6,21 +6,23 @@
 #include "currender/image.h"
 
 #ifdef CURRENDER_USE_STB
+#ifdef _WIN32
 #pragma warning(push)
 #pragma warning(disable : 4100)
-#ifdef CURRENDER_STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
 #endif
 #include "stb/stb_image.h"
+#ifdef _WIN32
 #pragma warning(pop)
+#endif
 
+#ifdef _WIN32
 #pragma warning(push)
 #pragma warning(disable : 4996)
-#ifdef CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #endif
 #include "stb/stb_image_write.h"
+#ifdef _WIN32
 #pragma warning(pop)
+#endif
 #endif
 
 namespace currender {

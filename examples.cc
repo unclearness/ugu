@@ -8,34 +8,6 @@
 
 #include "currender/renderer.h"
 
-#ifdef CURRENDER_USE_TINYOBJLOADER
-#ifndef CURRENDER_TINYOBJLOADER_IMPLEMENTATION
-#define TINYOBJLOADER_IMPLEMENTATION
-#endif
-#include "tinyobjloader/tiny_obj_loader.h"
-#undef TINYOBJLOADER_IMPLEMENTATION
-#endif
-
-#ifdef CURRENDER_USE_STB
-#pragma warning(push)
-#pragma warning(disable : 4100)
-#ifndef CURRENDER_STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#endif
-#include "stb/stb_image.h"
-#pragma warning(pop)
-#undef STB_IMAGE_IMPLEMENTATION
-
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#ifndef CURRENDER_STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#endif
-#include "stb/stb_image_write.h"
-#pragma warning(pop)
-#undef STB_IMAGE_WRITE_IMPLEMENTATION
-#endif
-
 using currender::Camera;
 using currender::Depth2Gray;
 using currender::Image1b;
