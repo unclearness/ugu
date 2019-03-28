@@ -8,8 +8,8 @@
 #include <cassert>
 
 #include "nanort/nanort.h"
-#include "src/pixel_shader.h"
-#include "src/timer.h"
+#include "currender/pixel_shader.h"
+#include "currender/timer.h"
 
 namespace {
 void PrepareRay(nanort::Ray<float>* ray, const Eigen::Vector3f& camera_pos_w,

@@ -1,7 +1,7 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 
 set(PROJECT_NAME currender)
-project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.0.1 DESCRIPTION "cpu renderer")
+project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.0.1 DESCRIPTION "A CPU renderer for computer vision")
 
 set(CMAKE_VERBOSE_MAKEFILE TRUE)
 
@@ -100,14 +100,14 @@ add_library(${PUBLIC_LIB_NAME}
     include/currender/image.h
     include/currender/log.h
 
-    src/renderer.cc
-    src/camera.cc
-    src/mesh.cc
-    src/image.cc
-    src/pixel_shader.h
-    src/pixel_shader.cc
-    src/timer.h
-    src/log.cc
+    src/currender/renderer.cc
+    src/currender/camera.cc
+    src/currender/mesh.cc
+    src/currender/image.cc
+    src/currender/pixel_shader.h
+    src/currender/pixel_shader.cc
+    src/currender/timer.h
+    src/currender/log.cc
 )
 
 # set folders
@@ -123,21 +123,21 @@ SOURCE_GROUP("Public header files" FILES
 )
 
 SOURCE_GROUP("Private header files" FILES
-    src/pixel_shader.h
-    src/timer.h
+    src/currender/pixel_shader.h
+    src/currender/timer.h
 )
 
 SOURCE_GROUP("Source files" FILES
-    src/renderer.cc
-    src/camera.cc
-    src/mesh.cc
-    src/image.cc
-    src/pixel_shader.cc
-    src/log.cc
+    src/currender/renderer.cc
+    src/currender/camera.cc
+    src/currender/mesh.cc
+    src/currender/image.cc
+    src/currender/pixel_shader.cc
+    src/currender/log.cc
 )
 
 include_directories(${PUBLIC_LIB_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(${PUBLIC_LIB_NAME} ${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${PUBLIC_LIB_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/src)
 include_directories(${PUBLIC_LIB_NAME} third_party)
 include_directories(${PUBLIC_LIB_NAME} ${NANORT_INSTALL_DIR})
 include_directories(${PUBLIC_LIB_NAME} ${EIGEN_INSTALL_DIR})
