@@ -83,19 +83,19 @@ class Renderer {
 
   // Rendering all images and get face visibility
   bool Render(Image3b* color, Image1f* depth, Image3f* normal, Image1b* mask,
-              std::vector<uint32_t>* visible_faces = nullptr) const;
+              Image1i* face_id) const;
 
   // Rendering a image
   bool RenderColor(Image3b* color) const;
   bool RenderDepth(Image1f* depth) const;
   bool RenderNormal(Image3f* normal) const;
   bool RenderMask(Image1b* mask) const;
-  bool VisibilityTest(std::vector<uint32_t>* visible_faces) const;
+  bool RenderFaceId(Image1i* face_id) const;
 
   // These Image1w* depth interfaces are prepared for widely used 16 bit
   // (unsigned short) and mm-scale depth image format
   bool RenderW(Image3b* color, Image1w* depth, Image3f* normal, Image1b* mask,
-               std::vector<uint32_t>* visible_faces = nullptr) const;
+               Image1i* face_id) const;
   bool RenderDepthW(Image1w* depth) const;
 };
 

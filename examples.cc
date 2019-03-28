@@ -12,6 +12,7 @@ using currender::Camera;
 using currender::Depth2Gray;
 using currender::Image1b;
 using currender::Image1f;
+using currender::Image1i;
 using currender::Image3b;
 using currender::Image3f;
 using currender::Mesh;
@@ -29,8 +30,10 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   Image1f depth;
   Image3f normal;
   Image1b mask;
+  Image1i face_id;
   Image1b vis_depth;
   Image3b vis_normal;
+  Image3b vis_face_id;
 
   MeshStats stats = mesh->stats();
   Eigen::Vector3f center = stats.center;
@@ -47,78 +50,90 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
 
   camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask);
+  renderer.Render(&color, &depth, &normal, &mask, &face_id);
   color.WritePng(out_dir + "front_color.png");
   mask.WritePng(out_dir + "front_mask.png");
   Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "front_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "front_vis_normal.png");
+  FaceId2RandomColor(face_id, &vis_face_id);
+  vis_face_id.WritePng(out_dir + "front_vis_face_id.png");
 
   // from back
   eye = center;
   eye[2] += offset;
   currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
   camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask);
+  renderer.Render(&color, &depth, &normal, &mask, &face_id);
   color.WritePng(out_dir + "back_color.png");
   mask.WritePng(out_dir + "back_mask.png");
   Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "back_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "back_vis_normal.png");
+  FaceId2RandomColor(face_id, &vis_face_id);
+  vis_face_id.WritePng(out_dir + "back_vis_face_id.png");
 
   // from right
   eye = center;
   eye[0] += offset;
   currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
   camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask);
+  renderer.Render(&color, &depth, &normal, &mask, &face_id);
   color.WritePng(out_dir + "right_color.png");
   mask.WritePng(out_dir + "right_mask.png");
   Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "right_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "right_vis_normal.png");
+  FaceId2RandomColor(face_id, &vis_face_id);
+  vis_face_id.WritePng(out_dir + "right_vis_face_id.png");
 
   // from left
   eye = center;
   eye[0] -= offset;
   currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
   camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask);
+  renderer.Render(&color, &depth, &normal, &mask, &face_id);
   color.WritePng(out_dir + "left_color.png");
   mask.WritePng(out_dir + "left_mask.png");
   Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "left_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "left_vis_normal.png");
+  FaceId2RandomColor(face_id, &vis_face_id);
+  vis_face_id.WritePng(out_dir + "left_vis_face_id.png");
 
   // from top
   eye = center;
   eye[1] -= offset;
   currender::c2w(eye, center, Eigen::Vector3f(0, 0, 1), &c2w);
   camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask);
+  renderer.Render(&color, &depth, &normal, &mask, &face_id);
   color.WritePng(out_dir + "top_color.png");
   mask.WritePng(out_dir + "top_mask.png");
   Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "top_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "top_vis_normal.png");
+  FaceId2RandomColor(face_id, &vis_face_id);
+  vis_face_id.WritePng(out_dir + "top_vis_face_id.png");
 
   // from bottom
   eye = center;
   eye[1] += offset;
   currender::c2w(eye, center, Eigen::Vector3f(0, 0, -1), &c2w);
   camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask);
+  renderer.Render(&color, &depth, &normal, &mask, &face_id);
   color.WritePng(out_dir + "bottom_color.png");
   mask.WritePng(out_dir + "bottom_mask.png");
   Depth2Gray(depth, &vis_depth);
   vis_depth.WritePng(out_dir + "bottom_vis_depth.png");
   Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(out_dir + "bottom_vis_normal.png");
+  FaceId2RandomColor(face_id, &vis_face_id);
+  vis_face_id.WritePng(out_dir + "bottom_vis_face_id.png");
 }
 
 void AlignMesh(std::shared_ptr<Mesh> mesh) {

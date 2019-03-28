@@ -5,6 +5,8 @@
 
 #include "currender/image.h"
 
+#include <random>
+
 #ifdef CURRENDER_USE_STB
 #ifdef _WIN32
 #pragma warning(push)
@@ -72,6 +74,30 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
           std::round((normal.at(x, y, 1) + 1.0) * 0.5 * 255));
       vis_normal->at(x, y, 2) =
           static_cast<uint8_t>(std::round(-normal.at(x, y, 2) * 127.0) + 128);
+    }
+  }
+}
+
+void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
+  assert(vis_face_id != nullptr);
+
+  vis_face_id->Init(face_id.width(), face_id.height(), 0);
+
+  for (int y = 0; y < vis_face_id->height(); y++) {
+    for (int x = 0; x < vis_face_id->width(); x++) {
+      int fid = face_id.at(x, y, 0);
+      if (fid < 0) {
+        continue;
+      }
+
+      // todo: cache for speed up
+      std::mt19937 mt(fid);
+      // stl distribution depends on environment while mt19937 is independent.
+      // so simply mod mt19937 value for random color reproducing the same
+      // color in different environment.
+      vis_face_id->at(x, y, 0) = static_cast<uint8_t>(mt() % 256);
+      vis_face_id->at(x, y, 1) = static_cast<uint8_t>(mt() % 256);
+      vis_face_id->at(x, y, 2) = static_cast<uint8_t>(mt() % 256);
     }
   }
 }

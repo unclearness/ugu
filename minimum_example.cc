@@ -26,7 +26,8 @@ std::shared_ptr<currender::Mesh> MakeExampleCube() {
 void SaveImages(const currender::Image3b& color,
                 const currender::Image1f& depth,
                 const currender::Image3f& normal,
-                const currender::Image1b& mask) {
+                const currender::Image1b& mask,
+                const currender::Image1i face_id) {
   // dir to save images
   std::string save_dir = "../data/minimum_example/";
 
@@ -45,6 +46,11 @@ void SaveImages(const currender::Image3b& color,
   currender::Image3b vis_normal;
   currender::Normal2Color(normal, &vis_normal);
   vis_normal.WritePng(save_dir + "vis_normal.png");
+
+  // convert face id to color and save
+  currender::Image3b vis_face_id;
+  currender::FaceId2RandomColor(face_id, &vis_face_id);
+  vis_face_id.WritePng(save_dir + "vis_face_id.png");
 
   printf("images are saved in %s\n", save_dir.c_str());
 }
@@ -98,10 +104,11 @@ int main() {
   currender::Image1f depth;
   currender::Image3f normal;
   currender::Image1b mask;
-  renderer.Render(&color, &depth, &normal, &mask);
+  currender::Image1i face_id;
+  renderer.Render(&color, &depth, &normal, &mask, &face_id);
 
   // save images
-  SaveImages(color, depth, normal, mask);
+  SaveImages(color, depth, normal, mask, face_id);
 
   return 0;
 }

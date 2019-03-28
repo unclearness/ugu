@@ -1,14 +1,15 @@
 # Currender: A CPU renderer for computer vision
 **Currender** is a CPU raytracing based rendering library written in C++.
-With 3D triangular mesh and camera parameters, you can easily render color, depth, normal and mask images.
+With 3D triangular mesh and camera parameters, you can easily render color, depth, normal, mask and face id images.
 
 |color|depth|
 |---|---|
 |![](data/bunny/front_color.png)|![](data/bunny/front_vis_depth.png)|
 
-|normal|mask|
-|---|---|
-|![](data/bunny/front_vis_normal.png)|![](data/bunny/front_mask.png)
+
+|normal|mask|face id|
+|---|---|---|
+|![](data/bunny/front_vis_normal.png)|![](data/bunny/front_mask.png)|![](data/bunny/front_vis_face_id.png)|
 
 Currender is primarily designed for people who are involved in computer vision.
 Pros and cons against popular OpenGL based rendering are listed below.
@@ -71,10 +72,11 @@ int main() {
   currender::Image1f depth;
   currender::Image3f normal;
   currender::Image1b mask;
-  renderer.Render(&color, &depth, &normal, &mask);
+  currender::Image1i face_id;
+  renderer.Render(&color, &depth, &normal, &mask, &face_id);
 
   // save images
-  SaveImages(color, depth, normal, mask);
+  SaveImages(color, depth, normal, mask, face_id);
 
   return 0;
 }

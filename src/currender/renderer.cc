@@ -7,9 +7,9 @@
 
 #include <cassert>
 
-#include "nanort/nanort.h"
 #include "currender/pixel_shader.h"
 #include "currender/timer.h"
+#include "nanort/nanort.h"
 
 namespace {
 void PrepareRay(nanort::Ray<float>* ray, const Eigen::Vector3f& camera_pos_w,
@@ -64,7 +64,7 @@ class Renderer::Impl {
 
   bool ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
                                    Image3f* normal, Image1b* mask,
-                                   std::vector<uint32_t>* visible_faces) const;
+                                   Image1i* face_id) const;
 
  public:
   Impl();
@@ -80,21 +80,23 @@ class Renderer::Impl {
   void set_camera(std::shared_ptr<const Camera> camera);
 
   bool Render(Image3b* color, Image1f* depth, Image3f* normal, Image1b* mask,
-              std::vector<uint32_t>* visible_faces = nullptr) const;
+              Image1i* face_id) const;
 
   bool RenderColor(Image3b* color) const;
   bool RenderDepth(Image1f* depth) const;
   bool RenderNormal(Image3f* normal) const;
   bool RenderMask(Image1b* mask) const;
-  bool VisibilityTest(std::vector<uint32_t>* visible_faces) const;
+  bool RenderFaceId(Image1i* face_id) const;
 
   bool RenderW(Image3b* color, Image1w* depth, Image3f* normal, Image1b* mask,
-               std::vector<uint32_t>* visible_faces = nullptr) const;
+               Image1i* face_id) const;
   bool RenderDepthW(Image1w* depth) const;
 };
 
 Renderer::Impl::Impl() {}
 Renderer::Impl::~Impl() {}
+
+Renderer::Impl::Impl(const RendererOption& option) { set_option(option); }
 
 void Renderer::Impl::set_option(const RendererOption& option) {
   option.CopyTo(&option_);
@@ -194,9 +196,9 @@ void Renderer::Impl::set_camera(std::shared_ptr<const Camera> camera) {
   camera_ = camera;
 }
 
-bool Renderer::Impl::ValidateAndInitBeforeRender(
-    Image3b* color, Image1f* depth, Image3f* normal, Image1b* mask,
-    std::vector<uint32_t>* visible_faces) const {
+bool Renderer::Impl::ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
+                                                 Image3f* normal, Image1b* mask,
+                                                 Image1i* face_id) const {
   if (camera_ == nullptr) {
     LOGE("camera has not been set\n");
     return false;
@@ -233,7 +235,7 @@ bool Renderer::Impl::ValidateAndInitBeforeRender(
     return false;
   }
   if (color == nullptr && depth == nullptr && normal == nullptr &&
-      mask == nullptr && visible_faces == nullptr) {
+      mask == nullptr && face_id == nullptr) {
     LOGE("all arguments are nullptr. nothing to do\n");
     return false;
   }
@@ -253,17 +255,17 @@ bool Renderer::Impl::ValidateAndInitBeforeRender(
   if (mask != nullptr) {
     mask->Init(width, height);
   }
-  if (visible_faces != nullptr) {
-    visible_faces->clear();
+  if (face_id != nullptr) {
+    // initialize with -1 (no hit)
+    face_id->Init(width, height, -1);
   }
 
   return true;
 }
 
 bool Renderer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
-                            Image1b* mask,
-                            std::vector<uint32_t>* visible_faces) const {
-  if (!ValidateAndInitBeforeRender(color, depth, normal, mask, visible_faces)) {
+                            Image1b* mask, Image1i* face_id) const {
+  if (!ValidateAndInitBeforeRender(color, depth, normal, mask, face_id)) {
     return false;
   }
 
@@ -272,14 +274,6 @@ bool Renderer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
       option_.diffuse_color, option_.interp, option_.diffuse_shading);
 
   OrenNayarParam oren_nayar_param(option_.oren_nayar_sigma);
-
-  // intersected face id in image coordinate
-  // to avoid multi thread problem, don't push_back to visible_faces
-  Image<int64_t, 1> face_id_image;
-  if (visible_faces != nullptr) {
-    // initialize with -1
-    face_id_image.Init(camera_->width(), camera_->height(), -1);
-  }
 
   const Eigen::Matrix3f w2c_R = camera_->w2c().rotation().cast<float>();
   const Eigen::Vector3f w2c_t = camera_->w2c().translation().cast<float>();
@@ -322,8 +316,8 @@ bool Renderer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
       }
 
       // fill face id
-      if (visible_faces != nullptr) {
-        face_id_image.at(x, y, 0) = fid;
+      if (face_id != nullptr) {
+        face_id->at(x, y, 0) = fid;
       }
 
       // fill mask
@@ -374,27 +368,6 @@ bool Renderer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   timer.End();
   LOGI("  Rendering main loop time: %.1f msecs\n", timer.elapsed_msec());
 
-  // remove same face ids and copy to visible_faces
-  if (visible_faces != nullptr) {
-    std::vector<int64_t>* face_id_list = face_id_image.data_ptr();
-
-    // remove -1 meaning no ray intersection
-    face_id_list->erase(
-        std::remove(face_id_list->begin(), face_id_list->end(), -1),
-        face_id_list->end());
-
-    // remove duplicate elements and unique face id list
-    std::sort(face_id_list->begin(), face_id_list->end());
-    face_id_list->erase(std::unique(face_id_list->begin(), face_id_list->end()),
-                        face_id_list->end());
-
-    // copy to return
-    visible_faces->resize(face_id_list->size());
-    for (size_t i = 0; i < visible_faces->size(); i++) {
-      (*visible_faces)[i] = static_cast<uint32_t>((*face_id_list)[i]);
-    }
-  }
-
   return true;
 }
 
@@ -414,21 +387,19 @@ bool Renderer::Impl::RenderMask(Image1b* mask) const {
   return Render(nullptr, nullptr, nullptr, mask, nullptr);
 }
 
-bool Renderer::Impl::VisibilityTest(
-    std::vector<uint32_t>* visible_faces) const {
-  return Render(nullptr, nullptr, nullptr, nullptr, visible_faces);
+bool Renderer::Impl::RenderFaceId(Image1i* face_id) const {
+  return Render(nullptr, nullptr, nullptr, nullptr, face_id);
 }
 
 bool Renderer::Impl::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
-                             Image1b* mask,
-                             std::vector<uint32_t>* visible_faces) const {
+                             Image1b* mask, Image1i* face_id) const {
   if (depth == nullptr) {
     LOGE("depth is nullptr");
     return false;
   }
 
   Image1f f_depth;
-  bool org_ret = Render(color, &f_depth, normal, mask, visible_faces);
+  bool org_ret = Render(color, &f_depth, normal, mask, face_id);
 
   if (org_ret) {
     f_depth.ConvertTo(depth);
@@ -447,9 +418,7 @@ Renderer::Renderer() : pimpl(std::unique_ptr<Impl>(new Impl)) {}
 Renderer::~Renderer() {}
 
 Renderer::Renderer(const RendererOption& option)
-    : pimpl(std::unique_ptr<Impl>(new Impl)) {
-  pimpl->set_option(option);
-}
+    : pimpl(std::unique_ptr<Impl>(new Impl(option))) {}
 
 void Renderer::set_option(const RendererOption& option) {
   pimpl->set_option(option);
@@ -466,9 +435,8 @@ void Renderer::set_camera(std::shared_ptr<const Camera> camera) {
 }
 
 bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
-                      Image1b* mask,
-                      std::vector<uint32_t>* visible_faces) const {
-  return pimpl->Render(color, depth, normal, mask, visible_faces);
+                      Image1b* mask, Image1i* face_id) const {
+  return pimpl->Render(color, depth, normal, mask, face_id);
 }
 
 bool Renderer::RenderColor(Image3b* color) const {
@@ -487,14 +455,13 @@ bool Renderer::RenderMask(Image1b* mask) const {
   return pimpl->RenderMask(mask);
 }
 
-bool Renderer::VisibilityTest(std::vector<uint32_t>* visible_faces) const {
-  return pimpl->VisibilityTest(visible_faces);
+bool Renderer::RenderFaceId(Image1i* face_id) const {
+  return pimpl->RenderFaceId(face_id);
 }
 
 bool Renderer::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
-                       Image1b* mask,
-                       std::vector<uint32_t>* visible_faces) const {
-  return pimpl->RenderW(color, depth, normal, mask, visible_faces);
+                       Image1b* mask, Image1i* face_id) const {
+  return pimpl->RenderW(color, depth, normal, mask, face_id);
 }
 
 bool Renderer::RenderDepthW(Image1w* depth) const {

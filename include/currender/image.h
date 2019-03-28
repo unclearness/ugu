@@ -144,12 +144,16 @@ using Image1b = Image<uint8_t, 1>;   // For gray image.
 using Image3b = Image<uint8_t, 3>;   // For color image. RGB order.
 using Image1w = Image<uint16_t, 1>;  // For depth image with 16 bit (unsigned
                                      // short) mm-scale format
-using Image1f = Image<float, 1>;     // For depth image with any scale
-using Image3f = Image<float, 3>;     // For normal or point cloud. XYZ order.
+using Image1i =
+    Image<int32_t, 1>;  // For face visibility. face id is within int32_t
+using Image1f = Image<float, 1>;  // For depth image with any scale
+using Image3f = Image<float, 3>;  // For normal or point cloud. XYZ order.
 
 void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d = 200.0f,
                 float max_d = 1500.0f);
 
 void Normal2Color(const Image3f& normal, Image3b* vis_normal);
+
+void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id);
 
 }  // namespace currender
