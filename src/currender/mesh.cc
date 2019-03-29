@@ -10,9 +10,6 @@
 #include <sstream>
 
 #ifdef CURRENDER_USE_TINYOBJLOADER
-#ifdef CURRENDER_TINYOBJLOADER_IMPLEMENTATION
-#define TINYOBJLOADER_IMPLEMENTATION
-#endif
 #include "tinyobjloader/tiny_obj_loader.h"
 #endif
 
