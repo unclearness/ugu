@@ -3,8 +3,6 @@
  * All rights reserved.
  */
 
-#pragma once
-
 #include "currender/log.h"
 
 #include <cstdarg>
