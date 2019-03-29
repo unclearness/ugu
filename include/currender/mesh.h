@@ -66,15 +66,15 @@ class Mesh {
   const MeshStats& stats() const;
   const Image3b& diffuse_tex() const;
 
-  void set_vertices(const std::vector<Eigen::Vector3f>& vertices);
-  void set_vertex_colors(const std::vector<Eigen::Vector3f>& vertex_colors);
-  void set_vertex_indices(const std::vector<Eigen::Vector3i>& vertex_indices);
-  void set_normals(const std::vector<Eigen::Vector3f>& normals);
-  void set_face_normals(const std::vector<Eigen::Vector3f>& face_normals);
-  void set_normal_indices(const std::vector<Eigen::Vector3i>& normal_indices);
-  void set_uv(const std::vector<Eigen::Vector2f>& uv);
-  void set_uv_indices(const std::vector<Eigen::Vector3i>& uv_indices);
-  void set_diffuse_tex(const Image3b& diffuse_tex);
+  bool set_vertices(const std::vector<Eigen::Vector3f>& vertices);
+  bool set_vertex_colors(const std::vector<Eigen::Vector3f>& vertex_colors);
+  bool set_vertex_indices(const std::vector<Eigen::Vector3i>& vertex_indices);
+  bool set_normals(const std::vector<Eigen::Vector3f>& normals);
+  bool set_face_normals(const std::vector<Eigen::Vector3f>& face_normals);
+  bool set_normal_indices(const std::vector<Eigen::Vector3i>& normal_indices);
+  bool set_uv(const std::vector<Eigen::Vector2f>& uv);
+  bool set_uv_indices(const std::vector<Eigen::Vector3i>& uv_indices);
+  bool set_diffuse_tex(const Image3b& diffuse_tex);
 
 #ifdef CURRENDER_USE_TINYOBJLOADER
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);

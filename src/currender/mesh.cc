@@ -205,41 +205,92 @@ void Mesh::CalcFaceNormal() {
   }
 }
 
-void Mesh::set_vertices(const std::vector<Eigen::Vector3f>& vertices) {
+bool Mesh::set_vertices(const std::vector<Eigen::Vector3f>& vertices) {
+  if (vertices.size() > std::numeric_limits<int>::max()) {
+    LOGE("The number of vertices exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
+    return false;
+  }
   CopyVec(vertices, &vertices_);
+  return true;
 }
 
-void Mesh::set_vertex_colors(
+bool Mesh::set_vertex_colors(
     const std::vector<Eigen::Vector3f>& vertex_colors) {
+  if (vertex_colors.size() > std::numeric_limits<int>::max()) {
+    LOGE("The number of vertices exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
+    return false;
+  }
   CopyVec(vertex_colors, &vertex_colors_);
+  return true;
 }
 
-void Mesh::set_vertex_indices(
+bool Mesh::set_vertex_indices(
     const std::vector<Eigen::Vector3i>& vertex_indices) {
+  if (vertex_indices.size() > std::numeric_limits<int>::max()) {
+    LOGE("The number of faces exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
+    return false;
+  }
   CopyVec(vertex_indices, &vertex_indices_);
+  return true;
 }
 
-void Mesh::set_normals(const std::vector<Eigen::Vector3f>& normals) {
+bool Mesh::set_normals(const std::vector<Eigen::Vector3f>& normals) {
+  if (normals.size() > std::numeric_limits<int>::max()) {
+    LOGE("The number of vertices exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
+    return false;
+  }
   CopyVec(normals, &normals_);
+  return true;
 }
 
-void Mesh::set_face_normals(const std::vector<Eigen::Vector3f>& face_normals) {
+bool Mesh::set_face_normals(const std::vector<Eigen::Vector3f>& face_normals) {
+  if (face_normals.size() > std::numeric_limits<int>::max()) {
+    LOGE("The number of faces exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
+    return false;
+  }
   CopyVec(face_normals, &face_normals_);
+  return true;
 }
 
-void Mesh::set_normal_indices(
+bool Mesh::set_normal_indices(
     const std::vector<Eigen::Vector3i>& normal_indices) {
+  if (normal_indices.size() > std::numeric_limits<int>::max()) {
+    LOGE("The number of faces exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
+    return false;
+  }
   CopyVec(normal_indices, &normal_indices_);
+  return true;
 }
 
-void Mesh::set_uv(const std::vector<Eigen::Vector2f>& uv) { CopyVec(uv, &uv_); }
+bool Mesh::set_uv(const std::vector<Eigen::Vector2f>& uv) {
+  if (uv.size() > std::numeric_limits<int>::max()) {
+    LOGE("The number of vertices exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
+    return false;
+  }
+  CopyVec(uv, &uv_);
+  return true;
+}
 
-void Mesh::set_uv_indices(const std::vector<Eigen::Vector3i>& uv_indices) {
+bool Mesh::set_uv_indices(const std::vector<Eigen::Vector3i>& uv_indices) {
+  if (uv_indices.size() > std::numeric_limits<int>::max()) {
+    LOGE("The number of faces exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
+    return false;
+  }
   CopyVec(uv_indices, &uv_indices_);
+  return true;
 }
 
-void Mesh::set_diffuse_tex(const Image3b& diffuse_tex) {
+bool Mesh::set_diffuse_tex(const Image3b& diffuse_tex) {
   diffuse_tex.CopyTo(&diffuse_tex_);
+  return true;
 }
 
 #ifdef CURRENDER_USE_TINYOBJLOADER
@@ -271,9 +322,25 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   for (size_t s = 0; s < shapes.size(); s++) {
     face_num += shapes[s].mesh.num_face_vertices.size();
   }
+
+  if (face_num > std::numeric_limits<int>::max()) {
+    LOGE("The number of faces exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
+    return false;
+  }
+
   vertex_indices_.resize(face_num);  // face
   uv_indices_.resize(face_num);
   normal_indices_.resize(face_num);
+
+  if (attrib.vertices.size() / 3 > std::numeric_limits<int>::max() ||
+      attrib.normals.size() / 3 > std::numeric_limits<int>::max() ||
+      attrib.texcoords.size() / 2 > std::numeric_limits<int>::max() ||
+      attrib.colors.size() / 3 > std::numeric_limits<int>::max()) {
+    LOGE("The number of vertices exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
+    return false;
+  }
 
   vertices_.resize(attrib.vertices.size() / 3);
   normals_.resize(attrib.normals.size() / 3);
@@ -392,12 +459,12 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   }
 
   bool ret = false;
-  int vertex_num = 0;
+  std::int64_t vertex_num = 0;
   while (getline(ifs, str)) {
     if (str.find("element vertex") != std::string::npos) {
       std::vector<std::string> splitted = Split(str, ' ');
       if (splitted.size() == 3) {
-        vertex_num = std::atoi(splitted[2].c_str());
+        vertex_num = std::atol(splitted[2].c_str());
         ret = true;
         break;
       }
@@ -407,14 +474,19 @@ bool Mesh::LoadPly(const std::string& ply_path) {
     LOGE("couldn't find element vertex\n");
     return false;
   }
+  if (vertex_num > std::numeric_limits<int>::max()) {
+    LOGE("The number of vertices exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
+    return false;
+  }
 
   ret = false;
-  int face_num = 0;
+  std::int64_t face_num = 0;
   while (getline(ifs, str)) {
     if (str.find("element face") != std::string::npos) {
       std::vector<std::string> splitted = Split(str, ' ');
       if (splitted.size() == 3) {
-        face_num = std::atoi(splitted[2].c_str());
+        face_num = std::atol(splitted[2].c_str());
         ret = true;
         break;
       }
@@ -422,6 +494,11 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   }
   if (!ret) {
     LOGE("couldn't find element face\n");
+    return false;
+  }
+  if (face_num > std::numeric_limits<int>::max()) {
+    LOGE("The number of faces exceeds the maximum: %d\n",
+         std::numeric_limits<int>::max());
     return false;
   }
 
