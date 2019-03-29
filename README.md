@@ -20,7 +20,7 @@ Pros and cons against popular OpenGL based rendering are listed below.
   - Identical to OpenCV (right-handed, z:forward, y:down, x:right). You are not irritated by coordinate conversion for OpenGL.
 - **Intrinsic parameters (principal point and focal length in pixel-scale) with pinhole camera model**
   - Popular camera projection representation in computer vision. You are not annoyed with converting the intrinsics to perspective projection matrix for OpenGL.
-- **Rendering depth, normal and mask image is enabled as default.**
+- **Rendering depth, normal, mask and face id image is enabled as default.**
   - Computer vision algorithms often process them besides color image.
 - **Fast for lower resolution.**
   -  Enough speed with less than VGA (640 * 480). Such small image size is commonly used in computer vison algorithms.
