@@ -50,18 +50,30 @@ option(CURRENDER_USE_STB "Use stb to enable image i/o" ON)
 message("CURRENDER_USE_STB: ${CURRENDER_USE_STB}")
 if(CURRENDER_USE_STB)
   add_definitions(-DCURRENDER_USE_STB)
-  add_library(stb
-    STATIC
-    src/currender/stb.cc)
-  set(STB_LIB_NAME stb)
+  option(CURRENDER_USE_STB_AS_STATIC_LIB "Use stb as static lib" OFF)
+  message("CURRENDER_USE_STB_AS_STATIC_LIB: ${CURRENDER_USE_STB_AS_STATIC_LIB}")
+  if(CURRENDER_USE_STB_AS_STATIC_LIB)
+    add_library(stb
+      STATIC
+      src/currender/stb.cc)
+    set(STB_LIB_NAME stb)
+  else()
+    set(CURRENDER_STB_IMPLEMENTATION_CC src/currender/stb.cc)
+  endif()
 endif()
 
 option(CURRENDER_USE_TINYOBJLOADER "Use tinyobjloader to enable .obj input" ON)
 message("CURRENDER_USE_TINYOBJLOADER: ${CURRENDER_USE_TINYOBJLOADER}")
 if(CURRENDER_USE_TINYOBJLOADER)
   add_definitions(-DCURRENDER_USE_TINYOBJLOADER)
-  add_subdirectory(${TINYOBJLOADER_INSTALL_DIR})
-  set(TINYOBJLOADER_LIB_NAME tinyobjloader)
+  option(CURRENDER_USE_TINYOBJLOADER_AS_STATIC_LIB "Use tinyobjloader as static lib" OFF)
+  message("CURRENDER_USE_TINYOBJLOADER_AS_STATIC_LIB: ${CURRENDER_USE_TINYOBJLOADER_AS_STATIC_LIB}")
+  if(CURRENDER_USE_TINYOBJLOADER_AS_STATIC_LIB)
+    add_subdirectory(${TINYOBJLOADER_INSTALL_DIR})
+    set(TINYOBJLOADER_LIB_NAME tinyobjloader)
+  else()
+    set(CURRENDER_TINYOBJLOADER_IMPLEMENTATION_CC ${TINYOBJLOADER_INSTALL_DIR}/tiny_obj_loader.cc)
+  endif()
 endif()
 
 option(CURRENDER_USE_OPENMP "Use OpenMP to enable parallelization" ON)
@@ -97,6 +109,10 @@ add_library(${PUBLIC_LIB_NAME}
   src/currender/pixel_shader.cc
   src/currender/timer.h
   src/currender/log.cc
+
+  # implementations of header-only library
+  ${CURRENDER_STB_IMPLEMENTATION_CC}
+  ${CURRENDER_TINYOBJLOADER_IMPLEMENTATION_CC}
 )
 
 # set folders
