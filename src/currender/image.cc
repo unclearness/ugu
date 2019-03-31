@@ -5,7 +5,10 @@
 
 #include "currender/image.h"
 
+#include <algorithm>
+#include <array>
 #include <random>
+#include <unordered_map>
 
 #ifdef CURRENDER_USE_STB
 #ifdef _WIN32
@@ -36,23 +39,15 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
 
   vis_depth->Init(depth.width(), depth.height());
 
+  float inv_denom = 1.0f / (max_d - min_d);
   for (int y = 0; y < vis_depth->height(); y++) {
     for (int x = 0; x < vis_depth->width(); x++) {
       auto d = depth.at(x, y, 0);
-      if (d < 1) {
-        continue;
-      }
 
-      int color = static_cast<int>((d - min_d) / (max_d - min_d) * 255.0);
+      float norm_color = (d - min_d) * inv_denom;
+      norm_color = std::min(std::max(norm_color, 0.0f), 1.0f);
 
-      if (color < 0) {
-        color = 0;
-      }
-      if (255 < color) {
-        color = 255;
-      }
-
-      vis_depth->at(x, y, 0) = static_cast<uint8_t>(color);
+      vis_depth->at(x, y, 0) = static_cast<uint8_t>(norm_color * 255);
     }
   }
 }
@@ -83,6 +78,8 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
 
   vis_face_id->Init(face_id.width(), face_id.height(), 0);
 
+  std::unordered_map<int, std::array<uint8_t, 3>> id2color;
+
   for (int y = 0; y < vis_face_id->height(); y++) {
     for (int x = 0; x < vis_face_id->width(); x++) {
       int fid = face_id.at(x, y, 0);
@@ -90,14 +87,24 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
         continue;
       }
 
-      // todo: cache for speed up
-      std::mt19937 mt(fid);
-      // stl distribution depends on environment while mt19937 is independent.
-      // so simply mod mt19937 value for random color reproducing the same
-      // color in different environment.
-      vis_face_id->at(x, y, 0) = static_cast<uint8_t>(mt() % 256);
-      vis_face_id->at(x, y, 1) = static_cast<uint8_t>(mt() % 256);
-      vis_face_id->at(x, y, 2) = static_cast<uint8_t>(mt() % 256);
+      std::array<uint8_t, 3> color;
+      auto iter = id2color.find(fid);
+      if (iter != id2color.end()) {
+        color = iter->second;
+      } else {
+        std::mt19937 mt(fid);
+        // stl distribution depends on environment while mt19937 is independent.
+        // so simply mod mt19937 value for random color reproducing the same
+        // color in different environment.
+        color[0] = static_cast<uint8_t>(mt() % 256);
+        color[1] = static_cast<uint8_t>(mt() % 256);
+        color[2] = static_cast<uint8_t>(mt() % 256);
+        id2color[fid] = color;
+      }
+
+      vis_face_id->at(x, y, 0) = color[0];
+      vis_face_id->at(x, y, 1) = color[1];
+      vis_face_id->at(x, y, 2) = color[2];
     }
   }
 }
