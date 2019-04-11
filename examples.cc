@@ -9,9 +9,11 @@
 #include <vector>
 
 #include "currender/renderer.h"
+#include "currender/util.h"
 
 using currender::Camera;
 using currender::Depth2Gray;
+using currender::Depth2Mesh;
 using currender::Image1b;
 using currender::Image1f;
 using currender::Image1i;
@@ -38,6 +40,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   Image1b vis_depth;
   Image3b vis_normal;
   Image3b vis_face_id;
+  Mesh view_mesh;
+  const float kMaxConnectZDiff = 100.0f;
 
   // for pose output by tum format
   std::vector<Eigen::Affine3d> poses;
@@ -68,6 +72,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "front_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "front_vis_face_id.png");
+  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
+  view_mesh.WritePly(out_dir + "front_mesh.ply");
   poses.push_back(camera->c2w());
 
   // from back
@@ -86,6 +92,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "back_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "back_vis_face_id.png");
+  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
+  view_mesh.WritePly(out_dir + "back_mesh.ply");
   poses.push_back(camera->c2w());
 
   // from right
@@ -104,6 +112,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "right_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "right_vis_face_id.png");
+  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
+  view_mesh.WritePly(out_dir + "right_mesh.ply");
   poses.push_back(camera->c2w());
 
   // from left
@@ -122,6 +132,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "left_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "left_vis_face_id.png");
+  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
+  view_mesh.WritePly(out_dir + "left_mesh.ply");
   poses.push_back(camera->c2w());
 
   // from top
@@ -140,6 +152,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "top_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "top_vis_face_id.png");
+  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
+  view_mesh.WritePly(out_dir + "top_mesh.ply");
   poses.push_back(camera->c2w());
 
   // from bottom
@@ -158,6 +172,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "bottom_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "bottom_vis_face_id.png");
+  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
+  view_mesh.WritePly(out_dir + "bottom_mesh.ply");
   poses.push_back(camera->c2w());
 
   currender::WriteTumFormat(poses, out_dir + "tumpose.txt");
