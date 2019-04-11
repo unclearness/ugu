@@ -11,6 +11,10 @@
 
 #pragma once
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "currender/common.h"
 
 namespace currender {
@@ -133,5 +137,12 @@ class OrthoCamera : public Camera {
   void ray_c(float x, float y, Eigen::Vector3f* dir) const override;
   void ray_w(float x, float y, Eigen::Vector3f* dir) const override;
 };
+
+void WriteTumFormat(const std::vector<Eigen::Affine3d>& poses,
+                    const std::string& path);
+bool LoadTumFormat(const std::string& path,
+                   std::vector<Eigen::Affine3d>* poses);
+bool LoadTumFormat(const std::string& path,
+                   std::vector<std::pair<int, Eigen::Affine3d>>* poses);
 
 }  // namespace currender
