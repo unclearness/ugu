@@ -103,6 +103,9 @@ Expected use cases are the following but not limited to
 - stb
     https://github.com/nothings/stb
     - Image I/O
+- LodePNG
+    https://github.com/lvandeve/lodepng
+    - .png I/O particularly for 16bit writing that is not supported by stb
 - tinyobjloader
     https://github.com/syoyo/tinyobjloader
     - Load .obj
