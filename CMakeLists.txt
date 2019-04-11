@@ -44,6 +44,9 @@ if(NOT DEFINED EIGEN_INSTALL_DIR)
   set(EIGEN_INSTALL_DIR "third_party/eigen" CACHE PATH "eigen installed directory")
 message("EIGEN_INSTALL_DIR: ${EIGEN_INSTALL_DIR}") 
 endif()
+if(NOT DEFINED LODEPNG_INSTALL_DIR)
+  set(LODEPNG_INSTALL_DIR "third_party/lodepng" CACHE PATH "LodePNG installed directory")
+endif()
 
 # switch for optional libraries
 option(CURRENDER_USE_STB "Use stb to enable image i/o" ON)
@@ -73,6 +76,24 @@ if(CURRENDER_USE_TINYOBJLOADER)
     set(TINYOBJLOADER_LIB_NAME tinyobjloader)
   else()
     set(CURRENDER_TINYOBJLOADER_IMPLEMENTATION_CC ${TINYOBJLOADER_INSTALL_DIR}/tiny_obj_loader.cc)
+  endif()
+endif()
+
+option(CURRENDER_USE_LODEPNG "Use LodePNG to enable image i/o, especially for 16bit" ON)
+message("CURRENDER_USE_LODEPNG: ${CURRENDER_USE_LODEPNG}")
+if(CURRENDER_USE_LODEPNG)
+  add_definitions(-DCURRENDER_USE_LODEPNG)
+  option(CURRENDER_USE_LODEPNG_AS_STATIC_LIB "Use LodePNG as static lib" OFF)
+  if(CURRENDER_USE_LODEPNG_AS_STATIC_LIB)
+    add_library(lodepng
+      STATIC
+      ${LODEPNG_INSTALL_DIR}/lodepng.cpp
+      ${LODEPNG_INSTALL_DIR}/lodepng.h)
+      set(LODEPNG_LIB_NAME lodepng)
+  else()
+   set(CURRENDER_LODEPNG_SOURCES
+      ${LODEPNG_INSTALL_DIR}/lodepng.cpp
+      ${LODEPNG_INSTALL_DIR}/lodepng.h)
   endif()
 endif()
 
@@ -113,6 +134,9 @@ add_library(${PUBLIC_LIB_NAME}
   # implementations of header-only library
   ${CURRENDER_STB_IMPLEMENTATION_CC}
   ${CURRENDER_TINYOBJLOADER_IMPLEMENTATION_CC}
+
+  # lodepng
+  ${CURRENDER_LODEPNG_SOURCES}
 )
 
 # set folders
@@ -148,6 +172,7 @@ include_directories(${PUBLIC_LIB_NAME} ${NANORT_INSTALL_DIR})
 include_directories(${PUBLIC_LIB_NAME} ${EIGEN_INSTALL_DIR})
 include_directories(${PUBLIC_LIB_NAME} ${TINYOBJLOADER_INSTALL_DIR})
 include_directories(${PUBLIC_LIB_NAME} ${STB_INSTALL_DIR})
+include_directories(${PUBLIC_LIB_NAME} ${LODEPNG_INSTALL_DIR})
 
 set_target_properties(${PUBLIC_LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
@@ -158,6 +183,7 @@ target_link_libraries(${MINIMUM_EXAMPLE_EXE}
   ${PUBLIC_LIB_NAME}
   ${STB_LIB_NAME}
   ${TINYOBJLOADER_LIB_NAME}
+  ${LODEPNG_LIB_NAME}
   )
 
 set(EXAMPLES_EXE currender_examples)
@@ -167,6 +193,7 @@ target_link_libraries(${EXAMPLES_EXE}
   ${PUBLIC_LIB_NAME}
   ${STB_LIB_NAME}
   ${TINYOBJLOADER_LIB_NAME}
+  ${LODEPNG_LIB_NAME}
   )
 if (WIN32)
   set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${EXAMPLES_EXE})

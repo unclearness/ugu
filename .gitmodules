@@ -10,3 +10,6 @@
 [submodule "third_party/eigen"]
 	path = third_party/eigen
 	url = https://github.com/eigenteam/eigen-git-mirror.git
+[submodule "third_party/lodepng"]
+	path = third_party/lodepng
+	url = https://github.com/lvandeve/lodepng
