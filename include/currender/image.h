@@ -79,18 +79,16 @@ class Image {
 
 #ifdef CURRENDER_USE_STB
   bool Load(const std::string& path) {
-    std::uint8_t* in_pixels_tmp_8bit;
-    std::uint16_t* in_pixels_tmp_16bit;
+    void* in_pixels_tmp;
     int width;
     int height;
     int bpp;
 
     if (bit_depth_ == 2) {
-      in_pixels_tmp_16bit =
+      in_pixels_tmp =
           stbi_load_16(path.c_str(), &width, &height, &bpp, channel_);
     } else if (bit_depth_ == 1) {
-      in_pixels_tmp_8bit =
-          stbi_load(path.c_str(), &width, &height, &bpp, channel_);
+      in_pixels_tmp = stbi_load(path.c_str(), &width, &height, &bpp, channel_);
     } else {
       LOGE("Load() for bit_depth %d and channel %d is not supported\n",
            bit_depth_, channel_);
@@ -98,11 +96,7 @@ class Image {
     }
 
     if (bpp != channel_) {
-      if (bit_depth_ == 2) {
-        delete in_pixels_tmp_16bit;
-      } else if (bit_depth_ == 1) {
-        delete in_pixels_tmp_8bit;
-      }
+      delete in_pixels_tmp;
       LOGE("desired channel %d, actual %d\n", channel_, bpp);
       return false;
     }
@@ -111,15 +105,9 @@ class Image {
     height_ = height;
     data_.resize(height_ * width_ * channel_);
 
-    if (bit_depth_ == 2) {
-      std::memcpy(&data_[0], in_pixels_tmp_16bit,
-                  sizeof(T) * channel_ * width_ * height_);
-      delete in_pixels_tmp_16bit;
-    } else if (bit_depth_ == 1) {
-      std::memcpy(&data_[0], in_pixels_tmp_8bit,
-                  sizeof(T) * channel_ * width_ * height_);
-      delete in_pixels_tmp_8bit;
-    }
+    std::memcpy(&data_[0], in_pixels_tmp,
+                sizeof(T) * channel_ * width_ * height_);
+    delete in_pixels_tmp;
 
     return true;
   }
