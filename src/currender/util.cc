@@ -7,6 +7,8 @@
 
 #include "currender/util.h"
 
+#include <fstream>
+
 namespace currender {
 
 void Depth2PointCloud(const Image1f& depth, const Camera& camera,
@@ -124,6 +126,17 @@ void Depth2Mesh(const Image1f& depth, const Camera& camera, Mesh* mesh,
 
   mesh->set_vertices(vertices);
   mesh->set_vertex_indices(vertex_indices);
+}
+
+void WriteFaceIdAsText(const Image1i& face_id, const std::string& path) {
+  std::ofstream ofs;
+  ofs.open(path, std::ios::out);
+
+  for (int y = 0; y < face_id.height(); y++) {
+    for (int x = 0; x < face_id.width(); x++) {
+      ofs << face_id.at(x, y, 0) << std::endl;
+    }
+  }
 }
 
 }  // namespace currender

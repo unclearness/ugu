@@ -26,6 +26,7 @@ using currender::Normal2Color;
 using currender::PinholeCamera;
 using currender::Renderer;
 using currender::RendererOption;
+using currender::WriteFaceIdAsText;
 
 namespace {
 void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
@@ -72,6 +73,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "front_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "front_vis_face_id.png");
+  WriteFaceIdAsText(face_id, out_dir + "front_face_id.txt");
   Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
   view_mesh.WritePly(out_dir + "front_mesh.ply");
   poses.push_back(camera->c2w());
@@ -92,6 +94,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "back_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "back_vis_face_id.png");
+  WriteFaceIdAsText(face_id, out_dir + "back_face_id.txt");
   Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
   view_mesh.WritePly(out_dir + "back_mesh.ply");
   poses.push_back(camera->c2w());
@@ -112,6 +115,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "right_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "right_vis_face_id.png");
+  WriteFaceIdAsText(face_id, out_dir + "right_face_id.txt");
   Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
   view_mesh.WritePly(out_dir + "right_mesh.ply");
   poses.push_back(camera->c2w());
@@ -132,6 +136,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "left_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "left_vis_face_id.png");
+  WriteFaceIdAsText(face_id, out_dir + "left_face_id.txt");
   Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
   view_mesh.WritePly(out_dir + "left_mesh.ply");
   poses.push_back(camera->c2w());
@@ -152,6 +157,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "top_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "top_vis_face_id.png");
+  WriteFaceIdAsText(face_id, out_dir + "top_face_id.txt");
   Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
   view_mesh.WritePly(out_dir + "top_mesh.ply");
   poses.push_back(camera->c2w());
@@ -172,6 +178,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   vis_normal.WritePng(out_dir + "bottom_vis_normal.png");
   FaceId2RandomColor(face_id, &vis_face_id);
   vis_face_id.WritePng(out_dir + "bottom_vis_face_id.png");
+  WriteFaceIdAsText(face_id, out_dir + "bottom_face_id.txt");
   Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
   view_mesh.WritePly(out_dir + "bottom_mesh.ply");
   poses.push_back(camera->c2w());
