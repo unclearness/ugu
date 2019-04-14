@@ -48,9 +48,9 @@ Mesh::Mesh(const Mesh& src) {
   CopyVec(src.uv_, &uv_);
   CopyVec(src.uv_indices_, &uv_indices_);
 
-  diffuse_texname_ = src.diffuse_texname_;
-  diffuse_texpath_ = src.diffuse_texpath_;
-  src.diffuse_tex_.CopyTo(&diffuse_tex_);
+  CopyVec(src.diffuse_texnames_, &diffuse_texnames_);
+  CopyVec(src.diffuse_texpaths_, &diffuse_texpaths_);
+  CopyVec(src.diffuse_texs_, &diffuse_texs_);
   stats_ = src.stats_;
 }
 Mesh::~Mesh() {}
@@ -78,7 +78,7 @@ const std::vector<Eigen::Vector3i>& Mesh::uv_indices() const {
 
 const MeshStats& Mesh::stats() const { return stats_; }
 
-const Image3b& Mesh::diffuse_tex() const { return diffuse_tex_; }
+const std::vector<Image3b>& Mesh::diffuse_texs() const { return diffuse_texs_; }
 
 void Mesh::CalcStats() {
   stats_.bb_min = Eigen::Vector3f(std::numeric_limits<float>::max(),
@@ -158,7 +158,9 @@ void Mesh::Clear() {
   uv_.clear();
   uv_indices_.clear();
 
-  diffuse_tex_.Clear();
+  diffuse_texnames_.clear();
+  diffuse_texpaths_.clear();
+  diffuse_texs_.clear();
 }
 
 void Mesh::CalcNormal() {
@@ -288,8 +290,8 @@ bool Mesh::set_uv_indices(const std::vector<Eigen::Vector3i>& uv_indices) {
   return true;
 }
 
-bool Mesh::set_diffuse_tex(const Image3b& diffuse_tex) {
-  diffuse_tex.CopyTo(&diffuse_tex_);
+bool Mesh::set_diffuse_tex(const std::vector<Image3b>& diffuse_texs) {
+  CopyVec(diffuse_texs, &diffuse_texs_);
   return true;
 }
 
@@ -309,12 +311,6 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   }
 
   if (!ret) {
-    return false;
-  }
-
-  if (materials.size() != 1) {
-    LOGE("Doesn't support obj materials num %d. Must be 1\n",
-         static_cast<int>(materials.size()));
     return false;
   }
 
@@ -421,18 +417,23 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
 
   CalcStats();
 
-  diffuse_texname_ = materials[0].diffuse_texname;
-  diffuse_texpath_ = mtl_dir + diffuse_texname_;
+  diffuse_texnames_.resize(materials.size());
+  diffuse_texpaths_.resize(materials.size());
+  diffuse_texs_.resize(materials.size());
+  for (size_t i = 0; i < materials.size(); i++) {
+    diffuse_texnames_[i] = materials[i].diffuse_texname;
+    diffuse_texpaths_[i] = mtl_dir + diffuse_texnames_[i];
 
-  std::ifstream ifs(diffuse_texpath_);
-  if (ifs.is_open()) {
+    std::ifstream ifs(diffuse_texpaths_[i]);
+    if (ifs.is_open()) {
 #ifdef CURRENDER_USE_STB
-    ret = diffuse_tex_.Load(diffuse_texpath_);
+      ret = diffuse_texs_[i].Load(diffuse_texpaths_[i]);
 #else
-    LOGW("define CURRENDER_USE_STB to load diffuse texture.\n");
+      LOGW("define CURRENDER_USE_STB to load diffuse texture.\n");
 #endif
-  } else {
-    LOGW("diffuse texture doesn't exist %s\n", diffuse_texpath_.c_str());
+    } else {
+      LOGW("diffuse texture doesn't exist %s\n", diffuse_texpaths_[i].c_str());
+    }
   }
 
   return ret;
@@ -664,29 +665,36 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
   }
 
   // write mtl
-  {
-    std::ofstream ofs(mtl_path);
-    if (ofs.fail()) {
-      LOGE("couldn't open mtl path: %s\n", mtl_path.c_str());
-      return false;
-    }
 
-    ofs << "property float x\n"
-           "property float y\n"
-           "property float z\n"
-           "newmtl Textured\n"
-           "Ka 1.000 1.000 1.000\n"
-           "Kd 1.000 1.000 1.000\n"
-           "Ks 0.000 0.000 0.000\n"
-           "d 1.0\n"
-           "illum 2\n";
-    ofs << "map_Kd " + tex_name << std::endl;
-
-    ofs.close();
+  std::ofstream ofs(mtl_path);
+  if (ofs.fail()) {
+    LOGE("couldn't open mtl path: %s\n", mtl_path.c_str());
+    return false;
   }
 
+  ofs << "property float x\n"
+         "property float y\n"
+         "property float z\n"
+         "newmtl Textured\n"
+         "Ka 1.000 1.000 1.000\n"
+         "Kd 1.000 1.000 1.000\n"
+         "Ks 0.000 0.000 0.000\n"
+         "d 1.0\n"
+         "illum 2\n";
+  if (0 < diffuse_texs_.size()) {
+    ofs << "map_Kd " + tex_name << std::endl;
+  }
+  ofs.close();
+
   // write texture
-  diffuse_tex_.WritePng(tex_path);
+  if (diffuse_texs_.size() == 1) {
+    diffuse_texs_[0].WritePng(tex_path);
+  } else if (1 < diffuse_texs_.size()) {
+    LOGW(
+        "Mesh::WriteObj #texture num %d. Only 1 diffuse texture is "
+        "supported.\n",
+        static_cast<int>(diffuse_texs_.size()));
+  }
 
   return true;
 }

@@ -32,9 +32,9 @@ class Mesh {
   std::vector<Eigen::Vector2f> uv_;
   std::vector<Eigen::Vector3i> uv_indices_;
 
-  std::string diffuse_texname_;
-  std::string diffuse_texpath_;
-  Image3b diffuse_tex_;
+  std::vector<std::string> diffuse_texnames_;
+  std::vector<std::string> diffuse_texpaths_;
+  std::vector<Image3b> diffuse_texs_;
   MeshStats stats_;
 
  public:
@@ -64,7 +64,7 @@ class Mesh {
   const std::vector<Eigen::Vector2f>& uv() const;
   const std::vector<Eigen::Vector3i>& uv_indices() const;
   const MeshStats& stats() const;
-  const Image3b& diffuse_tex() const;
+  const std::vector<Image3b>& diffuse_texs() const;
 
   bool set_vertices(const std::vector<Eigen::Vector3f>& vertices);
   bool set_vertex_colors(const std::vector<Eigen::Vector3f>& vertex_colors);
@@ -74,7 +74,7 @@ class Mesh {
   bool set_normal_indices(const std::vector<Eigen::Vector3i>& normal_indices);
   bool set_uv(const std::vector<Eigen::Vector2f>& uv);
   bool set_uv_indices(const std::vector<Eigen::Vector3i>& uv_indices);
-  bool set_diffuse_tex(const Image3b& diffuse_tex);
+  bool set_diffuse_tex(const std::vector<Image3b>& diffuse_texs);
 
 #ifdef CURRENDER_USE_TINYOBJLOADER
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);

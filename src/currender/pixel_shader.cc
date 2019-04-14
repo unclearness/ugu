@@ -141,7 +141,7 @@ void DiffuseTextureNnColorizer::Process(const PixelShaderInput& input) const {
 
   const auto& uv = mesh->uv();
   const auto& uv_indices = mesh->uv_indices();
-  const auto& diffuse_texture = mesh->diffuse_tex();
+  const auto& diffuse_texture = mesh->diffuse_texs()[0];
 
   Eigen::Vector3f interp_color;
   // barycentric interpolation of uv
@@ -179,7 +179,8 @@ void DiffuseTextureBilinearColorizer::Process(
 
   const auto& uv = mesh->uv();
   const auto& uv_indices = mesh->uv_indices();
-  const auto& diffuse_texture = mesh->diffuse_tex();
+  const auto& diffuse_texture =
+      mesh->diffuse_texs()[0];  // todo:: support multiple textures
 
   Eigen::Vector3f interp_color;
 

@@ -212,9 +212,18 @@ bool Renderer::Impl::ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
     return false;
   }
   if (option_.diffuse_color == DiffuseColor::kTexture &&
-      mesh_->diffuse_tex().empty()) {
+      mesh_->diffuse_texs().empty()) {
     LOGE("specified texture as diffuse color but texture is empty.\n");
     return false;
+  }
+  if (option_.diffuse_color == DiffuseColor::kTexture) {
+    for (int i = 0; i < static_cast<int>(mesh_->diffuse_texs().size()); i++) {
+      if (mesh_->diffuse_texs()[i].empty()) {
+        LOGE("specified texture as diffuse color but %d th texture is empty.\n",
+             i);
+        return false;
+      }
+    }
   }
   if (option_.diffuse_color == DiffuseColor::kVertex &&
       mesh_->vertex_colors().empty()) {

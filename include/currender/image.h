@@ -34,6 +34,7 @@ class Image {
  public:
   Image() {}
   ~Image() {}
+  Image(const Image<T, N>& src) { src.CopyTo(this); }
   Image(int width, int height) { Init(width, height); }
   Image(int width, int height, T val) { Init(width, height, val); }
   int width() const { return width_; }
