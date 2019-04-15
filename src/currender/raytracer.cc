@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "currender/renderer.h"
+#include "currender/raytracer.h"
 
 #include <cassert>
 
@@ -32,21 +32,8 @@ void PrepareRay(nanort::Ray<float>* ray, const Eigen::Vector3f& camera_pos_w,
 
 namespace currender {
 
-RendererOption::RendererOption() {}
-
-RendererOption::~RendererOption() {}
-
-void RendererOption::CopyTo(RendererOption* dst) const {
-  dst->diffuse_color = diffuse_color;
-  dst->depth_scale = depth_scale;
-  dst->interp = interp;
-  dst->shading_normal = shading_normal;
-  dst->diffuse_shading = diffuse_shading;
-  dst->backface_culling = backface_culling;
-}
-
-// Renderer::Impl implementation
-class Renderer::Impl {
+// Raytracer::Impl implementation
+class Raytracer::Impl {
   bool mesh_initialized_{false};
   std::shared_ptr<const Camera> camera_{nullptr};
   std::shared_ptr<const Mesh> mesh_{nullptr};
@@ -93,16 +80,16 @@ class Renderer::Impl {
   bool RenderDepthW(Image1w* depth) const;
 };
 
-Renderer::Impl::Impl() {}
-Renderer::Impl::~Impl() {}
+Raytracer::Impl::Impl() {}
+Raytracer::Impl::~Impl() {}
 
-Renderer::Impl::Impl(const RendererOption& option) { set_option(option); }
+Raytracer::Impl::Impl(const RendererOption& option) { set_option(option); }
 
-void Renderer::Impl::set_option(const RendererOption& option) {
+void Raytracer::Impl::set_option(const RendererOption& option) {
   option.CopyTo(&option_);
 }
 
-void Renderer::Impl::set_mesh(std::shared_ptr<const Mesh> mesh) {
+void Raytracer::Impl::set_mesh(std::shared_ptr<const Mesh> mesh) {
   mesh_initialized_ = false;
   mesh_ = mesh;
 
@@ -134,7 +121,7 @@ void Renderer::Impl::set_mesh(std::shared_ptr<const Mesh> mesh) {
   }
 }
 
-bool Renderer::Impl::PrepareMesh() {
+bool Raytracer::Impl::PrepareMesh() {
   if (mesh_ == nullptr) {
     LOGE("mesh has not been set\n");
     return false;
@@ -192,13 +179,15 @@ bool Renderer::Impl::PrepareMesh() {
   return true;
 }
 
-void Renderer::Impl::set_camera(std::shared_ptr<const Camera> camera) {
+void Raytracer::Impl::set_camera(std::shared_ptr<const Camera> camera) {
   camera_ = camera;
 }
 
-bool Renderer::Impl::ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
-                                                 Image3f* normal, Image1b* mask,
-                                                 Image1i* face_id) const {
+bool Raytracer::Impl::ValidateAndInitBeforeRender(Image3b* color,
+                                                  Image1f* depth,
+                                                  Image3f* normal,
+                                                  Image1b* mask,
+                                                  Image1i* face_id) const {
   if (camera_ == nullptr) {
     LOGE("camera has not been set\n");
     return false;
@@ -272,8 +261,8 @@ bool Renderer::Impl::ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
   return true;
 }
 
-bool Renderer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
-                            Image1b* mask, Image1i* face_id) const {
+bool Raytracer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
+                             Image1b* mask, Image1i* face_id) const {
   if (!ValidateAndInitBeforeRender(color, depth, normal, mask, face_id)) {
     return false;
   }
@@ -380,28 +369,28 @@ bool Renderer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   return true;
 }
 
-bool Renderer::Impl::RenderColor(Image3b* color) const {
+bool Raytracer::Impl::RenderColor(Image3b* color) const {
   return Render(color, nullptr, nullptr, nullptr, nullptr);
 }
 
-bool Renderer::Impl::RenderDepth(Image1f* depth) const {
+bool Raytracer::Impl::RenderDepth(Image1f* depth) const {
   return Render(nullptr, depth, nullptr, nullptr, nullptr);
 }
 
-bool Renderer::Impl::RenderNormal(Image3f* normal) const {
+bool Raytracer::Impl::RenderNormal(Image3f* normal) const {
   return Render(nullptr, nullptr, normal, nullptr, nullptr);
 }
 
-bool Renderer::Impl::RenderMask(Image1b* mask) const {
+bool Raytracer::Impl::RenderMask(Image1b* mask) const {
   return Render(nullptr, nullptr, nullptr, mask, nullptr);
 }
 
-bool Renderer::Impl::RenderFaceId(Image1i* face_id) const {
+bool Raytracer::Impl::RenderFaceId(Image1i* face_id) const {
   return Render(nullptr, nullptr, nullptr, nullptr, face_id);
 }
 
-bool Renderer::Impl::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
-                             Image1b* mask, Image1i* face_id) const {
+bool Raytracer::Impl::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
+                              Image1b* mask, Image1i* face_id) const {
   if (depth == nullptr) {
     LOGE("depth is nullptr");
     return false;
@@ -417,63 +406,63 @@ bool Renderer::Impl::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
   return org_ret;
 }
 
-bool Renderer::Impl::RenderDepthW(Image1w* depth) const {
+bool Raytracer::Impl::RenderDepthW(Image1w* depth) const {
   return RenderW(nullptr, depth, nullptr, nullptr, nullptr);
 }
 
 // Renderer implementation
-Renderer::Renderer() : pimpl_(std::unique_ptr<Impl>(new Impl)) {}
+Raytracer::Raytracer() : pimpl_(std::unique_ptr<Impl>(new Impl)) {}
 
-Renderer::~Renderer() {}
+Raytracer::~Raytracer() {}
 
-Renderer::Renderer(const RendererOption& option)
+Raytracer::Raytracer(const RendererOption& option)
     : pimpl_(std::unique_ptr<Impl>(new Impl(option))) {}
 
-void Renderer::set_option(const RendererOption& option) {
+void Raytracer::set_option(const RendererOption& option) {
   pimpl_->set_option(option);
 }
 
-void Renderer::set_mesh(std::shared_ptr<const Mesh> mesh) {
+void Raytracer::set_mesh(std::shared_ptr<const Mesh> mesh) {
   pimpl_->set_mesh(mesh);
 }
 
-bool Renderer::PrepareMesh() { return pimpl_->PrepareMesh(); }
+bool Raytracer::PrepareMesh() { return pimpl_->PrepareMesh(); }
 
-void Renderer::set_camera(std::shared_ptr<const Camera> camera) {
+void Raytracer::set_camera(std::shared_ptr<const Camera> camera) {
   pimpl_->set_camera(camera);
 }
 
-bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
-                      Image1b* mask, Image1i* face_id) const {
+bool Raytracer::Render(Image3b* color, Image1f* depth, Image3f* normal,
+                       Image1b* mask, Image1i* face_id) const {
   return pimpl_->Render(color, depth, normal, mask, face_id);
 }
 
-bool Renderer::RenderColor(Image3b* color) const {
+bool Raytracer::RenderColor(Image3b* color) const {
   return pimpl_->RenderColor(color);
 }
 
-bool Renderer::RenderDepth(Image1f* depth) const {
+bool Raytracer::RenderDepth(Image1f* depth) const {
   return pimpl_->RenderDepth(depth);
 }
 
-bool Renderer::RenderNormal(Image3f* normal) const {
+bool Raytracer::RenderNormal(Image3f* normal) const {
   return pimpl_->RenderNormal(normal);
 }
 
-bool Renderer::RenderMask(Image1b* mask) const {
+bool Raytracer::RenderMask(Image1b* mask) const {
   return pimpl_->RenderMask(mask);
 }
 
-bool Renderer::RenderFaceId(Image1i* face_id) const {
+bool Raytracer::RenderFaceId(Image1i* face_id) const {
   return pimpl_->RenderFaceId(face_id);
 }
 
-bool Renderer::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
-                       Image1b* mask, Image1i* face_id) const {
+bool Raytracer::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
+                        Image1b* mask, Image1i* face_id) const {
   return pimpl_->RenderW(color, depth, normal, mask, face_id);
 }
 
-bool Renderer::RenderDepthW(Image1w* depth) const {
+bool Raytracer::RenderDepthW(Image1w* depth) const {
   return pimpl_->RenderDepthW(depth);
 }
 

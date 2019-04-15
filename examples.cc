@@ -8,7 +8,7 @@
 #include <iostream>
 #include <vector>
 
-#include "currender/renderer.h"
+#include "currender/raytracer.h"
 #include "currender/util.h"
 
 using currender::Camera;
@@ -238,13 +238,14 @@ int main(int argc, char* argv[]) {
   RendererOption option;
   option.diffuse_color = currender::DiffuseColor::kTexture;
   option.diffuse_shading = currender::DiffuseShading::kLambertian;
-  Renderer renderer(option);
+  std::unique_ptr<currender::Renderer> renderer =
+      std::make_unique<currender::Raytracer>(option);
 
   // set mesh
-  renderer.set_mesh(mesh);
+  renderer->set_mesh(mesh);
 
   // prepare mesh for rendering (e.g. make BVH)
-  renderer.PrepareMesh();
+  renderer->PrepareMesh();
 
   // Make PinholeCamera
   // borrow KinectV1 intrinsics of Freiburg 1 RGB
@@ -259,10 +260,10 @@ int main(int argc, char* argv[]) {
       focal_length);
 
   // set camera
-  renderer.set_camera(camera);
+  renderer->set_camera(camera);
 
   // test
-  Test(data_dir, mesh, camera, renderer);
+  Test(data_dir, mesh, camera, *renderer);
 
   return 0;
 }

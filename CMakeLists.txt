@@ -117,13 +117,14 @@ add_library(${PUBLIC_LIB_NAME}
   STATIC
   include/currender/common.h
   include/currender/renderer.h
+  include/currender/raytracer.h
   include/currender/camera.h
   include/currender/mesh.h
   include/currender/image.h
   include/currender/log.h
   include/currender/util.h
 
-  src/currender/renderer.cc
+  src/currender/raytracer.cc
   src/currender/camera.cc
   src/currender/mesh.cc
   src/currender/image.cc
@@ -147,6 +148,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 SOURCE_GROUP("Public header files" FILES
   include/currender/common.h
   include/currender/renderer.h
+  include/currender/raytracer.h
   include/currender/camera.h
   include/currender/mesh.h
   include/currender/image.h
@@ -160,7 +162,7 @@ SOURCE_GROUP("Private header files" FILES
 )
 
 SOURCE_GROUP("Source files" FILES
-  src/currender/renderer.cc
+  src/currender/raytracer.cc
   src/currender/camera.cc
   src/currender/mesh.cc
   src/currender/image.cc

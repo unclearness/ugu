@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <string>
+
 #include "currender/camera.h"
 #include "currender/common.h"
 #include "currender/image.h"
