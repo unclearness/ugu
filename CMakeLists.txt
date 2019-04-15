@@ -118,6 +118,7 @@ add_library(${PUBLIC_LIB_NAME}
   include/currender/common.h
   include/currender/renderer.h
   include/currender/raytracer.h
+  include/currender/rasterizer.h
   include/currender/camera.h
   include/currender/mesh.h
   include/currender/image.h
@@ -125,6 +126,7 @@ add_library(${PUBLIC_LIB_NAME}
   include/currender/util.h
 
   src/currender/raytracer.cc
+  src/currender/rasterizer.cc
   src/currender/camera.cc
   src/currender/mesh.cc
   src/currender/image.cc
@@ -149,6 +151,7 @@ SOURCE_GROUP("Public header files" FILES
   include/currender/common.h
   include/currender/renderer.h
   include/currender/raytracer.h
+  include/currender/rasterizer.h
   include/currender/camera.h
   include/currender/mesh.h
   include/currender/image.h
@@ -163,6 +166,7 @@ SOURCE_GROUP("Private header files" FILES
 
 SOURCE_GROUP("Source files" FILES
   src/currender/raytracer.cc
+  src/currender/rasterizer.cc
   src/currender/camera.cc
   src/currender/mesh.cc
   src/currender/image.cc
