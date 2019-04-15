@@ -27,7 +27,7 @@ void SaveImages(const currender::Image3b& color,
                 const currender::Image1f& depth,
                 const currender::Image3f& normal,
                 const currender::Image1b& mask,
-                const currender::Image1i face_id) {
+                const currender::Image1i& face_id) {
   // dir to save images
   std::string save_dir = "../data/minimum_example/";
 

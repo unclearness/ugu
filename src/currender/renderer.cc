@@ -422,59 +422,59 @@ bool Renderer::Impl::RenderDepthW(Image1w* depth) const {
 }
 
 // Renderer implementation
-Renderer::Renderer() : pimpl(std::unique_ptr<Impl>(new Impl)) {}
+Renderer::Renderer() : pimpl_(std::unique_ptr<Impl>(new Impl)) {}
 
 Renderer::~Renderer() {}
 
 Renderer::Renderer(const RendererOption& option)
-    : pimpl(std::unique_ptr<Impl>(new Impl(option))) {}
+    : pimpl_(std::unique_ptr<Impl>(new Impl(option))) {}
 
 void Renderer::set_option(const RendererOption& option) {
-  pimpl->set_option(option);
+  pimpl_->set_option(option);
 }
 
 void Renderer::set_mesh(std::shared_ptr<const Mesh> mesh) {
-  pimpl->set_mesh(mesh);
+  pimpl_->set_mesh(mesh);
 }
 
-bool Renderer::PrepareMesh() { return pimpl->PrepareMesh(); }
+bool Renderer::PrepareMesh() { return pimpl_->PrepareMesh(); }
 
 void Renderer::set_camera(std::shared_ptr<const Camera> camera) {
-  pimpl->set_camera(camera);
+  pimpl_->set_camera(camera);
 }
 
 bool Renderer::Render(Image3b* color, Image1f* depth, Image3f* normal,
                       Image1b* mask, Image1i* face_id) const {
-  return pimpl->Render(color, depth, normal, mask, face_id);
+  return pimpl_->Render(color, depth, normal, mask, face_id);
 }
 
 bool Renderer::RenderColor(Image3b* color) const {
-  return pimpl->RenderColor(color);
+  return pimpl_->RenderColor(color);
 }
 
 bool Renderer::RenderDepth(Image1f* depth) const {
-  return pimpl->RenderDepth(depth);
+  return pimpl_->RenderDepth(depth);
 }
 
 bool Renderer::RenderNormal(Image3f* normal) const {
-  return pimpl->RenderNormal(normal);
+  return pimpl_->RenderNormal(normal);
 }
 
 bool Renderer::RenderMask(Image1b* mask) const {
-  return pimpl->RenderMask(mask);
+  return pimpl_->RenderMask(mask);
 }
 
 bool Renderer::RenderFaceId(Image1i* face_id) const {
-  return pimpl->RenderFaceId(face_id);
+  return pimpl_->RenderFaceId(face_id);
 }
 
 bool Renderer::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
                        Image1b* mask, Image1i* face_id) const {
-  return pimpl->RenderW(color, depth, normal, mask, face_id);
+  return pimpl_->RenderW(color, depth, normal, mask, face_id);
 }
 
 bool Renderer::RenderDepthW(Image1w* depth) const {
-  return pimpl->RenderDepthW(depth);
+  return pimpl_->RenderDepthW(depth);
 }
 
 }  // namespace currender

@@ -61,7 +61,7 @@ struct RendererOption {
 
 class Renderer {
   class Impl;
-  std::unique_ptr<Impl> pimpl;
+  std::unique_ptr<Impl> pimpl_;
 
  public:
   Renderer();
