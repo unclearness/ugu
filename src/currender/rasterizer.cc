@@ -231,7 +231,7 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   depth_->Init(camera_->width(), camera_->height(), 0.0f);
 
   // 255: backface, 0:frontface
-  // Image1b backface_image(camera_->width(), camera_->height(), 0);
+  Image1b backface_image(camera_->width(), camera_->height(), 0);
   for (int i = 0; i < static_cast<int>(mesh_->vertex_indices().size()); i++) {
     const Eigen::Vector3i& face = mesh_->vertex_indices()[i];
     const Eigen::Vector3f& v0_i = image_vertices[face[0]];
@@ -286,6 +286,12 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
           if (d < std::numeric_limits<float>::min() || pixel_sample.z() < d) {
             d = pixel_sample.z();
 
+            backface_image.at(x, y, 0) = backface ? 255 : 0;
+
+            if (backface) {
+              continue;
+            }
+
             // fill face id
             if (face_id != nullptr) {
               face_id->at(x, y, 0) = i;
@@ -329,6 +335,32 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
                   &oren_nayar_param, mesh_);
               pixel_shader->Process(pixel_shader_input);
             }
+          }
+        }
+      }
+    }
+  }
+
+  for (int y = 0; y < backface_image.height(); y++) {
+    for (int x = 0; x < backface_image.width(); x++) {
+      if (backface_image.at(x, y, 0) == 255) {
+        depth_->at(x, y, 0) = 0.0f;
+
+        if (face_id != nullptr) {
+          face_id->at(x, y, 0) = -1;
+        }
+        if (mask != nullptr) {
+          mask->at(x, y, 0) = 255;
+        }
+
+        if (normal != nullptr) {
+          for (int k = 0; k < 3; k++) {
+            normal->at(x, y, k) = 0.0f;
+          }
+        }
+        if (color != nullptr) {
+          for (int k = 0; k < 3; k++) {
+            color->at(x, y, k) = 0;
           }
         }
       }
