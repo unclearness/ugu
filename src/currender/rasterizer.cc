@@ -232,6 +232,10 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
 
   // 255: backface, 0:frontface
   Image1b backface_image(camera_->width(), camera_->height(), 0);
+
+#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
   for (int i = 0; i < static_cast<int>(mesh_->vertex_indices().size()); i++) {
     const Eigen::Vector3i& face = mesh_->vertex_indices()[i];
     const Eigen::Vector3f& v0_i = image_vertices[face[0]];
@@ -243,12 +247,6 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
     if (v0_i.z() < 0.0f || v1_i.z() < 0.0f || v2_i.z() < 0.0f) {
       continue;
     }
-
-    // back-face culling
-    Eigen::Vector3f face_normal_c = w2c_R * mesh_->face_normals()[i];
-    // back-face if the direction of face normal in camera coordinate is
-    // positive
-    bool backface = face_normal_c.z() > 0;
 
     float xmin = std::min({v0_i.x(), v1_i.x(), v2_i.x()});
     float ymin = std::min({v0_i.y(), v1_i.y(), v2_i.y()});
@@ -272,6 +270,9 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
     }
     for (uint32_t y = y0; y <= y1; ++y) {
       for (uint32_t x = x0; x <= x1; ++x) {
+        Eigen::Vector3f ray_w;
+        camera_->ray_w(static_cast<float>(x), static_cast<float>(y), &ray_w);
+        bool backface = mesh_->face_normals()[i].dot(ray_w) > 0;
         Eigen::Vector3f pixel_sample(x + 0.5f, y + 0.5f, 0.0f);
         float w0 = EdgeFunction(v1_i, v2_i, pixel_sample);
         float w1 = EdgeFunction(v2_i, v0_i, pixel_sample);
@@ -282,58 +283,54 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
           w1 /= area;
           w2 /= area;
           pixel_sample.z() = v0_i.z() * w0 + v1_i.z() * w1 + v2_i.z() * w2;
-          float& d = depth_->at(x, y, 0);
-          if (d < std::numeric_limits<float>::min() || pixel_sample.z() < d) {
-            d = pixel_sample.z();
 
+#pragma omp critical
+          if (depth_->at(x, y, 0) < std::numeric_limits<float>::min() ||
+              pixel_sample.z() < depth_->at(x, y, 0)) {
+            depth_->at(x, y, 0) = pixel_sample.z();
             backface_image.at(x, y, 0) = backface ? 255 : 0;
 
-            if (backface) {
-              continue;
-            }
-
-            // fill face id
-            if (face_id != nullptr) {
-              face_id->at(x, y, 0) = i;
-            }
-
-            // fill mask
-            if (mask != nullptr) {
-              mask->at(x, y, 0) = 255;
-            }
-
-            // calculate shading normal
-            Eigen::Vector3f shading_normal_w{0.0f, 0.0f, 0.0f};
-            if (option_.shading_normal == ShadingNormal::kFace) {
-              shading_normal_w = mesh_->face_normals()[i];
-            } else if (option_.shading_normal == ShadingNormal::kVertex) {
-              // barycentric interpolation of normal
-              const auto& normals = mesh_->normals();
-              const auto& normal_indices = mesh_->normal_indices();
-              shading_normal_w = w0 * normals[normal_indices[i][0]] +
-                                 w1 * normals[normal_indices[i][1]] +
-                                 w2 * normals[normal_indices[i][2]];
-            }
-
-            // set shading normal
-            if (normal != nullptr) {
-              Eigen::Vector3f shading_normal_c =
-                  w2c_R * shading_normal_w;  // rotate to camera coordinate
-              for (int k = 0; k < 3; k++) {
-                normal->at(x, y, k) = shading_normal_c[k];
+            if (!backface) {
+              // fill face id
+              if (face_id != nullptr) {
+                face_id->at(x, y, 0) = i;
               }
-            }
 
-            // delegate color calculation to pixel_shader
-            if (color != nullptr) {
-              Eigen::Vector3f ray_w;
-              camera_->ray_w(static_cast<float>(x), static_cast<float>(y),
-                             &ray_w);
-              Eigen::Vector3f light_dir = ray_w;  // emit light same as ray
-              PixelShaderInput pixel_shader_input(
-                  color, x, y, w1, w2, i, &ray_w, &light_dir, &shading_normal_w,
-                  &oren_nayar_param, mesh_);
-              pixel_shader->Process(pixel_shader_input);
+              // fill mask
+              if (mask != nullptr) {
+                mask->at(x, y, 0) = 255;
+              }
+
+              // calculate shading normal
+              Eigen::Vector3f shading_normal_w{0.0f, 0.0f, 0.0f};
+              if (option_.shading_normal == ShadingNormal::kFace) {
+                shading_normal_w = mesh_->face_normals()[i];
+              } else if (option_.shading_normal == ShadingNormal::kVertex) {
+                // barycentric interpolation of normal
+                const auto& normals = mesh_->normals();
+                const auto& normal_indices = mesh_->normal_indices();
+                shading_normal_w = w0 * normals[normal_indices[i][0]] +
+                                   w1 * normals[normal_indices[i][1]] +
+                                   w2 * normals[normal_indices[i][2]];
+              }
+
+              // set shading normal
+              if (normal != nullptr) {
+                Eigen::Vector3f shading_normal_c =
+                    w2c_R * shading_normal_w;  // rotate to camera coordinate
+                for (int k = 0; k < 3; k++) {
+                  normal->at(x, y, k) = shading_normal_c[k];
+                }
+              }
+
+              // delegate color calculation to pixel_shader
+              if (color != nullptr) {
+                Eigen::Vector3f light_dir = ray_w;  // emit light same as ray
+                PixelShaderInput pixel_shader_input(
+                    color, x, y, w1, w2, i, &ray_w, &light_dir,
+                    &shading_normal_w, &oren_nayar_param, mesh_);
+                pixel_shader->Process(pixel_shader_input);
+              }
             }
           }
         }
@@ -341,6 +338,9 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
     }
   }
 
+#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
   for (int y = 0; y < backface_image.height(); y++) {
     for (int x = 0; x < backface_image.width(); x++) {
       if (backface_image.at(x, y, 0) == 255) {
