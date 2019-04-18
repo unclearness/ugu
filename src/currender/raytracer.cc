@@ -12,8 +12,9 @@
 #include "nanort/nanort.h"
 
 namespace {
-void PrepareRay(nanort::Ray<float>* ray, const Eigen::Vector3f& camera_pos_w,
-                const Eigen::Vector3f& ray_w) {
+inline void PrepareRay(nanort::Ray<float>* ray,
+                       const Eigen::Vector3f& camera_pos_w,
+                       const Eigen::Vector3f& ray_w) {
   const float kFar = 1.0e+30f;
   ray->min_t = 0.0001f;
   ray->max_t = kFar;
@@ -285,9 +286,8 @@ bool Raytracer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
     for (int x = 0; x < camera_->width(); x++) {
       // ray from camera position in world coordinate
       Eigen::Vector3f ray_w, org_ray_w;
-      camera_->ray_w(static_cast<float>(x), static_cast<float>(y), &ray_w);
-      camera_->org_ray_w(static_cast<float>(x), static_cast<float>(y),
-                         &org_ray_w);
+      camera_->ray_w(x, y, &ray_w);
+      camera_->org_ray_w(x, y, &org_ray_w);
       nanort::Ray<float> ray;
       PrepareRay(&ray, org_ray_w, ray_w);
 
