@@ -27,7 +27,9 @@ Camera::Camera()
     : width_(-1),
       height_(-1),
       c2w_(Eigen::Affine3d::Identity()),
-      w2c_(Eigen::Affine3d::Identity()) {}
+      w2c_(Eigen::Affine3d::Identity()) {
+  set_c2w(c2w_);
+}
 
 Camera::~Camera() {}
 
@@ -35,10 +37,14 @@ Camera::Camera(int width, int height)
     : width_(width),
       height_(height),
       c2w_(Eigen::Affine3d::Identity()),
-      w2c_(Eigen::Affine3d::Identity()) {}
+      w2c_(Eigen::Affine3d::Identity()) {
+  set_c2w(c2w_);
+}
 
 Camera::Camera(int width, int height, const Eigen::Affine3d& c2w)
-    : width_(width), height_(height), c2w_(c2w), w2c_(c2w_.inverse()) {}
+    : width_(width), height_(height), c2w_(c2w), w2c_(c2w_.inverse()) {
+  set_c2w(c2w_);
+}
 
 int Camera::width() const { return width_; }
 
@@ -55,15 +61,28 @@ void Camera::set_size(int width, int height) {
 void Camera::set_c2w(const Eigen::Affine3d& c2w) {
   c2w_ = c2w;
   w2c_ = c2w_.inverse();
+
+  c2w_R_f_ = c2w_.matrix().block<3, 3>(0, 0).cast<float>();
+  c2w_t_f_ = c2w_.matrix().block<3, 1>(0, 3).cast<float>();
+  x_direc_ = c2w_.matrix().block<3, 3>(0, 0).col(0).cast<float>();
+  y_direc_ = c2w_.matrix().block<3, 3>(0, 0).col(1).cast<float>();
+  z_direc_ = c2w_.matrix().block<3, 3>(0, 0).col(2).cast<float>();
+
+  w2c_R_f_ = w2c_.matrix().block<3, 3>(0, 0).cast<float>();
+  w2c_t_f_ = w2c_.matrix().block<3, 1>(0, 3).cast<float>();
 }
 
 PinholeCamera::PinholeCamera()
-    : Camera(), principal_point_(-1, -1), focal_length_(-1, -1) {}
+    : Camera(), principal_point_(-1, -1), focal_length_(-1, -1) {
+  InitRayTable();
+}
 
 PinholeCamera::~PinholeCamera() {}
 
 PinholeCamera::PinholeCamera(int width, int height)
-    : Camera(width, height), principal_point_(-1, -1), focal_length_(-1, -1) {}
+    : Camera(width, height), principal_point_(-1, -1), focal_length_(-1, -1) {
+  InitRayTable();
+}
 
 PinholeCamera::PinholeCamera(int width, int height, float fov_y_deg)
     : Camera(width, height) {
@@ -71,12 +90,15 @@ PinholeCamera::PinholeCamera(int width, int height, float fov_y_deg)
   principal_point_[1] = height_ * 0.5f - 0.5f;
 
   set_fov_y(fov_y_deg);
+  InitRayTable();
 }
 
 PinholeCamera::PinholeCamera(int width, int height, const Eigen::Affine3d& c2w)
     : Camera(width, height, c2w),
       principal_point_(-1, -1),
-      focal_length_(-1, -1) {}
+      focal_length_(-1, -1) {
+  InitRayTable();
+}
 
 PinholeCamera::PinholeCamera(int width, int height, const Eigen::Affine3d& c2w,
                              float fov_y_deg)
@@ -85,6 +107,7 @@ PinholeCamera::PinholeCamera(int width, int height, const Eigen::Affine3d& c2w,
   principal_point_[1] = height_ * 0.5f - 0.5f;
 
   set_fov_y(fov_y_deg);
+  InitRayTable();
 }
 
 PinholeCamera::PinholeCamera(int width, int height, const Eigen::Affine3d& c2w,
@@ -92,7 +115,21 @@ PinholeCamera::PinholeCamera(int width, int height, const Eigen::Affine3d& c2w,
                              const Eigen::Vector2f& focal_length)
     : Camera(width, height, c2w),
       principal_point_(principal_point),
-      focal_length_(focal_length) {}
+      focal_length_(focal_length) {
+  InitRayTable();
+}
+
+void PinholeCamera::set_size(int width, int height) {
+  Camera::set_size(width, height);
+
+  InitRayTable();
+}
+
+void PinholeCamera::set_c2w(const Eigen::Affine3d& c2w) {
+  Camera::set_c2w(c2w);
+
+  InitRayTable();
+}
 
 float PinholeCamera::fov_x() const {
   return degrees<float>(2 * std::atan(width_ * 0.5f / focal_length_[0]));
@@ -113,10 +150,12 @@ const Eigen::Vector2f& PinholeCamera::focal_length() const {
 void PinholeCamera::set_principal_point(
     const Eigen::Vector2f& principal_point) {
   principal_point_ = principal_point;
+  InitRayTable();
 }
 
 void PinholeCamera::set_focal_length(const Eigen::Vector2f& focal_length) {
   focal_length_ = focal_length;
+  InitRayTable();
 }
 
 void PinholeCamera::set_fov_x(float fov_x_deg) {
@@ -125,6 +164,7 @@ void PinholeCamera::set_fov_x(float fov_x_deg) {
       width_ * 0.5f /
       static_cast<float>(std::tan(radians<float>(fov_x_deg) * 0.5));
   focal_length_[1] = focal_length_[0];
+  InitRayTable();
 }
 
 void PinholeCamera::set_fov_y(float fov_y_deg) {
@@ -133,6 +173,7 @@ void PinholeCamera::set_fov_y(float fov_y_deg) {
       height_ * 0.5f /
       static_cast<float>(std::tan(radians<float>(fov_y_deg) * 0.5));
   focal_length_[0] = focal_length_[1];
+  InitRayTable();
 }
 
 void PinholeCamera::Project(const Eigen::Vector3f& camera_p,
@@ -188,7 +229,7 @@ void PinholeCamera::org_ray_c(float x, float y, Eigen::Vector3f* org) const {
 void PinholeCamera::org_ray_w(float x, float y, Eigen::Vector3f* org) const {
   (void)x;
   (void)y;
-  *org = c2w_.matrix().block<3, 1>(0, 3).cast<float>();
+  *org = c2w_t_f_;
 }
 
 void PinholeCamera::ray_c(float x, float y, Eigen::Vector3f* dir) const {
@@ -200,14 +241,65 @@ void PinholeCamera::ray_c(float x, float y, Eigen::Vector3f* dir) const {
 
 void PinholeCamera::ray_w(float x, float y, Eigen::Vector3f* dir) const {
   ray_c(x, y, dir);
-  *dir = c2w_.matrix().block<3, 3>(0, 0).cast<float>() * *dir;
+  *dir = c2w_R_f_ * *dir;
 }
 
-OrthoCamera::OrthoCamera() : Camera() {}
+void PinholeCamera::org_ray_c(int x, int y, Eigen::Vector3f* org) const {
+  *org = org_ray_c_table_[y * width_ + x];
+}
+void PinholeCamera::org_ray_w(int x, int y, Eigen::Vector3f* org) const {
+  *org = org_ray_w_table_[y * width_ + x];
+}
+
+void PinholeCamera::ray_c(int x, int y, Eigen::Vector3f* dir) const {
+  *dir = ray_c_table_[y * width_ + x];
+}
+void PinholeCamera::ray_w(int x, int y, Eigen::Vector3f* dir) const {
+  *dir = ray_w_table_[y * width_ + x];
+}
+
+void PinholeCamera::InitRayTable() {
+  org_ray_c_table_.resize(width_ * height_);
+  org_ray_w_table_.resize(width_ * height_);
+  ray_c_table_.resize(width_ * height_);
+  ray_w_table_.resize(width_ * height_);
+
+  for (int y = 0; y < height_; y++) {
+    for (int x = 0; x < width_; x++) {
+      org_ray_c(static_cast<float>(x), static_cast<float>(y),
+                &org_ray_c_table_[y * width_ + x]);
+      org_ray_w(static_cast<float>(x), static_cast<float>(y),
+                &org_ray_w_table_[y * width_ + x]);
+
+      ray_c(static_cast<float>(x), static_cast<float>(y),
+            &ray_c_table_[y * width_ + x]);
+      ray_w(static_cast<float>(x), static_cast<float>(y),
+            &ray_w_table_[y * width_ + x]);
+    }
+  }
+}
+
+OrthoCamera::OrthoCamera() : Camera() { InitRayTable(); }
 OrthoCamera::~OrthoCamera() {}
-OrthoCamera::OrthoCamera(int width, int height) : Camera(width, height) {}
+OrthoCamera::OrthoCamera(int width, int height) : Camera(width, height) {
+  InitRayTable();
+}
 OrthoCamera::OrthoCamera(int width, int height, const Eigen::Affine3d& c2w)
-    : Camera(width, height, c2w) {}
+    : Camera(width, height, c2w) {
+  InitRayTable();
+}
+
+void OrthoCamera::set_size(int width, int height) {
+  Camera::set_size(width, height);
+
+  InitRayTable();
+}
+
+void OrthoCamera::set_c2w(const Eigen::Affine3d& c2w) {
+  Camera::set_c2w(c2w);
+
+  InitRayTable();
+}
 
 void OrthoCamera::Project(const Eigen::Vector3f& camera_p,
                           Eigen::Vector3f* image_p) const {
@@ -246,15 +338,10 @@ void OrthoCamera::org_ray_c(float x, float y, Eigen::Vector3f* org) const {
 }
 
 void OrthoCamera::org_ray_w(float x, float y, Eigen::Vector3f* org) const {
-  *org = c2w_.matrix().block<3, 1>(0, 3).cast<float>();
+  *org = c2w_t_f_;
 
-  Eigen::Vector3f x_direc =
-      c2w_.matrix().block<3, 3>(0, 0).col(0).cast<float>();
-  Eigen::Vector3f y_direc =
-      c2w_.matrix().block<3, 3>(0, 0).col(1).cast<float>();
-
-  Eigen::Vector3f offset_x = (x - width_ * 0.5f) * x_direc;
-  Eigen::Vector3f offset_y = (y - height_ * 0.5f) * y_direc;
+  Eigen::Vector3f offset_x = (x - width_ * 0.5f) * x_direc_;
+  Eigen::Vector3f offset_y = (y - height_ * 0.5f) * y_direc_;
 
   *org += offset_x;
   *org += offset_y;
@@ -273,7 +360,43 @@ void OrthoCamera::ray_w(float x, float y, Eigen::Vector3f* dir) const {
   (void)x;
   (void)y;
   // extract z direction of camera pose
-  *dir = Eigen::Vector3f(c2w_.matrix().block<3, 3>(0, 0).cast<float>().col(2));
+  *dir = z_direc_;
+}
+
+void OrthoCamera::org_ray_c(int x, int y, Eigen::Vector3f* org) const {
+  *org = org_ray_c_table_[y * width_ + x];
+}
+
+void OrthoCamera::org_ray_w(int x, int y, Eigen::Vector3f* org) const {
+  *org = org_ray_w_table_[y * width_ + x];
+}
+
+void OrthoCamera::ray_c(int x, int y, Eigen::Vector3f* dir) const {
+  *dir = ray_c_table_[y * width_ + x];
+}
+void OrthoCamera::ray_w(int x, int y, Eigen::Vector3f* dir) const {
+  *dir = ray_w_table_[y * width_ + x];
+}
+
+void OrthoCamera::InitRayTable() {
+  org_ray_c_table_.resize(width_ * height_);
+  org_ray_w_table_.resize(width_ * height_);
+  ray_c_table_.resize(width_ * height_);
+  ray_w_table_.resize(width_ * height_);
+
+  for (int y = 0; y < height_; y++) {
+    for (int x = 0; x < width_; x++) {
+      org_ray_c(static_cast<float>(x), static_cast<float>(y),
+                &org_ray_c_table_[y * width_ + x]);
+      org_ray_w(static_cast<float>(x), static_cast<float>(y),
+                &org_ray_w_table_[y * width_ + x]);
+
+      ray_c(static_cast<float>(x), static_cast<float>(y),
+            &ray_c_table_[y * width_ + x]);
+      ray_w(static_cast<float>(x), static_cast<float>(y),
+            &ray_w_table_[y * width_ + x]);
+    }
+  }
 }
 
 void WriteTumFormat(const std::vector<Eigen::Affine3d>& poses,

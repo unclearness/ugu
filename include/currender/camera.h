@@ -25,6 +25,14 @@ class Camera {
   Eigen::Affine3d c2w_;  // camera -> world, sometimes called as "pose"
   Eigen::Affine3d w2c_;
 
+  Eigen::Matrix3f c2w_R_f_;
+  Eigen::Vector3f c2w_t_f_;
+
+  Eigen::Vector3f x_direc_, y_direc_, z_direc_;
+
+  Eigen::Matrix3f w2c_R_f_;
+  Eigen::Vector3f w2c_t_f_;
+
  public:
   Camera();
   virtual ~Camera();
@@ -34,8 +42,8 @@ class Camera {
   int height() const;
   const Eigen::Affine3d& c2w() const;
   const Eigen::Affine3d& w2c() const;
-  void set_size(int width, int height);
-  void set_c2w(const Eigen::Affine3d& c2w);
+  virtual void set_size(int width, int height);
+  virtual void set_c2w(const Eigen::Affine3d& c2w);
 
   // camera -> image conversion
   virtual void Project(const Eigen::Vector3f& camera_p,
@@ -55,6 +63,8 @@ class Camera {
   // position emmiting ray
   virtual void org_ray_c(float x, float y, Eigen::Vector3f* org) const = 0;
   virtual void org_ray_w(float x, float y, Eigen::Vector3f* org) const = 0;
+  virtual void org_ray_c(int x, int y, Eigen::Vector3f* org) const = 0;
+  virtual void org_ray_w(int x, int y, Eigen::Vector3f* org) const = 0;
 
   // ray direction
   virtual void ray_c(
@@ -63,6 +73,8 @@ class Camera {
   virtual void ray_w(
       float x, float y,
       Eigen::Vector3f* dir) const = 0;  // ray in world coordinate
+  virtual void ray_c(int x, int y, Eigen::Vector3f* dir) const = 0;
+  virtual void ray_w(int x, int y, Eigen::Vector3f* dir) const = 0;
 };
 
 // Pinhole camera model with pixel-scale principal point and focal length
@@ -71,6 +83,13 @@ class Camera {
 class PinholeCamera : public Camera {
   Eigen::Vector2f principal_point_;
   Eigen::Vector2f focal_length_;
+
+  std::vector<Eigen::Vector3f> org_ray_c_table_;
+  std::vector<Eigen::Vector3f> org_ray_w_table_;
+  std::vector<Eigen::Vector3f> ray_c_table_;
+  std::vector<Eigen::Vector3f> ray_w_table_;
+
+  void InitRayTable();
 
  public:
   PinholeCamera();
@@ -83,6 +102,9 @@ class PinholeCamera : public Camera {
   PinholeCamera(int width, int height, const Eigen::Affine3d& c2w,
                 const Eigen::Vector2f& principal_point,
                 const Eigen::Vector2f& focal_length);
+
+  void set_size(int width, int height) override;
+  void set_c2w(const Eigen::Affine3d& c2w) override;
 
   // FoV (Field of View) in degree interface is provided for convenience
   float fov_x() const;
@@ -108,19 +130,34 @@ class PinholeCamera : public Camera {
                  Eigen::Vector3f* camera_p) const override;
   void org_ray_c(float x, float y, Eigen::Vector3f* org) const override;
   void org_ray_w(float x, float y, Eigen::Vector3f* org) const override;
+  void org_ray_c(int x, int y, Eigen::Vector3f* org) const override;
+  void org_ray_w(int x, int y, Eigen::Vector3f* org) const override;
+
   void ray_c(float x, float y, Eigen::Vector3f* dir) const override;
   void ray_w(float x, float y, Eigen::Vector3f* dir) const override;
+  void ray_c(int x, int y, Eigen::Vector3f* dir) const override;
+  void ray_w(int x, int y, Eigen::Vector3f* dir) const override;
 };
 
 // Orthographic/orthogonal projection camera with no perspective
 // Image coordinate is translated camera coordinate
 // Different from pinhole camera in particular x and y coordinate in image
 class OrthoCamera : public Camera {
+  std::vector<Eigen::Vector3f> org_ray_c_table_;
+  std::vector<Eigen::Vector3f> org_ray_w_table_;
+  std::vector<Eigen::Vector3f> ray_c_table_;
+  std::vector<Eigen::Vector3f> ray_w_table_;
+
+  void InitRayTable();
+
  public:
   OrthoCamera();
   ~OrthoCamera();
   OrthoCamera(int width, int height);
   OrthoCamera(int width, int height, const Eigen::Affine3d& c2w);
+
+  void set_size(int width, int height) override;
+  void set_c2w(const Eigen::Affine3d& c2w) override;
 
   void Project(const Eigen::Vector3f& camera_p,
                Eigen::Vector3f* image_p) const override;
@@ -134,8 +171,13 @@ class OrthoCamera : public Camera {
                  Eigen::Vector3f* camera_p) const override;
   void org_ray_c(float x, float y, Eigen::Vector3f* org) const override;
   void org_ray_w(float x, float y, Eigen::Vector3f* org) const override;
+  void org_ray_c(int x, int y, Eigen::Vector3f* org) const override;
+  void org_ray_w(int x, int y, Eigen::Vector3f* org) const override;
+
   void ray_c(float x, float y, Eigen::Vector3f* dir) const override;
   void ray_w(float x, float y, Eigen::Vector3f* dir) const override;
+  void ray_c(int x, int y, Eigen::Vector3f* dir) const override;
+  void ray_w(int x, int y, Eigen::Vector3f* dir) const override;
 };
 
 void WriteTumFormat(const std::vector<Eigen::Affine3d>& poses,

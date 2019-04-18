@@ -10,6 +10,10 @@
 #include "currender/pixel_shader.h"
 #include "currender/timer.h"
 
+#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
+#include <omp.h>
+#endif
+
 namespace {
 
 template <typename T>
@@ -234,6 +238,9 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   Image1b backface_image(camera_->width(), camera_->height(), 0);
 
 #if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
+  std::vector<omp_lock_t> pixellock(camera_->width() * camera_->height());
+  std::for_each(pixellock.begin(), pixellock.end(),
+                [](omp_lock_t& x) { omp_init_lock(&x); });
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int i = 0; i < static_cast<int>(mesh_->vertex_indices().size()); i++) {
@@ -271,9 +278,10 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
     for (uint32_t y = y0; y <= y1; ++y) {
       for (uint32_t x = x0; x <= x1; ++x) {
         Eigen::Vector3f ray_w;
-        camera_->ray_w(static_cast<float>(x), static_cast<float>(y), &ray_w);
+        camera_->ray_w(static_cast<int>(x), static_cast<int>(y), &ray_w);
         bool backface = mesh_->face_normals()[i].dot(ray_w) > 0;
-        Eigen::Vector3f pixel_sample(x + 0.5f, y + 0.5f, 0.0f);
+        Eigen::Vector3f pixel_sample(static_cast<float>(x),
+                                     static_cast<float>(y), 0.0f);
         float w0 = EdgeFunction(v1_i, v2_i, pixel_sample);
         float w1 = EdgeFunction(v2_i, v0_i, pixel_sample);
         float w2 = EdgeFunction(v0_i, v1_i, pixel_sample);
@@ -284,7 +292,9 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
           w2 /= area;
           pixel_sample.z() = v0_i.z() * w0 + v1_i.z() * w1 + v2_i.z() * w2;
 
-#pragma omp critical
+#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
+          omp_set_lock(&pixellock[y * camera_->width() + x]);
+#endif
           if (depth_->at(x, y, 0) < std::numeric_limits<float>::min() ||
               pixel_sample.z() < depth_->at(x, y, 0)) {
             depth_->at(x, y, 0) = pixel_sample.z();
@@ -333,6 +343,9 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
               }
             }
           }
+#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
+          omp_unset_lock(&pixellock[y * camera_->width() + x]);
+#endif
         }
       }
     }
@@ -349,8 +362,9 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
         if (face_id != nullptr) {
           face_id->at(x, y, 0) = -1;
         }
+
         if (mask != nullptr) {
-          mask->at(x, y, 0) = 255;
+          mask->at(x, y, 0) = 0;
         }
 
         if (normal != nullptr) {
