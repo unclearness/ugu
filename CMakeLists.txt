@@ -131,7 +131,6 @@ add_library(${PUBLIC_LIB_NAME}
   src/currender/mesh.cc
   src/currender/image.cc
   src/currender/pixel_shader.h
-  src/currender/pixel_shader.cc
   src/currender/timer.h
   src/currender/log.cc
   src/currender/util.cc
@@ -170,7 +169,6 @@ SOURCE_GROUP("Source files" FILES
   src/currender/camera.cc
   src/currender/mesh.cc
   src/currender/image.cc
-  src/currender/pixel_shader.cc
   src/currender/log.cc
   src/currender/util.cc
 )
