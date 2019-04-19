@@ -10,10 +10,6 @@
 #include "currender/pixel_shader.h"
 #include "currender/timer.h"
 
-#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
-#include <omp.h>
-#endif
-
 namespace {
 
 template <typename T>
@@ -211,9 +207,6 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   std::vector<Eigen::Vector3f> image_vertices(mesh_->vertices().size());
 
   // get projected vertex positions
-#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
-#pragma omp parallel for schedule(dynamic, 1)
-#endif
   for (int i = 0; i < static_cast<int>(mesh_->vertices().size()); i++) {
     camera_vertices[i] = w2c_R * mesh_->vertices()[i] + w2c_t;
     camera_normals[i] = w2c_R * mesh_->normals()[i];
@@ -242,12 +235,6 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   Image3f weight_image(camera_->width(), camera_->height(), 0.0f);
 
   // make face id image by z-buffer method
-#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
-  std::vector<omp_lock_t> pixellock(camera_->width() * camera_->height());
-  std::for_each(pixellock.begin(), pixellock.end(),
-                [](omp_lock_t& x) { omp_init_lock(&x); });
-#pragma omp parallel for schedule(dynamic, 1)
-#endif
   for (int i = 0; i < static_cast<int>(mesh_->vertex_indices().size()); i++) {
     const Eigen::Vector3i& face = mesh_->vertex_indices()[i];
     const Eigen::Vector3f& v0_i = image_vertices[face[0]];
@@ -299,9 +286,6 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
           w2 /= area;
           pixel_sample.z() = v0_i.z() * w0 + v1_i.z() * w1 + v2_i.z() * w2;
 
-#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
-          omp_set_lock(&pixellock[y * camera_->width() + x]);
-#endif
           if (depth_->at(x, y, 0) < std::numeric_limits<float>::min() ||
               pixel_sample.z() < depth_->at(x, y, 0)) {
             depth_->at(x, y, 0) = pixel_sample.z();
@@ -311,18 +295,13 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
             weight_image.at(x, y, 2) = w2;
             backface_image.at(x, y, 0) = backface ? 255 : 0;
           }
-#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
-          omp_unset_lock(&pixellock[y * camera_->width() + x]);
-#endif
+
         }
       }
     }
   }
 
   // make images by referring to face id image
-#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
-#pragma omp parallel for schedule(dynamic, 1)
-#endif
   for (int y = 0; y < backface_image.height(); y++) {
     for (int x = 0; x < backface_image.width(); x++) {
       if (option_.backface_culling && backface_image.at(x, y, 0) == 255) {
