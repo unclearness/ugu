@@ -210,6 +210,7 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   std::vector<float> camera_depth_list(mesh_->vertices().size());
   std::vector<Eigen::Vector3f> image_vertices(mesh_->vertices().size());
 
+  // get projected vertex positions
 #if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
@@ -220,13 +221,6 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
     camera_->Project(camera_vertices[i], &image_vertices[i]);
   }
 
-  // std::vector<size_t> indices;
-  // Argsort(camera_depth_list, &indices);
-
-  // grouping as tiles
-
-  // z-buffer at each tile (parallel)
-  // Bresenham's line algorithm
   Image1f depth_internal;
   Image1f* depth_{depth};
   if (depth_ == nullptr) {
@@ -234,9 +228,20 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   }
   depth_->Init(camera_->width(), camera_->height(), 0.0f);
 
+  Image1i face_id_internal;
+  Image1i* face_id_{face_id};
+  if (face_id_ == nullptr) {
+    face_id_ = &face_id_internal;
+  }
+  face_id_->Init(camera_->width(), camera_->height(), -1);
+
   // 255: backface, 0:frontface
   Image1b backface_image(camera_->width(), camera_->height(), 0);
 
+  // 0:(1 - u - v), 1:u, 2:v
+  Image3f weight_image(camera_->width(), camera_->height(), 0.0f);
+
+  // make face id image by z-buffer method
 #if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
   std::vector<omp_lock_t> pixellock(camera_->width() * camera_->height());
   std::for_each(pixellock.begin(), pixellock.end(),
@@ -279,6 +284,8 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
       for (uint32_t x = x0; x <= x1; ++x) {
         Eigen::Vector3f ray_w;
         camera_->ray_w(static_cast<int>(x), static_cast<int>(y), &ray_w);
+        // even if back-face culling is enabled, dont' skip back-face
+        // need to update z-buffer to handle front-face occluded by back-face
         bool backface = mesh_->face_normals()[i].dot(ray_w) > 0;
         Eigen::Vector3f pixel_sample(static_cast<float>(x),
                                      static_cast<float>(y), 0.0f);
@@ -298,50 +305,11 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
           if (depth_->at(x, y, 0) < std::numeric_limits<float>::min() ||
               pixel_sample.z() < depth_->at(x, y, 0)) {
             depth_->at(x, y, 0) = pixel_sample.z();
+            face_id_->at(x, y, 0) = i;
+            weight_image.at(x, y, 0) = w0;
+            weight_image.at(x, y, 1) = w1;
+            weight_image.at(x, y, 2) = w2;
             backface_image.at(x, y, 0) = backface ? 255 : 0;
-
-            if (!backface) {
-              // fill face id
-              if (face_id != nullptr) {
-                face_id->at(x, y, 0) = i;
-              }
-
-              // fill mask
-              if (mask != nullptr) {
-                mask->at(x, y, 0) = 255;
-              }
-
-              // calculate shading normal
-              Eigen::Vector3f shading_normal_w{0.0f, 0.0f, 0.0f};
-              if (option_.shading_normal == ShadingNormal::kFace) {
-                shading_normal_w = mesh_->face_normals()[i];
-              } else if (option_.shading_normal == ShadingNormal::kVertex) {
-                // barycentric interpolation of normal
-                const auto& normals = mesh_->normals();
-                const auto& normal_indices = mesh_->normal_indices();
-                shading_normal_w = w0 * normals[normal_indices[i][0]] +
-                                   w1 * normals[normal_indices[i][1]] +
-                                   w2 * normals[normal_indices[i][2]];
-              }
-
-              // set shading normal
-              if (normal != nullptr) {
-                Eigen::Vector3f shading_normal_c =
-                    w2c_R * shading_normal_w;  // rotate to camera coordinate
-                for (int k = 0; k < 3; k++) {
-                  normal->at(x, y, k) = shading_normal_c[k];
-                }
-              }
-
-              // delegate color calculation to pixel_shader
-              if (color != nullptr) {
-                Eigen::Vector3f light_dir = ray_w;  // emit light same as ray
-                PixelShaderInput pixel_shader_input(
-                    color, x, y, w1, w2, i, &ray_w, &light_dir,
-                    &shading_normal_w, &oren_nayar_param, mesh_);
-                pixel_shader->Process(pixel_shader_input);
-              }
-            }
           }
 #if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
           omp_unset_lock(&pixellock[y * camera_->width() + x]);
@@ -351,37 +319,65 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
     }
   }
 
+  // make images by referring to face id image
 #if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int y = 0; y < backface_image.height(); y++) {
     for (int x = 0; x < backface_image.width(); x++) {
-      if (backface_image.at(x, y, 0) == 255) {
+      if (option_.backface_culling && backface_image.at(x, y, 0) == 255) {
         depth_->at(x, y, 0) = 0.0f;
+        face_id_->at(x, y, 0) = -1;
+        continue;
+      }
 
-        if (face_id != nullptr) {
-          face_id->at(x, y, 0) = -1;
-        }
+      int fid = face_id_->at(x, y, 0);
+      if (fid > 0) {
+        Eigen::Vector3f ray_w;
+        camera_->ray_w(x, y, &ray_w);
 
+        float w0 = weight_image.at(x, y, 0);
+        float w1 = weight_image.at(x, y, 1);
+        float w2 = weight_image.at(x, y, 2);
+
+        // fill mask
         if (mask != nullptr) {
-          mask->at(x, y, 0) = 0;
+          mask->at(x, y, 0) = 255;
         }
 
+        // calculate shading normal
+        Eigen::Vector3f shading_normal_w{0.0f, 0.0f, 0.0f};
+        if (option_.shading_normal == ShadingNormal::kFace) {
+          shading_normal_w = mesh_->face_normals()[fid];
+        } else if (option_.shading_normal == ShadingNormal::kVertex) {
+          // barycentric interpolation of normal
+          const auto& normals = mesh_->normals();
+          const auto& normal_indices = mesh_->normal_indices();
+          shading_normal_w = w0 * normals[normal_indices[fid][0]] +
+                             w1 * normals[normal_indices[fid][1]] +
+                             w2 * normals[normal_indices[fid][2]];
+        }
+
+        // set shading normal
         if (normal != nullptr) {
+          Eigen::Vector3f shading_normal_c =
+              w2c_R * shading_normal_w;  // rotate to camera coordinate
           for (int k = 0; k < 3; k++) {
-            normal->at(x, y, k) = 0.0f;
+            normal->at(x, y, k) = shading_normal_c[k];
           }
         }
+
+        // delegate color calculation to pixel_shader
         if (color != nullptr) {
-          for (int k = 0; k < 3; k++) {
-            color->at(x, y, k) = 0;
-          }
+          Eigen::Vector3f light_dir = ray_w;  // emit light same as ray
+          PixelShaderInput pixel_shader_input(color, x, y, w1, w2, fid, &ray_w,
+                                              &light_dir, &shading_normal_w,
+                                              &oren_nayar_param, mesh_);
+          pixel_shader->Process(pixel_shader_input);
         }
       }
     }
   }
-
-  // process faces at boundary of tiles (partially parallel)
 
   timer.End();
   LOGI("  Rendering main loop time: %.1f msecs\n", timer.elapsed_msec());
