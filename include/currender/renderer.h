@@ -66,9 +66,10 @@ struct RendererOption {
   }
 };
 
+// interface (pure abstract base class with no state or defined methods) for
+// renderer
 class Renderer {
  public:
-  Renderer() {}
   virtual ~Renderer() {}
 
   // Set option
