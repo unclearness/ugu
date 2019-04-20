@@ -24,13 +24,12 @@ struct OrenNayarParam {
   float B{0.0f};
   OrenNayarParam();
   explicit OrenNayarParam(float sigma);
+  ~OrenNayarParam();
 };
 
 struct PixelShaderInput {
- private:
-  PixelShaderInput();
-
  public:
+  PixelShaderInput() = delete;
   Image3b* color{nullptr};
   int x;
   int y;
@@ -54,8 +53,7 @@ struct PixelShaderInput {
 
 class DiffuseColorizer {
  public:
-  DiffuseColorizer();
-  virtual ~DiffuseColorizer();
+  virtual ~DiffuseColorizer() {}
   virtual void Process(const PixelShaderInput& input) const = 0;
 };
 
@@ -89,8 +87,7 @@ class DiffuseTextureBilinearColorizer : public DiffuseColorizer {
 
 class DiffuseShader {
  public:
-  DiffuseShader();
-  virtual ~DiffuseShader();
+  virtual ~DiffuseShader() {}
   virtual void Process(const PixelShaderInput& input) const = 0;
 };
 
@@ -118,16 +115,14 @@ class DiffuseOrenNayarShader : public DiffuseShader {
 class PixelShader {
   std::unique_ptr<DiffuseColorizer> diffuse_colorizer_{nullptr};
   std::unique_ptr<DiffuseShader> diffuse_shader_{nullptr};
-
-  PixelShader(const PixelShader&) = delete;
-  PixelShader& operator=(const PixelShader&) = delete;
-  PixelShader(PixelShader&&) = delete;
-  PixelShader& operator=(PixelShader&&) = delete;
-
   PixelShader(std::unique_ptr<DiffuseColorizer>&& diffuse_colorizer,
               std::unique_ptr<DiffuseShader>&& diffuse_shader);
 
  public:
+  PixelShader(const PixelShader&) = delete;
+  PixelShader& operator=(const PixelShader&) = delete;
+  PixelShader(PixelShader&&) = delete;
+  PixelShader& operator=(PixelShader&&) = delete;
   friend class PixelShaderFactory;
   PixelShader();
   ~PixelShader();
@@ -151,8 +146,8 @@ inline OrenNayarParam::OrenNayarParam(float sigma) : sigma(sigma) {
   A = 1.0f - (0.5f * sigma_2 / (sigma_2 + 0.33f));
   B = 0.45f * sigma_2 / (sigma_2 + 0.09f);
 }
+inline OrenNayarParam::~OrenNayarParam() {}
 
-inline PixelShaderInput::PixelShaderInput() {}
 inline PixelShaderInput::~PixelShaderInput() {}
 inline PixelShaderInput::PixelShaderInput(
     Image3b* color, int x, int y, float u, float v, uint32_t face_index,
@@ -221,9 +216,6 @@ inline void PixelShader::Process(const PixelShaderInput& input) const {
   diffuse_colorizer_->Process(input);
   diffuse_shader_->Process(input);
 }
-
-inline DiffuseColorizer::DiffuseColorizer() {}
-inline DiffuseColorizer::~DiffuseColorizer() {}
 
 inline DiffuseDefaultColorizer::DiffuseDefaultColorizer() {}
 inline DiffuseDefaultColorizer::~DiffuseDefaultColorizer() {}
@@ -357,9 +349,6 @@ inline void DiffuseTextureBilinearColorizer::Process(
     color->at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
   }
 }
-
-inline DiffuseShader::DiffuseShader() {}
-inline DiffuseShader::~DiffuseShader() {}
 
 inline DiffuseDefaultShader::DiffuseDefaultShader() {}
 inline DiffuseDefaultShader::~DiffuseDefaultShader() {}
