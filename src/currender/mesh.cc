@@ -303,8 +303,10 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   std::vector<tinyobj::material_t> materials;
   tinyobj::attrib_t attrib;
   std::string err_str, warn_str;
+  bool return_default_vertex_color{false};
   bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn_str, &err_str,
-                              obj_path.c_str(), mtl_dir.c_str());
+                              obj_path.c_str(), mtl_dir.c_str(), true,
+                              return_default_vertex_color);
 
   if (!err_str.empty()) {  // `err` may contain warning message.
     LOGE("%s\n", err_str.c_str());
@@ -556,6 +558,10 @@ bool Mesh::WritePly(const std::string& ply_path) const {
     return false;
   }
 
+  bool has_vertex_normal = !normals_.empty();
+  if (has_vertex_normal) {
+    assert(vertices_.size() == normals_.size());
+  }
   bool has_vertex_color = !vertex_colors_.empty();
   if (has_vertex_color) {
     assert(vertices_.size() == vertex_colors_.size());
@@ -567,6 +573,11 @@ bool Mesh::WritePly(const std::string& ply_path) const {
   ofs << "property float x\n"
          "property float y\n"
          "property float z\n";
+  if (has_vertex_normal) {
+    ofs << "property float nx\n"
+           "property float ny\n"
+           "property float nz\n";
+  }
   if (has_vertex_color) {
     ofs << "property uchar red\n"
            "property uchar green\n"
@@ -580,6 +591,10 @@ bool Mesh::WritePly(const std::string& ply_path) const {
   for (size_t i = 0; i < vertices_.size(); i++) {
     ofs << vertices_[i][0] << " " << vertices_[i][1] << " " << vertices_[i][2]
         << " ";
+    if (has_vertex_normal) {
+      ofs << normals_[i][0] << " " << normals_[i][1] << " " << normals_[i][2]
+          << " ";
+    }
     if (has_vertex_color) {
       ofs << static_cast<int>(std::round(vertex_colors_[i][0])) << " "
           << static_cast<int>(std::round(vertex_colors_[i][1])) << " "
