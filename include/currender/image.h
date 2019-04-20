@@ -59,14 +59,6 @@ class Image {
     height_ = height;
     data_.resize(height_ * width_ * channel_, val);
   }
-  T* at(int x, int y) {
-    assert(0 <= x && x < width_ && 0 <= y && y < height_);
-    return &data_[0] + (width_ * channel_ * y + x * channel_);
-  }
-  const T* at(int x, int y) const {
-    assert(0 <= x && x < width_ && 0 <= y && y < height_);
-    return &data_[0] + (width_ * channel_ * y + x * channel_);
-  }
   T& at(int x, int y, int c) {
     assert(0 <= x && x < width_ && 0 <= y && y < height_ && 0 <= c &&
            c < channel_);
