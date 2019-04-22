@@ -30,6 +30,101 @@
 #endif
 #endif
 
+namespace {
+
+template <typename T>
+void BoxFilterCpuIntegral(int width, int height, int channel, int kernel,
+                          const T* in_data, double* work_data, T* out_data) {
+  const int hk = kernel / 2;
+  const int stride = width * channel;
+
+  // initialize the top left pixel
+  for (int k = 0; k < channel; k++) {
+    std::int64_t base_index = (0 * stride + 0 * channel) + k;
+    work_data[base_index] = in_data[base_index];
+  }
+
+  // initialize the most left column
+  for (int j = 1; j < height; j++) {
+    for (int k = 0; k < channel; k++) {
+      std::int64_t prev_index = ((j - 1) * stride + 0 * channel) + k;
+      std::int64_t base_index = (j * stride + 0 * channel) + k;
+      work_data[base_index] = in_data[base_index] + work_data[prev_index];
+    }
+  }
+
+  // initialize the most top row
+  for (int i = 1; i < width; i++) {
+    for (int k = 0; k < channel; k++) {
+      std::int64_t prev_index = (0 * stride + (i - 1) * channel) + k;
+      std::int64_t base_index = (0 * stride + i * channel) + k;
+      work_data[base_index] = in_data[base_index] + work_data[prev_index];
+    }
+  }
+
+  // 1st path: calc integral image
+  for (int j = 1; j < height; j++) {
+    for (int i = 1; i < width; i++) {
+      for (int k = 0; k < channel; k++) {
+        std::int64_t upleft_index = ((j - 1) * stride + (i - 1) * channel) + k;
+        std::int64_t up_index = ((j - 1) * stride + i * channel) + k;
+        std::int64_t left_index = (j * stride + (i - 1) * channel) + k;
+        std::int64_t base_index = (j * stride + i * channel) + k;
+        work_data[base_index] = -work_data[upleft_index] + work_data[up_index] +
+                                work_data[left_index] + in_data[base_index];
+      }
+    }
+  }
+
+  // 2nd path: get average
+#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
+  for (int j = 0; j < height; j++) {
+    int up = j > hk ? j - hk - 1 : 0;
+    int down = j < height - hk ? j + hk : height - 1;
+    int h_len = down - up;
+    for (int i = 0; i < width; i++) {
+      int left = i > hk ? i - hk - 1 : 0;
+      int right = i < width - hk ? i + hk : width - 1;
+      int w_len = right - left;
+      int adjusted_block_size = h_len * w_len;
+      for (int k = 0; k < channel; k++) {
+        std::int64_t upleft_index = (up * stride + left * channel) + k;
+        std::int64_t upright_index = (up * stride + right * channel) + k;
+        std::int64_t downleft_index = (down * stride + left * channel) + k;
+        std::int64_t downright_index = (down * stride + right * channel) + k;
+        std::int64_t base_index = (j * stride + i * channel) + k;
+        out_data[base_index] = static_cast<T>(
+            (work_data[downright_index] - work_data[upright_index] -
+             work_data[downleft_index] + work_data[upleft_index]) /
+            adjusted_block_size);
+      }
+    }
+  }
+}
+
+template <typename T>
+void BoxFilterCpuIntegral(int width, int height, int channel, int kernel,
+                          const T* in_data, T* out_data) {
+  std::vector<double> work_data(width * height * channel, 0.0);
+  BoxFilterCpuIntegral(width, height, channel, kernel, in_data, &work_data[0],
+                       out_data);
+}
+
+template <typename T, int N>
+void BoxFilterCpuIntegral(const currender::Image<T, N>& src,
+                          currender::Image<T, N>* dst, int kernel) {
+  assert(src.height() == dst->height());
+  assert(src.width() == dst->width());
+  assert(src.channel() == dst->channel());
+
+  BoxFilterCpuIntegral(src.width(), src.height(), src.channel(), kernel,
+                       &src.data()[0], &((*dst->data_ptr())[0]));
+}
+
+}  // namespace
+
 namespace currender {
 
 void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
@@ -107,6 +202,19 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
       vis_face_id->at(x, y, 2) = color[2];
     }
   }
+}
+
+void BoxFilter(const Image1b& src, Image1b* dst, int kernel) {
+  BoxFilterCpuIntegral(src, dst, kernel);
+}
+void BoxFilter(const Image1f& src, Image1f* dst, int kernel) {
+  BoxFilterCpuIntegral(src, dst, kernel);
+}
+void BoxFilter(const Image3b& src, Image3b* dst, int kernel) {
+  BoxFilterCpuIntegral(src, dst, kernel);
+}
+void BoxFilter(const Image3f& src, Image3f* dst, int kernel) {
+  BoxFilterCpuIntegral(src, dst, kernel);
 }
 
 }  // namespace currender

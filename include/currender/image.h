@@ -203,4 +203,9 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal);
 
 void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id);
 
+void BoxFilter(const Image1b& src, Image1b* dst, int kernel);
+void BoxFilter(const Image1f& src, Image1f* dst, int kernel);
+void BoxFilter(const Image3b& src, Image3b* dst, int kernel);
+void BoxFilter(const Image3f& src, Image3f* dst, int kernel);
+
 }  // namespace currender
