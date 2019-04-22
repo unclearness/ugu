@@ -9,6 +9,7 @@
 
 #include "currender/pixel_shader.h"
 #include "currender/timer.h"
+#include "currender/util_private.h"
 #include "nanort/nanort.h"
 
 namespace {
@@ -49,10 +50,6 @@ class Raytracer::Impl {
   nanort::BVHAccel<float> accel_;
   nanort::BVHBuildStatistics stats_;
   float bmin_[3], bmax_[3];
-
-  bool ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
-                                   Image3f* normal, Image1b* mask,
-                                   Image1i* face_id) const;
 
  public:
   Impl();
@@ -184,87 +181,10 @@ void Raytracer::Impl::set_camera(std::shared_ptr<const Camera> camera) {
   camera_ = camera;
 }
 
-bool Raytracer::Impl::ValidateAndInitBeforeRender(Image3b* color,
-                                                  Image1f* depth,
-                                                  Image3f* normal,
-                                                  Image1b* mask,
-                                                  Image1i* face_id) const {
-  if (camera_ == nullptr) {
-    LOGE("camera has not been set\n");
-    return false;
-  }
-  if (!mesh_initialized_) {
-    LOGE("mesh has not been initialized\n");
-    return false;
-  }
-  if (option_.backface_culling && mesh_->face_normals().empty()) {
-    LOGE("specified back-face culling but face normal is empty.\n");
-    return false;
-  }
-  if (option_.diffuse_color == DiffuseColor::kTexture &&
-      mesh_->diffuse_texs().empty()) {
-    LOGE("specified texture as diffuse color but texture is empty.\n");
-    return false;
-  }
-  if (option_.diffuse_color == DiffuseColor::kTexture) {
-    for (int i = 0; i < static_cast<int>(mesh_->diffuse_texs().size()); i++) {
-      if (mesh_->diffuse_texs()[i].empty()) {
-        LOGE("specified texture as diffuse color but %d th texture is empty.\n",
-             i);
-        return false;
-      }
-    }
-  }
-  if (option_.diffuse_color == DiffuseColor::kVertex &&
-      mesh_->vertex_colors().empty()) {
-    LOGE(
-        "specified vertex color as diffuse color but vertex color is empty.\n");
-    return false;
-  }
-  if (option_.shading_normal == ShadingNormal::kFace &&
-      mesh_->face_normals().empty()) {
-    LOGE("specified face normal as shading normal but face normal is empty.\n");
-    return false;
-  }
-  if (option_.shading_normal == ShadingNormal::kVertex &&
-      mesh_->normals().empty()) {
-    LOGE(
-        "specified vertex normal as shading normal but vertex normal is "
-        "empty.\n");
-    return false;
-  }
-  if (color == nullptr && depth == nullptr && normal == nullptr &&
-      mask == nullptr && face_id == nullptr) {
-    LOGE("all arguments are nullptr. nothing to do\n");
-    return false;
-  }
-
-  int width = camera_->width();
-  int height = camera_->height();
-
-  if (color != nullptr) {
-    color->Init(width, height);
-  }
-  if (depth != nullptr) {
-    depth->Init(width, height);
-  }
-  if (normal != nullptr) {
-    normal->Init(width, height);
-  }
-  if (mask != nullptr) {
-    mask->Init(width, height);
-  }
-  if (face_id != nullptr) {
-    // initialize with -1 (no hit)
-    face_id->Init(width, height, -1);
-  }
-
-  return true;
-}
-
 bool Raytracer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
                              Image1b* mask, Image1i* face_id) const {
-  if (!ValidateAndInitBeforeRender(color, depth, normal, mask, face_id)) {
+  if (!ValidateAndInitBeforeRender(mesh_initialized_, camera_, mesh_, option_,
+                                   color, depth, normal, mask, face_id)) {
     return false;
   }
 

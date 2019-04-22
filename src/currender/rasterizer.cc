@@ -9,6 +9,7 @@
 
 #include "currender/pixel_shader.h"
 #include "currender/timer.h"
+#include "currender/util_private.h"
 
 namespace {
 
@@ -35,10 +36,6 @@ class Rasterizer::Impl {
   std::shared_ptr<const Camera> camera_{nullptr};
   std::shared_ptr<const Mesh> mesh_{nullptr};
   RendererOption option_;
-
-  bool ValidateAndInitBeforeRender(Image3b* color, Image1f* depth,
-                                   Image3f* normal, Image1b* mask,
-                                   Image1i* face_id) const;
 
  public:
   Impl();
@@ -104,87 +101,10 @@ void Rasterizer::Impl::set_camera(std::shared_ptr<const Camera> camera) {
   camera_ = camera;
 }
 
-bool Rasterizer::Impl::ValidateAndInitBeforeRender(Image3b* color,
-                                                   Image1f* depth,
-                                                   Image3f* normal,
-                                                   Image1b* mask,
-                                                   Image1i* face_id) const {
-  if (camera_ == nullptr) {
-    LOGE("camera has not been set\n");
-    return false;
-  }
-  if (!mesh_initialized_) {
-    LOGE("mesh has not been initialized\n");
-    return false;
-  }
-  if (option_.backface_culling && mesh_->face_normals().empty()) {
-    LOGE("specified back-face culling but face normal is empty.\n");
-    return false;
-  }
-  if (option_.diffuse_color == DiffuseColor::kTexture &&
-      mesh_->diffuse_texs().empty()) {
-    LOGE("specified texture as diffuse color but texture is empty.\n");
-    return false;
-  }
-  if (option_.diffuse_color == DiffuseColor::kTexture) {
-    for (int i = 0; i < static_cast<int>(mesh_->diffuse_texs().size()); i++) {
-      if (mesh_->diffuse_texs()[i].empty()) {
-        LOGE("specified texture as diffuse color but %d th texture is empty.\n",
-             i);
-        return false;
-      }
-    }
-  }
-  if (option_.diffuse_color == DiffuseColor::kVertex &&
-      mesh_->vertex_colors().empty()) {
-    LOGE(
-        "specified vertex color as diffuse color but vertex color is empty.\n");
-    return false;
-  }
-  if (option_.shading_normal == ShadingNormal::kFace &&
-      mesh_->face_normals().empty()) {
-    LOGE("specified face normal as shading normal but face normal is empty.\n");
-    return false;
-  }
-  if (option_.shading_normal == ShadingNormal::kVertex &&
-      mesh_->normals().empty()) {
-    LOGE(
-        "specified vertex normal as shading normal but vertex normal is "
-        "empty.\n");
-    return false;
-  }
-  if (color == nullptr && depth == nullptr && normal == nullptr &&
-      mask == nullptr && face_id == nullptr) {
-    LOGE("all arguments are nullptr. nothing to do\n");
-    return false;
-  }
-
-  int width = camera_->width();
-  int height = camera_->height();
-
-  if (color != nullptr) {
-    color->Init(width, height);
-  }
-  if (depth != nullptr) {
-    depth->Init(width, height);
-  }
-  if (normal != nullptr) {
-    normal->Init(width, height);
-  }
-  if (mask != nullptr) {
-    mask->Init(width, height);
-  }
-  if (face_id != nullptr) {
-    // initialize with -1 (no hit)
-    face_id->Init(width, height, -1);
-  }
-
-  return true;
-}
-
 bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
                               Image1b* mask, Image1i* face_id) const {
-  if (!ValidateAndInitBeforeRender(color, depth, normal, mask, face_id)) {
+  if (!ValidateAndInitBeforeRender(mesh_initialized_, camera_, mesh_, option_,
+                                   color, depth, normal, mask, face_id)) {
     return false;
   }
 
@@ -259,9 +179,9 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
     }
 
     uint32_t x0 = std::max(int32_t(0), (int32_t)(std::floor(xmin)));
-    uint32_t x1 = std::min(camera_->width() - 1, (int32_t)(std::floor(xmax)));
+    uint32_t x1 = std::min(camera_->width() - 1, (int32_t)(std::ceil(xmax)));
     uint32_t y0 = std::max(int32_t(0), (int32_t)(std::floor(ymin)));
-    uint32_t y1 = std::min(camera_->height() - 1, (int32_t)(std::floor(ymax)));
+    uint32_t y1 = std::min(camera_->height() - 1, (int32_t)(std::ceil(ymax)));
 
     float area = EdgeFunction(v0_i, v1_i, v2_i);
     if (std::abs(area) < std::numeric_limits<float>::min()) {
@@ -295,7 +215,6 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
             weight_image.at(x, y, 2) = w2;
             backface_image.at(x, y, 0) = backface ? 255 : 0;
           }
-
         }
       }
     }

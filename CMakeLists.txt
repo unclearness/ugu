@@ -134,6 +134,8 @@ add_library(${PUBLIC_LIB_NAME}
   src/currender/timer.h
   src/currender/log.cc
   src/currender/util.cc
+  src/currender/util_private.h
+  src/currender/util_private.cc
 
   # implementations of header-only library
   ${CURRENDER_STB_IMPLEMENTATION_CC}
@@ -161,6 +163,7 @@ SOURCE_GROUP("Public header files" FILES
 SOURCE_GROUP("Private header files" FILES
   src/currender/pixel_shader.h
   src/currender/timer.h
+  src/currender/util_private.h
 )
 
 SOURCE_GROUP("Source files" FILES
@@ -171,6 +174,7 @@ SOURCE_GROUP("Source files" FILES
   src/currender/image.cc
   src/currender/log.cc
   src/currender/util.cc
+  src/currender/util_private.cc
 )
 
 include_directories(${PUBLIC_LIB_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/include)
