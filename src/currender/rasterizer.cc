@@ -204,8 +204,22 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
           w0 /= area;
           w1 /= area;
           w2 /= area;
-          pixel_sample.z() = v0_i.z() * w0 + v1_i.z() * w1 + v2_i.z() * w2;
+#if 0
+         //original
+          pixel_sample.z() = w0 * v0_i.z() + w1 * v1_i.z() + w2 * v2_i.z();
+#else
+          /** Perspective-Correct Interpolation **/
+          w0 /= v0_i.z();
+          w1 /= v1_i.z();
+          w2 /= v2_i.z();
 
+          pixel_sample.z() = 1.0f / (w0 + w1 + w2);
+
+          w0 = w0 * pixel_sample.z();
+          w1 = w1 * pixel_sample.z();
+          w2 = w2 * pixel_sample.z();
+          /** Perspective-Correct Interpolation **/
+#endif
           if (depth_->at(x, y, 0) < std::numeric_limits<float>::min() ||
               pixel_sample.z() < depth_->at(x, y, 0)) {
             depth_->at(x, y, 0) = pixel_sample.z();
