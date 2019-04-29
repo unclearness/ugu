@@ -178,10 +178,10 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
       continue;
     }
 
-    uint32_t x0 = std::max(int32_t(0), (int32_t)(std::floor(xmin)));
-    uint32_t x1 = std::min(camera_->width() - 1, (int32_t)(std::ceil(xmax)));
-    uint32_t y0 = std::max(int32_t(0), (int32_t)(std::floor(ymin)));
-    uint32_t y1 = std::min(camera_->height() - 1, (int32_t)(std::ceil(ymax)));
+    uint32_t x0 = std::max(int32_t(0), (int32_t)(std::ceil(xmin)));
+    uint32_t x1 = std::min(camera_->width() - 1, (int32_t)(std::floor(xmax)));
+    uint32_t y0 = std::max(int32_t(0), (int32_t)(std::ceil(ymin)));
+    uint32_t y1 = std::min(camera_->height() - 1, (int32_t)(std::floor(ymax)));
 
     float area = EdgeFunction(v0_i, v1_i, v2_i);
     if (std::abs(area) < std::numeric_limits<float>::min()) {
