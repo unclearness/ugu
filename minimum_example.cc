@@ -3,7 +3,10 @@
  * All rights reserved.
  */
 
+#include "currender/rasterizer.h"
 #include "currender/raytracer.h"
+
+#define USE_RASTERIZER
 
 namespace {
 
@@ -77,8 +80,13 @@ int main() {
   currender::RendererOption option;
   option.diffuse_color = currender::DiffuseColor::kVertex;
   option.diffuse_shading = currender::DiffuseShading::kLambertian;
+#ifdef USE_RASTERIZER
+  std::unique_ptr<currender::Renderer> renderer =
+      std::make_unique<currender::Rasterizer>(option);
+#else
   std::unique_ptr<currender::Renderer> renderer =
       std::make_unique<currender::Raytracer>(option);
+#endif
 
   // set mesh
   renderer->set_mesh(mesh);

@@ -8,8 +8,11 @@
 #include <iostream>
 #include <vector>
 
+#include "currender/rasterizer.h"
 #include "currender/raytracer.h"
 #include "currender/util.h"
+
+#define USE_RASTERIZER
 
 using currender::Camera;
 using currender::Depth2Gray;
@@ -238,8 +241,13 @@ int main(int argc, char* argv[]) {
   RendererOption option;
   option.diffuse_color = currender::DiffuseColor::kTexture;
   option.diffuse_shading = currender::DiffuseShading::kLambertian;
+#ifdef USE_RASTERIZER
+  std::unique_ptr<currender::Renderer> renderer =
+      std::make_unique<currender::Rasterizer>(option);
+#else
   std::unique_ptr<currender::Renderer> renderer =
       std::make_unique<currender::Raytracer>(option);
+#endif
 
   // set mesh
   renderer->set_mesh(mesh);
