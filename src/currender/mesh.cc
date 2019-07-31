@@ -330,6 +330,7 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   vertex_indices_.resize(face_num);  // face
   uv_indices_.resize(face_num);
   normal_indices_.resize(face_num);
+  material_ids_.resize(face_num, -1);
 
   if (attrib.vertices.size() / 3 > std::numeric_limits<int>::max() ||
       attrib.normals.size() / 3 > std::numeric_limits<int>::max() ||
@@ -358,6 +359,9 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
         LOGE("Doesn't support face num %d. Must be 3\n", fv);
         return false;
       }
+
+      // per-face material
+      material_ids_[face_offset] = shapes[s].mesh.material_ids[f];
 
       // Loop over vertices in the face.
       for (int v = 0; v < fv; v++) {
@@ -406,8 +410,6 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
       index_offset += fv;
       face_offset++;
 
-      // per-face material
-      shapes[s].mesh.material_ids[f];
     }
   }
 
@@ -631,6 +633,7 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
 
   std::string obj_path = obj_dir + "/" + obj_basename + ".obj";
 
+  // todo: grouping face per material
   // write obj
   {
     std::ofstream ofs(obj_path);
@@ -687,6 +690,7 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
     return false;
   }
 
+  // todo: copy original mtl if this mesh was read from file
   ofs << "property float x\n"
          "property float y\n"
          "property float z\n"

@@ -35,6 +35,7 @@ class Mesh {
   std::vector<std::string> diffuse_texnames_;
   std::vector<std::string> diffuse_texpaths_;
   std::vector<Image3b> diffuse_texs_;
+  std::vector<int> material_ids_;
   MeshStats stats_;
 
  public:
