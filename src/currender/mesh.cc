@@ -699,12 +699,12 @@ bool Mesh::WritePly(const std::string& ply_path) const {
           << static_cast<int>(std::round(vertex_colors_[i][1])) << " "
           << static_cast<int>(std::round(vertex_colors_[i][2])) << " 255 ";
     }
-    ofs << std::endl;
+    ofs << "\n";
   }
 
   for (size_t i = 0; i < vertex_indices_.size(); i++) {
     ofs << "3 " << vertex_indices_[i][0] << " " << vertex_indices_[i][1] << " "
-        << vertex_indices_[i][2] << " " << std::endl;
+        << vertex_indices_[i][2] << " " << "\n";
   }
 
   ofs.close();
