@@ -46,6 +46,7 @@ inline std::string ReplaceExtention(const std::string& path,
   return ExtractPathWithoutExt(path) + ext;
 }
 
+#ifdef CURRENDER_USE_STB
 bool WriteMtl(const std::string& path,
               const std::vector<currender::ObjMaterial>& materials,
               bool write_texture) {
@@ -78,6 +79,7 @@ bool WriteMtl(const std::string& path,
 
   return ret;
 }
+#endif
 
 }  // namespace
 
@@ -704,7 +706,8 @@ bool Mesh::WritePly(const std::string& ply_path) const {
 
   for (size_t i = 0; i < vertex_indices_.size(); i++) {
     ofs << "3 " << vertex_indices_[i][0] << " " << vertex_indices_[i][1] << " "
-        << vertex_indices_[i][2] << " " << "\n";
+        << vertex_indices_[i][2] << " "
+        << "\n";
   }
 
   ofs.close();
