@@ -114,6 +114,9 @@ Mesh::Mesh(const Mesh& src) {
   CopyVec(src.uv_indices_, &uv_indices_);
 
   CopyVec(src.materials_, &materials_);
+  CopyVec(src.material_ids_, &material_ids_);
+  CopyVec(src.face_indices_per_material_, &face_indices_per_material_);
+
   stats_ = src.stats_;
 }
 Mesh::~Mesh() {}
@@ -224,6 +227,7 @@ void Mesh::Clear() {
 
   materials_.clear();
   material_ids_.clear();
+  face_indices_per_material_.clear();
 }
 
 void Mesh::CalcNormal() {
@@ -354,7 +358,19 @@ bool Mesh::set_uv_indices(const std::vector<Eigen::Vector3i>& uv_indices) {
 }
 
 bool Mesh::set_material_ids(const std::vector<int>& material_ids) {
+  int max_id = *std::max_element(material_ids_.begin(), material_ids_.end());
+  if (max_id < 0) {
+    LOGE("material id must be positive\n");
+    return false;
+  }
+
   CopyVec(material_ids, &material_ids_);
+
+  face_indices_per_material_.resize(max_id + 1);
+  for (int i = 0; i < static_cast<int>(material_ids_.size()); i++) {
+    face_indices_per_material_[material_ids_[i]].push_back(i);
+  }
+
   return true;
 }
 
@@ -398,7 +414,7 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   vertex_indices_.resize(face_num);  // face
   uv_indices_.resize(face_num);
   normal_indices_.resize(face_num);
-  material_ids_.resize(face_num, -1);
+  material_ids_.resize(face_num, 0);
 
   if (attrib.vertices.size() / 3 > std::numeric_limits<int>::max() ||
       attrib.normals.size() / 3 > std::numeric_limits<int>::max() ||
@@ -514,6 +530,11 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
       LOGW("diffuse texture doesn't exist %s\n",
            materials_[i].diffuse_texpath.c_str());
     }
+  }
+
+  face_indices_per_material_.resize(materials.size());
+  for (int i = 0; i < static_cast<int>(material_ids_.size()); i++) {
+    face_indices_per_material_[material_ids_[i]].push_back(i);
   }
 
   return ret;
@@ -702,7 +723,6 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
 
   std::string obj_path = obj_dir + "/" + obj_basename + ".obj";
 
-  // todo: grouping face per material
   // write obj
   {
     std::ofstream ofs(obj_path);
@@ -729,9 +749,32 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
       ofs << "vn " << vn.x() << " " << vn.y() << " " << vn.z() << std::endl;
     }
 
-    // indices
+    // indices by material (group)
+    // CAUTION: This breaks original face indices
     bool write_uv_indices = !uv_indices_.empty();
     bool write_normal_indices = !normal_indices_.empty();
+#if 1
+    for (size_t k = 0; k < face_indices_per_material_.size(); k++) {
+      ofs << "usemtl " << materials_[k].name << "\n";
+      for (size_t i = 0; i < face_indices_per_material_[k].size(); i++) {
+        int f_idx = face_indices_per_material_[k][i];
+        ofs << "f";
+        for (int j = 0; j < 3; j++) {
+          ofs << " " << std::to_string(vertex_indices_[f_idx][j] + 1);
+          if (!write_uv_indices && !write_normal_indices) {
+            continue;
+          }
+          ofs << "/";
+          if (write_uv_indices) {
+            ofs << std::to_string(uv_indices_[f_idx][j] + 1);
+          }
+          ofs << "/" << std::to_string(normal_indices_[f_idx][j] + 1);
+        }
+        ofs << "\n";
+      }
+    }
+#else
+    // naive writing keeping original face indices
     for (size_t i = 0; i < vertex_indices_.size(); i++) {
       ofs << "f";
       for (int j = 0; j < 3; j++) {
@@ -747,6 +790,7 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
       }
       ofs << std::endl;
     }
+#endif
 
     ofs.close();
   }

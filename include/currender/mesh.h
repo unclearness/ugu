@@ -54,7 +54,13 @@ class Mesh {
   std::vector<Eigen::Vector3i> uv_indices_;
 
   std::vector<ObjMaterial> materials_;
+
+  // material_ids_[i]: face index i's material id.
+  // This is used to access materials_.
   std::vector<int> material_ids_;
+
+  // face_indices_per_material_[i]: the vector of material i's face indices.
+  std::vector<std::vector<int>> face_indices_per_material_;
   MeshStats stats_;
 
  public:
