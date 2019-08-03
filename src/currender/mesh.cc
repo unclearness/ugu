@@ -31,9 +31,74 @@ std::vector<std::string> Split(const std::string& s, char delim) {
   }
   return elems;
 }
+
+inline std::string ExtractPathWithoutExt(const std::string& fn) {
+  std::string::size_type pos;
+  if ((pos = fn.find_last_of(".")) == std::string::npos) {
+    return fn;
+  }
+
+  return fn.substr(0, pos);
+}
+
+inline std::string ReplaceExtention(const std::string& path,
+                                    const std::string& ext) {
+  return ExtractPathWithoutExt(path) + ext;
+}
+
+bool WriteMtl(const std::string& path,
+              const std::vector<currender::ObjMaterial>& materials,
+              bool write_texture) {
+  std::ofstream ofs(path);
+  if (ofs.fail()) {
+    currender::LOGE("couldn't open mtl path: %s\n", path.c_str());
+    return false;
+  }
+
+  for (size_t i = 0; i < materials.size(); i++) {
+    const currender::ObjMaterial& material = materials[i];
+    ofs << material.ToString();
+    if (i != materials.size() - 1) {
+      ofs << '\n';
+    }
+  }
+  ofs.close();
+
+  // write texture
+  bool ret{true};
+  if (write_texture) {
+    for (size_t i = 0; i < materials.size(); i++) {
+      const currender::ObjMaterial& material = materials[i];
+      bool ret_write = material.diffuse_tex.WritePng(material.diffuse_texpath);
+      if (ret) {
+        ret = ret_write;
+      }
+    }
+  }
+
+  return ret;
+}
+
 }  // namespace
 
 namespace currender {
+
+std::string ObjMaterial::ToString() const {
+  std::stringstream ss;
+
+  ss << "newmtl " << name << '\n'
+     << "Ka " << ambient[0] << " " << ambient[1] << " " << ambient[2] << '\n'
+     << "Ka " << diffuse[0] << " " << diffuse[1] << " " << diffuse[2] << '\n'
+     << "Ka " << specular[0] << " " << specular[1] << " " << specular[2] << '\n'
+     << "Tr " << 1.0f - dissolve << '\n'
+     << "illum " << illum << '\n'
+     << "Ns " << shininess << '\n';
+  if (!diffuse_texname.empty()) {
+    ss << "map_Kd " << diffuse_texname << std::endl;
+  }
+
+  return ss.str();
+}
 
 Mesh::Mesh() {}
 Mesh::Mesh(const Mesh& src) {
@@ -48,9 +113,7 @@ Mesh::Mesh(const Mesh& src) {
   CopyVec(src.uv_, &uv_);
   CopyVec(src.uv_indices_, &uv_indices_);
 
-  CopyVec(src.diffuse_texnames_, &diffuse_texnames_);
-  CopyVec(src.diffuse_texpaths_, &diffuse_texpaths_);
-  CopyVec(src.diffuse_texs_, &diffuse_texs_);
+  CopyVec(src.materials_, &materials_);
   stats_ = src.stats_;
 }
 Mesh::~Mesh() {}
@@ -78,7 +141,8 @@ const std::vector<Eigen::Vector3i>& Mesh::uv_indices() const {
 
 const MeshStats& Mesh::stats() const { return stats_; }
 
-const std::vector<Image3b>& Mesh::diffuse_texs() const { return diffuse_texs_; }
+const std::vector<int>& Mesh::material_ids() const { return material_ids_; }
+const std::vector<ObjMaterial>& Mesh::materials() const { return materials_; }
 
 void Mesh::CalcStats() {
   stats_.bb_min = Eigen::Vector3f(std::numeric_limits<float>::max(),
@@ -158,9 +222,8 @@ void Mesh::Clear() {
   uv_.clear();
   uv_indices_.clear();
 
-  diffuse_texnames_.clear();
-  diffuse_texpaths_.clear();
-  diffuse_texs_.clear();
+  materials_.clear();
+  material_ids_.clear();
 }
 
 void Mesh::CalcNormal() {
@@ -290,8 +353,13 @@ bool Mesh::set_uv_indices(const std::vector<Eigen::Vector3i>& uv_indices) {
   return true;
 }
 
-bool Mesh::set_diffuse_tex(const std::vector<Image3b>& diffuse_texs) {
-  CopyVec(diffuse_texs, &diffuse_texs_);
+bool Mesh::set_material_ids(const std::vector<int>& material_ids) {
+  CopyVec(material_ids, &material_ids_);
+  return true;
+}
+
+bool Mesh::set_materials(const std::vector<ObjMaterial>& materials) {
+  CopyVec(materials, &materials_);
   return true;
 }
 
@@ -409,7 +477,6 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
       }
       index_offset += fv;
       face_offset++;
-
     }
   }
 
@@ -421,22 +488,31 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
 
   CalcStats();
 
-  diffuse_texnames_.resize(materials.size());
-  diffuse_texpaths_.resize(materials.size());
-  diffuse_texs_.resize(materials.size());
+  materials_.resize(materials.size());
   for (size_t i = 0; i < materials.size(); i++) {
-    diffuse_texnames_[i] = materials[i].diffuse_texname;
-    diffuse_texpaths_[i] = mtl_dir + diffuse_texnames_[i];
+    materials_[i].name = materials[i].name;
+    std::copy(std::begin(materials[i].ambient), std::end(materials[i].ambient),
+              materials_[i].ambient.begin());
+    std::copy(std::begin(materials[i].diffuse), std::end(materials[i].diffuse),
+              materials_[i].diffuse.begin());
+    std::copy(std::begin(materials[i].specular),
+              std::end(materials[i].specular), materials_[i].specular.begin());
+    materials_[i].shininess = materials[i].shininess;
+    materials_[i].dissolve = materials[i].dissolve;
+    materials_[i].illum = materials[i].illum;
 
-    std::ifstream ifs(diffuse_texpaths_[i]);
+    materials_[i].diffuse_texname = materials[i].diffuse_texname;
+    materials_[i].diffuse_texpath = mtl_dir + materials_[i].diffuse_texname;
+    std::ifstream ifs(materials_[i].diffuse_texpath);
     if (ifs.is_open()) {
 #ifdef CURRENDER_USE_STB
-      ret = diffuse_texs_[i].Load(diffuse_texpaths_[i]);
+      ret = materials_[i].diffuse_tex.Load(materials_[i].diffuse_texpath);
 #else
       LOGW("define CURRENDER_USE_STB to load diffuse texture.\n");
 #endif
     } else {
-      LOGW("diffuse texture doesn't exist %s\n", diffuse_texpaths_[i].c_str());
+      LOGW("diffuse texture doesn't exist %s\n",
+           materials_[i].diffuse_texpath.c_str());
     }
   }
 
@@ -617,19 +693,12 @@ bool Mesh::WritePly(const std::string& ply_path) const {
 
 #ifdef CURRENDER_USE_STB
 bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
-                    const std::string& mtl_basename,
-                    const std::string& tex_basename) const {
+                    const std::string& mtl_basename) {
   std::string mtl_name = mtl_basename + ".mtl";
   if (mtl_basename.empty()) {
     mtl_name = obj_basename + ".mtl";
   }
   std::string mtl_path = obj_dir + "/" + mtl_name;
-
-  std::string tex_name = tex_basename + ".png";
-  if (tex_basename.empty()) {
-    tex_name = obj_basename + ".png";
-  }
-  std::string tex_path = obj_dir + "/" + tex_name;
 
   std::string obj_path = obj_dir + "/" + obj_basename + ".obj";
 
@@ -642,7 +711,7 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
       return false;
     }
 
-    ofs << "mtllib ./" << mtl_name << std::endl << std::endl;
+    ofs << "mtllib " << mtl_name << std::endl << std::endl;
 
     // vertices
     for (const auto& v : vertices_) {
@@ -682,38 +751,18 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
     ofs.close();
   }
 
+  // update texture path
+  for (auto& material : materials_) {
+    // replace extention with .png
+    material.diffuse_texname =
+        ReplaceExtention(material.diffuse_texname, ".png");
+
+    // update path
+    material.diffuse_texpath = obj_dir + "/" + material.diffuse_texname;
+  }
+
   // write mtl
-
-  std::ofstream ofs(mtl_path);
-  if (ofs.fail()) {
-    LOGE("couldn't open mtl path: %s\n", mtl_path.c_str());
-    return false;
-  }
-
-  // todo: copy original mtl if this mesh was read from file
-  ofs << "property float x\n"
-         "property float y\n"
-         "property float z\n"
-         "newmtl Textured\n"
-         "Ka 1.000 1.000 1.000\n"
-         "Kd 1.000 1.000 1.000\n"
-         "Ks 0.000 0.000 0.000\n"
-         "d 1.0\n"
-         "illum 2\n";
-  if (0 < diffuse_texs_.size()) {
-    ofs << "map_Kd " + tex_name << std::endl;
-  }
-  ofs.close();
-
-  // write texture
-  if (diffuse_texs_.size() == 1) {
-    diffuse_texs_[0].WritePng(tex_path);
-  } else if (1 < diffuse_texs_.size()) {
-    LOGW(
-        "Mesh::WriteObj #texture num %d. Only 1 diffuse texture is "
-        "supported.\n",
-        static_cast<int>(diffuse_texs_.size()));
-  }
+  WriteMtl(mtl_path, materials_, true);
 
   return true;
 }

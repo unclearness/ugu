@@ -28,13 +28,13 @@ bool ValidateAndInitBeforeRender(bool mesh_initialized,
     return false;
   }
   if (option.diffuse_color == DiffuseColor::kTexture &&
-      mesh->diffuse_texs().empty()) {
+      mesh->materials().empty()) {
     LOGE("specified texture as diffuse color but texture is empty.\n");
     return false;
   }
   if (option.diffuse_color == DiffuseColor::kTexture) {
-    for (int i = 0; i < static_cast<int>(mesh->diffuse_texs().size()); i++) {
-      if (mesh->diffuse_texs()[i].empty()) {
+    for (int i = 0; i < static_cast<int>(mesh->materials().size()); i++) {
+      if (mesh->materials()[i].diffuse_tex.empty()) {
         LOGE("specified texture as diffuse color but %d th texture is empty.\n",
              i);
         return false;

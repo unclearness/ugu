@@ -269,7 +269,8 @@ inline void DiffuseTextureNnColorizer::Process(
 
   const auto& uv = mesh->uv();
   const auto& uv_indices = mesh->uv_indices();
-  const auto& diffuse_texture = mesh->diffuse_texs()[0];
+  int material_index = mesh->material_ids()[face_index];
+  const auto& diffuse_texture = mesh->materials()[material_index].diffuse_tex;
 
   Eigen::Vector3f interp_color;
   // barycentric interpolation of uv
@@ -307,8 +308,8 @@ inline void DiffuseTextureBilinearColorizer::Process(
 
   const auto& uv = mesh->uv();
   const auto& uv_indices = mesh->uv_indices();
-  const auto& diffuse_texture =
-      mesh->diffuse_texs()[0];  // todo:: support multiple textures
+  int material_index = mesh->material_ids()[face_index];
+  const auto& diffuse_texture = mesh->materials()[material_index].diffuse_tex;
 
   Eigen::Vector3f interp_color;
 

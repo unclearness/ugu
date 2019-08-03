@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,6 +21,26 @@ struct MeshStats {
   Eigen::Vector3f bb_max;
 };
 
+// partial copy of tinyobj::material_t
+struct ObjMaterial {
+  std::string name;
+
+  std::array<float, 3> ambient{1.0f, 1.0f, 1.0f};   // Ka
+  std::array<float, 3> diffuse{1.0f, 1.0f, 1.0f};   // Kd
+  std::array<float, 3> specular{0.0f, 0.0f, 0.0f};  // Ns
+  float shininess{1.0f};                            // Ns
+  float dissolve{
+      1.0f};  // 1 == opaque; 0 == fully transparent, (inverted: Tr = 1 - d)
+  // illumination model (see http://www.fileformat.info/format/material/)
+  int illum{1};
+
+  std::string diffuse_texname;
+  std::string diffuse_texpath;
+  Image3b diffuse_tex;
+
+  std::string ToString() const;
+};
+
 class Mesh {
   std::vector<Eigen::Vector3f> vertices_;
   std::vector<Eigen::Vector3f> vertex_colors_;   // optional, RGB order
@@ -32,9 +53,7 @@ class Mesh {
   std::vector<Eigen::Vector2f> uv_;
   std::vector<Eigen::Vector3i> uv_indices_;
 
-  std::vector<std::string> diffuse_texnames_;
-  std::vector<std::string> diffuse_texpaths_;
-  std::vector<Image3b> diffuse_texs_;
+  std::vector<ObjMaterial> materials_;
   std::vector<int> material_ids_;
   MeshStats stats_;
 
@@ -65,7 +84,8 @@ class Mesh {
   const std::vector<Eigen::Vector2f>& uv() const;
   const std::vector<Eigen::Vector3i>& uv_indices() const;
   const MeshStats& stats() const;
-  const std::vector<Image3b>& diffuse_texs() const;
+  const std::vector<int>& material_ids() const;
+  const std::vector<ObjMaterial>& materials() const;
 
   bool set_vertices(const std::vector<Eigen::Vector3f>& vertices);
   bool set_vertex_colors(const std::vector<Eigen::Vector3f>& vertex_colors);
@@ -75,7 +95,8 @@ class Mesh {
   bool set_normal_indices(const std::vector<Eigen::Vector3i>& normal_indices);
   bool set_uv(const std::vector<Eigen::Vector2f>& uv);
   bool set_uv_indices(const std::vector<Eigen::Vector3i>& uv_indices);
-  bool set_diffuse_tex(const std::vector<Image3b>& diffuse_texs);
+  bool set_material_ids(const std::vector<int>& material_ids);
+  bool set_materials(const std::vector<ObjMaterial>& materials);
 
 #ifdef CURRENDER_USE_TINYOBJLOADER
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);
@@ -83,9 +104,9 @@ class Mesh {
   bool LoadPly(const std::string& ply_path);
   bool WritePly(const std::string& ply_path) const;
 #ifdef CURRENDER_USE_STB
+  // not const since this will update texture name and path
   bool WriteObj(const std::string& obj_dir, const std::string& obj_basename,
-                const std::string& mtl_basename = "",
-                const std::string& tex_basename = "") const;
+                const std::string& mtl_basename = "");
 #endif
 };
 
