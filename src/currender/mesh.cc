@@ -90,8 +90,8 @@ std::string ObjMaterial::ToString() const {
 
   ss << "newmtl " << name << '\n'
      << "Ka " << ambient[0] << " " << ambient[1] << " " << ambient[2] << '\n'
-     << "Ka " << diffuse[0] << " " << diffuse[1] << " " << diffuse[2] << '\n'
-     << "Ka " << specular[0] << " " << specular[1] << " " << specular[2] << '\n'
+     << "Kd " << diffuse[0] << " " << diffuse[1] << " " << diffuse[2] << '\n'
+     << "Ks " << specular[0] << " " << specular[1] << " " << specular[2] << '\n'
      << "Tr " << 1.0f - dissolve << '\n'
      << "illum " << illum << '\n'
      << "Ns " << shininess << '\n';
