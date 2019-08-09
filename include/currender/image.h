@@ -21,6 +21,10 @@
 #include "lodepng/lodepng.h"
 #endif
 
+#ifdef CURRENDER_USE_TINYCOLORMAP
+#include "tinycolormap/include/tinycolormap.hpp"
+#endif
+
 namespace currender {
 
 template <typename T, int N>
@@ -202,6 +206,17 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d = 200.0f,
 void Normal2Color(const Image3f& normal, Image3b* vis_normal);
 
 void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id);
+
+#ifdef CURRENDER_USE_TINYCOLORMAP
+void Depth2Color(
+    const Image1f& depth, Image3b* vis_depth, float min_d = 200.0f,
+    float max_d = 1500.0f,
+    tinycolormap::ColormapType type = tinycolormap::ColormapType::Cividis);
+void FaceId2Color(
+    const Image1i& face_id, Image3b* vis_face_id, int min_id = 0,
+    int max_id = -1,
+    tinycolormap::ColormapType type = tinycolormap::ColormapType::Cividis);
+#endif
 
 void BoxFilter(const Image1b& src, Image1b* dst, int kernel);
 void BoxFilter(const Image1f& src, Image1f* dst, int kernel);

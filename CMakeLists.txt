@@ -47,6 +47,9 @@ endif()
 if(NOT DEFINED LODEPNG_INSTALL_DIR)
   set(LODEPNG_INSTALL_DIR "third_party/lodepng" CACHE PATH "LodePNG installed directory")
 endif()
+if(NOT DEFINED TINYCOLORMAP_INSTALL_DIR)
+  set(TINYCOLORMAP_INSTALL_DIR "third_party/tinycolormap" CACHE PATH "tinycolormap installed directory")
+endif()
 
 # switch for optional libraries
 option(CURRENDER_USE_STB "Use stb to enable image i/o" ON)
@@ -95,6 +98,12 @@ if(CURRENDER_USE_LODEPNG)
       ${LODEPNG_INSTALL_DIR}/lodepng.cpp
       ${LODEPNG_INSTALL_DIR}/lodepng.h)
   endif()
+endif()
+
+option(CURRENDER_USE_TINYCOLORMAP "Use tinycolormap for visualization" ON)
+message("CURRENDER_USE_TINYCOLORMAP: ${CURRENDER_USE_TINYCOLORMAP}")
+if(CURRENDER_USE_TINYCOLORMAP)
+  add_definitions(-DCURRENDER_USE_TINYCOLORMAP)
 endif()
 
 option(CURRENDER_USE_OPENMP "Use OpenMP to enable parallelization" ON)
@@ -185,6 +194,7 @@ include_directories(${PUBLIC_LIB_NAME} ${EIGEN_INSTALL_DIR})
 include_directories(${PUBLIC_LIB_NAME} ${TINYOBJLOADER_INSTALL_DIR})
 include_directories(${PUBLIC_LIB_NAME} ${STB_INSTALL_DIR})
 include_directories(${PUBLIC_LIB_NAME} ${LODEPNG_INSTALL_DIR})
+include_directories(${PUBLIC_LIB_NAME} ${TINYCOLORMAP_INSTALL_DIR})
 
 set_target_properties(${PUBLIC_LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 

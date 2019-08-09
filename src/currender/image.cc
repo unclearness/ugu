@@ -217,4 +217,74 @@ void BoxFilter(const Image3f& src, Image3f* dst, int kernel) {
   BoxFilterCpuIntegral(src, dst, kernel);
 }
 
+#ifdef CURRENDER_USE_TINYCOLORMAP
+void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
+                 float max_d, tinycolormap::ColormapType type) {
+  assert(min_d < max_d);
+  assert(vis_depth != nullptr);
+
+  vis_depth->Init(depth.width(), depth.height());
+
+  float inv_denom = 1.0f / (max_d - min_d);
+  for (int y = 0; y < vis_depth->height(); y++) {
+    for (int x = 0; x < vis_depth->width(); x++) {
+      auto d = depth.at(x, y, 0);
+
+      float norm_color = (d - min_d) * inv_denom;
+      norm_color = std::min(std::max(norm_color, 0.0f), 1.0f);
+
+      const tinycolormap::Color& color =
+          tinycolormap::GetColor(norm_color, type);
+
+      vis_depth->at(x, y, 0) = static_cast<uint8_t>(color.r() * 255);
+      vis_depth->at(x, y, 1) = static_cast<uint8_t>(color.g() * 255);
+      vis_depth->at(x, y, 2) = static_cast<uint8_t>(color.b() * 255);
+    }
+  }
+}
+void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
+                  int max_id, tinycolormap::ColormapType type) {
+  assert(vis_face_id != nullptr);
+
+  vis_face_id->Init(face_id.width(), face_id.height(), 0);
+
+  if (min_id < 0 || max_id < 0) {
+    std::vector<int> valid_ids;
+    for (const int i : face_id.data()) {
+      if (i >= 0) {
+        valid_ids.push_back(i);
+      }
+    }
+    if (min_id < 0) {
+      min_id = *std::min_element(valid_ids.begin(), valid_ids.end());
+    }
+    if (max_id < 0) {
+      max_id = *std::max_element(valid_ids.begin(), valid_ids.end());
+    }
+  }
+
+  assert(min_id < max_id);
+
+  float inv_denom = 1.0f / (max_id - min_id);
+  for (int y = 0; y < vis_face_id->height(); y++) {
+    for (int x = 0; x < vis_face_id->width(); x++) {
+      int fid = face_id.at(x, y, 0);
+      if (fid < 0) {
+        continue;
+      }
+
+      float norm_id = (fid - min_id) * inv_denom;
+      norm_id = std::min(std::max(norm_id, 0.0f), 1.0f);
+
+      const tinycolormap::Color& color = tinycolormap::GetColor(norm_id, type);
+
+      vis_face_id->at(x, y, 0) = static_cast<uint8_t>(color.r() * 255);
+      vis_face_id->at(x, y, 1) = static_cast<uint8_t>(color.g() * 255);
+      vis_face_id->at(x, y, 2) = static_cast<uint8_t>(color.b() * 255);
+    }
+  }
+}
+
+#endif
+
 }  // namespace currender

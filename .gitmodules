@@ -13,3 +13,6 @@
 [submodule "third_party/lodepng"]
 	path = third_party/lodepng
 	url = https://github.com/lvandeve/lodepng
+[submodule "third_party/tinycolormap"]
+	path = third_party/tinycolormap
+	url = https://github.com/yuki-koyama/tinycolormap.git
