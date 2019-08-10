@@ -22,7 +22,14 @@
 #endif
 
 #ifdef CURRENDER_USE_TINYCOLORMAP
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(disable : 4067)
+#endif
 #include "tinycolormap/include/tinycolormap.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 namespace currender {
@@ -211,11 +218,11 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id);
 void Depth2Color(
     const Image1f& depth, Image3b* vis_depth, float min_d = 200.0f,
     float max_d = 1500.0f,
-    tinycolormap::ColormapType type = tinycolormap::ColormapType::Cividis);
+    tinycolormap::ColormapType type = tinycolormap::ColormapType::Viridis);
 void FaceId2Color(
     const Image1i& face_id, Image3b* vis_face_id, int min_id = 0,
     int max_id = -1,
-    tinycolormap::ColormapType type = tinycolormap::ColormapType::Cividis);
+    tinycolormap::ColormapType type = tinycolormap::ColormapType::Viridis);
 #endif
 
 void BoxFilter(const Image1b& src, Image1b* dst, int kernel);
