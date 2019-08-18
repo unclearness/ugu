@@ -1,5 +1,5 @@
 # Currender: A CPU renderer for computer vision
-**Currender** is a CPU raytracing based rendering library written in C++.
+**Currender** is a CPU raytracing/rasterization based rendering library written in C++.
 With 3D triangular mesh and camera parameters, you can easily render color, depth, normal, mask and face id images.
 
 |color|depth|
@@ -30,7 +30,7 @@ Pros and cons against popular OpenGL based rendering are listed below.
   - No hardware or OS specific code is included.
 
 ## Cons
-- Slow for higher resolution due to the nature of raytracing.
+- Slow for higher resolution due to the nature of CPU processing.
 - Showing images on window is not supported. You should use external libraries for visualization.
 - Not desgined to render beautiful and realistic color images. Only simple diffuse shading is implemented. 
 
@@ -45,13 +45,21 @@ int main() {
   currender::RendererOption option;
   option.diffuse_color = currender::DiffuseColor::kVertex;
   option.diffuse_shading = currender::DiffuseShading::kLambertian;
-  currender::Renderer renderer(option);
+
+  // select Rasterizer or Raytracer
+#ifdef USE_RASTERIZER
+  std::unique_ptr<currender::Renderer> renderer =
+      std::make_unique<currender::Rasterizer>(option);
+#else
+  std::unique_ptr<currender::Renderer> renderer =
+      std::make_unique<currender::Raytracer>(option);
+#endif
 
   // set mesh
-  renderer.set_mesh(mesh);
+  renderer->set_mesh(mesh);
 
   // prepare mesh for rendering (e.g. make BVH)
-  renderer.PrepareMesh();
+  renderer->PrepareMesh();
 
   // make PinholeCamera (perspective camera) at origin.
   // its image size is 160 * 120 and its y (vertical) FoV is 50 deg.
@@ -65,7 +73,7 @@ int main() {
       focal_length);
 
   // set camera
-  renderer.set_camera(camera);
+  renderer->set_camera(camera);
 
   // render images
   currender::Image3b color;
@@ -73,7 +81,7 @@ int main() {
   currender::Image3f normal;
   currender::Image1b mask;
   currender::Image1i face_id;
-  renderer.Render(&color, &depth, &normal, &mask, &face_id);
+  renderer->Render(&color, &depth, &normal, &mask, &face_id);
 
   // save images
   SaveImages(color, depth, normal, mask, face_id);
@@ -109,9 +117,13 @@ Expected use cases are the following but not limited to
 - tinyobjloader
     https://github.com/syoyo/tinyobjloader
     - Load .obj
+- tinycolormap
+    https://github.com/yuki-koyama/tinycolormap
+    - Colorization of depth, face id, etc.
 - OpenMP
     (if supported by your compiler)
     - Multi-thread accelaration
+
 
 # Build
 - `git submodule update --init --recursive`

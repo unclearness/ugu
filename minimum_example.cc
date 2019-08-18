@@ -80,6 +80,8 @@ int main() {
   currender::RendererOption option;
   option.diffuse_color = currender::DiffuseColor::kVertex;
   option.diffuse_shading = currender::DiffuseShading::kLambertian;
+
+  // select Rasterizer or Raytracer
 #ifdef USE_RASTERIZER
   std::unique_ptr<currender::Renderer> renderer =
       std::make_unique<currender::Rasterizer>(option);
