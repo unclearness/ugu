@@ -5,9 +5,10 @@
 
 #pragma once
 
-#include "currender/renderer.h"
-
 #include <fstream>
+#include <memory>
+
+#include "currender/renderer.h"
 
 namespace currender {
 

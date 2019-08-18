@@ -205,7 +205,7 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
           w1 /= area;
           w2 /= area;
 #if 0
-         //original
+         // original
           pixel_sample.z() = w0 * v0_i.z() + w1 * v1_i.z() + w2 * v2_i.z();
 #else
           /** Perspective-Correct Interpolation **/
