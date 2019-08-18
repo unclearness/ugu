@@ -12,7 +12,7 @@
 #include "currender/raytracer.h"
 #include "currender/util.h"
 
-#define USE_RASTERIZER
+// #define USE_RASTERIZER
 
 using currender::Camera;
 using currender::Depth2Gray;

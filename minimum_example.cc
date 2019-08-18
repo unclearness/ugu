@@ -6,7 +6,7 @@
 #include "currender/rasterizer.h"
 #include "currender/raytracer.h"
 
-#define USE_RASTERIZER
+// #define USE_RASTERIZER
 
 namespace {
 
