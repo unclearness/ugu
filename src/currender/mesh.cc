@@ -771,7 +771,9 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
           if (write_uv_indices) {
             ofs << std::to_string(uv_indices_[f_idx][j] + 1);
           }
-          ofs << "/" << std::to_string(normal_indices_[f_idx][j] + 1);
+          if (write_normal_indices) {
+            ofs << "/" << std::to_string(normal_indices_[f_idx][j] + 1);
+          }
         }
         ofs << "\n";
       }
@@ -800,6 +802,11 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
 
   // update texture path
   for (auto& material : materials_) {
+    if (material.diffuse_texname.empty()) {
+      // default name
+      material.diffuse_texname = obj_basename + ".png";
+    }
+
     // replace extention with .png
     material.diffuse_texname =
         ReplaceExtention(material.diffuse_texname, ".png");
