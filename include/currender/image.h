@@ -89,8 +89,8 @@ class Image {
     int bpp;
 
     if (bit_depth_ == 2) {
-      in_pixels_tmp =
-          reinterpret_cast<unsigned char*>(stbi_load_16(path.c_str(), &width, &height, &bpp, channel_));
+      in_pixels_tmp = reinterpret_cast<unsigned char*>(
+          stbi_load_16(path.c_str(), &width, &height, &bpp, channel_));
     } else if (bit_depth_ == 1) {
       in_pixels_tmp = stbi_load(path.c_str(), &width, &height, &bpp, channel_);
     } else {
