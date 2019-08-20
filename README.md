@@ -16,6 +16,8 @@ Pros and cons against popular OpenGL based rendering are listed below.
 ## Pros
 - **Simple API, set mesh, set camera and render.**
   - You do not waste time in complex OpenGL settings.
+- **Less dependency.**
+  - Only you need is Eigen for minimal Rasterizer configration.
 - **Standard coordinate system in computer vision community**
   - Identical to OpenCV (right-handed, z:forward, y:down, x:right). You are not irritated by coordinate conversion for OpenGL.
 - **Intrinsic parameters (principal point and focal length in pixel-scale) with pinhole camera model**
@@ -32,7 +34,16 @@ Pros and cons against popular OpenGL based rendering are listed below.
 ## Cons
 - Slow for higher resolution due to the nature of CPU processing.
 - Showing images on window is not supported. You should use external libraries for visualization.
-- Not desgined to render beautiful and realistic color images. Only simple diffuse shading is implemented. 
+- Not desgined to render beautiful and realistic color images. Only simple diffuse shading is implemented.
+
+# Renderer
+You can choose **Raytracer** or **Rasterizer** as rendering algorithm.  
+
+- **Raytracer**
+    - Currently Raytracer is faster for rendering but it needs additional BVH construction time when you change mesh. Raytracer depends on NanoRT.
+
+- **Rasterizer**
+    - Rasterizer is slower but more portable. The only third party library you need is Eigen.
 
 # Usage
 This is the main function of `minimum_example.cc` to show simple usage of API. 
