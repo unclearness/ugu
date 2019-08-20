@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cassert>
+#include <iomanip>
 #include <limits>
 #include <string>
 

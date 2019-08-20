@@ -3,8 +3,6 @@
  * All rights reserved.
  */
 
-#pragma once
-
 #include "currender/util.h"
 
 #include <fstream>

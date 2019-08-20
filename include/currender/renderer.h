@@ -56,7 +56,7 @@ struct RendererOption {
 
   RendererOption() {}
   ~RendererOption() {}
-  void RendererOption::CopyTo(RendererOption* dst) const {
+  void CopyTo(RendererOption* dst) const {
     dst->diffuse_color = diffuse_color;
     dst->depth_scale = depth_scale;
     dst->interp = interp;

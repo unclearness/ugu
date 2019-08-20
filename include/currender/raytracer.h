@@ -43,7 +43,7 @@ class Raytracer : public Renderer {
   bool RenderDepth(Image1f* depth) const override;
   bool RenderNormal(Image3f* normal) const override;
   bool RenderMask(Image1b* mask) const override;
-  bool RenderFaceId(Image1i* face_id) const;
+  bool RenderFaceId(Image1i* face_id) const override;
 
   // These Image1w* depth interfaces are prepared for widely used 16 bit
   // (unsigned short) and mm-scale depth image format

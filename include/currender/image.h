@@ -83,14 +83,14 @@ class Image {
 
 #ifdef CURRENDER_USE_STB
   bool Load(const std::string& path) {
-    void* in_pixels_tmp;
+    unsigned char* in_pixels_tmp;
     int width;
     int height;
     int bpp;
 
     if (bit_depth_ == 2) {
       in_pixels_tmp =
-          stbi_load_16(path.c_str(), &width, &height, &bpp, channel_);
+          reinterpret_cast<unsigned char*>(stbi_load_16(path.c_str(), &width, &height, &bpp, channel_));
     } else if (bit_depth_ == 1) {
       in_pixels_tmp = stbi_load(path.c_str(), &width, &height, &bpp, channel_);
     } else {
