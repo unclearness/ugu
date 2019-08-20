@@ -104,10 +104,10 @@ Expected use cases are the following but not limited to
 - Eigen
     https://github.com/eigenteam/eigen-git-mirror
     - Math
+## Optional
 - NanoRT
     https://github.com/lighttransport/nanort
-    - Ray intersection acceralated by BVH
-## Optional
+    - Ray intersection acceralated by BVH for Raytracer
 - stb
     https://github.com/nothings/stb
     - Image I/O

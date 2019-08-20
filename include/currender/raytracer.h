@@ -5,6 +5,8 @@
 
 #pragma once
 
+#ifdef CURRENDER_USE_NANORT
+
 #include <memory>
 
 #include "currender/renderer.h"
@@ -53,3 +55,5 @@ class Raytracer : public Renderer {
 };
 
 }  // namespace currender
+
+#endif

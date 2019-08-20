@@ -112,6 +112,12 @@ if(CURRENDER_USE_OPENMP)
   add_definitions(-DCURRENDER_USE_OPENMP)
 endif()
 
+option(CURRENDER_USE_NANORT "Use NanoRT for Raytracer" ON)
+message("CURRENDER_USE_NANORT: ${CURRENDER_USE_NANORT}")
+if(CURRENDER_USE_NANORT)
+  add_definitions(-DCURRENDER_USE_NANORT)
+endif()
+
 # For OpenMP
 if(CURRENDER_USE_OPENMP)
   find_package(OpenMP REQUIRED)

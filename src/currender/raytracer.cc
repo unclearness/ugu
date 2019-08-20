@@ -3,6 +3,8 @@
  * All rights reserved.
  */
 
+#ifdef CURRENDER_USE_NANORT
+
 #include "currender/raytracer.h"
 
 #include <cassert>
@@ -387,3 +389,5 @@ bool Raytracer::RenderDepthW(Image1w* depth) const {
 }
 
 }  // namespace currender
+
+#endif
