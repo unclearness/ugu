@@ -46,22 +46,15 @@ class Image {
   Image() {}
   ~Image() {}
   Image(const Image<T, N>& src) { src.copyTo(*this); }
-  Image(int width, int height) { Init(width, height); }
-  Image(int width, int height, T val) { Init(width, height, val); }
   int width() const { return width_; }
   int height() const { return height_; }
   int channel() const { return channel_; }
   unsigned char* data;
+
   void Clear() {
     data_.clear();
     width_ = -1;
     height_ = -1;
-  }
-  bool empty() const {
-    if (width_ < 0 || height_ < 0 || data_.empty()) {
-      return true;
-    }
-    return false;
   }
   void Init(int width, int height, T val = 0) {
     Clear();
@@ -71,6 +64,12 @@ class Image {
     data = reinterpret_cast<unsigned char*>(&data_[0]);
   }
 
+  bool empty() const {
+    if (width_ < 0 || height_ < 0 || data_.empty()) {
+      return true;
+    }
+    return false;
+  }
 #ifdef CURRENDER_USE_STB
   bool Load(const std::string& path) {
     unsigned char* in_pixels_tmp;
@@ -182,6 +181,16 @@ class Image {
 };
 
 template <typename T, int N>
+void Clear(Image<T, N>* image) {
+  image->Clear();
+}
+
+template <typename T, int N>
+void Init(Image<T, N>* image, int width, int height, T val = 0) {
+  image->Init(width, height, val);
+}
+
+template <typename T, int N>
 T& at(Image<T, N>* image, int x, int y, int c) {
   assert(0 <= x && x < image->width() && 0 <= y && y < image->height() &&
          0 <= c && c < image->channel());
@@ -206,7 +215,7 @@ bool ConvertTo(const Image<T, N>& src, Image<TT, NN>* dst, float scale = 1.0f) {
     return false;
   }
 
-  dst->Init(src.width(), src.height());
+  Init(dst, src.width(), src.height());
 
   for (int y = 0; y < src.height(); y++) {
     for (int x = 0; x < src.width(); x++) {

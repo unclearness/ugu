@@ -139,20 +139,23 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   if (depth_ == nullptr) {
     depth_ = &depth_internal;
   }
-  depth_->Init(camera_->width(), camera_->height(), 0.0f);
+  Init(depth_, camera_->width(), camera_->height(), 0.0f);
 
   Image1i face_id_internal;
   Image1i* face_id_{face_id};
   if (face_id_ == nullptr) {
     face_id_ = &face_id_internal;
   }
-  face_id_->Init(camera_->width(), camera_->height(), -1);
+  Init(face_id_, camera_->width(), camera_->height(), -1);
 
   // 255: backface, 0:frontface
-  Image1b backface_image(camera_->width(), camera_->height(), 0);
+  Image1b backface_image;
+  Init(&backface_image, camera_->width(), camera_->height(),
+       static_cast<unsigned char>(0));
 
   // 0:(1 - u - v), 1:u, 2:v
-  Image3f weight_image(camera_->width(), camera_->height(), 0.0f);
+  Image3f weight_image;
+  Init(&weight_image, camera_->width(), camera_->height(), 0.0f);
 
   // make face id image by z-buffer method
   for (int i = 0; i < static_cast<int>(mesh_->vertex_indices().size()); i++) {

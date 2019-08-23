@@ -133,7 +133,7 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
   assert(min_d < max_d);
   assert(vis_depth != nullptr);
 
-  vis_depth->Init(depth.width(), depth.height());
+  Init(vis_depth, depth.width(), depth.height());
 
   float inv_denom = 1.0f / (max_d - min_d);
   for (int y = 0; y < vis_depth->height(); y++) {
@@ -151,7 +151,7 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
 void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
   assert(vis_normal != nullptr);
 
-  vis_normal->Init(normal.width(), normal.height());
+  Init(vis_normal, normal.width(), normal.height());
 
   // Followed https://en.wikipedia.org/wiki/Normal_mapping
   // X: -1 to +1 :  Red: 0 to 255
@@ -172,7 +172,8 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
 void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
   assert(vis_face_id != nullptr);
 
-  vis_face_id->Init(face_id.width(), face_id.height(), 0);
+  Init(vis_face_id, face_id.width(), face_id.height(),
+       static_cast<unsigned char>(0));
 
   std::unordered_map<int, std::array<uint8_t, 3>> id2color;
 
@@ -224,7 +225,7 @@ void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
   assert(min_d < max_d);
   assert(vis_depth != nullptr);
 
-  vis_depth->Init(depth.width(), depth.height());
+  Init(vis_depth, depth.width(), depth.height());
 
   float inv_denom = 1.0f / (max_d - min_d);
   for (int y = 0; y < vis_depth->height(); y++) {
@@ -247,7 +248,8 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
                   int max_id, tinycolormap::ColormapType type) {
   assert(vis_face_id != nullptr);
 
-  vis_face_id->Init(face_id.width(), face_id.height(), 0);
+  Init(vis_face_id, face_id.width(), face_id.height(),
+       static_cast<unsigned char>(0));
 
   if (min_id < 0 || max_id < 0) {
     std::vector<int> valid_ids;

@@ -69,20 +69,20 @@ bool ValidateAndInitBeforeRender(bool mesh_initialized,
   int height = camera->height();
 
   if (color != nullptr) {
-    color->Init(width, height);
+    Init(color, width, height);
   }
   if (depth != nullptr) {
-    depth->Init(width, height);
+    Init(depth, width, height);
   }
   if (normal != nullptr) {
-    normal->Init(width, height);
+    Init(normal, width, height);
   }
   if (mask != nullptr) {
-    mask->Init(width, height);
+    Init(mask, width, height);
   }
   if (face_id != nullptr) {
     // initialize with -1 (no hit)
-    face_id->Init(width, height, -1);
+    Init(face_id, width, height, -1);
   }
 
   return true;
