@@ -70,7 +70,7 @@ bool WriteMtl(const std::string& path,
   if (write_texture) {
     for (size_t i = 0; i < materials.size(); i++) {
       const currender::ObjMaterial& material = materials[i];
-      bool ret_write = material.diffuse_tex.WritePng(material.diffuse_texpath);
+      bool ret_write = WritePng(material.diffuse_tex, material.diffuse_texpath);
       if (ret) {
         ret = ret_write;
       }
@@ -524,7 +524,7 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
     std::ifstream ifs(materials_[i].diffuse_texpath);
     if (ifs.is_open()) {
 #ifdef CURRENDER_USE_STB
-      ret = materials_[i].diffuse_tex.Load(materials_[i].diffuse_texpath);
+      ret = Load(&materials_[i].diffuse_tex, materials_[i].diffuse_texpath);
 #else
       LOGW("define CURRENDER_USE_STB to load diffuse texture.\n");
 #endif

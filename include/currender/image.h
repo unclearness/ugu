@@ -57,6 +57,7 @@ class Image {
     height_ = -1;
   }
   void Init(int width, int height, T val = 0) {
+    static_assert(N > 0, "the number of channnels must be greater than 0");
     Clear();
     width_ = width;
     height_ = height;
@@ -70,6 +71,7 @@ class Image {
     }
     return false;
   }
+
 #ifdef CURRENDER_USE_STB
   bool Load(const std::string& path) {
     unsigned char* in_pixels_tmp;
@@ -188,6 +190,16 @@ void Clear(Image<T, N>* image) {
 template <typename T, int N>
 void Init(Image<T, N>* image, int width, int height, T val = 0) {
   image->Init(width, height, val);
+}
+
+template <typename T, int N>
+bool Load(Image<T, N>* image, const std::string& path) {
+  return image->Load(path);
+}
+
+template <typename T, int N>
+bool WritePng(const Image<T, N>& image, const std::string& path) {
+  return image.WritePng(path);
 }
 
 template <typename T, int N>

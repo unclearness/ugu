@@ -35,25 +35,25 @@ void SaveImages(const currender::Image3b& color,
   std::string save_dir = "../data/minimum_example/";
 
   // save color
-  color.WritePng(save_dir + "color.png");
+  WritePng(color, save_dir + "color.png");
 
   // save mask
-  mask.WritePng(save_dir + "mask.png");
+  WritePng(mask, save_dir + "mask.png");
 
   // convert depth to gray and save
   currender::Image1b vis_depth;
   currender::Depth2Gray(depth, &vis_depth);
-  vis_depth.WritePng(save_dir + "vis_depth.png");
+  WritePng(vis_depth, save_dir + "vis_depth.png");
 
   // convert normal to color and save
   currender::Image3b vis_normal;
   currender::Normal2Color(normal, &vis_normal);
-  vis_normal.WritePng(save_dir + "vis_normal.png");
+  WritePng(vis_normal, save_dir + "vis_normal.png");
 
   // convert face id to color and save
   currender::Image3b vis_face_id;
   currender::FaceId2RandomColor(face_id, &vis_face_id);
-  vis_face_id.WritePng(save_dir + "vis_face_id.png");
+  WritePng(vis_face_id, save_dir + "vis_face_id.png");
 
   printf("images are saved in %s\n", save_dir.c_str());
 }
