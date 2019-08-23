@@ -322,7 +322,7 @@ bool Raytracer::Impl::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
   bool org_ret = Render(color, &f_depth, normal, mask, face_id);
 
   if (org_ret) {
-    f_depth.ConvertTo(depth);
+    ConvertTo(f_depth, depth);
   }
 
   return org_ret;

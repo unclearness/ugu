@@ -45,7 +45,7 @@ class Image {
  public:
   Image() {}
   ~Image() {}
-  Image(const Image<T, N>& src) { src.CopyTo(this); }
+  Image(const Image<T, N>& src) { src.copyTo(*this); }
   Image(int width, int height) { Init(width, height); }
   Image(int width, int height, T val) { Init(width, height, val); }
   int width() const { return width_; }
@@ -166,27 +166,19 @@ class Image {
   }
 #endif
 
-  template <typename TT, int NN>
-  bool ConvertTo(Image<TT, NN>* dst, float scale = 1.0f) const {
-    if (channel_ != dst->channel()) {
+  bool copyTo(Image<T, N>& dst) const {
+    if (channel_ != dst.channel()) {
       LOGE("ConvertTo failed src channel %d, dst channel %d\n", channel_,
-           dst->channel());
+           dst.channel());
       return false;
     }
 
-    dst->Init(width_, height_);
+    dst.Init(width_, height_);
 
-    for (int y = 0; y < height_; y++) {
-      for (int x = 0; x < width_; x++) {
-        for (int c = 0; c < N; c++) {
-          at(dst, x, y, c) = static_cast<TT>(scale * at(*this, x, y, c));
-        }
-      }
-    }
+    std::memcpy(dst.data, data, sizeof(T) * height_ * width_ * channel_);
+
     return true;
   }
-
-  bool CopyTo(Image<T, N>* dst) const { return ConvertTo(dst, 1.0f); }
 };
 
 template <typename T, int N>
@@ -204,6 +196,27 @@ const T& at(const Image<T, N>& image, int x, int y, int c) {
          0 <= c && c < image.channel());
   return reinterpret_cast<T*>(image.data)[image.width() * image.channel() * y +
                                           x * image.channel() + c];
+}
+
+template <typename T, int N, typename TT, int NN>
+bool ConvertTo(const Image<T, N>& src, Image<TT, NN>* dst, float scale = 1.0f) {
+  if (src.channel() != dst->channel()) {
+    LOGE("ConvertTo failed src channel %d, dst channel %d\n", src.channel(),
+         dst->channel());
+    return false;
+  }
+
+  dst->Init(src.width(), src.height());
+
+  for (int y = 0; y < src.height(); y++) {
+    for (int x = 0; x < src.width(); x++) {
+      for (int c = 0; c < N; c++) {
+        at(dst, x, y, c) = static_cast<TT>(scale * at(src, x, y, c));
+      }
+    }
+  }
+
+  return true;
 }
 
 using Image1b = Image<uint8_t, 1>;   // For gray image.
