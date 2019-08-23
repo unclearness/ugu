@@ -14,19 +14,19 @@ bool Depth2PointCloudImpl(const currender::Image1f& depth,
                           const currender::Camera& camera,
                           currender::Mesh* point_cloud, bool with_texture,
                           bool gl_coord) {
-  if (depth.width() != camera.width() || depth.height() != camera.height()) {
+  if (depth.cols != camera.width() || depth.rows != camera.height()) {
     currender::LOGE(
         "Depth2PointCloud depth size (%d, %d) and camera size (%d, %d) are "
         "different\n",
-        depth.width(), depth.height(), camera.width(), camera.height());
+        depth.cols, depth.rows, camera.width(), camera.height());
     return false;
   }
 
   if (with_texture) {
     float depth_aspect_ratio =
-        static_cast<float>(depth.width()) / static_cast<float>(depth.height());
+        static_cast<float>(depth.cols) / static_cast<float>(depth.rows);
     float color_aspect_ratio =
-        static_cast<float>(color.width()) / static_cast<float>(color.height());
+        static_cast<float>(color.cols) / static_cast<float>(color.rows);
     const float aspect_ratio_diff_th{0.01f};  // 1%
     const float aspect_ratio_diff =
         std::abs(depth_aspect_ratio - color_aspect_ratio);
@@ -47,7 +47,7 @@ bool Depth2PointCloudImpl(const currender::Image1f& depth,
 
   for (int y = 0; y < camera.height(); y++) {
     for (int x = 0; x < camera.width(); x++) {
-      const float& d = depth.at(x, y, 0);
+      const float& d = depth.at<float>(y, x);
       if (d < std::numeric_limits<float>::min()) {
         continue;
       }
@@ -66,19 +66,21 @@ bool Depth2PointCloudImpl(const currender::Image1f& depth,
         // since uv 0 and 1 is pixel boundary at ends while pixel position is
         // the center of pixel
         Eigen::Vector2f uv(
-            static_cast<float>(x + 0.5f) / static_cast<float>(depth.width()),
-            static_cast<float>(y + 0.5f) / static_cast<float>(depth.height()));
+            static_cast<float>(x + 0.5f) / static_cast<float>(depth.cols),
+            static_cast<float>(y + 0.5f) / static_cast<float>(depth.rows));
 
         // nearest neighbor
         // todo: bilinear
         Eigen::Vector2i pixel_pos(
-            static_cast<int>(std::round(uv.x() * color.width())),
-            static_cast<int>(std::round(uv.y() * color.height())));
+            static_cast<int>(std::round(uv.x() * color.cols)),
+            static_cast<int>(std::round(uv.y() * color.rows)));
 
         Eigen::Vector3f pixel_color;
-        pixel_color.x() = color.at(pixel_pos.x(), pixel_pos.y(), 0);
-        pixel_color.y() = color.at(pixel_pos.x(), pixel_pos.y(), 1);
-        pixel_color.z() = color.at(pixel_pos.x(), pixel_pos.y(), 2);
+        const currender::Vec3b& tmp_color =
+            color.at<currender::Vec3b>(pixel_pos.y(), pixel_pos.x());
+        pixel_color.x() = tmp_color[0];
+        pixel_color.y() = tmp_color[1];
+        pixel_color.z() = tmp_color[2];
 
         vertex_colors.push_back(pixel_color);
       }
@@ -115,19 +117,19 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
     return false;
   }
 
-  if (depth.width() != camera.width() || depth.height() != camera.height()) {
+  if (depth.cols != camera.width() || depth.rows != camera.height()) {
     currender::LOGE(
         "Depth2Mesh depth size (%d, %d) and camera size (%d, %d) are "
         "different\n",
-        depth.width(), depth.height(), camera.width(), camera.height());
+        depth.cols, depth.rows, camera.width(), camera.height());
     return false;
   }
 
   if (with_texture) {
     float depth_aspect_ratio =
-        static_cast<float>(depth.width()) / static_cast<float>(depth.height());
+        static_cast<float>(depth.cols) / static_cast<float>(depth.rows);
     float color_aspect_ratio =
-        static_cast<float>(color.width()) / static_cast<float>(color.height());
+        static_cast<float>(color.cols) / static_cast<float>(color.rows);
     const float aspect_ratio_diff_th{0.01f};  // 1%
     const float aspect_ratio_diff =
         std::abs(depth_aspect_ratio - color_aspect_ratio);
@@ -146,11 +148,11 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
   std::vector<Eigen::Vector3f> vertices;
   std::vector<Eigen::Vector3i> vertex_indices;
 
-  std::vector<int> added_table(depth.width() * depth.height(), -1);
+  std::vector<int> added_table(depth.cols * depth.rows, -1);
   int vertex_id{0};
   for (int y = y_step; y < camera.height(); y += y_step) {
     for (int x = x_step; x < camera.width(); x += x_step) {
-      const float& d = depth.at(x, y, 0);
+      const float& d = depth.at<float>(y, x);
       if (d < std::numeric_limits<float>::min()) {
         continue;
       }
@@ -172,9 +174,10 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
         // since uv 0 and 1 is pixel boundary at ends while pixel position is
         // the center of pixel
         uvs.emplace_back(
-            static_cast<float>(x + 0.5f) / static_cast<float>(depth.width()),
-            1.0f - static_cast<float>(y + 0.5f) /
-                       static_cast<float>(depth.height()));
+
+            static_cast<float>(x + 0.5f) / static_cast<float>(depth.cols),
+            1.0f -
+                static_cast<float>(y + 0.5f) / static_cast<float>(depth.rows));
       }
 
       added_table[y * camera.width() + x] = vertex_id;
@@ -186,9 +189,9 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
       const int& left_index = added_table[y * camera.width() + (x - x_step)];
 
       const float upper_left_diff =
-          std::abs(depth.at(x - x_step, y - y_step, 0) - d);
-      const float upper_diff = std::abs(depth.at(x, y - y_step, 0) - d);
-      const float left_diff = std::abs(depth.at(x - x_step, y, 0) - d);
+          std::abs(depth.at<float>(y - y_step, x - x_step) - d);
+      const float upper_diff = std::abs(depth.at<float>(y - y_step, x) - d);
+      const float left_diff = std::abs(depth.at<float>(y, x - x_step) - d);
 
       if (upper_left_index > 0 && upper_index > 0 &&
           upper_left_diff < max_connect_z_diff &&
@@ -215,8 +218,9 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
   if (with_texture) {
     mesh->set_uv(uvs);
     mesh->set_uv_indices(vertex_indices);
+
     currender::ObjMaterial material;
-    color.CopyTo(&material.diffuse_tex);
+    color.copyTo(material.diffuse_tex);
     material.name = material_name;
     std::vector<currender::ObjMaterial> materials;
     materials.push_back(material);
@@ -233,22 +237,22 @@ namespace currender {
 
 bool Depth2PointCloud(const Image1f& depth, const Camera& camera,
                       Image3f* point_cloud, bool gl_coord) {
-  if (depth.width() != camera.width() || depth.height() != camera.height()) {
+  if (depth.cols != camera.width() || depth.rows != camera.height()) {
     currender::LOGE(
         "Depth2PointCloud depth size (%d, %d) and camera size (%d, %d) are "
         "different\n",
-        depth.width(), depth.height(), camera.width(), camera.height());
+        depth.cols, depth.rows, camera.width(), camera.height());
     return false;
   }
 
-  point_cloud->Init(depth.width(), depth.height(), 0.0f);
+  Init(point_cloud, depth.cols, depth.rows, 0.0f);
 
 #if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int y = 0; y < camera.height(); y++) {
     for (int x = 0; x < camera.width(); x++) {
-      const float& d = depth.at(x, y, 0);
+      const float& d = depth.at<float>(y, x);
       if (d < std::numeric_limits<float>::min()) {
         continue;
       }
@@ -256,14 +260,16 @@ bool Depth2PointCloud(const Image1f& depth, const Camera& camera,
       Eigen::Vector3f image_p(static_cast<float>(x), static_cast<float>(y), d);
       Eigen::Vector3f camera_p;
       camera.Unproject(image_p, &camera_p);
+
       if (gl_coord) {
         // flip y and z to align with OpenGL coordinate
         camera_p.y() = -camera_p.y();
         camera_p.z() = -camera_p.z();
       }
-      point_cloud->at(x, y, 0) = camera_p[0];
-      point_cloud->at(x, y, 1) = camera_p[1];
-      point_cloud->at(x, y, 2) = camera_p[2];
+      Vec3f& pc = point_cloud->at<Vec3f>(y, x);
+      pc[0] = camera_p[0];
+      pc[1] = camera_p[1];
+      pc[2] = camera_p[2];
     }
   }
 
@@ -304,9 +310,9 @@ void WriteFaceIdAsText(const Image1i& face_id, const std::string& path) {
   std::ofstream ofs;
   ofs.open(path, std::ios::out);
 
-  for (int y = 0; y < face_id.height(); y++) {
-    for (int x = 0; x < face_id.width(); x++) {
-      ofs << face_id.at(x, y, 0) << std::endl;
+  for (int y = 0; y < face_id.rows; y++) {
+    for (int x = 0; x < face_id.cols; x++) {
+      ofs << face_id.at<int>(y, x) << std::endl;
     }
   }
 }

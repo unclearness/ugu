@@ -225,9 +225,8 @@ inline void DiffuseDefaultColorizer::Process(
   int x = input.x;
   int y = input.y;
 
-  color->at(x, y, 0) = 255;
-  color->at(x, y, 1) = 255;
-  color->at(x, y, 2) = 255;
+  std::memset(&color->data[color->width() * 3 * y + x * 3], 255,
+              sizeof(unsigned char) * 3);
 }
 
 inline DiffuseVertexColorColorizer::DiffuseVertexColorColorizer() {}
@@ -251,7 +250,7 @@ inline void DiffuseVertexColorColorizer::Process(
                  v * vertex_colors[faces[face_index][2]];
 
   for (int k = 0; k < 3; k++) {
-    color->at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
+    at(color, x, y, k) = static_cast<unsigned char>(interp_color[k]);
   }
 }
 
@@ -286,11 +285,11 @@ inline void DiffuseTextureNnColorizer::Process(
   tex_pos[0] = static_cast<int>(std::round(f_tex_pos[0]));
   tex_pos[1] = static_cast<int>(std::round(f_tex_pos[1]));
   for (int k = 0; k < 3; k++) {
-    interp_color[k] = diffuse_texture.at(tex_pos[0], tex_pos[1], k);
+    interp_color[k] = at(diffuse_texture, tex_pos[0], tex_pos[1], k);
   }
 
   for (int k = 0; k < 3; k++) {
-    color->at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
+    at(color, x, y, k) = static_cast<unsigned char>(interp_color[k]);
   }
 }
 
@@ -335,19 +334,19 @@ inline void DiffuseTextureBilinearColorizer::Process(
     // bilinear interpolation of pixel color
     interp_color[k] =
         (1.0f - local_u) * (1.0f - local_v) *
-            diffuse_texture.at(tex_pos_min[0], tex_pos_min[1], k) +
+            at(diffuse_texture, tex_pos_min[0], tex_pos_min[1], k) +
         local_u * (1.0f - local_v) *
-            diffuse_texture.at(tex_pos_max[0], tex_pos_min[1], k) +
+            at(diffuse_texture, tex_pos_max[0], tex_pos_min[1], k) +
         (1.0f - local_u) * local_v *
-            diffuse_texture.at(tex_pos_min[0], tex_pos_max[1], k) +
+            at(diffuse_texture, tex_pos_min[0], tex_pos_max[1], k) +
         local_u * local_v *
-            diffuse_texture.at(tex_pos_max[0], tex_pos_max[1], k);
+            at(diffuse_texture, tex_pos_max[0], tex_pos_max[1], k);
 
     assert(0.0f <= interp_color[k] && interp_color[k] <= 255.0f);
   }
 
   for (int k = 0; k < 3; k++) {
-    color->at(x, y, k) = static_cast<unsigned char>(interp_color[k]);
+    at(color, x, y, k) = static_cast<unsigned char>(interp_color[k]);
   }
 }
 
@@ -375,7 +374,7 @@ inline void DiffuseLambertianShader::Process(
   }
 
   for (int k = 0; k < 3; k++) {
-    color->at(x, y, k) = static_cast<uint8_t>(coeff * color->at(x, y, k));
+    at(color, x, y, k) = static_cast<uint8_t>(coeff * at(color, x, y, k));
   }
 }
 
@@ -408,7 +407,7 @@ inline void DiffuseOrenNayarShader::Process(
   int x = input.x;
   int y = input.y;
   for (int k = 0; k < 3; k++) {
-    color->at(x, y, k) = static_cast<uint8_t>(coeff * color->at(x, y, k));
+    at(color, x, y, k) = static_cast<uint8_t>(coeff * at(color, x, y, k));
   }
 }
 

@@ -70,16 +70,6 @@ class Image {
     data_.resize(height_ * width_ * channel_, val);
     data = reinterpret_cast<unsigned char*>(&data_[0]);
   }
-  T& at(int x, int y, int c) {
-    assert(0 <= x && x < width_ && 0 <= y && y < height_ && 0 <= c &&
-           c < channel_);
-    return data_[width_ * channel_ * y + x * channel_ + c];
-  }
-  const T& at(int x, int y, int c) const {
-    assert(0 <= x && x < width_ && 0 <= y && y < height_ && 0 <= c &&
-           c < channel_);
-    return data_[width_ * channel_ * y + x * channel_ + c];
-  }
 
 #ifdef CURRENDER_USE_STB
   bool Load(const std::string& path) {
@@ -108,6 +98,7 @@ class Image {
     width_ = width;
     height_ = height;
     data_.resize(height_ * width_ * channel_);
+    data = &data_[0];
 
     std::memcpy(&data_[0], in_pixels_tmp,
                 sizeof(T) * channel_ * width_ * height_);
@@ -130,7 +121,7 @@ class Image {
     const int kLeastMask = ~kMostMask;
     for (int y = 0; y < height_; y++) {
       for (int x = 0; x < width_; x++) {
-        std::uint16_t d = at(x, y, 0);
+        std::uint16_t d = at(*this, x, y, 0);
         data_8bit[2 * width_ * y + 2 * x + 0] = static_cast<unsigned char>(
             (d & kMostMask) >> 8);  // most significant
         data_8bit[2 * width_ * y + 2 * x + 1] =
@@ -188,7 +179,7 @@ class Image {
     for (int y = 0; y < height_; y++) {
       for (int x = 0; x < width_; x++) {
         for (int c = 0; c < N; c++) {
-          dst->at(x, y, c) = static_cast<TT>(scale * at(x, y, c));
+          at(dst, x, y, c) = static_cast<TT>(scale * at(*this, x, y, c));
         }
       }
     }
@@ -197,6 +188,23 @@ class Image {
 
   bool CopyTo(Image<T, N>* dst) const { return ConvertTo(dst, 1.0f); }
 };
+
+template <typename T, int N>
+T& at(Image<T, N>* image, int x, int y, int c) {
+  assert(0 <= x && x < image->width() && 0 <= y && y < image->height() &&
+         0 <= c && c < image->channel());
+  return reinterpret_cast<T*>(
+      image->data)[image->width() * image->channel() * y +
+                   x * image->channel() + c];
+}
+
+template <typename T, int N>
+const T& at(const Image<T, N>& image, int x, int y, int c) {
+  assert(0 <= x && x < image.width() && 0 <= y && y < image.height() &&
+         0 <= c && c < image.channel());
+  return reinterpret_cast<T*>(image.data)[image.width() * image.channel() * y +
+                                          x * image.channel() + c];
+}
 
 using Image1b = Image<uint8_t, 1>;   // For gray image.
 using Image3b = Image<uint8_t, 3>;   // For color image. RGB order.
