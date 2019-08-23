@@ -51,8 +51,7 @@ class Image {
   int width() const { return width_; }
   int height() const { return height_; }
   int channel() const { return channel_; }
-  const std::vector<T>& data() const { return data_; }
-  std::vector<T>* data_ptr() { return &data_; }
+  unsigned char* data;
   void Clear() {
     data_.clear();
     width_ = -1;
@@ -69,6 +68,7 @@ class Image {
     width_ = width;
     height_ = height;
     data_.resize(height_ * width_ * channel_, val);
+    data = reinterpret_cast<unsigned char*>(&data_[0]);
   }
   T& at(int x, int y, int c) {
     assert(0 <= x && x < width_ && 0 <= y && y < height_ && 0 <= c &&

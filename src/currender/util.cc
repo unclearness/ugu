@@ -146,7 +146,7 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
   std::vector<Eigen::Vector3f> vertices;
   std::vector<Eigen::Vector3i> vertex_indices;
 
-  std::vector<int> added_table(depth.data().size(), -1);
+  std::vector<int> added_table(depth.width() * depth.height(), -1);
   int vertex_id{0};
   for (int y = y_step; y < camera.height(); y += y_step) {
     for (int x = x_step; x < camera.width(); x += x_step) {

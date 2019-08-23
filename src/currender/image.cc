@@ -120,7 +120,8 @@ void BoxFilterCpuIntegral(const currender::Image<T, N>& src,
   assert(src.channel() == dst->channel());
 
   BoxFilterCpuIntegral(src.width(), src.height(), src.channel(), kernel,
-                       &src.data()[0], &((*dst->data_ptr())[0]));
+                       reinterpret_cast<T*>(src.data),
+                       reinterpret_cast<T*>(dst->data));
 }
 
 }  // namespace
@@ -250,9 +251,10 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
 
   if (min_id < 0 || max_id < 0) {
     std::vector<int> valid_ids;
-    for (const int i : face_id.data()) {
+    int* face_id_data = reinterpret_cast<int*>(face_id.data);
+    for (int i = 0; i < face_id.width() * face_id.height(); i++) {
       if (i >= 0) {
-        valid_ids.push_back(i);
+        valid_ids.push_back(face_id_data[i]);
       }
     }
     if (min_id < 0) {
