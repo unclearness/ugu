@@ -238,8 +238,8 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   }
 
   // make images by referring to face id image
-  for (int y = 0; y < backface_image.height(); y++) {
-    for (int x = 0; x < backface_image.width(); x++) {
+  for (int y = 0; y < backface_image.rows; y++) {
+    for (int x = 0; x < backface_image.cols; x++) {
       if (option_.backface_culling && at(backface_image, x, y, 0) == 255) {
         at(depth_, x, y, 0) = 0.0f;
         at(face_id_, x, y, 0) = -1;

@@ -46,9 +46,10 @@ class Image {
   Image() {}
   ~Image() {}
   Image(const Image<T, N>& src) { src.copyTo(*this); }
-  int width() const { return width_; }
-  int height() const { return height_; }
   int channel() const { return channel_; }
+
+  int rows;
+  int cols;
   unsigned char* data;
 
   void Clear() {
@@ -63,6 +64,8 @@ class Image {
     height_ = height;
     data_.resize(height_ * width_ * channel_, val);
     data = reinterpret_cast<unsigned char*>(&data_[0]);
+    rows = height;
+    cols = width;
   }
 
   bool empty() const {
@@ -100,6 +103,8 @@ class Image {
     height_ = height;
     data_.resize(height_ * width_ * channel_);
     data = &data_[0];
+    cols = width;
+    rows = height;
 
     std::memcpy(&data_[0], in_pixels_tmp,
                 sizeof(T) * channel_ * width_ * height_);
@@ -204,19 +209,18 @@ bool WritePng(const Image<T, N>& image, const std::string& path) {
 
 template <typename T, int N>
 T& at(Image<T, N>* image, int x, int y, int c) {
-  assert(0 <= x && x < image->width() && 0 <= y && y < image->height() &&
-         0 <= c && c < image->channel());
-  return reinterpret_cast<T*>(
-      image->data)[image->width() * image->channel() * y +
-                   x * image->channel() + c];
+  assert(0 <= x && x < image->cols && 0 <= y && y < image->rows && 0 <= c &&
+         c < image->channel());
+  return reinterpret_cast<T*>(image->data)[image->cols * image->channel() * y +
+                                           x * image->channel() + c];
 }
 
 template <typename T, int N>
 const T& at(const Image<T, N>& image, int x, int y, int c) {
-  assert(0 <= x && x < image.width() && 0 <= y && y < image.height() &&
-         0 <= c && c < image.channel());
-  return reinterpret_cast<T*>(image.data)[image.width() * image.channel() * y +
-                                          x * image.channel() + c];
+  assert(0 <= x && x < image.cols && 0 <= y && y < image.rows && 0 <= c &&
+         c < image.channel());
+  return reinterpret_cast<T*>(
+      image.data)[image.cols * image.channel() * y + x * image.channel() + c];
 }
 
 template <typename T, int N, typename TT, int NN>
@@ -227,10 +231,10 @@ bool ConvertTo(const Image<T, N>& src, Image<TT, NN>* dst, float scale = 1.0f) {
     return false;
   }
 
-  Init(dst, src.width(), src.height());
+  Init(dst, src.cols, src.rows);
 
-  for (int y = 0; y < src.height(); y++) {
-    for (int x = 0; x < src.width(); x++) {
+  for (int y = 0; y < src.rows; y++) {
+    for (int x = 0; x < src.cols; x++) {
       for (int c = 0; c < N; c++) {
         at(dst, x, y, c) = static_cast<TT>(scale * at(src, x, y, c));
       }

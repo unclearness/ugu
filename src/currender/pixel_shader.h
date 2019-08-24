@@ -225,7 +225,7 @@ inline void DiffuseDefaultColorizer::Process(
   int x = input.x;
   int y = input.y;
 
-  std::memset(&color->data[color->width() * 3 * y + x * 3], 255,
+  std::memset(&color->data[color->cols * 3 * y + x * 3], 255,
               sizeof(unsigned char) * 3);
 }
 
@@ -277,8 +277,8 @@ inline void DiffuseTextureNnColorizer::Process(
                               u * uv[uv_indices[face_index][1]] +
                               v * uv[uv_indices[face_index][2]];
   float f_tex_pos[2];
-  f_tex_pos[0] = interp_uv[0] * (diffuse_texture.width() - 1);
-  f_tex_pos[1] = (1.0f - interp_uv[1]) * (diffuse_texture.height() - 1);
+  f_tex_pos[0] = interp_uv[0] * (diffuse_texture.cols - 1);
+  f_tex_pos[1] = (1.0f - interp_uv[1]) * (diffuse_texture.rows - 1);
 
   int tex_pos[2] = {0, 0};
   // get nearest integer index by round
@@ -317,8 +317,8 @@ inline void DiffuseTextureBilinearColorizer::Process(
                               u * uv[uv_indices[face_index][1]] +
                               v * uv[uv_indices[face_index][2]];
   float f_tex_pos[2];
-  f_tex_pos[0] = interp_uv[0] * (diffuse_texture.width() - 1);
-  f_tex_pos[1] = (1.0f - interp_uv[1]) * (diffuse_texture.height() - 1);
+  f_tex_pos[0] = interp_uv[0] * (diffuse_texture.cols - 1);
+  f_tex_pos[1] = (1.0f - interp_uv[1]) * (diffuse_texture.rows - 1);
 
   int tex_pos_min[2] = {0, 0};
   int tex_pos_max[2] = {0, 0};

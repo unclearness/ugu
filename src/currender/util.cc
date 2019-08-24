@@ -116,7 +116,6 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
     currender::LOGE("Depth2Mesh y_step must be positive %d\n", y_step);
     return false;
   }
-
   if (depth.cols != camera.width() || depth.rows != camera.height()) {
     currender::LOGE(
         "Depth2Mesh depth size (%d, %d) and camera size (%d, %d) are "
@@ -174,7 +173,6 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
         // since uv 0 and 1 is pixel boundary at ends while pixel position is
         // the center of pixel
         uvs.emplace_back(
-
             static_cast<float>(x + 0.5f) / static_cast<float>(depth.cols),
             1.0f -
                 static_cast<float>(y + 0.5f) / static_cast<float>(depth.rows));

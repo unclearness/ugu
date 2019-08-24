@@ -115,11 +115,11 @@ void BoxFilterCpuIntegral(int width, int height, int channel, int kernel,
 template <typename T, int N>
 void BoxFilterCpuIntegral(const currender::Image<T, N>& src,
                           currender::Image<T, N>* dst, int kernel) {
-  assert(src.height() == dst->height());
-  assert(src.width() == dst->width());
+  assert(src.rows == dst->rows);
+  assert(src.cols == dst->cols);
   assert(src.channel() == dst->channel());
 
-  BoxFilterCpuIntegral(src.width(), src.height(), src.channel(), kernel,
+  BoxFilterCpuIntegral(src.cols, src.rows, src.channel(), kernel,
                        reinterpret_cast<T*>(src.data),
                        reinterpret_cast<T*>(dst->data));
 }
@@ -133,11 +133,11 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
   assert(min_d < max_d);
   assert(vis_depth != nullptr);
 
-  Init(vis_depth, depth.width(), depth.height());
+  Init(vis_depth, depth.cols, depth.rows);
 
   float inv_denom = 1.0f / (max_d - min_d);
-  for (int y = 0; y < vis_depth->height(); y++) {
-    for (int x = 0; x < vis_depth->width(); x++) {
+  for (int y = 0; y < vis_depth->rows; y++) {
+    for (int x = 0; x < vis_depth->cols; x++) {
       auto d = at(depth, x, y, 0);
 
       float norm_color = (d - min_d) * inv_denom;
@@ -151,14 +151,14 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
 void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
   assert(vis_normal != nullptr);
 
-  Init(vis_normal, normal.width(), normal.height());
+  Init(vis_normal, normal.cols, normal.rows);
 
   // Followed https://en.wikipedia.org/wiki/Normal_mapping
   // X: -1 to +1 :  Red: 0 to 255
   // Y: -1 to +1 :  Green: 0 to 255
   // Z: 0 to -1 :  Blue: 128 to 255
-  for (int y = 0; y < vis_normal->height(); y++) {
-    for (int x = 0; x < vis_normal->width(); x++) {
+  for (int y = 0; y < vis_normal->rows; y++) {
+    for (int x = 0; x < vis_normal->cols; x++) {
       at(vis_normal, x, y, 0) = static_cast<uint8_t>(
           std::round((at(normal, x, y, 0) + 1.0) * 0.5 * 255));
       at(vis_normal, x, y, 1) = static_cast<uint8_t>(
@@ -172,13 +172,13 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
 void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
   assert(vis_face_id != nullptr);
 
-  Init(vis_face_id, face_id.width(), face_id.height(),
+  Init(vis_face_id, face_id.cols, face_id.rows,
        static_cast<unsigned char>(0));
 
   std::unordered_map<int, std::array<uint8_t, 3>> id2color;
 
-  for (int y = 0; y < vis_face_id->height(); y++) {
-    for (int x = 0; x < vis_face_id->width(); x++) {
+  for (int y = 0; y < vis_face_id->rows; y++) {
+    for (int x = 0; x < vis_face_id->cols; x++) {
       int fid = at(face_id, x, y, 0);
       if (fid < 0) {
         continue;
@@ -225,11 +225,11 @@ void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
   assert(min_d < max_d);
   assert(vis_depth != nullptr);
 
-  Init(vis_depth, depth.width(), depth.height());
+  Init(vis_depth, depth.cols, depth.rows);
 
   float inv_denom = 1.0f / (max_d - min_d);
-  for (int y = 0; y < vis_depth->height(); y++) {
-    for (int x = 0; x < vis_depth->width(); x++) {
+  for (int y = 0; y < vis_depth->rows; y++) {
+    for (int x = 0; x < vis_depth->cols; x++) {
       auto d = at(depth, x, y, 0);
 
       float norm_color = (d - min_d) * inv_denom;
@@ -248,13 +248,13 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
                   int max_id, tinycolormap::ColormapType type) {
   assert(vis_face_id != nullptr);
 
-  Init(vis_face_id, face_id.width(), face_id.height(),
+  Init(vis_face_id, face_id.cols, face_id.rows,
        static_cast<unsigned char>(0));
 
   if (min_id < 0 || max_id < 0) {
     std::vector<int> valid_ids;
     int* face_id_data = reinterpret_cast<int*>(face_id.data);
-    for (int i = 0; i < face_id.width() * face_id.height(); i++) {
+    for (int i = 0; i < face_id.cols * face_id.rows; i++) {
       if (i >= 0) {
         valid_ids.push_back(face_id_data[i]);
       }
@@ -270,8 +270,8 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
   assert(min_id < max_id);
 
   float inv_denom = 1.0f / (max_id - min_id);
-  for (int y = 0; y < vis_face_id->height(); y++) {
-    for (int x = 0; x < vis_face_id->width(); x++) {
+  for (int y = 0; y < vis_face_id->rows; y++) {
+    for (int x = 0; x < vis_face_id->cols; x++) {
       int fid = at(face_id, x, y, 0);
       if (fid < 0) {
         continue;
