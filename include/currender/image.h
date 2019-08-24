@@ -40,13 +40,13 @@ class Image {
   int width_{-1};
   int height_{-1};
   const int bit_depth_{sizeof(T)};
-  const int channel_{N};
+  const int channels_{N};
 
  public:
   Image() {}
   ~Image() {}
   Image(const Image<T, N>& src) { src.copyTo(*this); }
-  int channel() const { return channel_; }
+  int channels() const { return channels_; }
 
   int rows;
   int cols;
@@ -62,7 +62,7 @@ class Image {
     Clear();
     width_ = width;
     height_ = height;
-    data_.resize(height_ * width_ * channel_, val);
+    data_.resize(height_ * width_ * channels_, val);
     data = reinterpret_cast<unsigned char*>(&data_[0]);
     rows = height;
     cols = width;
@@ -84,30 +84,30 @@ class Image {
 
     if (bit_depth_ == 2) {
       in_pixels_tmp = reinterpret_cast<unsigned char*>(
-          stbi_load_16(path.c_str(), &width, &height, &bpp, channel_));
+          stbi_load_16(path.c_str(), &width, &height, &bpp, channels_));
     } else if (bit_depth_ == 1) {
-      in_pixels_tmp = stbi_load(path.c_str(), &width, &height, &bpp, channel_);
+      in_pixels_tmp = stbi_load(path.c_str(), &width, &height, &bpp, channels_);
     } else {
       LOGE("Load() for bit_depth %d and channel %d is not supported\n",
-           bit_depth_, channel_);
+           bit_depth_, channels_);
       return false;
     }
 
-    if (bpp != channel_) {
+    if (bpp != channels_) {
       delete in_pixels_tmp;
-      LOGE("desired channel %d, actual %d\n", channel_, bpp);
+      LOGE("desired channel %d, actual %d\n", channels_, bpp);
       return false;
     }
 
     width_ = width;
     height_ = height;
-    data_.resize(height_ * width_ * channel_);
+    data_.resize(height_ * width_ * channels_);
     data = &data_[0];
     cols = width;
     rows = height;
 
     std::memcpy(&data_[0], in_pixels_tmp,
-                sizeof(T) * channel_ * width_ * height_);
+                sizeof(T) * channels_ * width_ * height_);
     delete in_pixels_tmp;
 
     return true;
@@ -116,9 +116,9 @@ class Image {
 #ifdef CURRENDER_USE_LODEPNG
   // https://github.com/lvandeve/lodepng/issues/74#issuecomment-405049566
   bool WritePng16Bit1Channel(const std::string& path) const {
-    if (bit_depth_ != 2 || channel_ != 1) {
+    if (bit_depth_ != 2 || channels_ != 1) {
       LOGE("WritePng16Bit1Channel invalid bit_depth %d or channel %d\n",
-           bit_depth_, channel_);
+           bit_depth_, channels_);
       return false;
     }
     std::vector<unsigned char> data_8bit;
@@ -150,7 +150,7 @@ class Image {
 
   bool WritePng(const std::string& path) const {
 #ifdef CURRENDER_USE_LODEPNG
-    if (bit_depth_ == 2 && channel_ == 1) {
+    if (bit_depth_ == 2 && channels_ == 1) {
       return WritePng16Bit1Channel(path);
     }
 #endif
@@ -166,22 +166,22 @@ class Image {
       return false;
     }
 
-    stbi_write_png(path.c_str(), width_, height_, channel_, &data_[0],
-                   width_ * channel_ * sizeof(T));
+    stbi_write_png(path.c_str(), width_, height_, channels_, &data_[0],
+                   width_ * channels_ * sizeof(T));
     return true;
   }
 #endif
 
   bool copyTo(Image<T, N>& dst) const {
-    if (channel_ != dst.channel()) {
-      LOGE("ConvertTo failed src channel %d, dst channel %d\n", channel_,
-           dst.channel());
+    if (channels_ != dst.channels()) {
+      LOGE("ConvertTo failed src channel %d, dst channel %d\n", channels_,
+           dst.channels());
       return false;
     }
 
     dst.Init(width_, height_);
 
-    std::memcpy(dst.data, data, sizeof(T) * height_ * width_ * channel_);
+    std::memcpy(dst.data, data, sizeof(T) * height_ * width_ * channels_);
 
     return true;
   }
@@ -210,24 +210,24 @@ bool WritePng(const Image<T, N>& image, const std::string& path) {
 template <typename T, int N>
 T& at(Image<T, N>* image, int x, int y, int c) {
   assert(0 <= x && x < image->cols && 0 <= y && y < image->rows && 0 <= c &&
-         c < image->channel());
-  return reinterpret_cast<T*>(image->data)[image->cols * image->channel() * y +
-                                           x * image->channel() + c];
+         c < image->channels());
+  return reinterpret_cast<T*>(image->data)[image->cols * image->channels() * y +
+                                           x * image->channels() + c];
 }
 
 template <typename T, int N>
 const T& at(const Image<T, N>& image, int x, int y, int c) {
   assert(0 <= x && x < image.cols && 0 <= y && y < image.rows && 0 <= c &&
-         c < image.channel());
+         c < image.channels());
   return reinterpret_cast<T*>(
-      image.data)[image.cols * image.channel() * y + x * image.channel() + c];
+      image.data)[image.cols * image.channels() * y + x * image.channels() + c];
 }
 
 template <typename T, int N, typename TT, int NN>
 bool ConvertTo(const Image<T, N>& src, Image<TT, NN>* dst, float scale = 1.0f) {
-  if (src.channel() != dst->channel()) {
-    LOGE("ConvertTo failed src channel %d, dst channel %d\n", src.channel(),
-         dst->channel());
+  if (src.channels() != dst->channels()) {
+    LOGE("ConvertTo failed src channel %d, dst channel %d\n", src.channels(),
+         dst->channels());
     return false;
   }
 

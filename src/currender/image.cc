@@ -117,9 +117,9 @@ void BoxFilterCpuIntegral(const currender::Image<T, N>& src,
                           currender::Image<T, N>* dst, int kernel) {
   assert(src.rows == dst->rows);
   assert(src.cols == dst->cols);
-  assert(src.channel() == dst->channel());
+  assert(src.channels() == dst->channels());
 
-  BoxFilterCpuIntegral(src.cols, src.rows, src.channel(), kernel,
+  BoxFilterCpuIntegral(src.cols, src.rows, src.channels(), kernel,
                        reinterpret_cast<T*>(src.data),
                        reinterpret_cast<T*>(dst->data));
 }
@@ -172,8 +172,7 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
 void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
   assert(vis_face_id != nullptr);
 
-  Init(vis_face_id, face_id.cols, face_id.rows,
-       static_cast<unsigned char>(0));
+  Init(vis_face_id, face_id.cols, face_id.rows, static_cast<unsigned char>(0));
 
   std::unordered_map<int, std::array<uint8_t, 3>> id2color;
 
@@ -248,8 +247,7 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
                   int max_id, tinycolormap::ColormapType type) {
   assert(vis_face_id != nullptr);
 
-  Init(vis_face_id, face_id.cols, face_id.rows,
-       static_cast<unsigned char>(0));
+  Init(vis_face_id, face_id.cols, face_id.rows, static_cast<unsigned char>(0));
 
   if (min_id < 0 || max_id < 0) {
     std::vector<int> valid_ids;
