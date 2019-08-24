@@ -127,7 +127,7 @@ class Image {
     const int kLeastMask = ~kMostMask;
     for (int y = 0; y < height_; y++) {
       for (int x = 0; x < width_; x++) {
-        std::uint16_t d = at(*this, x, y, 0);
+        std::uint16_t d = At(*this, x, y, 0);
         data_8bit[2 * width_ * y + 2 * x + 0] = static_cast<unsigned char>(
             (d & kMostMask) >> 8);  // most significant
         data_8bit[2 * width_ * y + 2 * x + 1] =
@@ -197,6 +197,7 @@ void Init(Image<T, N>* image, int width, int height, T val = 0) {
   image->Init(width, height, val);
 }
 
+#ifdef CURRENDER_USE_STB
 template <typename T, int N>
 bool Load(Image<T, N>* image, const std::string& path) {
   return image->Load(path);
@@ -206,9 +207,10 @@ template <typename T, int N>
 bool WritePng(const Image<T, N>& image, const std::string& path) {
   return image.WritePng(path);
 }
+#endif
 
 template <typename T, int N>
-T& at(Image<T, N>* image, int x, int y, int c) {
+T& At(Image<T, N>* image, int x, int y, int c) {
   assert(0 <= x && x < image->cols && 0 <= y && y < image->rows && 0 <= c &&
          c < image->channels());
   return reinterpret_cast<T*>(image->data)[image->cols * image->channels() * y +
@@ -216,7 +218,7 @@ T& at(Image<T, N>* image, int x, int y, int c) {
 }
 
 template <typename T, int N>
-const T& at(const Image<T, N>& image, int x, int y, int c) {
+const T& At(const Image<T, N>& image, int x, int y, int c) {
   assert(0 <= x && x < image.cols && 0 <= y && y < image.rows && 0 <= c &&
          c < image.channels());
   return reinterpret_cast<T*>(
@@ -236,7 +238,7 @@ bool ConvertTo(const Image<T, N>& src, Image<TT, NN>* dst, float scale = 1.0f) {
   for (int y = 0; y < src.rows; y++) {
     for (int x = 0; x < src.cols; x++) {
       for (int c = 0; c < N; c++) {
-        at(dst, x, y, c) = static_cast<TT>(scale * at(src, x, y, c));
+        At(dst, x, y, c) = static_cast<TT>(scale * At(src, x, y, c));
       }
     }
   }

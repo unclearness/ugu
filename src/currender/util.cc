@@ -152,6 +152,7 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
   for (int y = y_step; y < camera.height(); y += y_step) {
     for (int x = x_step; x < camera.width(); x += x_step) {
       const float& d = depth.at<float>(y, x);
+
       if (d < std::numeric_limits<float>::min()) {
         continue;
       }
@@ -251,6 +252,7 @@ bool Depth2PointCloud(const Image1f& depth, const Camera& camera,
   for (int y = 0; y < camera.height(); y++) {
     for (int x = 0; x < camera.width(); x++) {
       const float& d = depth.at<float>(y, x);
+
       if (d < std::numeric_limits<float>::min()) {
         continue;
       }

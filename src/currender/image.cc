@@ -138,12 +138,12 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
   float inv_denom = 1.0f / (max_d - min_d);
   for (int y = 0; y < vis_depth->rows; y++) {
     for (int x = 0; x < vis_depth->cols; x++) {
-      auto d = at(depth, x, y, 0);
+      auto d = At(depth, x, y, 0);
 
       float norm_color = (d - min_d) * inv_denom;
       norm_color = std::min(std::max(norm_color, 0.0f), 1.0f);
 
-      at(vis_depth, x, y, 0) = static_cast<uint8_t>(norm_color * 255);
+      At(vis_depth, x, y, 0) = static_cast<uint8_t>(norm_color * 255);
     }
   }
 }
@@ -159,12 +159,12 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
   // Z: 0 to -1 :  Blue: 128 to 255
   for (int y = 0; y < vis_normal->rows; y++) {
     for (int x = 0; x < vis_normal->cols; x++) {
-      at(vis_normal, x, y, 0) = static_cast<uint8_t>(
-          std::round((at(normal, x, y, 0) + 1.0) * 0.5 * 255));
-      at(vis_normal, x, y, 1) = static_cast<uint8_t>(
-          std::round((at(normal, x, y, 1) + 1.0) * 0.5 * 255));
-      at(vis_normal, x, y, 2) =
-          static_cast<uint8_t>(std::round(-at(normal, x, y, 2) * 127.0) + 128);
+      At(vis_normal, x, y, 0) = static_cast<uint8_t>(
+          std::round((At(normal, x, y, 0) + 1.0) * 0.5 * 255));
+      At(vis_normal, x, y, 1) = static_cast<uint8_t>(
+          std::round((At(normal, x, y, 1) + 1.0) * 0.5 * 255));
+      At(vis_normal, x, y, 2) =
+          static_cast<uint8_t>(std::round(-At(normal, x, y, 2) * 127.0) + 128);
     }
   }
 }
@@ -178,7 +178,7 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
 
   for (int y = 0; y < vis_face_id->rows; y++) {
     for (int x = 0; x < vis_face_id->cols; x++) {
-      int fid = at(face_id, x, y, 0);
+      int fid = At(face_id, x, y, 0);
       if (fid < 0) {
         continue;
       }
@@ -198,9 +198,9 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
         id2color[fid] = color;
       }
 
-      at(vis_face_id, x, y, 0) = color[0];
-      at(vis_face_id, x, y, 1) = color[1];
-      at(vis_face_id, x, y, 2) = color[2];
+      At(vis_face_id, x, y, 0) = color[0];
+      At(vis_face_id, x, y, 1) = color[1];
+      At(vis_face_id, x, y, 2) = color[2];
     }
   }
 }
@@ -229,7 +229,7 @@ void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
   float inv_denom = 1.0f / (max_d - min_d);
   for (int y = 0; y < vis_depth->rows; y++) {
     for (int x = 0; x < vis_depth->cols; x++) {
-      auto d = at(depth, x, y, 0);
+      auto d = At(depth, x, y, 0);
 
       float norm_color = (d - min_d) * inv_denom;
       norm_color = std::min(std::max(norm_color, 0.0f), 1.0f);
@@ -237,9 +237,9 @@ void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
       const tinycolormap::Color& color =
           tinycolormap::GetColor(norm_color, type);
 
-      at(vis_depth, x, y, 0) = static_cast<uint8_t>(color.r() * 255);
-      at(vis_depth, x, y, 1) = static_cast<uint8_t>(color.g() * 255);
-      at(vis_depth, x, y, 2) = static_cast<uint8_t>(color.b() * 255);
+      At(vis_depth, x, y, 0) = static_cast<uint8_t>(color.r() * 255);
+      At(vis_depth, x, y, 1) = static_cast<uint8_t>(color.g() * 255);
+      At(vis_depth, x, y, 2) = static_cast<uint8_t>(color.b() * 255);
     }
   }
 }
@@ -270,7 +270,7 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
   float inv_denom = 1.0f / (max_id - min_id);
   for (int y = 0; y < vis_face_id->rows; y++) {
     for (int x = 0; x < vis_face_id->cols; x++) {
-      int fid = at(face_id, x, y, 0);
+      int fid = At(face_id, x, y, 0);
       if (fid < 0) {
         continue;
       }
@@ -280,9 +280,9 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
 
       const tinycolormap::Color& color = tinycolormap::GetColor(norm_id, type);
 
-      at(vis_face_id, x, y, 0) = static_cast<uint8_t>(color.r() * 255);
-      at(vis_face_id, x, y, 1) = static_cast<uint8_t>(color.g() * 255);
-      at(vis_face_id, x, y, 2) = static_cast<uint8_t>(color.b() * 255);
+      At(vis_face_id, x, y, 0) = static_cast<uint8_t>(color.r() * 255);
+      At(vis_face_id, x, y, 1) = static_cast<uint8_t>(color.g() * 255);
+      At(vis_face_id, x, y, 2) = static_cast<uint8_t>(color.b() * 255);
     }
   }
 }
