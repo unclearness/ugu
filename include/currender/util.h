@@ -14,11 +14,15 @@
 
 namespace currender {
 
-void Depth2PointCloud(const Image1f& depth, const Camera& camera,
-                      Image3f* point_cloud);
+bool Depth2PointCloud(const Image1f& depth, const Camera& camera,
+                      Image3f* point_cloud, bool gl_coord = false);
 
-void Depth2PointCloud(const Image1f& depth, const Camera& camera,
-                      Mesh* point_cloud);
+bool Depth2PointCloud(const Image1f& depth, const Camera& camera,
+                      Mesh* point_cloud, bool gl_coord = false);
+
+bool Depth2PointCloud(const Image1f& depth, const Image3b& color,
+                      const Camera& camera, Mesh* point_cloud,
+                      bool gl_coord = false);
 
 bool Depth2Mesh(const Image1f& depth, const Camera& camera, Mesh* mesh,
                 float max_connect_z_diff, int x_step = 1, int y_step = 1,
