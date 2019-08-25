@@ -12,7 +12,7 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
                     const currender::Image3b& color,
                     const currender::Camera& camera, currender::Mesh* mesh,
                     bool with_texture, float max_connect_z_diff, int x_step,
-                    int y_step) {
+                    int y_step, bool gl_coord) {
   if (max_connect_z_diff < 0) {
     currender::LOGE("Depth2Mesh max_connect_z_diff must be positive %f\n",
                     max_connect_z_diff);
@@ -26,10 +26,29 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
     currender::LOGE("Depth2Mesh y_step must be positive %d\n", y_step);
     return false;
   }
-  if (with_texture &&
-      (depth.width() != color.width() || depth.height() != color.height())) {
-    currender::LOGE("Depth2Mesh depth size and color size are different %d\n");
-    return false;
+  if (with_texture) {
+    if (depth.width() != camera.width() || depth.height() != camera.height()) {
+      currender::LOGE(
+          "Depth2Mesh depth size (%d, %d) and camera size (%d, %d) are "
+          "different\n",
+          depth.width(), depth.height(), camera.width(), camera.height());
+      return false;
+    }
+
+    float depth_aspect_ratio =
+        static_cast<float>(depth.width()) / static_cast<float>(depth.height());
+    float color_aspect_ratio =
+        static_cast<float>(color.width()) / static_cast<float>(color.height());
+    const float aspect_ratio_diff_th{0.01f};  // 1%
+    const float aspect_ratio_diff =
+        std::abs(depth_aspect_ratio - color_aspect_ratio);
+    if (aspect_ratio_diff > aspect_ratio_diff_th) {
+      currender::LOGE(
+          "Depth2Mesh depth aspect ratio %f and color aspect ratio %f are very "
+          "different %d\n",
+          depth_aspect_ratio, color_aspect_ratio);
+      return false;
+    }
   }
 
   mesh->Clear();
@@ -51,6 +70,12 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
       Eigen::Vector3f camera_p;
       camera.Unproject(image_p, &camera_p);
 
+      if (gl_coord) {
+        // flip y and z to align with OpenGL coordinate
+        camera_p.y() = -camera_p.y();
+        camera_p.z() = -camera_p.z();
+      }
+
       vertices.push_back(camera_p);
 
       if (with_texture) {
@@ -58,9 +83,9 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
         // since uv 0 and 1 is pixel boundary at ends while pixel position is
         // the center of pixel
         uvs.emplace_back(
-            static_cast<float>(x + 0.5f) / static_cast<float>(color.width()),
+            static_cast<float>(x + 0.5f) / static_cast<float>(depth.width()),
             1.0f - static_cast<float>(y + 0.5f) /
-                       static_cast<float>(color.height()));
+                       static_cast<float>(depth.height()));
       }
 
       added_table[y * camera.width() + x] = vertex_id;
@@ -164,17 +189,18 @@ void Depth2PointCloud(const Image1f& depth, const Camera& camera,
 }
 
 bool Depth2Mesh(const Image1f& depth, const Camera& camera, Mesh* mesh,
-                float max_connect_z_diff, int x_step, int y_step) {
+                float max_connect_z_diff, int x_step, int y_step,
+                bool gl_coord) {
   Image3b stub_color;
   return Depth2MeshImpl(depth, stub_color, camera, mesh, false,
-                        max_connect_z_diff, x_step, y_step);
+                        max_connect_z_diff, x_step, y_step, gl_coord);
 }
 
 bool Depth2Mesh(const Image1f& depth, const Image3b& color,
                 const Camera& camera, Mesh* mesh, float max_connect_z_diff,
-                int x_step, int y_step) {
+                int x_step, int y_step, bool gl_coord) {
   return Depth2MeshImpl(depth, color, camera, mesh, true, max_connect_z_diff,
-                        x_step, y_step);
+                        x_step, y_step, gl_coord);
 }
 
 void WriteFaceIdAsText(const Image1i& face_id, const std::string& path) {
