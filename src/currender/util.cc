@@ -99,7 +99,8 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
                     const currender::Image3b& color,
                     const currender::Camera& camera, currender::Mesh* mesh,
                     bool with_texture, float max_connect_z_diff, int x_step,
-                    int y_step, bool gl_coord) {
+                    int y_step, bool gl_coord,
+                    const std::string material_name) {
   if (max_connect_z_diff < 0) {
     currender::LOGE("Depth2Mesh max_connect_z_diff must be positive %f\n",
                     max_connect_z_diff);
@@ -216,7 +217,7 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
     mesh->set_uv_indices(vertex_indices);
     currender::ObjMaterial material;
     color.CopyTo(&material.diffuse_tex);
-    material.name = "Depth2Mesh_mat";
+    material.name = material_name;
     std::vector<currender::ObjMaterial> materials;
     materials.push_back(material);
     mesh->set_materials(materials);
@@ -287,14 +288,16 @@ bool Depth2Mesh(const Image1f& depth, const Camera& camera, Mesh* mesh,
                 bool gl_coord) {
   Image3b stub_color;
   return Depth2MeshImpl(depth, stub_color, camera, mesh, false,
-                        max_connect_z_diff, x_step, y_step, gl_coord);
+                        max_connect_z_diff, x_step, y_step, gl_coord,
+                        "illegal_material");
 }
 
 bool Depth2Mesh(const Image1f& depth, const Image3b& color,
                 const Camera& camera, Mesh* mesh, float max_connect_z_diff,
-                int x_step, int y_step, bool gl_coord) {
+                int x_step, int y_step, bool gl_coord,
+                const std::string material_name) {
   return Depth2MeshImpl(depth, color, camera, mesh, true, max_connect_z_diff,
-                        x_step, y_step, gl_coord);
+                        x_step, y_step, gl_coord, material_name);
 }
 
 void WriteFaceIdAsText(const Image1i& face_id, const std::string& path) {
