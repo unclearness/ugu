@@ -25,10 +25,11 @@ struct MeshStats {
 struct ObjMaterial {
   std::string name;
 
-  std::array<float, 3> ambient{1.0f, 1.0f, 1.0f};   // Ka
-  std::array<float, 3> diffuse{1.0f, 1.0f, 1.0f};   // Kd
-  std::array<float, 3> specular{0.0f, 0.0f, 0.0f};  // Ks
-  float shininess{1.0f};                            // Ns
+  // same to bunny.mtl
+  std::array<float, 3> ambient{0.117647f, 0.117647f, 0.117647f};   // Ka
+  std::array<float, 3> diffuse{0.752941f, 0.752941f, 0.752941f};   // Kd
+  std::array<float, 3> specular{0.752941f, 0.752941f, 0.752941f};  // Ks
+  float shininess{8.0f};                                           // Ns
   float dissolve{
       1.0f};  // 1 == opaque; 0 == fully transparent, (inverted: Tr = 1 - d)
   // illumination model (see http://www.fileformat.info/format/material/)
