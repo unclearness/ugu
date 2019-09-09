@@ -7,6 +7,8 @@
 
 #include <cstdint>
 #include <cstring>
+
+#include <array>
 #include <string>
 #include <vector>
 
@@ -38,21 +40,6 @@
 
 namespace currender {
 
-#ifdef CURRENDER_USE_OPENCV
-
-using Image = cv::Mat;
-using Image1b = cv::Mat1b;
-using Image3b = cv::Mat3b;
-using Image1w = cv::Mat1w;
-using Image1i = cv::Mat1i;
-using Image1f = cv::Mat1f;
-using Image3f = cv::Mat3f;
-
-using Vec3f = cv::Vec3f;
-using Vec3b = cv::Vec3b;
-
-using ImreadModes = cv::ImreadModes;
-
 template <typename T, typename TT>
 inline void Init(T* image, int width, int height, TT val) {
   if (image->cols == width && image->rows == height) {
@@ -66,18 +53,36 @@ inline void Init(T* image, int width, int height, TT val) {
   }
 }
 
-inline bool imwrite(const std::string& filename, Image img,
+#ifdef CURRENDER_USE_OPENCV
+
+//using Image = cv::Mat;
+using Image1b = cv::Mat1b;
+using Image3b = cv::Mat3b;
+using Image1w = cv::Mat1w;
+using Image1i = cv::Mat1i;
+using Image1f = cv::Mat1f;
+using Image3f = cv::Mat3f;
+
+using Vec3f = cv::Vec3f;
+using Vec3b = cv::Vec3b;
+
+using ImreadModes = cv::ImreadModes;
+
+template<typename T>
+inline bool imwrite(const std::string& filename, const T& img,
                     const std::vector<int>& params = std::vector<int>()) {
   return cv::imwrite(filename, img, params);
 }
 
-inline Image imread(const std::string& filename, int flags = ImreadModes::IMREAD_COLOR) {
+template<typename T>
+inline T imread(const std::string& filename, int flags = ImreadModes::IMREAD_COLOR) {
   return cv::imread(filename, flags);
 }
 
 
 #else 
-template <typename T, int N>
+#if 0
+				template <typename T, int N>
 class Image {
   std::vector<T> data_;
   int width_{-1};
@@ -289,14 +294,60 @@ bool ConvertTo(const Image<T, N>& src, Image<TT, NN>* dst, float scale = 1.0f) {
   return true;
 }
 
-using Image1b = Image<uint8_t, 1>;   // For gray image.
-using Image3b = Image<uint8_t, 3>;   // For color image. RGB order.
-using Image1w = Image<uint16_t, 1>;  // For depth image with 16 bit (unsigned
+#endif  // 0
+
+template<typename T>
+class Image {
+
+};
+
+using Vec1f = std::array<float, 1>;
+using Vec1i = std::array<int, 1>;
+using Vec1w = std::array<unsigned short, 1>;
+using Vec1b = std::array<unsigned char, 1>;
+using Vec3b = std::array<unsigned char, 3>;
+using Vec3f = std::array<float, 3>;
+
+using Image1b = Image<Vec1b>;   // For gray image.
+using Image3b = Image<Vec3b>;   // For color image. RGB order.
+using Image1w = Image<Vec1w>;  // For depth image with 16 bit (unsigned
                                      // short) mm-scale format
 using Image1i =
-    Image<int32_t, 1>;  // For face visibility. face id is within int32_t
-using Image1f = Image<float, 1>;  // For depth image with any scale
-using Image3f = Image<float, 3>;  // For normal or point cloud. XYZ order.
+    Image<Vec1i>;  // For face visibility. face id is within int32_t
+using Image1f = Image<Vec1f>;  // For depth image with any scale
+using Image3f = Image<Vec3f>;  // For normal or point cloud. XYZ order.
+
+enum ImreadModes {
+  IMREAD_UNCHANGED = -1,
+  IMREAD_GRAYSCALE = 0,
+  IMREAD_COLOR = 1,
+  IMREAD_ANYDEPTH = 2,
+  IMREAD_ANYCOLOR = 4,
+  IMREAD_LOAD_GDAL = 8,
+  IMREAD_REDUCED_GRAYSCALE_2 = 16,
+  IMREAD_REDUCED_COLOR_2 = 17,
+  IMREAD_REDUCED_GRAYSCALE_4 = 32,
+  IMREAD_REDUCED_COLOR_4 = 33,
+  IMREAD_REDUCED_GRAYSCALE_8 = 64,
+  IMREAD_REDUCED_COLOR_8 = 65,
+  IMREAD_IGNORE_ORIENTATION = 128,
+};
+
+template<typename T>
+inline bool imwrite(const std::string& filename, const Image<T>& img,
+                    const std::vector<int>& params = std::vector<int>()) {
+  //return cv::imwrite(filename, img, params);
+  return true
+}
+
+// https://qiita.com/SaitoAtsushi/items/d8ae623663878feeb181
+// https://dixq.net/forum/viewtopic.php?t=8670
+// to remove template
+template <typename T>
+inline Image<T> imread(const std::string& filename,
+                    int flags = ImreadModes::IMREAD_COLOR) {
+  //return cv::imread(filename, flags);
+}
 
 #endif
 

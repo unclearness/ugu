@@ -525,7 +525,7 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
     if (ifs.is_open()) {
 #if defined(CURRENDER_USE_STB) || defined(CURRENDER_USE_OPENCV)
       // todo: force convert to Image3b
-      materials_[i].diffuse_tex = imread(materials_[i].diffuse_texpath);
+      materials_[i].diffuse_tex = imread<Image3b>(materials_[i].diffuse_texpath);
       ret = !materials_[i].diffuse_tex.empty();
 #else
       LOGW("define CURRENDER_USE_STB to load diffuse texture.\n");

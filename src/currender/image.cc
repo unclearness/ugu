@@ -112,16 +112,16 @@ void BoxFilterCpuIntegral(int width, int height, int channel, int kernel,
                        out_data);
 }
 
-template <typename T>
-inline void BoxFilterCpuIntegral(const currender::Image& src,
-                                 currender::Image* dst, int kernel) {
+template <typename TT, typename T>
+inline void BoxFilterCpuIntegral(const T& src,
+                                 T* dst, int kernel) {
   assert(src.rows == dst->rows);
   assert(src.cols == dst->cols);
   assert(src.channels() == dst->channels());
 
   BoxFilterCpuIntegral(src.cols, src.rows, src.channels(), kernel,
-                       reinterpret_cast<T*>(src.data),
-                       reinterpret_cast<T*>(dst->data));
+                       reinterpret_cast<TT*>(src.data),
+                       reinterpret_cast<TT*>(dst->data));
 }
 
 }  // namespace
