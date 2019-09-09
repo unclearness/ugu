@@ -68,6 +68,13 @@ if(CURRENDER_USE_STB)
   endif()
 endif()
 
+option(CURRENDER_USE_OPENCV "Use OpenCV as Image class" ON)
+message("CURRENDER_USE_OPENCV: ${CURRENDER_USE_OPENCV}")
+if(CURRENDER_USE_OPENCV)
+  find_package(OpenCV REQUIRED)
+  add_definitions(-DCURRENDER_USE_OPENCV)
+endif()
+
 option(CURRENDER_USE_TINYOBJLOADER "Use tinyobjloader to enable .obj input" ON)
 message("CURRENDER_USE_TINYOBJLOADER: ${CURRENDER_USE_TINYOBJLOADER}")
 if(CURRENDER_USE_TINYOBJLOADER)
@@ -192,15 +199,16 @@ SOURCE_GROUP("Source files" FILES
   src/currender/util_private.cc
 )
 
-include_directories(${PUBLIC_LIB_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(${PUBLIC_LIB_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/src)
-include_directories(${PUBLIC_LIB_NAME} third_party)
-include_directories(${PUBLIC_LIB_NAME} ${NANORT_INSTALL_DIR})
-include_directories(${PUBLIC_LIB_NAME} ${EIGEN_INSTALL_DIR})
-include_directories(${PUBLIC_LIB_NAME} ${TINYOBJLOADER_INSTALL_DIR})
-include_directories(${PUBLIC_LIB_NAME} ${STB_INSTALL_DIR})
-include_directories(${PUBLIC_LIB_NAME} ${LODEPNG_INSTALL_DIR})
-include_directories(${PUBLIC_LIB_NAME} ${TINYCOLORMAP_INSTALL_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
+include_directories(third_party)
+include_directories(${NANORT_INSTALL_DIR})
+include_directories(${EIGEN_INSTALL_DIR})
+include_directories(${TINYOBJLOADER_INSTALL_DIR})
+include_directories(${STB_INSTALL_DIR})
+include_directories(${LODEPNG_INSTALL_DIR})
+include_directories(${TINYCOLORMAP_INSTALL_DIR})
+include_directories(${OpenCV_INCLUDE_DIRS})
 
 set_target_properties(${PUBLIC_LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
@@ -212,6 +220,7 @@ target_link_libraries(${MINIMUM_EXAMPLE_EXE}
   ${STB_LIB_NAME}
   ${TINYOBJLOADER_LIB_NAME}
   ${LODEPNG_LIB_NAME}
+  ${OpenCV_LIBS}
   )
 
 set(EXAMPLES_EXE currender_examples)
@@ -222,6 +231,7 @@ target_link_libraries(${EXAMPLES_EXE}
   ${STB_LIB_NAME}
   ${TINYOBJLOADER_LIB_NAME}
   ${LODEPNG_LIB_NAME}
+  ${OpenCV_LIBS}
   )
 if (WIN32)
   set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${EXAMPLES_EXE})

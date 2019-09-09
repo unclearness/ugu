@@ -32,8 +32,78 @@
 #endif
 #endif
 
+#ifdef CURRENDER_USE_OPENCV
+#include "opencv2/imgcodecs.hpp"
+#endif
+
 namespace currender {
 
+#ifdef CURRENDER_USE_OPENCV
+
+using Image = cv::Mat;
+using Image1b = cv::Mat1b;
+using Image3b = cv::Mat3b;
+using Image1w = cv::Mat1w;
+using Image1i = cv::Mat1i;
+using Image1f = cv::Mat1f;
+using Image3f = cv::Mat3f;
+
+void Clear(Image* image) { image->release(); }
+
+template <typename T>
+void Init(cv::Mat_<T>* image, int width, int height, T val = T(0)) {
+  *image = cv::Mat_<T>(height, width);
+  for (int i = 0; i < width * height; i++){
+    reinterpret_cast<T*>(image->data)[i] = val;
+  }
+}
+
+bool Load(Image* image, const std::string& path) {
+  *image = cv::imread(path, cv::ImreadModes::IMREAD_ANYDEPTH);
+  return !image->empty();
+}
+
+bool WritePng(Image& image, const std::string& path) {
+  return cv::imwrite(path, image);
+}
+
+template <typename T>
+T& At(Image<T, N>* image, int x, int y, int c) {
+  assert(0 <= x && x < image->cols && 0 <= y && y < image->rows && 0 <= c &&
+         c < image->channels());
+  return reinterpret_cast<T*>(image->data)[image->cols * image->channels() * y +
+                                           x * image->channels() + c];
+}
+
+template <typename T, int N>
+const T& At(const Image<T, N>& image, int x, int y, int c) {
+  assert(0 <= x && x < image.cols && 0 <= y && y < image.rows && 0 <= c &&
+         c < image.channels());
+  return reinterpret_cast<T*>(
+      image.data)[image.cols * image.channels() * y + x * image.channels() + c];
+}
+
+template <typename T, int N, typename TT, int NN>
+bool ConvertTo(const Image<T, N>& src, Image<TT, NN>* dst, float scale = 1.0f) {
+  if (src.channels() != dst->channels()) {
+    LOGE("ConvertTo failed src channel %d, dst channel %d\n", src.channels(),
+         dst->channels());
+    return false;
+  }
+
+  Init(dst, src.cols, src.rows);
+
+  for (int y = 0; y < src.rows; y++) {
+    for (int x = 0; x < src.cols; x++) {
+      for (int c = 0; c < N; c++) {
+        At(dst, x, y, c) = static_cast<TT>(scale * At(src, x, y, c));
+      }
+    }
+  }
+
+  return true;
+}
+#else 
 template <typename T, int N>
 class Image {
   std::vector<T> data_;
@@ -254,6 +324,8 @@ using Image1i =
     Image<int32_t, 1>;  // For face visibility. face id is within int32_t
 using Image1f = Image<float, 1>;  // For depth image with any scale
 using Image3f = Image<float, 3>;  // For normal or point cloud. XYZ order.
+
+#endif
 
 void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d = 200.0f,
                 float max_d = 1500.0f);
