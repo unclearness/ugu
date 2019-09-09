@@ -112,9 +112,9 @@ void BoxFilterCpuIntegral(int width, int height, int channel, int kernel,
                        out_data);
 }
 
-template <typename T, int N>
-void BoxFilterCpuIntegral(const currender::Image<T, N>& src,
-                          currender::Image<T, N>* dst, int kernel) {
+template <typename T>
+inline void BoxFilterCpuIntegral(const currender::Image& src,
+                                 currender::Image* dst, int kernel) {
   assert(src.rows == dst->rows);
   assert(src.cols == dst->cols);
   assert(src.channels() == dst->channels());
@@ -133,17 +133,18 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
   assert(min_d < max_d);
   assert(vis_depth != nullptr);
 
-  Init(vis_depth, depth.cols, depth.rows);
+  Init(vis_depth, depth.cols, depth.rows, unsigned char(0));
 
   float inv_denom = 1.0f / (max_d - min_d);
   for (int y = 0; y < vis_depth->rows; y++) {
     for (int x = 0; x < vis_depth->cols; x++) {
-      auto d = At(depth, x, y, 0);
+      const float& d = depth.at<float>(y, x);
 
       float norm_color = (d - min_d) * inv_denom;
       norm_color = std::min(std::max(norm_color, 0.0f), 1.0f);
 
-      At(vis_depth, x, y, 0) = static_cast<uint8_t>(norm_color * 255);
+      vis_depth->at<unsigned char>(y, x) =
+          static_cast<uint8_t>(norm_color * 255);
     }
   }
 }
@@ -151,7 +152,7 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
 void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
   assert(vis_normal != nullptr);
 
-  Init(vis_normal, normal.cols, normal.rows);
+  Init(vis_normal, normal.cols, normal.rows, 0.0f);
 
   // Followed https://en.wikipedia.org/wiki/Normal_mapping
   // X: -1 to +1 :  Red: 0 to 255
@@ -159,12 +160,11 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
   // Z: 0 to -1 :  Blue: 128 to 255
   for (int y = 0; y < vis_normal->rows; y++) {
     for (int x = 0; x < vis_normal->cols; x++) {
-      At(vis_normal, x, y, 0) = static_cast<uint8_t>(
-          std::round((At(normal, x, y, 0) + 1.0) * 0.5 * 255));
-      At(vis_normal, x, y, 1) = static_cast<uint8_t>(
-          std::round((At(normal, x, y, 1) + 1.0) * 0.5 * 255));
-      At(vis_normal, x, y, 2) =
-          static_cast<uint8_t>(std::round(-At(normal, x, y, 2) * 127.0) + 128);
+      Vec3b& vis = vis_normal->at<Vec3b>(y, x);
+      const Vec3f& n = normal.at<Vec3f>(y, x);
+      vis[2] = static_cast<uint8_t>(std::round((n[0] + 1.0) * 0.5 * 255));
+      vis[1] = static_cast<uint8_t>(std::round((n[1] + 1.0) * 0.5 * 255));
+      vis[0] = static_cast<uint8_t>(std::round(-n[2] * 127.0) + 128);
     }
   }
 }
@@ -178,7 +178,7 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
 
   for (int y = 0; y < vis_face_id->rows; y++) {
     for (int x = 0; x < vis_face_id->cols; x++) {
-      int fid = At(face_id, x, y, 0);
+      int fid = face_id.at<int>(y, x);
       if (fid < 0) {
         continue;
       }
@@ -198,24 +198,25 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
         id2color[fid] = color;
       }
 
-      At(vis_face_id, x, y, 0) = color[0];
-      At(vis_face_id, x, y, 1) = color[1];
-      At(vis_face_id, x, y, 2) = color[2];
+      Vec3b& vis = vis_face_id->at<Vec3b>(y, x);
+      vis[2] = color[0];
+      vis[1] = color[1];
+      vis[0] = color[2];
     }
   }
 }
 
 void BoxFilter(const Image1b& src, Image1b* dst, int kernel) {
-  BoxFilterCpuIntegral(src, dst, kernel);
+  BoxFilterCpuIntegral<unsigned char>(src, dst, kernel);
 }
 void BoxFilter(const Image1f& src, Image1f* dst, int kernel) {
-  BoxFilterCpuIntegral(src, dst, kernel);
+  BoxFilterCpuIntegral<float>(src, dst, kernel);
 }
 void BoxFilter(const Image3b& src, Image3b* dst, int kernel) {
-  BoxFilterCpuIntegral(src, dst, kernel);
+  BoxFilterCpuIntegral<unsigned char>(src, dst, kernel);
 }
 void BoxFilter(const Image3f& src, Image3f* dst, int kernel) {
-  BoxFilterCpuIntegral(src, dst, kernel);
+  BoxFilterCpuIntegral<float>(src, dst, kernel);
 }
 
 #ifdef CURRENDER_USE_TINYCOLORMAP
@@ -224,12 +225,12 @@ void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
   assert(min_d < max_d);
   assert(vis_depth != nullptr);
 
-  Init(vis_depth, depth.cols, depth.rows);
+  Init(vis_depth, depth.cols, depth.rows, unsigned char(0));
 
   float inv_denom = 1.0f / (max_d - min_d);
   for (int y = 0; y < vis_depth->rows; y++) {
     for (int x = 0; x < vis_depth->cols; x++) {
-      auto d = At(depth, x, y, 0);
+      const float& d = depth.at<float>(y, x);
 
       float norm_color = (d - min_d) * inv_denom;
       norm_color = std::min(std::max(norm_color, 0.0f), 1.0f);
@@ -237,9 +238,10 @@ void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
       const tinycolormap::Color& color =
           tinycolormap::GetColor(norm_color, type);
 
-      At(vis_depth, x, y, 0) = static_cast<uint8_t>(color.r() * 255);
-      At(vis_depth, x, y, 1) = static_cast<uint8_t>(color.g() * 255);
-      At(vis_depth, x, y, 2) = static_cast<uint8_t>(color.b() * 255);
+      Vec3b& vis = vis_depth->at<Vec3b>(y, x);
+      vis[2] = static_cast<uint8_t>(color.r() * 255);
+      vis[1] = static_cast<uint8_t>(color.g() * 255);
+      vis[0] = static_cast<uint8_t>(color.b() * 255);
     }
   }
 }
@@ -270,7 +272,7 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
   float inv_denom = 1.0f / (max_id - min_id);
   for (int y = 0; y < vis_face_id->rows; y++) {
     for (int x = 0; x < vis_face_id->cols; x++) {
-      int fid = At(face_id, x, y, 0);
+      int fid = face_id.at<int>(y, x);
       if (fid < 0) {
         continue;
       }
@@ -280,9 +282,10 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
 
       const tinycolormap::Color& color = tinycolormap::GetColor(norm_id, type);
 
-      At(vis_face_id, x, y, 0) = static_cast<uint8_t>(color.r() * 255);
-      At(vis_face_id, x, y, 1) = static_cast<uint8_t>(color.g() * 255);
-      At(vis_face_id, x, y, 2) = static_cast<uint8_t>(color.b() * 255);
+      Vec3b& vis = vis_face_id->at<Vec3b>(y, x);
+      vis[2] = static_cast<uint8_t>(color.r() * 255);
+      vis[1] = static_cast<uint8_t>(color.g() * 255);
+      vis[0] = static_cast<uint8_t>(color.b() * 255);
     }
   }
 }

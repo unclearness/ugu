@@ -223,14 +223,18 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
           w2 = w2 * pixel_sample.z();
           /** Perspective-Correct Interpolation **/
 #endif
-          if (At(depth, x, y, 0) < std::numeric_limits<float>::min() ||
-              pixel_sample.z() < At(depth, x, y, 0)) {
-            At(depth, x, y, 0) = pixel_sample.z();
-            At(face_id, x, y, 0) = i;
-            At(&weight_image, x, y, 0) = w0;
-            At(&weight_image, x, y, 1) = w1;
-            At(&weight_image, x, y, 2) = w2;
-            At(&backface_image, x, y, 0) = backface ? 255 : 0;
+
+          float& d = depth->at<float>(y, x);
+          if (d < std::numeric_limits<float>::min() ||
+              pixel_sample.z() < d) {
+            d = pixel_sample.z();
+            face_id->at<int>(y, x) = i;
+            Vec3f& weight =
+                weight_image.at<Vec3f>(y, x);
+            weight[0] = w0;
+            weight[1] = w1;
+            weight[2] = w2;
+            backface_image.at<unsigned char>(y, x) = backface ? 255 : 0;
           }
         }
       }
@@ -240,24 +244,27 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   // make images by referring to face id image
   for (int y = 0; y < backface_image.rows; y++) {
     for (int x = 0; x < backface_image.cols; x++) {
-      if (option_.backface_culling && At(backface_image, x, y, 0) == 255) {
-        At(depth_, x, y, 0) = 0.0f;
-        At(face_id_, x, y, 0) = -1;
+      const unsigned char& bf =
+          backface_image.at<unsigned char>(y, x);
+      int& fid = face_id_->at<int>(y, x);
+      if (option_.backface_culling && bf == 255) {
+        depth_->at<float>(y, x) = 0.0f;
+        fid = -1;
         continue;
       }
 
-      int fid = At(face_id_, x, y, 0);
       if (fid > 0) {
         Eigen::Vector3f ray_w;
         camera_->ray_w(x, y, &ray_w);
 
-        float w0 = At(weight_image, x, y, 0);
-        float w1 = At(weight_image, x, y, 1);
-        float w2 = At(weight_image, x, y, 2);
+        Vec3f& weight = weight_image.at<Vec3f>(y, x);
+        float w0 = weight[0];
+        float w1 = weight[1];
+        float w2 = weight[2];
 
         // fill mask
         if (mask != nullptr) {
-          At(mask, x, y, 0) = 255;
+          mask->at<unsigned char>(y, x) = 255;
         }
 
         // calculate shading normal
@@ -277,8 +284,9 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
         if (normal != nullptr) {
           Eigen::Vector3f shading_normal_c =
               w2c_R * shading_normal_w;  // rotate to camera coordinate
+          Vec3f& n = normal->at<Vec3f>(y, x);
           for (int k = 0; k < 3; k++) {
-            At(normal, x, y, k) = shading_normal_c[k];
+            n[k] = shading_normal_c[k];
           }
         }
 
@@ -331,7 +339,7 @@ bool Rasterizer::Impl::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
   bool org_ret = Render(color, &f_depth, normal, mask, face_id);
 
   if (org_ret) {
-    ConvertTo(f_depth, depth);
+    f_depth.convertTo(*depth, CV_16UC1);
   }
 
   return org_ret;

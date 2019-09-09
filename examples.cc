@@ -17,12 +17,14 @@
 using currender::Camera;
 using currender::Depth2Gray;
 using currender::Depth2Mesh;
+using currender::FaceId2RandomColor;
 using currender::Image1b;
 using currender::Image1f;
 using currender::Image1i;
 using currender::Image1w;
 using currender::Image3b;
 using currender::Image3f;
+using currender::imwrite;
 using currender::Mesh;
 using currender::MeshStats;
 using currender::Normal2Color;
@@ -59,132 +61,72 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   Eigen::Vector3f diff = stats.bb_max - stats.bb_min;
   float offset = std::max(diff[0], std::max(diff[1], diff[2])) * 1.5f;
 
+  std::vector<Eigen::Affine3d> pose_list;
+  std::vector<std::string> name_list;
+
   // from front
   eye = center;
   eye[2] -= offset;
   currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
-
-  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask, &face_id);
-  WritePng(color, out_dir + "front_color.png");
-  WritePng(mask, out_dir + "front_mask.png");
-  ConvertTo(depth, &depthw, 1.0f);
-  WritePng(depthw, out_dir + "front_depth.png");
-  Depth2Gray(depth, &vis_depth);
-  WritePng(vis_depth, out_dir + "front_vis_depth.png");
-  Normal2Color(normal, &vis_normal);
-  WritePng(vis_normal, out_dir + "front_vis_normal.png");
-  FaceId2RandomColor(face_id, &vis_face_id);
-  WritePng(vis_face_id, out_dir + "front_vis_face_id.png");
-  WriteFaceIdAsText(face_id, out_dir + "front_face_id.txt");
-  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
-  view_mesh.WritePly(out_dir + "front_mesh.ply");
-  poses.push_back(camera->c2w());
+  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  name_list.push_back("front");
 
   // from back
   eye = center;
   eye[2] += offset;
   currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
-  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask, &face_id);
-  WritePng(color, out_dir + "back_color.png");
-  WritePng(mask, out_dir + "back_mask.png");
-  ConvertTo(depth, &depthw, 1.0f);
-  WritePng(depthw, out_dir + "back_depth.png");
-  Depth2Gray(depth, &vis_depth);
-  WritePng(vis_depth, out_dir + "back_vis_depth.png");
-  Normal2Color(normal, &vis_normal);
-  WritePng(vis_normal, out_dir + "back_vis_normal.png");
-  FaceId2RandomColor(face_id, &vis_face_id);
-  WritePng(vis_face_id, out_dir + "back_vis_face_id.png");
-  WriteFaceIdAsText(face_id, out_dir + "back_face_id.txt");
-  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
-  view_mesh.WritePly(out_dir + "back_mesh.ply");
-  poses.push_back(camera->c2w());
+  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  name_list.push_back("back");
 
   // from right
   eye = center;
   eye[0] += offset;
   currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
-  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask, &face_id);
-  WritePng(color, out_dir + "right_color.png");
-  WritePng(mask, out_dir + "right_mask.png");
-  ConvertTo(depth, &depthw, 1.0f);
-  WritePng(depthw, out_dir + "right_depth.png");
-  Depth2Gray(depth, &vis_depth);
-  WritePng(vis_depth, out_dir + "right_vis_depth.png");
-  Normal2Color(normal, &vis_normal);
-  WritePng(vis_normal, out_dir + "right_vis_normal.png");
-  FaceId2RandomColor(face_id, &vis_face_id);
-  WritePng(vis_face_id, out_dir + "right_vis_face_id.png");
-  WriteFaceIdAsText(face_id, out_dir + "right_face_id.txt");
-  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
-  view_mesh.WritePly(out_dir + "right_mesh.ply");
-  poses.push_back(camera->c2w());
+  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  name_list.push_back("right");
 
   // from left
   eye = center;
   eye[0] -= offset;
   currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
-  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask, &face_id);
-  WritePng(color, out_dir + "left_color.png");
-  WritePng(mask, out_dir + "left_mask.png");
-  ConvertTo(depth, &depthw, 1.0f);
-  WritePng(depthw, out_dir + "left_depth.png");
-  Depth2Gray(depth, &vis_depth);
-  WritePng(vis_depth, out_dir + "left_vis_depth.png");
-  Normal2Color(normal, &vis_normal);
-  WritePng(vis_normal, out_dir + "left_vis_normal.png");
-  FaceId2RandomColor(face_id, &vis_face_id);
-  WritePng(vis_face_id, out_dir + "left_vis_face_id.png");
-  WriteFaceIdAsText(face_id, out_dir + "left_face_id.txt");
-  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
-  view_mesh.WritePly(out_dir + "left_mesh.ply");
-  poses.push_back(camera->c2w());
+  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  name_list.push_back("left");
 
   // from top
   eye = center;
   eye[1] -= offset;
   currender::c2w(eye, center, Eigen::Vector3f(0, 0, 1), &c2w);
-  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask, &face_id);
-  WritePng(color, out_dir + "top_color.png");
-  WritePng(mask, out_dir + "top_mask.png");
-  ConvertTo(depth, &depthw, 1.0f);
-  WritePng(depthw, out_dir + "top_depth.png");
-  Depth2Gray(depth, &vis_depth);
-  WritePng(vis_depth, out_dir + "top_vis_depth.png");
-  Normal2Color(normal, &vis_normal);
-  WritePng(vis_normal, out_dir + "top_vis_normal.png");
-  FaceId2RandomColor(face_id, &vis_face_id);
-  WritePng(vis_face_id, out_dir + "top_vis_face_id.png");
-  WriteFaceIdAsText(face_id, out_dir + "top_face_id.txt");
-  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
-  view_mesh.WritePly(out_dir + "top_mesh.ply");
-  poses.push_back(camera->c2w());
+  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  name_list.push_back("top");
 
   // from bottom
   eye = center;
   eye[1] += offset;
   currender::c2w(eye, center, Eigen::Vector3f(0, 0, -1), &c2w);
-  camera->set_c2w(Eigen::Affine3d(c2w.cast<double>()));
-  renderer.Render(&color, &depth, &normal, &mask, &face_id);
-  WritePng(color, out_dir + "bottom_color.png");
-  WritePng(mask, out_dir + "bottom_mask.png");
-  ConvertTo(depth, &depthw, 1.0f);
-  WritePng(depthw, out_dir + "bottom_depth.png");
-  Depth2Gray(depth, &vis_depth);
-  WritePng(vis_depth, out_dir + "bottom_vis_depth.png");
-  Normal2Color(normal, &vis_normal);
-  WritePng(vis_normal, out_dir + "bottom_vis_normal.png");
-  FaceId2RandomColor(face_id, &vis_face_id);
-  WritePng(vis_face_id, out_dir + "bottom_vis_face_id.png");
-  WriteFaceIdAsText(face_id, out_dir + "bottom_face_id.txt");
-  Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
-  view_mesh.WritePly(out_dir + "bottom_mesh.ply");
-  poses.push_back(camera->c2w());
+  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  name_list.push_back("bottom");
+
+  for (size_t i = 0; i < pose_list.size(); i++) {
+    Eigen::Affine3d& c2w = pose_list[i];
+    std::string& prefix = name_list[i];
+
+    camera->set_c2w(c2w);
+    renderer.Render(&color, &depth, &normal, &mask, &face_id);
+    imwrite(out_dir + prefix + "_color.png", color);
+    imwrite(out_dir + prefix + "_mask.png", mask);
+    depth.convertTo(depthw, CV_16UC1, 1.0f);
+    imwrite(out_dir + prefix + "_depth.png", depthw);
+    Depth2Gray(depth, &vis_depth);
+    imwrite(out_dir + prefix + "_vis_depth.png", vis_depth);
+    Normal2Color(normal, &vis_normal);
+    imwrite(out_dir + prefix + "_vis_normal.png", vis_normal);
+    FaceId2RandomColor(face_id, &vis_face_id);
+    imwrite(out_dir + prefix + "_vis_face_id.png", vis_face_id);
+    WriteFaceIdAsText(face_id, out_dir + prefix + "_face_id.txt");
+    Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
+    view_mesh.WritePly(out_dir + prefix + "_mesh.ply");
+    poses.push_back(camera->c2w());
+  }
 
   currender::WriteTumFormat(poses, out_dir + "tumpose.txt");
 }

@@ -48,61 +48,34 @@ using Image1i = cv::Mat1i;
 using Image1f = cv::Mat1f;
 using Image3f = cv::Mat3f;
 
-void Clear(Image* image) { image->release(); }
+using Vec3f = cv::Vec3f;
+using Vec3b = cv::Vec3b;
 
-template <typename T>
-void Init(cv::Mat_<T>* image, int width, int height, T val = T(0)) {
-  *image = cv::Mat_<T>(height, width);
-  for (int i = 0; i < width * height; i++){
-    reinterpret_cast<T*>(image->data)[i] = val;
-  }
-}
+using ImreadModes = cv::ImreadModes;
 
-bool Load(Image* image, const std::string& path) {
-  *image = cv::imread(path, cv::ImreadModes::IMREAD_ANYDEPTH);
-  return !image->empty();
-}
-
-bool WritePng(Image& image, const std::string& path) {
-  return cv::imwrite(path, image);
-}
-
-template <typename T>
-T& At(Image<T, N>* image, int x, int y, int c) {
-  assert(0 <= x && x < image->cols && 0 <= y && y < image->rows && 0 <= c &&
-         c < image->channels());
-  return reinterpret_cast<T*>(image->data)[image->cols * image->channels() * y +
-                                           x * image->channels() + c];
-}
-
-template <typename T, int N>
-const T& At(const Image<T, N>& image, int x, int y, int c) {
-  assert(0 <= x && x < image.cols && 0 <= y && y < image.rows && 0 <= c &&
-         c < image.channels());
-  return reinterpret_cast<T*>(
-      image.data)[image.cols * image.channels() * y + x * image.channels() + c];
-}
-
-template <typename T, int N, typename TT, int NN>
-bool ConvertTo(const Image<T, N>& src, Image<TT, NN>* dst, float scale = 1.0f) {
-  if (src.channels() != dst->channels()) {
-    LOGE("ConvertTo failed src channel %d, dst channel %d\n", src.channels(),
-         dst->channels());
-    return false;
-  }
-
-  Init(dst, src.cols, src.rows);
-
-  for (int y = 0; y < src.rows; y++) {
-    for (int x = 0; x < src.cols; x++) {
-      for (int c = 0; c < N; c++) {
-        At(dst, x, y, c) = static_cast<TT>(scale * At(src, x, y, c));
-      }
+template <typename T, typename TT>
+inline void Init(T* image, int width, int height, TT val) {
+  if (image->cols == width && image->rows == height) {
+    image->setTo(val);
+  } else {
+    if (val == TT(0)) {
+      *image = T::zeros(height, width);
+    } else {
+      *image = T::ones(height, width) * val;
     }
   }
-
-  return true;
 }
+
+inline bool imwrite(const std::string& filename, Image img,
+                    const std::vector<int>& params = std::vector<int>()) {
+  return cv::imwrite(filename, img, params);
+}
+
+inline Image imread(const std::string& filename, int flags = ImreadModes::IMREAD_COLOR) {
+  return cv::imread(filename, flags);
+}
+
+
 #else 
 template <typename T, int N>
 class Image {

@@ -237,12 +237,12 @@ bool Raytracer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
 
       // fill face id
       if (face_id != nullptr) {
-        At(face_id, x, y, 0) = fid;
+        face_id->at<int>(y, x) = fid;
       }
 
       // fill mask
       if (mask != nullptr) {
-        At(mask, x, y, 0) = 255;
+        mask->at<unsigned char>(y, x) = 255;
       }
 
       // convert hit position to camera coordinate to get depth value
@@ -250,7 +250,7 @@ bool Raytracer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
         Eigen::Vector3f hit_pos_w = org_ray_w + ray_w * isect.t;
         Eigen::Vector3f hit_pos_c = w2c_R * hit_pos_w + w2c_t;
         assert(0.0f <= hit_pos_c[2]);  // depth should be positive
-        At(depth, x, y, 0) = hit_pos_c[2] * option_.depth_scale;
+        depth->at<float>(y, x) = hit_pos_c[2] * option_.depth_scale;
       }
 
       // calculate shading normal
@@ -270,8 +270,9 @@ bool Raytracer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
       if (normal != nullptr) {
         Eigen::Vector3f shading_normal_c =
             w2c_R * shading_normal_w;  // rotate to camera coordinate
+        Vec3f& n = normal->at<Vec3f>(y, x);
         for (int k = 0; k < 3; k++) {
-          At(normal, x, y, k) = shading_normal_c[k];
+          n[k] = shading_normal_c[k];
         }
       }
 
@@ -322,7 +323,7 @@ bool Raytracer::Impl::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
   bool org_ret = Render(color, &f_depth, normal, mask, face_id);
 
   if (org_ret) {
-    ConvertTo(f_depth, depth);
+    f_depth.convertTo(*depth, CV_16UC1);
   }
 
   return org_ret;

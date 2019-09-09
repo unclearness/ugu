@@ -70,7 +70,7 @@ bool WriteMtl(const std::string& path,
   if (write_texture) {
     for (size_t i = 0; i < materials.size(); i++) {
       const currender::ObjMaterial& material = materials[i];
-      bool ret_write = WritePng(material.diffuse_tex, material.diffuse_texpath);
+      bool ret_write = imwrite(material.diffuse_texpath, material.diffuse_tex);
       if (ret) {
         ret = ret_write;
       }
@@ -523,8 +523,10 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
     materials_[i].diffuse_texpath = mtl_dir + materials_[i].diffuse_texname;
     std::ifstream ifs(materials_[i].diffuse_texpath);
     if (ifs.is_open()) {
-#ifdef CURRENDER_USE_STB
-      ret = Load(&materials_[i].diffuse_tex, materials_[i].diffuse_texpath);
+#if defined(CURRENDER_USE_STB) || defined(CURRENDER_USE_OPENCV)
+      // todo: force convert to Image3b
+      materials_[i].diffuse_tex = imread(materials_[i].diffuse_texpath);
+      ret = !materials_[i].diffuse_tex.empty();
 #else
       LOGW("define CURRENDER_USE_STB to load diffuse texture.\n");
 #endif
@@ -878,9 +880,9 @@ std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
 
   // set default color
   for (int i = 0; i < 24; i++) {
-    vertex_colors[i][0] = (-vertices[i][0] + h_x) / length.x() * 255;
+    vertex_colors[i][2] = (-vertices[i][0] + h_x) / length.x() * 255;
     vertex_colors[i][1] = (-vertices[i][1] + h_y) / length.y() * 255;
-    vertex_colors[i][2] = (-vertices[i][2] + h_z) / length.z() * 255;
+    vertex_colors[i][0] = (-vertices[i][2] + h_z) / length.z() * 255;
   }
 
   cube->set_vertices(vertices);

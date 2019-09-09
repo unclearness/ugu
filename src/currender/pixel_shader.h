@@ -249,8 +249,9 @@ inline void DiffuseVertexColorColorizer::Process(
                  u * vertex_colors[faces[face_index][1]] +
                  v * vertex_colors[faces[face_index][2]];
 
+  Vec3b& c = color->at<Vec3b>(y, x);
   for (int k = 0; k < 3; k++) {
-    At(color, x, y, k) = static_cast<unsigned char>(interp_color[k]);
+    c[k] = static_cast<unsigned char>(interp_color[k]);
   }
 }
 
@@ -284,12 +285,15 @@ inline void DiffuseTextureNnColorizer::Process(
   // get nearest integer index by round
   tex_pos[0] = static_cast<int>(std::round(f_tex_pos[0]));
   tex_pos[1] = static_cast<int>(std::round(f_tex_pos[1]));
+
+  const Vec3b& dt = diffuse_texture.at<Vec3b>(tex_pos[1], tex_pos[0]);
   for (int k = 0; k < 3; k++) {
-    interp_color[k] = At(diffuse_texture, tex_pos[0], tex_pos[1], k);
+    interp_color[k] = dt[k];
   }
 
+  Vec3b& c = color->at<Vec3b>(y, x);
   for (int k = 0; k < 3; k++) {
-    At(color, x, y, k) = static_cast<unsigned char>(interp_color[k]);
+    c[k] = static_cast<unsigned char>(interp_color[k]);
   }
 }
 
@@ -330,23 +334,27 @@ inline void DiffuseTextureBilinearColorizer::Process(
   float local_u = f_tex_pos[0] - tex_pos_min[0];
   float local_v = f_tex_pos[1] - tex_pos_min[1];
 
+  const Vec3b& dt_minmin =
+      diffuse_texture.at<Vec3b>(tex_pos_min[1], tex_pos_min[0]);
+  const Vec3b& dt_maxmin =
+      diffuse_texture.at<Vec3b>(tex_pos_min[1], tex_pos_max[0]);
+  const Vec3b& dt_minmax =
+      diffuse_texture.at<Vec3b>(tex_pos_max[1], tex_pos_min[0]);
+  const Vec3b& dt_maxmax =
+      diffuse_texture.at<Vec3b>(tex_pos_max[1], tex_pos_max[0]);
   for (int k = 0; k < 3; k++) {
     // bilinear interpolation of pixel color
-    interp_color[k] =
-        (1.0f - local_u) * (1.0f - local_v) *
-            At(diffuse_texture, tex_pos_min[0], tex_pos_min[1], k) +
-        local_u * (1.0f - local_v) *
-            At(diffuse_texture, tex_pos_max[0], tex_pos_min[1], k) +
-        (1.0f - local_u) * local_v *
-            At(diffuse_texture, tex_pos_min[0], tex_pos_max[1], k) +
-        local_u * local_v *
-            At(diffuse_texture, tex_pos_max[0], tex_pos_max[1], k);
+    interp_color[k] = (1.0f - local_u) * (1.0f - local_v) * dt_minmin[k] +
+                      local_u * (1.0f - local_v) * dt_maxmin[k] +
+                      (1.0f - local_u) * local_v * dt_minmax[k] +
+                      local_u * local_v * dt_maxmax[k];
 
     assert(0.0f <= interp_color[k] && interp_color[k] <= 255.0f);
   }
 
+  Vec3b& c = color->at<Vec3b>(y, x);
   for (int k = 0; k < 3; k++) {
-    At(color, x, y, k) = static_cast<unsigned char>(interp_color[k]);
+    c[k] = static_cast<unsigned char>(interp_color[k]);
   }
 }
 
@@ -373,8 +381,9 @@ inline void DiffuseLambertianShader::Process(
     coeff = 0.0f;
   }
 
+  Vec3b& c = color->at<Vec3b>(y, x);
   for (int k = 0; k < 3; k++) {
-    At(color, x, y, k) = static_cast<uint8_t>(coeff * At(color, x, y, k));
+    c[k] = static_cast<uint8_t>(coeff * c[k]);
   }
 }
 
@@ -406,8 +415,9 @@ inline void DiffuseOrenNayarShader::Process(
   Image3b* color = input.color;
   int x = input.x;
   int y = input.y;
+  Vec3b& c = color->at<Vec3b>(y, x);
   for (int k = 0; k < 3; k++) {
-    At(color, x, y, k) = static_cast<uint8_t>(coeff * At(color, x, y, k));
+    c[k] = static_cast<uint8_t>(coeff * c[k]);
   }
 }
 
