@@ -225,12 +225,10 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
 #endif
 
           float& d = depth->at<float>(y, x);
-          if (d < std::numeric_limits<float>::min() ||
-              pixel_sample.z() < d) {
+          if (d < std::numeric_limits<float>::min() || pixel_sample.z() < d) {
             d = pixel_sample.z();
             face_id->at<int>(y, x) = i;
-            Vec3f& weight =
-                weight_image.at<Vec3f>(y, x);
+            Vec3f& weight = weight_image.at<Vec3f>(y, x);
             weight[0] = w0;
             weight[1] = w1;
             weight[2] = w2;
@@ -244,8 +242,7 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   // make images by referring to face id image
   for (int y = 0; y < backface_image.rows; y++) {
     for (int x = 0; x < backface_image.cols; x++) {
-      const unsigned char& bf =
-          backface_image.at<unsigned char>(y, x);
+      const unsigned char& bf = backface_image.at<unsigned char>(y, x);
       int& fid = face_id_->at<int>(y, x);
       if (option_.backface_culling && bf == 255) {
         depth_->at<float>(y, x) = 0.0f;
@@ -339,7 +336,7 @@ bool Rasterizer::Impl::RenderW(Image3b* color, Image1w* depth, Image3f* normal,
   bool org_ret = Render(color, &f_depth, normal, mask, face_id);
 
   if (org_ret) {
-    f_depth.convertTo(*depth, CV_16UC1);
+    ConvertTo(f_depth, depth);
   }
 
   return org_ret;

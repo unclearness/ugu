@@ -114,7 +114,8 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
     renderer.Render(&color, &depth, &normal, &mask, &face_id);
     imwrite(out_dir + prefix + "_color.png", color);
     imwrite(out_dir + prefix + "_mask.png", mask);
-    depth.convertTo(depthw, CV_16UC1, 1.0f);
+    //depth.convertTo(depthw, CV_16UC1, 1.0f);
+    currender::ConvertTo(depth, &depthw);
     imwrite(out_dir + prefix + "_depth.png", depthw);
     Depth2Gray(depth, &vis_depth);
     imwrite(out_dir + prefix + "_vis_depth.png", vis_depth);
