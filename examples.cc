@@ -55,7 +55,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   MeshStats stats = mesh->stats();
   Eigen::Vector3f center = stats.center;
   Eigen::Vector3f eye;
-  Eigen::Matrix4f c2w;
+  Eigen::Matrix4f c2w_mat;
 
   // translation offset is the largest edge length of bounding box * 1.5
   Eigen::Vector3f diff = stats.bb_max - stats.bb_min;
@@ -67,43 +67,43 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   // from front
   eye = center;
   eye[2] -= offset;
-  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
-  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w_mat);
+  pose_list.push_back(Eigen::Affine3d(c2w_mat.cast<double>()));
   name_list.push_back("front");
 
   // from back
   eye = center;
   eye[2] += offset;
-  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
-  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w_mat);
+  pose_list.push_back(Eigen::Affine3d(c2w_mat.cast<double>()));
   name_list.push_back("back");
 
   // from right
   eye = center;
   eye[0] += offset;
-  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
-  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w_mat);
+  pose_list.push_back(Eigen::Affine3d(c2w_mat.cast<double>()));
   name_list.push_back("right");
 
   // from left
   eye = center;
   eye[0] -= offset;
-  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w);
-  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  currender::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w_mat);
+  pose_list.push_back(Eigen::Affine3d(c2w_mat.cast<double>()));
   name_list.push_back("left");
 
   // from top
   eye = center;
   eye[1] -= offset;
-  currender::c2w(eye, center, Eigen::Vector3f(0, 0, 1), &c2w);
-  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  currender::c2w(eye, center, Eigen::Vector3f(0, 0, 1), &c2w_mat);
+  pose_list.push_back(Eigen::Affine3d(c2w_mat.cast<double>()));
   name_list.push_back("top");
 
   // from bottom
   eye = center;
   eye[1] += offset;
-  currender::c2w(eye, center, Eigen::Vector3f(0, 0, -1), &c2w);
-  pose_list.push_back(Eigen::Affine3d(c2w.cast<double>()));
+  currender::c2w(eye, center, Eigen::Vector3f(0, 0, -1), &c2w_mat);
+  pose_list.push_back(Eigen::Affine3d(c2w_mat.cast<double>()));
   name_list.push_back("bottom");
 
   for (size_t i = 0; i < pose_list.size(); i++) {

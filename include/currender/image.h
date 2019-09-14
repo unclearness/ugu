@@ -42,7 +42,9 @@ namespace currender {
 
 #ifdef CURRENDER_USE_OPENCV
 
-// using Image = cv::Mat;
+template <typename T>
+using Image = cv::Mat_<T>;
+
 using Image1b = cv::Mat1b;
 using Image3b = cv::Mat3b;
 using Image1w = cv::Mat1w;
@@ -50,6 +52,10 @@ using Image1i = cv::Mat1i;
 using Image1f = cv::Mat1f;
 using Image3f = cv::Mat3f;
 
+using Vec1v = unsigned char;
+using Vec1f = float;
+using Vec1i = int;
+using Vec1w = unsigned short;
 using Vec3f = cv::Vec3f;
 using Vec3b = cv::Vec3b;
 
@@ -68,16 +74,23 @@ inline T imread(const std::string& filename,
 }
 
 template <typename T, typename TT>
-inline void Init(T* image, int width, int height, TT val) {
+inline void Init(Image<T>* image, int width, int height, TT val) {
   if (image->cols == width && image->rows == height) {
     image->setTo(val);
   } else {
     if (val == TT(0)) {
-      *image = T::zeros(height, width);
+      *image = Image<T>::zeros(height, width);
     } else {
-      *image = T::ones(height, width) * val;
+      *image = Image<T>::ones(height, width) * val;
     }
   }
+}
+
+template <typename T, typename TT>
+bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
+  src.convertTo(*dst, dst->type(), scale);
+
+  return true;
 }
 
 #else
@@ -305,10 +318,6 @@ using Vec1b = std::array<unsigned char, 1>;
 using Vec3b = std::array<unsigned char, 3>;
 using Vec3f = std::array<float, 3>;
 
-// template <typename T>
-// template<typename TT, int N>
-// template <template <typename, int> class T, typename TT, int N>
-// template <template <typename TT, int N> typename T>
 template <typename T>
 class Image {
  private:
@@ -348,7 +357,6 @@ class Image {
  public:
   Image() : data_(new std::vector<T>) {}
   ~Image() {}
-  // Image(const Image<T, N>& src) { src.copyTo(*this); }
   int channels() const { return channels_; }
 
   int rows;
@@ -402,10 +410,6 @@ class Image {
     int width;
     int height;
     int bpp;
-
-    //data_->resize(1);
-    //channels_ = static_cast<int>((*data_)[0].size());
-    //data_->resize(0);
 
     if (bit_depth_ == 2) {
       in_pixels_tmp = reinterpret_cast<unsigned char*>(
@@ -592,8 +596,6 @@ inline T imread(const std::string& filename,
   return loaded;
 }
 
-#endif
-
 template <typename T, typename TT>
 bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
   if (src.channels() != dst->channels()) {
@@ -607,13 +609,16 @@ bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
   for (int y = 0; y < src.rows; y++) {
     for (int x = 0; x < src.cols; x++) {
       for (int c = 0; c < dst->channels(); c++) {
-        dst->at<TT>(y, x)[c] = static_cast<TT::value_type>(scale * src.at<T>(y, x)[c]);
+        dst->at<TT>(y, x)[c] =
+            static_cast<TT::value_type>(scale * src.at<T>(y, x)[c]);
       }
     }
   }
 
   return true;
 }
+
+#endif
 
 void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d = 200.0f,
                 float max_d = 1500.0f);
