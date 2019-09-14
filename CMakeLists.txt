@@ -68,7 +68,7 @@ if(CURRENDER_USE_STB)
   endif()
 endif()
 
-option(CURRENDER_USE_OPENCV "Use OpenCV as Image class" ON)
+option(CURRENDER_USE_OPENCV "Use OpenCV as Image class" OFF)
 message("CURRENDER_USE_OPENCV: ${CURRENDER_USE_OPENCV}")
 if(CURRENDER_USE_OPENCV)
   find_package(OpenCV REQUIRED)
