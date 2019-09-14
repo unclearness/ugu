@@ -525,7 +525,8 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
     if (ifs.is_open()) {
 #if defined(CURRENDER_USE_STB) || defined(CURRENDER_USE_OPENCV)
       // todo: force convert to Image3b
-      materials_[i].diffuse_tex = imread<Image3b>(materials_[i].diffuse_texpath);
+      materials_[i].diffuse_tex =
+          imread<Image3b>(materials_[i].diffuse_texpath);
       ret = !materials_[i].diffuse_tex.empty();
 #else
       LOGW("define CURRENDER_USE_STB to load diffuse texture.\n");
@@ -880,9 +881,17 @@ std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
 
   // set default color
   for (int i = 0; i < 24; i++) {
+#ifdef CURRENDER_USE_OPENCV
+    // BGR
     vertex_colors[i][2] = (-vertices[i][0] + h_x) / length.x() * 255;
     vertex_colors[i][1] = (-vertices[i][1] + h_y) / length.y() * 255;
     vertex_colors[i][0] = (-vertices[i][2] + h_z) / length.z() * 255;
+#else
+    // RGB
+    vertex_colors[i][0] = (-vertices[i][0] + h_x) / length.x() * 255;
+    vertex_colors[i][1] = (-vertices[i][1] + h_y) / length.y() * 255;
+    vertex_colors[i][2] = (-vertices[i][2] + h_z) / length.z() * 255;
+#endif
   }
 
   cube->set_vertices(vertices);
