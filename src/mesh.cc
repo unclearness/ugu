@@ -817,10 +817,6 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
       material.diffuse_texname = obj_basename + ".png";
     }
 
-    // replace extention with .png
-    material.diffuse_texname =
-        ReplaceExtention(material.diffuse_texname, ".png");
-
     // update path
     material.diffuse_texpath = obj_dir + "/" + material.diffuse_texname;
   }

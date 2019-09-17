@@ -265,9 +265,35 @@ class Image {
       return false;
     }
 
-    stbi_write_png(path.c_str(), width_, height_, channels_, data_->data(),
-                   width_ * sizeof(T));
-    return true;
+    int ret = stbi_write_png(path.c_str(), width_, height_, channels_,
+                             data_->data(), width_ * sizeof(T));
+    return ret != 0;
+  }
+
+  bool WriteJpg(const std::string& path) const {
+    if (bit_depth_ != 1) {
+      LOGE("1 byte per channel is required to save by stb_image: actual %d\n",
+           bit_depth_);
+      return false;
+    }
+
+    if (width_ < 0 || height_ < 0) {
+      LOGE("image is empty\n");
+      return false;
+    }
+
+    if (channels_ > 3) {
+      LOGW("alpha channel is ignored to save as .jpg. channels(): %d\n",
+           channels_);
+    }
+
+    // JPEG does ignore alpha channels in input data; quality is between 1
+    // and 100. Higher quality looks better but results in a bigger image.
+    const int max_quality{100};
+
+    int ret = stbi_write_jpg(path.c_str(), width_, height_, channels_,
+                             data_->data(), max_quality);
+    return ret != 0;
   }
 #else
   bool Load(const std::string& path) {
@@ -277,6 +303,12 @@ class Image {
   }
 
   bool WritePng(const std::string& path) const {
+    (void)path;
+    LOGE("can't write image with this configuration\n");
+    return false;
+  }
+
+  bool WriteJpg(const std::string& path) const {
     (void)path;
     LOGE("can't write image with this configuration\n");
     return false;
@@ -341,11 +373,18 @@ inline bool imwrite(const std::string& filename, const T& img,
 
   size_t ext_i = filename.find_last_of(".");
   std::string extname = filename.substr(ext_i, filename.size() - ext_i);
-  if (extname != ".png") {
-    return false;
+  if (extname == ".png" || extname == ".PNG") {
+    return img.WritePng(filename);
+  } else if (extname == ".jpg" || extname == ".jpeg" || extname == ".JPG" ||
+             extname == ".JPEG") {
+    return img.WriteJpg(filename);
   }
 
-  return img.WritePng(filename);
+  LOGE(
+      "acceptable extention is .png, .jpg or .jpeg. this extention is not "
+      "supported: %s\n",
+      filename.c_str());
+  return false;
 }
 
 template <typename T>
