@@ -61,10 +61,10 @@ if(CURRENDER_USE_STB)
   if(CURRENDER_USE_STB_AS_STATIC_LIB)
     add_library(stb
       STATIC
-      src/currender/stb.cc)
+      src/stb.cc)
     set(STB_LIB_NAME stb)
   else()
-    set(CURRENDER_STB_IMPLEMENTATION_CC src/currender/stb.cc)
+    set(CURRENDER_STB_IMPLEMENTATION_CC src/stb.cc)
   endif()
 endif()
 
@@ -147,17 +147,17 @@ add_library(${PUBLIC_LIB_NAME}
   include/currender/log.h
   include/currender/util.h
 
-  src/currender/raytracer.cc
-  src/currender/rasterizer.cc
-  src/currender/camera.cc
-  src/currender/mesh.cc
-  src/currender/image.cc
-  src/currender/pixel_shader.h
-  src/currender/timer.h
-  src/currender/log.cc
-  src/currender/util.cc
-  src/currender/util_private.h
-  src/currender/util_private.cc
+  src/raytracer.cc
+  src/rasterizer.cc
+  src/camera.cc
+  src/mesh.cc
+  src/image.cc
+  src/pixel_shader.h
+  src/timer.h
+  src/log.cc
+  src/util.cc
+  src/util_private.h
+  src/util_private.cc
 
   # implementations of header-only library
   ${CURRENDER_STB_IMPLEMENTATION_CC}
@@ -167,45 +167,13 @@ add_library(${PUBLIC_LIB_NAME}
   ${CURRENDER_LODEPNG_SOURCES}
 )
 
-# set folders
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-
-SOURCE_GROUP("Public header files" FILES
-  include/currender/common.h
-  include/currender/renderer.h
-  include/currender/raytracer.h
-  include/currender/rasterizer.h
-  include/currender/camera.h
-  include/currender/mesh.h
-  include/currender/image.h
-  include/currender/log.h
-  include/currender/util.h
-)
-
-SOURCE_GROUP("Private header files" FILES
-  src/currender/pixel_shader.h
-  src/currender/timer.h
-  src/currender/util_private.h
-)
-
-SOURCE_GROUP("Source files" FILES
-  src/currender/raytracer.cc
-  src/currender/rasterizer.cc
-  src/currender/camera.cc
-  src/currender/mesh.cc
-  src/currender/image.cc
-  src/currender/log.cc
-  src/currender/util.cc
-  src/currender/util_private.cc
-)
-
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
-include_directories(third_party)
 include_directories(${NANORT_INSTALL_DIR})
 include_directories(${EIGEN_INSTALL_DIR})
 include_directories(${TINYOBJLOADER_INSTALL_DIR})
-include_directories(${STB_INSTALL_DIR})
+include_directories(${STB_INSTALL_DIR}/..)
 include_directories(${LODEPNG_INSTALL_DIR})
 include_directories(${TINYCOLORMAP_INSTALL_DIR})
 include_directories(${OpenCV_INCLUDE_DIRS})

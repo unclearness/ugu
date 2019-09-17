@@ -7,9 +7,9 @@
 
 #include <cassert>
 
-#include "currender/pixel_shader.h"
-#include "currender/timer.h"
-#include "currender/util_private.h"
+#include "src/pixel_shader.h"
+#include "src/timer.h"
+#include "src/util_private.h"
 
 namespace {
 
