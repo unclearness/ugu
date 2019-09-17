@@ -17,6 +17,7 @@
 using currender::Camera;
 using currender::Depth2Gray;
 using currender::Depth2Mesh;
+using currender::Depth2PointCloud;
 using currender::FaceId2RandomColor;
 using currender::Image1b;
 using currender::Image1f;
@@ -46,7 +47,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   Image1b vis_depth;
   Image3b vis_normal;
   Image3b vis_face_id;
-  Mesh view_mesh;
+  Mesh view_mesh, view_point_cloud;
   const float kMaxConnectZDiff = 100.0f;
 
   // for pose output by tum format
@@ -114,7 +115,6 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
     renderer.Render(&color, &depth, &normal, &mask, &face_id);
     imwrite(out_dir + prefix + "_color.png", color);
     imwrite(out_dir + prefix + "_mask.png", mask);
-    //depth.convertTo(depthw, CV_16UC1, 1.0f);
     currender::ConvertTo(depth, &depthw);
     imwrite(out_dir + prefix + "_depth.png", depthw);
     Depth2Gray(depth, &vis_depth);
@@ -124,8 +124,10 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
     FaceId2RandomColor(face_id, &vis_face_id);
     imwrite(out_dir + prefix + "_vis_face_id.png", vis_face_id);
     WriteFaceIdAsText(face_id, out_dir + prefix + "_face_id.txt");
-    Depth2Mesh(depth, *camera, &view_mesh, kMaxConnectZDiff);
-    view_mesh.WritePly(out_dir + prefix + "_mesh.ply");
+    Depth2Mesh(depth, color, *camera, &view_mesh, kMaxConnectZDiff);
+    Depth2PointCloud(depth, color, *camera, &view_point_cloud);
+    view_point_cloud.WritePly(out_dir + prefix + "_mesh.ply");
+    view_mesh.WriteObj(out_dir, prefix + "_mesh");
     poses.push_back(camera->c2w());
   }
 
