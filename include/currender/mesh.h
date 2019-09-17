@@ -105,16 +105,13 @@ class Mesh {
   bool set_material_ids(const std::vector<int>& material_ids);
   bool set_materials(const std::vector<ObjMaterial>& materials);
 
-#ifdef CURRENDER_USE_TINYOBJLOADER
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);
-#endif
   bool LoadPly(const std::string& ply_path);
   bool WritePly(const std::string& ply_path) const;
-#ifdef CURRENDER_USE_STB
   // not const since this will update texture name and path
   bool WriteObj(const std::string& obj_dir, const std::string& obj_basename,
-                const std::string& mtl_basename = "");
-#endif
+                const std::string& mtl_basename = "", bool write_obj = true,
+                bool write_mtl = true, bool write_texture = true);
 };
 
 // make cube with 24 vertices

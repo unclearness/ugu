@@ -269,6 +269,18 @@ class Image {
                    width_ * sizeof(T));
     return true;
   }
+#else
+  bool Load(const std::string& path) {
+    (void)path;
+    LOGE("can't load image with this configuration\n");
+    return false;
+  }
+
+  bool WritePng(const std::string& path) const {
+    (void)path;
+    LOGE("can't write image with this configuration\n");
+    return false;
+  }
 #endif
 
   void copyTo(Image<T>& dst) const {

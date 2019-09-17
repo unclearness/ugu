@@ -46,10 +46,8 @@ inline std::string ReplaceExtention(const std::string& path,
   return ExtractPathWithoutExt(path) + ext;
 }
 
-#ifdef CURRENDER_USE_STB
 bool WriteMtl(const std::string& path,
-              const std::vector<currender::ObjMaterial>& materials,
-              bool write_texture) {
+              const std::vector<currender::ObjMaterial>& materials) {
   std::ofstream ofs(path);
   if (ofs.fail()) {
     currender::LOGE("couldn't open mtl path: %s\n", path.c_str());
@@ -65,21 +63,22 @@ bool WriteMtl(const std::string& path,
   }
   ofs.close();
 
+  return true;
+}
+
+bool WriteTexture(const std::vector<currender::ObjMaterial>& materials) {
   // write texture
   bool ret{true};
-  if (write_texture) {
-    for (size_t i = 0; i < materials.size(); i++) {
-      const currender::ObjMaterial& material = materials[i];
-      bool ret_write = imwrite(material.diffuse_texpath, material.diffuse_tex);
-      if (ret) {
-        ret = ret_write;
-      }
+  for (size_t i = 0; i < materials.size(); i++) {
+    const currender::ObjMaterial& material = materials[i];
+    bool ret_write = imwrite(material.diffuse_texpath, material.diffuse_tex);
+    if (ret) {
+      ret = ret_write;
     }
   }
 
   return ret;
 }
-#endif
 
 }  // namespace
 
@@ -544,6 +543,13 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
 
   return ret;
 }
+#else
+bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
+  (void)obj_path;
+  (void)mtl_dir;
+  LOGE("can't load obj with this configuration\n");
+  return false;
+}
 #endif
 
 bool Mesh::LoadPly(const std::string& ply_path) {
@@ -718,9 +724,10 @@ bool Mesh::WritePly(const std::string& ply_path) const {
   return true;
 }
 
-#ifdef CURRENDER_USE_STB
 bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
-                    const std::string& mtl_basename) {
+                    const std::string& mtl_basename, bool write_obj,
+                    bool write_mtl, bool write_texture) {
+  bool ret{true};
   std::string mtl_name = mtl_basename + ".mtl";
   if (mtl_basename.empty()) {
     mtl_name = obj_basename + ".mtl";
@@ -730,7 +737,7 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
   std::string obj_path = obj_dir + "/" + obj_basename + ".obj";
 
   // write obj
-  {
+  if (write_obj) {
     std::ofstream ofs(obj_path);
     if (ofs.fail()) {
       LOGE("couldn't open obj path: %s\n", obj_path.c_str());
@@ -819,11 +826,16 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
   }
 
   // write mtl
-  WriteMtl(mtl_path, materials_, true);
+  if (write_mtl) {
+    ret = WriteMtl(mtl_path, materials_);
+  }
 
-  return true;
+  if (write_texture) {
+    ret = WriteTexture(materials_);
+  }
+
+  return ret;
 }
-#endif
 
 std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
                                const Eigen::Matrix3f& R,
