@@ -18,6 +18,8 @@ Pros and cons against popular OpenGL based rendering are listed below.
   - You do not waste time in complex OpenGL settings.
 - **Less dependency.**
   - Only you need is Eigen for minimal Rasterizer configration.
+- **OpenCV compatible**
+  - Support cv::Mat_ for internal Image class (optional)
 - **Standard coordinate system in computer vision community**
   - Identical to OpenCV (right-handed, z:forward, y:down, x:right). You are not irritated by coordinate conversion for OpenGL.
 - **Intrinsic parameters (principal point and focal length in pixel-scale) with pinhole camera model**
@@ -119,6 +121,8 @@ Expected use cases are the following but not limited to
 - NanoRT
     https://github.com/lighttransport/nanort
     - Ray intersection acceralated by BVH for Raytracer
+- OpenCV
+    - cv::Mat_ as Image class. Image I/O
 - stb
     https://github.com/nothings/stb
     - Image I/O
