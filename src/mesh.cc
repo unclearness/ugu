@@ -80,6 +80,29 @@ bool WriteTexture(const std::vector<currender::ObjMaterial>& materials) {
   return ret;
 }
 
+// Optimized C++ 11.1.6
+inline std::streamoff stream_size(std::istream& f) {
+  std::istream::pos_type current_pos = f.tellg();
+  if (-1 == current_pos) {
+    return -1;
+  }
+  f.seekg(0, std::istream::end);
+  std::istream::pos_type end_pos = f.tellg();
+  f.seekg(current_pos);
+  return end_pos - current_pos;
+}
+
+inline bool stream_read_string(std::istream& f, std::string& result) {
+  std::streamoff len = stream_size(f);
+  if (len == -1) {
+    return false;
+  }
+
+  result.resize(static_cast<std::string::size_type>(len));
+
+  f.read(&result[0], result.length());
+  return true;
+}
 }  // namespace
 
 namespace currender {
@@ -95,8 +118,10 @@ std::string ObjMaterial::ToString() const {
      << "illum " << illum << '\n'
      << "Ns " << shininess << '\n';
   if (!diffuse_texname.empty()) {
-    ss << "map_Kd " << diffuse_texname << std::endl;
+    ss << "map_Kd " << diffuse_texname << "\n";
   }
+
+  ss.flush();
 
   return ss.str();
 }
@@ -677,9 +702,9 @@ bool Mesh::WritePly(const std::string& ply_path) const {
     assert(vertices_.size() == vertex_colors_.size());
   }
 
-  ofs << "ply" << std::endl;
-  ofs << "format ascii 1.0" << std::endl;
-  ofs << "element vertex " + std::to_string(vertices_.size()) << std::endl;
+  ofs << "ply" << "\n";
+  ofs << "format ascii 1.0" << "\n";
+  ofs << "element vertex " + std::to_string(vertices_.size()) << "\n";
   ofs << "property float x\n"
          "property float y\n"
          "property float z\n";
@@ -694,9 +719,9 @@ bool Mesh::WritePly(const std::string& ply_path) const {
            "property uchar blue\n"
            "property uchar alpha\n";
   }
-  ofs << "element face " + std::to_string(vertex_indices_.size()) << std::endl;
-  ofs << "property list uchar int vertex_indices" << std::endl;
-  ofs << "end_header" << std::endl;
+  ofs << "element face " + std::to_string(vertex_indices_.size()) << "\n";
+  ofs << "property list uchar int vertex_indices" << "\n";
+  ofs << "end_header" << "\n";
 
   for (size_t i = 0; i < vertices_.size(); i++) {
     ofs << vertices_[i][0] << " " << vertices_[i][1] << " " << vertices_[i][2]
@@ -744,22 +769,22 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
       return false;
     }
 
-    ofs << "mtllib " << mtl_name << std::endl << std::endl;
+    ofs << "mtllib " << mtl_name << "\n" << "\n";
 
     // vertices
     for (const auto& v : vertices_) {
       ofs << "v " << v.x() << " " << v.y() << " " << v.z() << " 1.0"
-          << std::endl;
+          << "\n";
     }
 
     // uv
     for (const auto& vt : uv_) {
-      ofs << "vt " << vt.x() << " " << vt.y() << " 0" << std::endl;
+      ofs << "vt " << vt.x() << " " << vt.y() << " 0" << "\n";
     }
 
     // vertex normals
     for (const auto& vn : normals_) {
-      ofs << "vn " << vn.x() << " " << vn.y() << " " << vn.z() << std::endl;
+      ofs << "vn " << vn.x() << " " << vn.y() << " " << vn.z() << "\n";
     }
 
     // indices by material (group)
@@ -803,7 +828,7 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
         }
         ofs << "/" << std::to_string(normal_indices_[i][j] + 1);
       }
-      ofs << std::endl;
+      ofs << "\n";
     }
 #endif
 

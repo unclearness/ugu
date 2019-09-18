@@ -310,9 +310,12 @@ void WriteFaceIdAsText(const Image1i& face_id, const std::string& path) {
 
   for (int y = 0; y < face_id.rows; y++) {
     for (int x = 0; x < face_id.cols; x++) {
-      ofs << face_id.at<int>(y, x) << std::endl;
+      ofs << face_id.at<int>(y, x) << "\n";
     }
   }
+  
+  ofs.flush();
+
 }
 
 }  // namespace currender
