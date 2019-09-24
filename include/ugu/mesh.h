@@ -10,10 +10,10 @@
 #include <string>
 #include <vector>
 
-#include "currender/common.h"
-#include "currender/image.h"
+#include "ugu/common.h"
+#include "ugu/image.h"
 
-namespace currender {
+namespace ugu {
 
 struct MeshStats {
   Eigen::Vector3f center;
@@ -125,4 +125,4 @@ std::shared_ptr<Mesh> MakeCube(float length);
 
 void SetRandomVertexColor(std::shared_ptr<Mesh> mesh, int seed = 0);
 
-}  // namespace currender
+}  // namespace ugu

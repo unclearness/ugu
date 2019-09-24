@@ -3,13 +3,13 @@
  * All rights reserved.
  */
 
-#include "currender/mesh.h"
+#include "ugu/mesh.h"
 
 #include <fstream>
 #include <random>
 #include <sstream>
 
-#ifdef CURRENDER_USE_TINYOBJLOADER
+#ifdef UGU_USE_TINYOBJLOADER
 #include "tinyobjloader/tiny_obj_loader.h"
 #endif
 
@@ -47,15 +47,15 @@ inline std::string ReplaceExtention(const std::string& path,
 }
 
 bool WriteMtl(const std::string& path,
-              const std::vector<currender::ObjMaterial>& materials) {
+              const std::vector<ugu::ObjMaterial>& materials) {
   std::ofstream ofs(path);
   if (ofs.fail()) {
-    currender::LOGE("couldn't open mtl path: %s\n", path.c_str());
+    ugu::LOGE("couldn't open mtl path: %s\n", path.c_str());
     return false;
   }
 
   for (size_t i = 0; i < materials.size(); i++) {
-    const currender::ObjMaterial& material = materials[i];
+    const ugu::ObjMaterial& material = materials[i];
     ofs << material.ToString();
     if (i != materials.size() - 1) {
       ofs << '\n';
@@ -66,11 +66,11 @@ bool WriteMtl(const std::string& path,
   return true;
 }
 
-bool WriteTexture(const std::vector<currender::ObjMaterial>& materials) {
+bool WriteTexture(const std::vector<ugu::ObjMaterial>& materials) {
   // write texture
   bool ret{true};
   for (size_t i = 0; i < materials.size(); i++) {
-    const currender::ObjMaterial& material = materials[i];
+    const ugu::ObjMaterial& material = materials[i];
     bool ret_write = imwrite(material.diffuse_texpath, material.diffuse_tex);
     if (ret) {
       ret = ret_write;
@@ -105,7 +105,7 @@ inline bool stream_read_string(std::istream& f, std::string& result) {
 }
 }  // namespace
 
-namespace currender {
+namespace ugu {
 
 std::string ObjMaterial::ToString() const {
   std::stringstream ss;
@@ -405,7 +405,7 @@ bool Mesh::set_materials(const std::vector<ObjMaterial>& materials) {
   return true;
 }
 
-#ifdef CURRENDER_USE_TINYOBJLOADER
+#ifdef UGU_USE_TINYOBJLOADER
 bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   Clear();
 
@@ -547,13 +547,13 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
     materials_[i].diffuse_texpath = mtl_dir + materials_[i].diffuse_texname;
     std::ifstream ifs(materials_[i].diffuse_texpath);
     if (ifs.is_open()) {
-#if defined(CURRENDER_USE_STB) || defined(CURRENDER_USE_OPENCV)
+#if defined(UGU_USE_STB) || defined(UGU_USE_OPENCV)
       // todo: force convert to Image3b
       materials_[i].diffuse_tex =
           imread<Image3b>(materials_[i].diffuse_texpath);
       ret = !materials_[i].diffuse_tex.empty();
 #else
-      LOGW("define CURRENDER_USE_STB to load diffuse texture.\n");
+      LOGW("define UGU_USE_STB to load diffuse texture.\n");
 #endif
     } else {
       LOGW("diffuse texture doesn't exist %s\n",
@@ -914,7 +914,7 @@ std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
 
   // set default color
   for (int i = 0; i < 24; i++) {
-#ifdef CURRENDER_USE_OPENCV
+#ifdef UGU_USE_OPENCV
     // BGR
     vertex_colors[i][2] = (-vertices[i][0] + h_x) / length.x() * 255;
     vertex_colors[i][1] = (-vertices[i][1] + h_y) / length.y() * 255;
@@ -970,4 +970,4 @@ void SetRandomVertexColor(std::shared_ptr<Mesh> mesh, int seed) {
   mesh->set_vertex_colors(vertex_colors);
 }
 
-}  // namespace currender
+}  // namespace ugu

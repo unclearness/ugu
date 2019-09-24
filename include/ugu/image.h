@@ -12,18 +12,18 @@
 #include <string>
 #include <vector>
 
-#include "currender/common.h"
+#include "ugu/common.h"
 
-#ifdef CURRENDER_USE_STB
+#ifdef UGU_USE_STB
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
 #endif
 
-#ifdef CURRENDER_USE_LODEPNG
+#ifdef UGU_USE_LODEPNG
 #include "lodepng/lodepng.h"
 #endif
 
-#ifdef CURRENDER_USE_TINYCOLORMAP
+#ifdef UGU_USE_TINYCOLORMAP
 #ifdef _WIN32
 #pragma warning(push)
 #pragma warning(disable : 4067)
@@ -34,13 +34,13 @@
 #endif
 #endif
 
-#ifdef CURRENDER_USE_OPENCV
+#ifdef UGU_USE_OPENCV
 #include "opencv2/imgcodecs.hpp"
 #endif
 
-namespace currender {
+namespace ugu {
 
-#ifdef CURRENDER_USE_OPENCV
+#ifdef UGU_USE_OPENCV
 
 template <typename T>
 using Image = cv::Mat_<T>;
@@ -180,7 +180,7 @@ class Image {
     return tmp;
   }
 
-#ifdef CURRENDER_USE_STB
+#ifdef UGU_USE_STB
   bool Load(const std::string& path) {
     unsigned char* in_pixels_tmp;
     int width;
@@ -212,7 +212,7 @@ class Image {
     return true;
   }
 
-#ifdef CURRENDER_USE_LODEPNG
+#ifdef UGU_USE_LODEPNG
   // https://github.com/lvandeve/lodepng/issues/74#issuecomment-405049566
   bool WritePng16Bit1Channel(const std::string& path) const {
     if (bit_depth_ != 2 || channels_ != 1) {
@@ -248,7 +248,7 @@ class Image {
 #endif
 
   bool WritePng(const std::string& path) const {
-#ifdef CURRENDER_USE_LODEPNG
+#ifdef UGU_USE_LODEPNG
     if (bit_depth_ == 2 && channels_ == 1) {
       return WritePng16Bit1Channel(path);
     }
@@ -427,7 +427,7 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal);
 
 void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id);
 
-#ifdef CURRENDER_USE_TINYCOLORMAP
+#ifdef UGU_USE_TINYCOLORMAP
 void Depth2Color(
     const Image1f& depth, Image3b* vis_depth, float min_d = 200.0f,
     float max_d = 1500.0f,
@@ -443,4 +443,4 @@ void BoxFilter(const Image1f& src, Image1f* dst, int kernel);
 void BoxFilter(const Image3b& src, Image3b* dst, int kernel);
 void BoxFilter(const Image3f& src, Image3f* dst, int kernel);
 
-}  // namespace currender
+}  // namespace ugu

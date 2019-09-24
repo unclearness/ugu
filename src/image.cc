@@ -3,14 +3,14 @@
  * All rights reserved.
  */
 
-#include "currender/image.h"
+#include "ugu/image.h"
 
 #include <algorithm>
 #include <array>
 #include <random>
 #include <unordered_map>
 
-#ifdef CURRENDER_USE_STB
+#ifdef UGU_USE_STB
 #ifdef _WIN32
 #pragma warning(push)
 #pragma warning(disable : 4100)
@@ -77,7 +77,7 @@ void BoxFilterCpuIntegral(int width, int height, int channel, int kernel,
   }
 
   // 2nd path: get average
-#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int j = 0; j < height; j++) {
@@ -125,7 +125,7 @@ inline void BoxFilterCpuIntegral(const T& src, T* dst, int kernel) {
 
 }  // namespace
 
-namespace currender {
+namespace ugu {
 
 void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
                 float max_d) {
@@ -162,7 +162,7 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
       Vec3b& vis = vis_normal->at<Vec3b>(y, x);
       const Vec3f& n = normal.at<Vec3f>(y, x);
 
-#ifdef CURRENDER_USE_OPENCV
+#ifdef UGU_USE_OPENCV
       // BGR
       vis[2] = static_cast<uint8_t>(std::round((n[0] + 1.0) * 0.5 * 255));
       vis[1] = static_cast<uint8_t>(std::round((n[1] + 1.0) * 0.5 * 255));
@@ -207,7 +207,7 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
       }
 
       Vec3b& vis = vis_face_id->at<Vec3b>(y, x);
-#ifdef CURRENDER_USE_OPENCV
+#ifdef UGU_USE_OPENCV
       // BGR
       vis[2] = color[0];
       vis[1] = color[1];
@@ -233,7 +233,7 @@ void BoxFilter(const Image3f& src, Image3f* dst, int kernel) {
   BoxFilterCpuIntegral<float>(src, dst, kernel);
 }
 
-#ifdef CURRENDER_USE_TINYCOLORMAP
+#ifdef UGU_USE_TINYCOLORMAP
 void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
                  float max_d, tinycolormap::ColormapType type) {
   assert(min_d < max_d);
@@ -253,7 +253,7 @@ void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
           tinycolormap::GetColor(norm_color, type);
 
       Vec3b& vis = vis_depth->at<Vec3b>(y, x);
-#ifdef CURRENDER_USE_OPENCV
+#ifdef UGU_USE_OPENCV
       // BGR
       vis[2] = static_cast<uint8_t>(color.r() * 255);
       vis[1] = static_cast<uint8_t>(color.g() * 255);
@@ -305,7 +305,7 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
       const tinycolormap::Color& color = tinycolormap::GetColor(norm_id, type);
 
       Vec3b& vis = vis_face_id->at<Vec3b>(y, x);
-#ifdef CURRENDER_USE_OPENCV
+#ifdef UGU_USE_OPENCV
       // BGR
       vis[2] = static_cast<uint8_t>(color.r() * 255);
       vis[1] = static_cast<uint8_t>(color.g() * 255);
@@ -322,4 +322,4 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
 
 #endif
 
-}  // namespace currender
+}  // namespace ugu

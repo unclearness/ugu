@@ -7,12 +7,12 @@
 
 #include <string>
 
-#include "currender/camera.h"
-#include "currender/common.h"
-#include "currender/image.h"
-#include "currender/mesh.h"
+#include "ugu/camera.h"
+#include "ugu/common.h"
+#include "ugu/image.h"
+#include "ugu/mesh.h"
 
-namespace currender {
+namespace ugu {
 
 bool Depth2PointCloud(const Image1f& depth, const Camera& camera,
                       Image3f* point_cloud, bool gl_coord = false);
@@ -35,4 +35,4 @@ bool Depth2Mesh(const Image1f& depth, const Image3b& color,
 
 void WriteFaceIdAsText(const Image1i& face_id, const std::string& path);
 
-}  // namespace currender
+}  // namespace ugu

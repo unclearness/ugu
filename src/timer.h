@@ -8,7 +8,7 @@
 #include <vector>
 #include <numeric>
 
-namespace currender {
+namespace ugu {
 
 template <typename T = double>
 class Timer {
@@ -45,4 +45,4 @@ class Timer {
   }
 };
 
-}  // namespace currender
+}  // namespace ugu

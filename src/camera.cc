@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "currender/camera.h"
+#include "ugu/camera.h"
 
 #include <fstream>
 #include <iomanip>
@@ -21,7 +21,7 @@ std::vector<std::string> Split(const std::string& input, char delimiter) {
 }
 }  // namespace
 
-namespace currender {
+namespace ugu {
 
 void WriteTumFormat(const std::vector<Eigen::Affine3d>& poses,
                     const std::string& path) {
@@ -89,4 +89,4 @@ bool LoadTumFormat(const std::string& path,
   return true;
 }
 
-}  // namespace currender
+}  // namespace ugu

@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#ifdef CURRENDER_USE_STB
+#ifdef UGU_USE_STB
 #ifdef _WIN32
 #pragma warning(push)
 #pragma warning(disable : 4100)

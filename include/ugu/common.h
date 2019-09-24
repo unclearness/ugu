@@ -11,9 +11,9 @@
 #include <string>
 
 #include "Eigen/Geometry"
-#include "currender/log.h"
+#include "ugu/log.h"
 
-namespace currender {
+namespace ugu {
 
 // borrow from glm
 // radians
@@ -69,4 +69,4 @@ std::string zfill(const T& val, int num = 5) {
   return sout.str();
 }
 
-}  // namespace currender
+}  // namespace ugu

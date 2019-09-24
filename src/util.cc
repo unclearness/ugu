@@ -3,19 +3,19 @@
  * All rights reserved.
  */
 
-#include "currender/util.h"
+#include "ugu/util.h"
 
 #include <fstream>
 
 namespace {
 
-bool Depth2PointCloudImpl(const currender::Image1f& depth,
-                          const currender::Image3b& color,
-                          const currender::Camera& camera,
-                          currender::Mesh* point_cloud, bool with_texture,
+bool Depth2PointCloudImpl(const ugu::Image1f& depth,
+                          const ugu::Image3b& color,
+                          const ugu::Camera& camera,
+                          ugu::Mesh* point_cloud, bool with_texture,
                           bool gl_coord) {
   if (depth.cols != camera.width() || depth.rows != camera.height()) {
-    currender::LOGE(
+    ugu::LOGE(
         "Depth2PointCloud depth size (%d, %d) and camera size (%d, %d) are "
         "different\n",
         depth.cols, depth.rows, camera.width(), camera.height());
@@ -31,7 +31,7 @@ bool Depth2PointCloudImpl(const currender::Image1f& depth,
     const float aspect_ratio_diff =
         std::abs(depth_aspect_ratio - color_aspect_ratio);
     if (aspect_ratio_diff > aspect_ratio_diff_th) {
-      currender::LOGE(
+      ugu::LOGE(
           "Depth2PointCloud depth aspect ratio %f and color aspect ratio %f "
           "are very "
           "different\n",
@@ -76,8 +76,8 @@ bool Depth2PointCloudImpl(const currender::Image1f& depth,
             static_cast<int>(std::round(uv.y() * color.rows)));
 
         Eigen::Vector3f pixel_color;
-        const currender::Vec3b& tmp_color =
-            color.at<currender::Vec3b>(pixel_pos.y(), pixel_pos.x());
+        const ugu::Vec3b& tmp_color =
+            color.at<ugu::Vec3b>(pixel_pos.y(), pixel_pos.x());
         pixel_color.x() = tmp_color[0];
         pixel_color.y() = tmp_color[1];
         pixel_color.z() = tmp_color[2];
@@ -97,27 +97,27 @@ bool Depth2PointCloudImpl(const currender::Image1f& depth,
   return true;
 }
 
-bool Depth2MeshImpl(const currender::Image1f& depth,
-                    const currender::Image3b& color,
-                    const currender::Camera& camera, currender::Mesh* mesh,
+bool Depth2MeshImpl(const ugu::Image1f& depth,
+                    const ugu::Image3b& color,
+                    const ugu::Camera& camera, ugu::Mesh* mesh,
                     bool with_texture, float max_connect_z_diff, int x_step,
                     int y_step, bool gl_coord,
                     const std::string& material_name) {
   if (max_connect_z_diff < 0) {
-    currender::LOGE("Depth2Mesh max_connect_z_diff must be positive %f\n",
+    ugu::LOGE("Depth2Mesh max_connect_z_diff must be positive %f\n",
                     max_connect_z_diff);
     return false;
   }
   if (x_step < 1) {
-    currender::LOGE("Depth2Mesh x_step must be positive %d\n", x_step);
+    ugu::LOGE("Depth2Mesh x_step must be positive %d\n", x_step);
     return false;
   }
   if (y_step < 1) {
-    currender::LOGE("Depth2Mesh y_step must be positive %d\n", y_step);
+    ugu::LOGE("Depth2Mesh y_step must be positive %d\n", y_step);
     return false;
   }
   if (depth.cols != camera.width() || depth.rows != camera.height()) {
-    currender::LOGE(
+    ugu::LOGE(
         "Depth2Mesh depth size (%d, %d) and camera size (%d, %d) are "
         "different\n",
         depth.cols, depth.rows, camera.width(), camera.height());
@@ -133,7 +133,7 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
     const float aspect_ratio_diff =
         std::abs(depth_aspect_ratio - color_aspect_ratio);
     if (aspect_ratio_diff > aspect_ratio_diff_th) {
-      currender::LOGE(
+      ugu::LOGE(
           "Depth2Mesh depth aspect ratio %f and color aspect ratio %f are very "
           "different\n",
           depth_aspect_ratio, color_aspect_ratio);
@@ -217,10 +217,10 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
     mesh->set_uv(uvs);
     mesh->set_uv_indices(vertex_indices);
 
-    currender::ObjMaterial material;
+    ugu::ObjMaterial material;
     color.copyTo(material.diffuse_tex);
     material.name = material_name;
-    std::vector<currender::ObjMaterial> materials;
+    std::vector<ugu::ObjMaterial> materials;
     materials.push_back(material);
     mesh->set_materials(materials);
     std::vector<int> material_ids(vertex_indices.size(), 0);
@@ -231,12 +231,12 @@ bool Depth2MeshImpl(const currender::Image1f& depth,
 }
 }  // namespace
 
-namespace currender {
+namespace ugu {
 
 bool Depth2PointCloud(const Image1f& depth, const Camera& camera,
                       Image3f* point_cloud, bool gl_coord) {
   if (depth.cols != camera.width() || depth.rows != camera.height()) {
-    currender::LOGE(
+    ugu::LOGE(
         "Depth2PointCloud depth size (%d, %d) and camera size (%d, %d) are "
         "different\n",
         depth.cols, depth.rows, camera.width(), camera.height());
@@ -245,7 +245,7 @@ bool Depth2PointCloud(const Image1f& depth, const Camera& camera,
 
   Init(point_cloud, depth.cols, depth.rows, 0.0f);
 
-#if defined(_OPENMP) && defined(CURRENDER_USE_OPENMP)
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int y = 0; y < camera.height(); y++) {
@@ -318,4 +318,4 @@ void WriteFaceIdAsText(const Image1i& face_id, const std::string& path) {
 
 }
 
-}  // namespace currender
+}  // namespace ugu

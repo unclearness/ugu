@@ -15,9 +15,9 @@
 #include <utility>
 #include <vector>
 
-#include "currender/common.h"
+#include "ugu/common.h"
 
-namespace currender {
+namespace ugu {
 
 // interface (pure abstract base class with no state or defined methods) for
 // camera
@@ -603,4 +603,4 @@ inline void OrthoCamera::InitRayTable() {
   }
 }
 
-}  // namespace currender
+}  // namespace ugu

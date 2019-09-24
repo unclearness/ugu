@@ -5,7 +5,7 @@
 
 #pragma once
 
-namespace currender {
+namespace ugu {
 
 enum class LogLevel {
   kVerbose = 0,
@@ -23,4 +23,4 @@ void LOGI(const char *format, ...);
 void LOGW(const char *format, ...);
 void LOGE(const char *format, ...);
 
-}  // namespace currender
+}  // namespace ugu

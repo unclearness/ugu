@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "currender/log.h"
+#include "ugu/log.h"
 
 #include <cstdarg>
 #include <cstdio>
@@ -18,10 +18,10 @@
   } while (0)
 
 namespace {
-currender::LogLevel g_log_level_ = currender::LogLevel::kVerbose;
+ugu::LogLevel g_log_level_ = ugu::LogLevel::kVerbose;
 }
 
-namespace currender {
+namespace ugu {
 
 void set_log_level(LogLevel level) { g_log_level_ = level; }
 
@@ -50,4 +50,4 @@ void LOGE(const char *format, ...) {
   }
 }
 
-}  // namespace currender
+}  // namespace ugu
