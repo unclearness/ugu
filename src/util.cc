@@ -9,11 +9,9 @@
 
 namespace {
 
-bool Depth2PointCloudImpl(const ugu::Image1f& depth,
-                          const ugu::Image3b& color,
-                          const ugu::Camera& camera,
-                          ugu::Mesh* point_cloud, bool with_texture,
-                          bool gl_coord) {
+bool Depth2PointCloudImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
+                          const ugu::Camera& camera, ugu::Mesh* point_cloud,
+                          bool with_texture, bool gl_coord) {
   if (depth.cols != camera.width() || depth.rows != camera.height()) {
     ugu::LOGE(
         "Depth2PointCloud depth size (%d, %d) and camera size (%d, %d) are "
@@ -97,15 +95,14 @@ bool Depth2PointCloudImpl(const ugu::Image1f& depth,
   return true;
 }
 
-bool Depth2MeshImpl(const ugu::Image1f& depth,
-                    const ugu::Image3b& color,
+bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
                     const ugu::Camera& camera, ugu::Mesh* mesh,
                     bool with_texture, float max_connect_z_diff, int x_step,
                     int y_step, bool gl_coord,
                     const std::string& material_name) {
   if (max_connect_z_diff < 0) {
     ugu::LOGE("Depth2Mesh max_connect_z_diff must be positive %f\n",
-                    max_connect_z_diff);
+              max_connect_z_diff);
     return false;
   }
   if (x_step < 1) {
@@ -313,9 +310,8 @@ void WriteFaceIdAsText(const Image1i& face_id, const std::string& path) {
       ofs << face_id.at<int>(y, x) << "\n";
     }
   }
-  
-  ofs.flush();
 
+  ofs.flush();
 }
 
 }  // namespace ugu

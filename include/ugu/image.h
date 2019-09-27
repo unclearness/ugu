@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include <array>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -55,7 +56,7 @@ using Image3f = cv::Mat3f;
 using Vec1v = unsigned char;
 using Vec1f = float;
 using Vec1i = int;
-using Vec1w = unsigned short;
+using Vec1w = std::uint16_t;
 using Vec3f = cv::Vec3f;
 using Vec3b = cv::Vec3b;
 
@@ -100,7 +101,7 @@ using Vec = std::array<TT, N>;
 
 using Vec1f = Vec<float, 1>;
 using Vec1i = std::array<int, 1>;
-using Vec1w = std::array<unsigned short, 1>;
+using Vec1w = std::array<std::uint16_t, 1>;
 using Vec1b = std::array<unsigned char, 1>;
 using Vec3b = std::array<unsigned char, 3>;
 using Vec3f = std::array<float, 3>;
@@ -315,7 +316,7 @@ class Image {
   }
 #endif
 
-  void copyTo(Image<T>& dst) const {
+  void copyTo(Image<T>& dst) const {  // NOLINT
     if (dst.cols != cols || dst.rows != rows) {
       dst = Image<T>::zeros(rows, cols);
     }

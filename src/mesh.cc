@@ -92,7 +92,8 @@ inline std::streamoff stream_size(std::istream& f) {
   return end_pos - current_pos;
 }
 
-inline bool stream_read_string(std::istream& f, std::string& result) {
+inline bool stream_read_string(std::istream& f,
+                               std::string& result) {  // NOLINT
   std::streamoff len = stream_size(f);
   if (len == -1) {
     return false;
@@ -702,8 +703,10 @@ bool Mesh::WritePly(const std::string& ply_path) const {
     assert(vertices_.size() == vertex_colors_.size());
   }
 
-  ofs << "ply" << "\n";
-  ofs << "format ascii 1.0" << "\n";
+  ofs << "ply"
+      << "\n";
+  ofs << "format ascii 1.0"
+      << "\n";
   ofs << "element vertex " + std::to_string(vertices_.size()) << "\n";
   ofs << "property float x\n"
          "property float y\n"
@@ -720,8 +723,10 @@ bool Mesh::WritePly(const std::string& ply_path) const {
            "property uchar alpha\n";
   }
   ofs << "element face " + std::to_string(vertex_indices_.size()) << "\n";
-  ofs << "property list uchar int vertex_indices" << "\n";
-  ofs << "end_header" << "\n";
+  ofs << "property list uchar int vertex_indices"
+      << "\n";
+  ofs << "end_header"
+      << "\n";
 
   for (size_t i = 0; i < vertices_.size(); i++) {
     ofs << vertices_[i][0] << " " << vertices_[i][1] << " " << vertices_[i][2]
@@ -769,7 +774,8 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
       return false;
     }
 
-    ofs << "mtllib " << mtl_name << "\n" << "\n";
+    ofs << "mtllib " << mtl_name << "\n"
+        << "\n";
 
     // vertices
     for (const auto& v : vertices_) {
@@ -779,7 +785,8 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
 
     // uv
     for (const auto& vt : uv_) {
-      ofs << "vt " << vt.x() << " " << vt.y() << " 0" << "\n";
+      ofs << "vt " << vt.x() << " " << vt.y() << " 0"
+          << "\n";
     }
 
     // vertex normals

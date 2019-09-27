@@ -132,7 +132,7 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
   assert(min_d < max_d);
   assert(vis_depth != nullptr);
 
-  Init(vis_depth, depth.cols, depth.rows, unsigned char(0));
+  Init(vis_depth, depth.cols, depth.rows, static_cast<unsigned char>(0));
 
   float inv_denom = 1.0f / (max_d - min_d);
   for (int y = 0; y < vis_depth->rows; y++) {
@@ -151,7 +151,7 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
 void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
   assert(vis_normal != nullptr);
 
-  Init(vis_normal, normal.cols, normal.rows, unsigned char(0));
+  Init(vis_normal, normal.cols, normal.rows, static_cast<unsigned char>(0));
 
   // Followed https://en.wikipedia.org/wiki/Normal_mapping
   // X: -1 to +1 :  Red: 0 to 255
@@ -239,7 +239,7 @@ void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
   assert(min_d < max_d);
   assert(vis_depth != nullptr);
 
-  Init(vis_depth, depth.cols, depth.rows, unsigned char(0));
+  Init(vis_depth, depth.cols, depth.rows, static_cast<unsigned char>(0));
 
   float inv_denom = 1.0f / (max_d - min_d);
   for (int y = 0; y < vis_depth->rows; y++) {
