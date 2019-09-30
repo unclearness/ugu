@@ -140,11 +140,11 @@ add_library(${PUBLIC_LIB_NAME}
   include/ugu/image.h
   include/ugu/log.h
   include/ugu/util.h
+  include/ugu/timer.h
 
   src/camera.cc
   src/mesh.cc
   src/image.cc
-  src/timer.h
   src/log.cc
   src/util.cc
 
