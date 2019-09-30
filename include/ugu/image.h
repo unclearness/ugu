@@ -109,7 +109,7 @@ using Vec3f = std::array<float, 3>;
 template <typename T>
 class Image {
  private:
-  int bit_depth_{sizeof(T::value_type)};
+    int bit_depth_{sizeof(typename T::value_type)};
   int channels_{std::tuple_size<T>::value};
   int width_{-1};
   int height_{-1};
@@ -177,7 +177,7 @@ class Image {
 
   static Image<T> zeros(int height, int width) {
     Image<T> tmp;
-    tmp.Init(width, height, static_cast<T::value_type>(0));
+      tmp.Init(width, height, static_cast<typename T::value_type>(0));
     return tmp;
   }
 
@@ -410,8 +410,8 @@ bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
   for (int y = 0; y < src.rows; y++) {
     for (int x = 0; x < src.cols; x++) {
       for (int c = 0; c < dst->channels(); c++) {
-        dst->at<TT>(y, x)[c] =
-            static_cast<TT::value_type>(scale * src.at<T>(y, x)[c]);
+          dst->template at<TT>(y, x)[c] =
+          static_cast<typename TT::value_type>(scale * src.template at<T>(y, x)[c]);
       }
     }
   }
