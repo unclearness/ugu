@@ -28,9 +28,6 @@ set(CMAKE_CXX_FLAGS  "-std=c++14 -Wall -O2")
 endif()
 
 # third_party directries
-if(NOT DEFINED NANORT_INSTALL_DIR)
-  set(NANORT_INSTALL_DIR "third_party/nanort" CACHE PATH "NanoRT installed directory")
-endif()
 message("NANORT_INSTALL_DIR: ${NANORT_INSTALL_DIR}") 
 if(NOT DEFINED STB_INSTALL_DIR)
   set(STB_INSTALL_DIR "third_party/stb" CACHE PATH "stb installed directory")
@@ -125,12 +122,6 @@ if(UGU_USE_OPENMP)
   add_definitions(-DUGU_USE_OPENMP)
 endif()
 
-option(UGU_USE_NANORT "Use NanoRT for Raytracer" ON)
-message("UGU_USE_NANORT: ${UGU_USE_NANORT}")
-if(UGU_USE_NANORT)
-  add_definitions(-DUGU_USE_NANORT)
-endif()
-
 # For OpenMP
 if(UGU_USE_OPENMP)
   find_package(OpenMP REQUIRED)
@@ -168,7 +159,6 @@ add_library(${PUBLIC_LIB_NAME}
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
-include_directories(${NANORT_INSTALL_DIR})
 include_directories(${EIGEN_INSTALL_DIR})
 include_directories(${TINYOBJLOADER_INSTALL_DIR})
 include_directories(${STB_INSTALL_DIR}/..)
