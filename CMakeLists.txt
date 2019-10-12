@@ -35,14 +35,14 @@ else()
 endif()
 
 function(set_with_parent ARG_NAME ARG_PATH ARG_TEXT)
-    set(${ARG_NAME} ${ARG_PATH} CACHE PATH ${ARG_TEXT})
+    set(${ARG_NAME} ${ARG_PATH} CACHE PATH ${ARG_TEXT} FORCE)
     if (hasParent)
-      set(${ARG_NAME} ${ARG_PATH} CACHE PATH ${ARG_TEXT} PARENT_SCOPE)
+      set(${ARG_NAME} ${ARG_PATH} PARENT_SCOPE)
     endif()
 endfunction(set_with_parent)
 
-set(Ugu_LIBS ${PROJECT_NAME})
-set(Ugu_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_SOURCE_DIR}/src")
+set(Ugu_LIBS)
+set(Ugu_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # third_party directries
 # must
@@ -184,19 +184,23 @@ add_library(${Ugu_LIB}
 
 set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB})
 
-set_with_parent(Ugu_LIBS ${Ugu_LIBS} "Ugu_LIBS")
-set_with_parent(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} "Ugu_INCLUDE_DIRS")
+set_with_parent(Ugu_LIBS "${Ugu_LIBS}" "Ugu_LIBS")
+set_with_parent(Ugu_INCLUDE_DIRS "${Ugu_INCLUDE_DIRS}" "Ugu_INCLUDE_DIRS")
+message("Ugu_LIBS: ${Ugu_LIBS}") 
+message("Ugu_INCLUDE_DIRS: ${Ugu_INCLUDE_DIRS}") 
 
 target_include_directories(${Ugu_LIB} PUBLIC ${Ugu_INCLUDE_DIRS})
 set_target_properties(${Ugu_LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 
-set(MESH_TEST_EXE ugu_mesh_test)
-add_executable(${MESH_TEST_EXE}
-  mesh_test.cc)
-target_include_directories(${MESH_TEST_EXE} PRIVATE ${Ugu_INCLUDE_DIRS})
-target_link_libraries(${MESH_TEST_EXE}
-  ${Ugu_LIBS}
-  )
+if (NOT hasParent)
+  set(MESH_TEST_EXE ugu_mesh_test)
+  add_executable(${MESH_TEST_EXE}
+    mesh_test.cc)
+  target_include_directories(${MESH_TEST_EXE} PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(${MESH_TEST_EXE}
+    ${Ugu_LIBS}
+    )
+endif()
 
 if (WIN32)
   #set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${EXAMPLES_EXE})
@@ -220,13 +224,15 @@ if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip)
 file(DOWNLOAD http://www.kunzhou.net/tex-models/bunny.zip ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip)
 endif()
 
-# unzip test data
-add_custom_target( unZip ALL)
-add_custom_command(TARGET unZip PRE_BUILD
-   COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip
-WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny
-DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip
-COMMENT "Unpacking bunny.zip"
-VERBATIM)
+if (NOT hasParent)
+  # unzip test data
+  add_custom_target( Ugu_UNZip ALL)
+  add_custom_command(TARGET Ugu_UNZip PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip
+  COMMENT "Unpacking bunny.zip"
+  VERBATIM)
+endif()
 
 endif()
