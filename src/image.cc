@@ -10,12 +10,12 @@
 #include <random>
 #include <unordered_map>
 
-#ifdef UGU_USE_STB
+#if defined(UGU_USE_STB) && !defined(UGU_USE_OPENCV)
 #ifdef _WIN32
 #pragma warning(push)
 #pragma warning(disable : 4100)
 #endif
-#include "stb/stb_image.h"
+#include "stb_image.h"
 #ifdef _WIN32
 #pragma warning(pop)
 #endif
@@ -24,7 +24,7 @@
 #pragma warning(push)
 #pragma warning(disable : 4996)
 #endif
-#include "stb/stb_image_write.h"
+#include "stb_image_write.h"
 #ifdef _WIN32
 #pragma warning(pop)
 #endif

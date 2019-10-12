@@ -10,7 +10,7 @@
 #include <sstream>
 
 #ifdef UGU_USE_TINYOBJLOADER
-#include "tinyobjloader/tiny_obj_loader.h"
+#include "tiny_obj_loader.h"
 #endif
 
 namespace {

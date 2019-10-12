@@ -15,13 +15,13 @@
 
 #include "ugu/common.h"
 
-#ifdef UGU_USE_STB
-#include "stb/stb_image.h"
-#include "stb/stb_image_write.h"
+#if defined(UGU_USE_STB) && !defined(UGU_USE_OPENCV)
+#include "stb_image.h"
+#include "stb_image_write.h"
 #endif
 
-#ifdef UGU_USE_LODEPNG
-#include "lodepng/lodepng.h"
+#if defined(UGU_USE_LODEPNG) && !defined(UGU_USE_OPENCV)
+#include "lodepng.h"
 #endif
 
 #ifdef UGU_USE_TINYCOLORMAP
@@ -29,7 +29,7 @@
 #pragma warning(push)
 #pragma warning(disable : 4067)
 #endif
-#include "tinycolormap/include/tinycolormap.hpp"
+#include "tinycolormap.hpp"
 #ifdef _WIN32
 #pragma warning(pop)
 #endif

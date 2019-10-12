@@ -27,31 +27,52 @@ set(CMAKE_CXX_FLAGS  "-std=c++14 -Wall -O2")
 
 endif()
 
+get_directory_property(hasParent PARENT_DIRECTORY)
+if(hasParent)
+  message(STATUS "Has a parent scope.")
+else()
+  message(STATUS "Doesn't have a parent scope.")
+endif()
+
+function(set_with_parent ARG_NAME ARG_PATH ARG_TEXT)
+    set(${ARG_NAME} ${ARG_PATH} CACHE PATH ${ARG_TEXT})
+    if (hasParent)
+      set(${ARG_NAME} ${ARG_PATH} CACHE PATH ${ARG_TEXT} PARENT_SCOPE)
+    endif()
+endfunction(set_with_parent)
+
+set(Ugu_LIBS ${PROJECT_NAME})
+set(Ugu_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_SOURCE_DIR}/src")
+
 # third_party directries
-message("NANORT_INSTALL_DIR: ${NANORT_INSTALL_DIR}") 
+# must
+if(NOT DEFINED EIGEN3_INCLUDE_DIR)
+  set_with_parent(EIGEN3_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen" "eigen installed directory" PARENT_SCOPE)
+message("EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR}") 
+endif()
+set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
+
+# optional
 if(NOT DEFINED STB_INSTALL_DIR)
-  set(STB_INSTALL_DIR "third_party/stb" CACHE PATH "stb installed directory")
+  set_with_parent(STB_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb" "stb installed directory")
 endif()
 message("STB_INSTALL_DIR: ${STB_INSTALL_DIR}") 
 if(NOT DEFINED TINYOBJLOADER_INSTALL_DIR)
-  set(TINYOBJLOADER_INSTALL_DIR "third_party/tinyobjloader" CACHE PATH "tinyobjloader installed directory")
+  set_with_parent(TINYOBJLOADER_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyobjloader" "tinyobjloader installed directory")
 endif()
 message("TINYOBJLOADER_INSTALL_DIR: ${TINYOBJLOADER_INSTALL_DIR}")
-if(NOT DEFINED EIGEN_INSTALL_DIR)
-  set(EIGEN_INSTALL_DIR "third_party/eigen" CACHE PATH "eigen installed directory")
-message("EIGEN_INSTALL_DIR: ${EIGEN_INSTALL_DIR}") 
-endif()
 if(NOT DEFINED LODEPNG_INSTALL_DIR)
-  set(LODEPNG_INSTALL_DIR "third_party/lodepng" CACHE PATH "LodePNG installed directory")
+  set_with_parent(LODEPNG_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lodepng" "LodePNG installed directory")
 endif()
 if(NOT DEFINED TINYCOLORMAP_INSTALL_DIR)
-  set(TINYCOLORMAP_INSTALL_DIR "third_party/tinycolormap" CACHE PATH "tinycolormap installed directory")
+  set_with_parent(TINYCOLORMAP_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinycolormap/include" "tinycolormap installed directory")
 endif()
 
 # switch for optional libraries
 option(UGU_USE_STB "Use stb to enable image i/o" ON)
 message("UGU_USE_STB: ${UGU_USE_STB}")
 if(UGU_USE_STB)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${STB_INSTALL_DIR})
   add_definitions(-DUGU_USE_STB)
   option(UGU_USE_STB_BUT_NO_IMPLEMENTATION "Include stb but implement somewhere else" OFF)
   if (NOT UGU_USE_STB_BUT_NO_IMPLEMENTATION)
@@ -61,7 +82,7 @@ if(UGU_USE_STB)
       add_library(stb
         STATIC
         src/stb.cc)
-      set(STB_LIB_NAME stb)
+      set(Ugu_LIBS ${Ugu_LIBS} stb)
     else()
       set(UGU_STB_IMPLEMENTATION_CC src/stb.cc)
     endif()
@@ -73,11 +94,14 @@ message("UGU_USE_OPENCV: ${UGU_USE_OPENCV}")
 if(UGU_USE_OPENCV)
   find_package(OpenCV REQUIRED)
   add_definitions(-DUGU_USE_OPENCV)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
+  set(Ugu_LIBS ${Ugu_LIBS} ${OpenCV_LIBS})
 endif()
 
 option(UGU_USE_TINYOBJLOADER "Use tinyobjloader to enable .obj input" ON)
 message("UGU_USE_TINYOBJLOADER: ${UGU_USE_TINYOBJLOADER}")
 if(UGU_USE_TINYOBJLOADER)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${TINYOBJLOADER_INSTALL_DIR})
   add_definitions(-DUGU_USE_TINYOBJLOADER)
   option(UGU_USE_TINYOBJLOADER_BUT_NO_IMPLEMENTATION "Include tinyobjloader but implement somewhere else" OFF)
   if (NOT UGU_USE_TINYOBJLOADER_BUT_NO_IMPLEMENTATION)
@@ -85,7 +109,7 @@ if(UGU_USE_TINYOBJLOADER)
     message("UGU_USE_TINYOBJLOADER_AS_STATIC_LIB: ${UGU_USE_TINYOBJLOADER_AS_STATIC_LIB}")
     if(UGU_USE_TINYOBJLOADER_AS_STATIC_LIB)
       add_subdirectory(${TINYOBJLOADER_INSTALL_DIR})
-      set(TINYOBJLOADER_LIB_NAME tinyobjloader)
+      set(Ugu_LIBS ${Ugu_LIBS} tinyobjloader)
     else()
       set(UGU_TINYOBJLOADER_IMPLEMENTATION_CC ${TINYOBJLOADER_INSTALL_DIR}/tiny_obj_loader.cc)
     endif()
@@ -95,6 +119,7 @@ endif()
 option(UGU_USE_LODEPNG "Use LodePNG to enable image i/o, especially for 16bit" ON)
 message("UGU_USE_LODEPNG: ${UGU_USE_LODEPNG}")
 if(UGU_USE_LODEPNG)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${LODEPNG_INSTALL_DIR})
   add_definitions(-DUGU_USE_LODEPNG)
   option(UGU_USE_LODEPNG_AS_STATIC_LIB "Use LodePNG as static lib" OFF)
   if(UGU_USE_LODEPNG_AS_STATIC_LIB)
@@ -102,7 +127,7 @@ if(UGU_USE_LODEPNG)
       STATIC
       ${LODEPNG_INSTALL_DIR}/lodepng.cpp
       ${LODEPNG_INSTALL_DIR}/lodepng.h)
-      set(LODEPNG_LIB_NAME lodepng)
+      set(Ugu_LIBS ${Ugu_LIBS} lodepng)
   else()
    set(UGU_LODEPNG_SOURCES
       ${LODEPNG_INSTALL_DIR}/lodepng.cpp
@@ -113,6 +138,7 @@ endif()
 option(UGU_USE_TINYCOLORMAP "Use tinycolormap for visualization" ON)
 message("UGU_USE_TINYCOLORMAP: ${UGU_USE_TINYCOLORMAP}")
 if(UGU_USE_TINYCOLORMAP)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${TINYCOLORMAP_INSTALL_DIR})
   add_definitions(-DUGU_USE_TINYCOLORMAP)
 endif()
 
@@ -131,8 +157,8 @@ if(UGU_USE_OPENMP)
   endif()
 endif()
 
-set(PUBLIC_LIB_NAME ${PROJECT_NAME})
-add_library(${PUBLIC_LIB_NAME}
+set(Ugu_LIB ugu)
+add_library(${Ugu_LIB}
   STATIC
   include/ugu/common.h
   include/ugu/camera.h
@@ -156,28 +182,20 @@ add_library(${PUBLIC_LIB_NAME}
   ${UGU_LODEPNG_SOURCES}
 )
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
-include_directories(${EIGEN_INSTALL_DIR})
-include_directories(${TINYOBJLOADER_INSTALL_DIR})
-include_directories(${STB_INSTALL_DIR}/..)
-include_directories(${LODEPNG_INSTALL_DIR})
-include_directories(${TINYCOLORMAP_INSTALL_DIR})
-include_directories(${OpenCV_INCLUDE_DIRS})
+set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB})
 
-set_target_properties(${PUBLIC_LIB_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
+set_with_parent(Ugu_LIBS ${Ugu_LIBS} "Ugu_LIBS")
+set_with_parent(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} "Ugu_INCLUDE_DIRS")
 
+target_include_directories(${Ugu_LIB} PUBLIC ${Ugu_INCLUDE_DIRS})
+set_target_properties(${Ugu_LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 
 set(MESH_TEST_EXE ugu_mesh_test)
 add_executable(${MESH_TEST_EXE}
   mesh_test.cc)
+target_include_directories(${MESH_TEST_EXE} PRIVATE ${Ugu_INCLUDE_DIRS})
 target_link_libraries(${MESH_TEST_EXE}
-  ${PUBLIC_LIB_NAME}
-  ${STB_LIB_NAME}
-  ${TINYOBJLOADER_LIB_NAME}
-  ${LODEPNG_LIB_NAME}
-  ${OpenCV_LIBS}
+  ${Ugu_LIBS}
   )
 
 if (WIN32)
