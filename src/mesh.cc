@@ -174,6 +174,10 @@ const MeshStats& Mesh::stats() const { return stats_; }
 const std::vector<int>& Mesh::material_ids() const { return material_ids_; }
 const std::vector<ObjMaterial>& Mesh::materials() const { return materials_; }
 
+const std::vector<std::vector<int>>& Mesh::face_indices_per_material() const {
+  return face_indices_per_material_;
+}
+
 void Mesh::CalcStats() {
   stats_.bb_min = Eigen::Vector3f(std::numeric_limits<float>::max(),
                                   std::numeric_limits<float>::max(),
@@ -394,6 +398,9 @@ bool Mesh::set_material_ids(const std::vector<int>& material_ids) {
   CopyVec(material_ids, &material_ids_);
 
   face_indices_per_material_.resize(max_id + 1);
+  for (auto& fipm : face_indices_per_material_) {
+    fipm.clear();
+  }
   for (int i = 0; i < static_cast<int>(material_ids_.size()); i++) {
     face_indices_per_material_[material_ids_[i]].push_back(i);
   }
@@ -403,6 +410,15 @@ bool Mesh::set_material_ids(const std::vector<int>& material_ids) {
 
 bool Mesh::set_materials(const std::vector<ObjMaterial>& materials) {
   CopyVec(materials, &materials_);
+  return true;
+}
+
+bool Mesh::set_face_indices_per_material(
+    const std::vector<std::vector<int>>& face_indices_per_material) {
+  face_indices_per_material_.resize(face_indices_per_material.size());
+  for (size_t k = 0; k < face_indices_per_material.size(); k++) {
+    CopyVec(face_indices_per_material[k], &face_indices_per_material_[k]);
+  }
   return true;
 }
 
@@ -863,6 +879,102 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
   }
 
   return ret;
+}
+
+int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
+  if (valid_vertex_table.size() != vertices_.size()) {
+    LOGE("valid_vertex_table must be same size to vertices");
+    return -1;
+  }
+
+  int num_removed{0};
+  std::vector<int> valid_table(vertices_.size(), -1);
+  std::vector<Eigen::Vector3f> valid_vertices;
+  std::vector<Eigen::Vector2f> valid_uv;
+  std::vector<Eigen::Vector3i> valid_indices;
+  int valid_count = 0;
+  for (size_t i = 0; i < vertices_.size(); i++) {
+    if (valid_vertex_table[i]) {
+      valid_table[i] = valid_count;
+      valid_vertices.push_back(vertices_[i]);
+      valid_uv.push_back(uv_[i]);
+      valid_count++;
+    } else {
+      num_removed++;
+    }
+  }
+
+  int valid_face_count{0};
+  std::vector<int> valid_face_table(vertex_indices_.size(), -1);
+  for (size_t i = 0; i < vertex_indices_.size(); i++) {
+    Eigen::Vector3i face;
+    bool valid{true};
+    for (int j = 0; j < 3; j++) {
+      int new_index = valid_table[vertex_indices_[i][j]];
+      if (new_index < 0) {
+        valid = false;
+        break;
+      }
+      face[j] = new_index;
+    }
+    if (!valid) {
+      continue;
+    }
+    valid_indices.push_back(face);
+    valid_face_table[i] = valid_face_count;
+    valid_face_count++;
+  }
+
+  set_vertices(valid_vertices);
+  set_uv(valid_uv);
+  set_vertex_indices(valid_indices);
+  set_uv_indices(valid_indices);
+  CalcNormal();
+
+  std::vector<int> new_material_ids(valid_indices.size(), 0);
+  const std::vector<int>& old_material_ids = material_ids_;
+
+  for (size_t i = 0; i < old_material_ids.size(); i++) {
+    int org_f_idx = static_cast<int>(i);
+    int new_f_idx = valid_face_table[org_f_idx];
+    if (new_f_idx < 0) {
+      continue;
+    }
+    new_material_ids[new_f_idx] = old_material_ids[org_f_idx];
+  }
+
+  set_material_ids(new_material_ids);
+
+  // no need to operate face_indices_per_material directly
+  // set_material_ids() will update it
+#if 0
+  std::vector<std::vector<int>> updated_face_indices_per_material(
+      face_indices_per_material_.size());
+  for (size_t k = 0; k < face_indices_per_material_.size(); k++) {
+    for (size_t i = 0; i < face_indices_per_material_[k].size(); i++) {
+      int org_f_idx = face_indices_per_material_[k][i];
+      int new_f_idx = valid_face_table[org_f_idx];
+      if (new_f_idx < 0) {
+        continue;
+      }
+      updated_face_indices_per_material[k].push_back(new_f_idx);
+    }
+  }
+  set_face_indices_per_material(updated_face_indices_per_material);
+#endif  // 0
+
+  return num_removed;
+}
+
+int Mesh::RemoveUnreferencedVertices() {
+  std::vector<bool> reference_table(vertices_.size(), false);
+  for (const auto& f : vertex_indices_) {
+    for (int i = 0; i < 3; i++) {
+      reference_table[f[i]] = true;
+    }
+  }
+
+  return RemoveVertices(reference_table);
 }
 
 std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,

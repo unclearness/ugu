@@ -93,6 +93,7 @@ class Mesh {
   const MeshStats& stats() const;
   const std::vector<int>& material_ids() const;
   const std::vector<ObjMaterial>& materials() const;
+  const std::vector<std::vector<int>>& face_indices_per_material() const;
 
   bool set_vertices(const std::vector<Eigen::Vector3f>& vertices);
   bool set_vertex_colors(const std::vector<Eigen::Vector3f>& vertex_colors);
@@ -104,6 +105,8 @@ class Mesh {
   bool set_uv_indices(const std::vector<Eigen::Vector3i>& uv_indices);
   bool set_material_ids(const std::vector<int>& material_ids);
   bool set_materials(const std::vector<ObjMaterial>& materials);
+  bool set_face_indices_per_material(
+      const std::vector<std::vector<int>>& face_indices_per_material);
 
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);
   bool LoadPly(const std::string& ply_path);
@@ -112,6 +115,9 @@ class Mesh {
   bool WriteObj(const std::string& obj_dir, const std::string& obj_basename,
                 const std::string& mtl_basename = "", bool write_obj = true,
                 bool write_mtl = true, bool write_texture = true);
+
+  int RemoveVertices(const std::vector<bool>& valid_vertex_table);
+  int RemoveUnreferencedVertices();
 };
 
 // make cube with 24 vertices
