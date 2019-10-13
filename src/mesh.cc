@@ -288,8 +288,13 @@ void Mesh::CalcNormal() {
   // caution: this does not work for cube
   // https://answers.unity.com/questions/441722/splitting-up-verticies.html
   for (size_t i = 0; i < vertices_.size(); i++) {
-    normals_[i] /= static_cast<float>(add_count[i]);
-    normals_[i].normalize();
+    if (add_count[i] > 0) {
+      normals_[i] /= static_cast<float>(add_count[i]);
+      normals_[i].normalize();
+    } else {
+      // for unreferenced vertices, set (0, 0, 0)
+      normals_[i].setZero();
+    }
   }
 }
 
@@ -892,12 +897,15 @@ int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
   std::vector<Eigen::Vector3f> valid_vertices;
   std::vector<Eigen::Vector2f> valid_uv;
   std::vector<Eigen::Vector3i> valid_indices;
+  bool with_uv = !uv_.empty() && !uv_indices_.empty();
   int valid_count = 0;
   for (size_t i = 0; i < vertices_.size(); i++) {
     if (valid_vertex_table[i]) {
       valid_table[i] = valid_count;
       valid_vertices.push_back(vertices_[i]);
-      valid_uv.push_back(uv_[i]);
+      if (with_uv) {
+        valid_uv.push_back(uv_[i]);
+      }
       valid_count++;
     } else {
       num_removed++;
@@ -926,9 +934,11 @@ int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
   }
 
   set_vertices(valid_vertices);
-  set_uv(valid_uv);
   set_vertex_indices(valid_indices);
-  set_uv_indices(valid_indices);
+  if (with_uv) {
+    set_uv(valid_uv);
+    set_uv_indices(valid_indices);
+  }
   CalcNormal();
 
   std::vector<int> new_material_ids(valid_indices.size(), 0);
