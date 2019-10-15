@@ -444,4 +444,7 @@ void BoxFilter(const Image1f& src, Image1f* dst, int kernel);
 void BoxFilter(const Image3b& src, Image3b* dst, int kernel);
 void BoxFilter(const Image3f& src, Image3f* dst, int kernel);
 
+void Erode(const Image1b& src, Image1b* dst, int kernel);
+void Dilate(const Image1b& src, Image1b* dst, int kernel);
+
 }  // namespace ugu

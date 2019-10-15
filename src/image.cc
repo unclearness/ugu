@@ -123,6 +123,74 @@ inline void BoxFilterCpuIntegral(const T& src, T* dst, int kernel) {
                        reinterpret_cast<TT*>(dst->data));
 }
 
+template <typename T>
+void ErodeDilateBase(int width, int height, int channel, int kernel, T from,
+                     T to, const T* in_data, T* out_data) {
+  const int hk = kernel / 2;
+  const int stride = width * channel;
+
+  std::memcpy(out_data, in_data, sizeof(T) * width * height * channel);
+
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
+  for (int j = hk; j < height - hk; j++) {
+    for (int i = hk; i < width - hk; i++) {
+      // expect only 1 channel
+      std::int64_t base_index = (j * stride + i * channel);
+      T v0 = in_data[base_index];
+      if (v0 != from) {
+        continue;
+      }
+      bool to_update{false};
+      for (int jj = -hk; jj < hk; jj++) {
+        for (int ii = -hk; ii < hk; ii++) {
+          if (ii == 0 && jj == 0) {
+            continue;
+          }
+          std::int64_t index = ((j + jj) * stride + (i + ii) * channel);
+          T v1 = in_data[index];
+          if (v1 == to) {
+            to_update = true;
+            break;
+          }
+        }
+        if (to_update) {
+          break;
+        }
+      }
+
+      if (to_update) {
+        out_data[base_index] = to;
+      }
+    }
+  }
+}
+
+template <typename TT, typename T>
+inline void Erode(const T& src, T* dst, int kernel) {
+  assert(src.rows == dst->rows);
+  assert(src.cols == dst->cols);
+  assert(src.channels() == dst->channels());
+  assert(src.channels() == 1);
+
+  ErodeDilateBase(src.cols, src.rows, src.channels(), kernel, TT(255), TT(0),
+                  reinterpret_cast<TT*>(src.data),
+                  reinterpret_cast<TT*>(dst->data));
+}
+
+template <typename TT, typename T>
+inline void Dilate(const T& src, T* dst, int kernel) {
+  assert(src.rows == dst->rows);
+  assert(src.cols == dst->cols);
+  assert(src.channels() == dst->channels());
+  assert(src.channels() == 1);
+
+  ErodeDilateBase(src.cols, src.rows, src.channels(), kernel, TT(0), TT(255),
+                  reinterpret_cast<TT*>(src.data),
+                  reinterpret_cast<TT*>(dst->data));
+}
+
 }  // namespace
 
 namespace ugu {
@@ -231,6 +299,14 @@ void BoxFilter(const Image3b& src, Image3b* dst, int kernel) {
 }
 void BoxFilter(const Image3f& src, Image3f* dst, int kernel) {
   BoxFilterCpuIntegral<float>(src, dst, kernel);
+}
+
+void Erode(const Image1b& src, Image1b* dst, int kernel) {
+  ::Erode<unsigned char>(src, dst, kernel);
+}
+
+void Dilate(const Image1b& src, Image1b* dst, int kernel) {
+  ::Dilate<unsigned char>(src, dst, kernel);
 }
 
 #ifdef UGU_USE_TINYCOLORMAP
