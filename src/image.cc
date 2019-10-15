@@ -143,8 +143,8 @@ void ErodeDilateBase(int width, int height, int channel, int kernel, T from,
         continue;
       }
       bool to_update{false};
-      for (int jj = -hk; jj < hk; jj++) {
-        for (int ii = -hk; ii < hk; ii++) {
+      for (int jj = -hk; jj < hk + 1; jj++) {
+        for (int ii = -hk; ii < hk + 1; ii++) {
           if (ii == 0 && jj == 0) {
             continue;
           }
@@ -189,6 +189,24 @@ inline void Dilate(const T& src, T* dst, int kernel) {
   ErodeDilateBase(src.cols, src.rows, src.channels(), kernel, TT(0), TT(255),
                   reinterpret_cast<TT*>(src.data),
                   reinterpret_cast<TT*>(dst->data));
+}
+
+inline void Diff(int width, int height, int channel, const unsigned char* src1,
+                 const unsigned char* src2, unsigned char* dst) {
+  std::memcpy(dst, src1, sizeof(unsigned char) * width * height * channel);
+
+  const int stride = width * channel;
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
+  for (int j = 0; j < height; j++) {
+    for (int i = 0; i < width; i++) {
+      for (int k = 0; k < channel; k++) {
+        std::int64_t index = (j * stride + i * channel) + k;
+        dst[index] = dst[index] - src2[index];
+      }
+    }
+  }
 }
 
 }  // namespace
@@ -307,6 +325,19 @@ void Erode(const Image1b& src, Image1b* dst, int kernel) {
 
 void Dilate(const Image1b& src, Image1b* dst, int kernel) {
   ::Dilate<unsigned char>(src, dst, kernel);
+}
+
+void Diff(const Image1b& src1, const Image1b& src2, Image1b* dst) {
+  assert(src1.rows == dst->rows);
+  assert(src1.cols == dst->cols);
+  assert(src1.channels() == dst->channels());
+  assert(src1.rows == src2.rows);
+  assert(src1.cols == src2.cols);
+  assert(src1.channels() == src2.channels());
+  assert(src1.channels() == 1);
+
+  ::Diff(src1.cols, src1.rows, src1.channels(), src1.data, src2.data,
+         dst->data);
 }
 
 #ifdef UGU_USE_TINYCOLORMAP
