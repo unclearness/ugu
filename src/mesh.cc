@@ -394,6 +394,10 @@ bool Mesh::set_uv_indices(const std::vector<Eigen::Vector3i>& uv_indices) {
 }
 
 bool Mesh::set_material_ids(const std::vector<int>& material_ids) {
+  if (material_ids.empty()) {
+    LOGE("material id is empty\n");
+    return false;
+  }
   int max_id = *std::max_element(material_ids.begin(), material_ids.end());
   if (max_id < 0) {
     LOGE("material id must be positive\n");
