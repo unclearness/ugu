@@ -201,6 +201,15 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/renderer/util_private.h
     include/ugu/renderer/util_private.cc
 
+    include/ugu/sfs/voxel_carver.h
+    include/ugu/sfs/voxel_carver.cc
+    include/ugu/sfs/extract_voxel.h
+    include/ugu/sfs/extract_voxel.cc
+    include/ugu/sfs/marching_cubes.h
+    include/ugu/sfs/marching_cubes.cc
+    include/ugu/sfs/marching_cubes_lut.h
+    include/ugu/sfs/marching_cubes_lut.cc
+
     # implementations of header-only library
     ${UGU_STB_IMPLEMENTATION_CC}
     ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
@@ -233,6 +242,13 @@ if (NOT hasParent)
     renderer_test.cc)
   target_include_directories(ugu_renderer_test PRIVATE ${Ugu_INCLUDE_DIRS})
   target_link_libraries(ugu_renderer_test
+    ${Ugu_LIBS}
+  )
+
+  add_executable(ugu_sfs_test
+    sfs_test.cc)
+  target_include_directories(ugu_sfs_test PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(ugu_sfs_test
     ${Ugu_LIBS}
   )
 endif()

@@ -94,6 +94,11 @@ bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
   return true;
 }
 
+void minMaxLoc(const InputArray& src, double* minVal, double* maxVal = 0,
+               Point* minLoc = 0, Point* maxLoc = 0) {
+  cv::minMaxLoc(src, minVal, maxVal, minLoc, maxLoc);
+}
+
 #else
 
 template <typename TT, int N>
@@ -417,6 +422,57 @@ bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
   }
 
   return true;
+}
+
+class Point2i {
+ public:
+  int x = -1;
+  int y = -1;
+};
+
+using Point = Point2i;
+
+template <typename T>
+void minMaxLoc(const Image<T>& src, double* minVal, double* maxVal = nullptr,
+               Point* minLoc = nullptr, Point* maxLoc = nullptr) {
+  if (src.channels() != 1 || minVal == nullptr) {
+    return;
+  }
+
+  double minVal_ = std::numeric_limits<double>::max();
+  double maxVal_ = std::numeric_limits<double>::lowest();
+  Point minLoc_, maxLoc_;
+
+  for (int y = 0; y < src.rows; y++) {
+    for (int x = 0; x < src.cols; x++) {
+      for (int c = 0; c < src.channels(); c++) {
+        const auto& val = src.template at<T>(y, x)[c];
+        if (val < minVal_) {
+          minVal_ = val;
+          minLoc_.x = x;
+          minLoc_.y = y;
+        }
+        if (val > maxVal_) {
+          maxVal_ = val;
+          maxLoc_.x = x;
+          maxLoc_.y = y;
+        }
+      }
+    }
+  }
+
+  if (minVal != nullptr) {
+    *minVal = minVal_;
+  }
+  if (maxVal != nullptr) {
+    *maxVal = maxVal_;
+  }
+  if (minLoc != nullptr) {
+    *minLoc = minLoc_;
+  }
+  if (maxLoc != nullptr) {
+    *maxLoc = maxLoc_;
+  }
 }
 
 #endif
