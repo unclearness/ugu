@@ -64,9 +64,15 @@ message("TINYOBJLOADER_INSTALL_DIR: ${TINYOBJLOADER_INSTALL_DIR}")
 if(NOT DEFINED LODEPNG_INSTALL_DIR)
   set_with_parent(LODEPNG_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lodepng" "LodePNG installed directory")
 endif()
+message("LODEPNG_INSTALL_DIR: ${LODEPNG_INSTALL_DIR}")
 if(NOT DEFINED TINYCOLORMAP_INSTALL_DIR)
   set_with_parent(TINYCOLORMAP_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinycolormap/include" "tinycolormap installed directory")
 endif()
+message("TINYCOLORMAP_INSTALL_DIR: ${TINYCOLORMAP_INSTALL_DIR}")
+if(NOT DEFINED NANORT_INSTALL_DIR)
+  set_with_parent(NANORT_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/nanort" "nanort installed directory")
+endif()
+message("NANORT_INSTALL_DIR: ${NANORT_INSTALL_DIR}") 
 
 # switch for optional libraries
 option(UGU_USE_STB "Use stb to enable image i/o" ON)
@@ -142,6 +148,13 @@ if(UGU_USE_TINYCOLORMAP)
   add_definitions(-DUGU_USE_TINYCOLORMAP)
 endif()
 
+option(UGU_USE_NANORT "Use nanort for raytrace" ON)
+message("UGU_USE_NANORT: ${UGU_USE_NANORT}")
+if(UGU_USE_NANORT)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${NANORT_INSTALL_DIR})
+  add_definitions(-DUGU_USE_NANORT)
+endif()
+
 option(UGU_USE_OPENMP "Use OpenMP to enable parallelization" ON)
 message("UGU_USE_OPENMP: ${UGU_USE_OPENMP}")
 if(UGU_USE_OPENMP)
@@ -157,32 +170,47 @@ if(UGU_USE_OPENMP)
   endif()
 endif()
 
-set(Ugu_LIB ugu)
-add_library(${Ugu_LIB}
-  STATIC
-  include/ugu/common.h
-  include/ugu/camera.h
-  include/ugu/mesh.h
-  include/ugu/image.h
-  include/ugu/log.h
-  include/ugu/util.h
-  include/ugu/timer.h
 
-  src/camera.cc
-  src/mesh.cc
-  src/image.cc
-  src/log.cc
-  src/util.cc
+option(UGU_STATIC_LIBRARY "Build UGU as static library" ON)
+message("UGU_STATIC_LIBRARY: ${UGU_STATIC_LIBRARY}")
+if(UGU_STATIC_LIBRARY)
+  set(Ugu_LIB ugu)
+  add_definitions(-DUGU_STATIC_LIBRARY)
+  add_library(${Ugu_LIB}
+    STATIC
+    include/ugu/common.h
+    include/ugu/camera.h
+    include/ugu/mesh.h
+    include/ugu/image.h
+    include/ugu/log.h
+    include/ugu/util.h
+    include/ugu/timer.h
 
-  # implementations of header-only library
-  ${UGU_STB_IMPLEMENTATION_CC}
-  ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
+    src/camera.cc
+    src/mesh.cc
+    src/image.cc
+    src/log.cc
+    src/util.cc
 
-  # lodepng
-  ${UGU_LODEPNG_SOURCES}
-)
+    include/ugu/renderer/base.h
+    include/ugu/renderer/raytracer.h
+    include/ugu/renderer/raytracer.cc
+    include/ugu/renderer/rasterizer.h
+    include/ugu/renderer/rasterizer.cc
+    include/ugu/renderer/pixel_shader.h
+    include/ugu/renderer/util_private.h
+    include/ugu/renderer/util_private.cc
 
-set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB})
+    # implementations of header-only library
+    ${UGU_STB_IMPLEMENTATION_CC}
+    ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
+
+    # lodepng
+    ${UGU_LODEPNG_SOURCES}
+  )
+
+  set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB})
+endif()
 
 set_with_parent(Ugu_LIBS "${Ugu_LIBS}" "Ugu_LIBS")
 set_with_parent(Ugu_INCLUDE_DIRS "${Ugu_INCLUDE_DIRS}" "Ugu_INCLUDE_DIRS")
@@ -200,6 +228,13 @@ if (NOT hasParent)
   target_link_libraries(${MESH_TEST_EXE}
     ${Ugu_LIBS}
     )
+
+  add_executable(ugu_renderer_test
+    renderer_test.cc)
+  target_include_directories(ugu_renderer_test PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(ugu_renderer_test
+    ${Ugu_LIBS}
+  )
 endif()
 
 if (WIN32)

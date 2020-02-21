@@ -13,3 +13,6 @@
 [submodule "third_party/tinycolormap"]
 	path = third_party/tinycolormap
 	url = https://github.com/yuki-koyama/tinycolormap.git
+[submodule "third_party/nanort"]
+	path = third_party/nanort
+	url = https://github.com/lighttransport/nanort.git
