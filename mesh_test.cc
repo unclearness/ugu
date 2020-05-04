@@ -15,6 +15,8 @@ void TestIO() {
 
   dst = ugu::Mesh(src);
 
+  dst.FlipFaces();
+
   dst.WriteObj(data_dir, "bunny2");
 }
 
@@ -25,6 +27,7 @@ void TestMerge() {
   bunny.LoadObj(in_obj_path1, data1_dir);
   bunny_moved = ugu::Mesh(bunny);
   bunny_moved.Translate(bunny.stats().bb_max);
+  bunny_moved.FlipFaces();
 
   std::string data2_dir = "../data/buddha/";
   std::string in_obj_path2 = data2_dir + "buddha.obj";

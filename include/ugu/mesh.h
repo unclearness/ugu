@@ -118,6 +118,8 @@ class Mesh {
 
   int RemoveVertices(const std::vector<bool>& valid_vertex_table);
   int RemoveUnreferencedVertices();
+
+  bool FlipFaces();
 };
 
 bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,

@@ -994,6 +994,17 @@ int Mesh::RemoveUnreferencedVertices() {
   return RemoveVertices(reference_table);
 }
 
+bool Mesh::FlipFaces() {
+  auto flip = [](Eigen::Vector3i& i) { std::swap(i[1], i[2]); };
+  std::for_each(vertex_indices_.begin(), vertex_indices_.end(), flip);
+  std::for_each(uv_indices_.begin(), uv_indices_.end(), flip);
+  std::for_each(normal_indices_.begin(), normal_indices_.end(), flip);
+
+  CalcNormal();
+
+  return true;
+}
+
 bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
                  bool use_src1_material) {
   std::vector<Eigen::Vector3f> vertices;
