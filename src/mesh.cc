@@ -15,8 +15,11 @@
 
 namespace {
 template <typename T>
-void CopyVec(const std::vector<T>& src, std::vector<T>* dst) {
-  dst->clear();
+void CopyVec(const std::vector<T>& src, std::vector<T>* dst,
+             bool clear_dst = true) {
+  if (clear_dst) {
+    dst->clear();
+  }
   std::copy(src.begin(), src.end(), std::back_inserter(*dst));
 }
 
@@ -991,6 +994,76 @@ int Mesh::RemoveUnreferencedVertices() {
   return RemoveVertices(reference_table);
 }
 
+bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
+                 bool use_src1_material) {
+  std::vector<Eigen::Vector3f> vertices;
+  std::vector<Eigen::Vector2f> uv;
+  std::vector<int> material_ids, offset_material_ids2;
+  std::vector<ugu::ObjMaterial> materials;
+
+  std::vector<Eigen::Vector3i> vertex_indices, offset_vertex_indices2;
+  std::vector<Eigen::Vector3i> uv_indices, offset_uv_indices2;
+
+  merged->Clear();
+
+  CopyVec(src1.vertices(), &vertices);
+  CopyVec(src2.vertices(), &vertices, false);
+
+  CopyVec(src1.uv(), &uv);
+  CopyVec(src2.uv(), &uv, false);
+
+  CopyVec(src1.vertex_indices(), &vertex_indices);
+  CopyVec(src2.vertex_indices(), &offset_vertex_indices2);
+  int offset_vi = static_cast<int>(src1.vertices().size());
+  std::for_each(offset_vertex_indices2.begin(), offset_vertex_indices2.end(),
+                [offset_vi](Eigen::Vector3i& i) {
+                  i[0] += offset_vi;
+                  i[1] += offset_vi;
+                  i[2] += offset_vi;
+                });
+  CopyVec(offset_vertex_indices2, &vertex_indices, false);
+
+  CopyVec(src1.uv_indices(), &uv_indices);
+  CopyVec(src2.uv_indices(), &offset_uv_indices2);
+  int offset_uvi = static_cast<int>(src1.uv().size());
+  std::for_each(offset_uv_indices2.begin(), offset_uv_indices2.end(),
+                [offset_uvi](Eigen::Vector3i& i) {
+                  i[0] += offset_uvi;
+                  i[1] += offset_uvi;
+                  i[2] += offset_uvi;
+                });
+  CopyVec(offset_uv_indices2, &uv_indices, false);
+
+  if (use_src1_material) {
+    CopyVec(src1.materials(), &materials);
+
+    CopyVec(src1.material_ids(), &material_ids);
+    CopyVec(src2.material_ids(), &material_ids, false);
+  } else {
+    CopyVec(src1.materials(), &materials);
+    CopyVec(src2.materials(), &materials, false);
+
+    CopyVec(src1.material_ids(), &material_ids);
+    CopyVec(src2.material_ids(), &offset_material_ids2);
+    int offset_mi = static_cast<int>(src1.materials().size());
+    std::for_each(offset_material_ids2.begin(), offset_material_ids2.end(),
+                  [offset_mi](int& i) { i += offset_mi; });
+    CopyVec(offset_material_ids2, &material_ids, false);
+  }
+
+  merged->set_vertices(vertices);
+  merged->set_uv(uv);
+  merged->set_material_ids(material_ids);
+  merged->set_materials(materials);
+  merged->set_vertex_indices(vertex_indices);
+  merged->set_uv_indices(uv_indices);
+
+  merged->CalcNormal();
+  merged->CalcStats();
+
+  return true;
+}
+
 std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
                                const Eigen::Matrix3f& R,
                                const Eigen::Vector3f& t) {
@@ -1063,6 +1136,11 @@ std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
   cube->set_vertices(vertices);
   cube->set_vertex_indices(vertex_indices);
   cube->set_vertex_colors(vertex_colors);
+
+  std::vector<ugu::ObjMaterial> materials(1);
+  cube->set_materials(materials);
+  std::vector<int> material_ids(vertex_indices.size(), 0);
+  cube->set_material_ids(material_ids);
 
   cube->Transform(R, t);
 

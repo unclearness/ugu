@@ -120,6 +120,9 @@ class Mesh {
   int RemoveUnreferencedVertices();
 };
 
+bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
+                 bool use_src1_material = false);
+
 // make cube with 24 vertices
 std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
                                const Eigen::Matrix3f& R,

@@ -266,6 +266,9 @@ endif()
 if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny)
 endif()
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/buddha)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/buddha)
+endif()
 
 # test data preparation
 if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny/bunny.obj)
@@ -283,6 +286,27 @@ if (NOT hasParent)
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip
   COMMENT "Unpacking bunny.zip"
+  VERBATIM)
+endif()
+
+endif()
+
+# test data preparation
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/buddha/buddha.obj)
+
+# download test data
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/buddha.zip)
+file(DOWNLOAD http://www.kunzhou.net/tex-models/buddha.zip ${CMAKE_CURRENT_SOURCE_DIR}/data/buddha.zip)
+endif()
+
+if (NOT hasParent)
+  # unzip test data
+  add_custom_target( Ugu_UNZip ALL)
+  add_custom_command(TARGET Ugu_UNZip PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/data/buddha.zip
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/buddha
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/buddha.zip
+  COMMENT "Unpacking buddha.zip"
   VERBATIM)
 endif()
 
