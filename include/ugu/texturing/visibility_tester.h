@@ -113,17 +113,26 @@ struct FaceInfo {
   std::vector<FaceInfoPerKeyframe> visible_keyframes;
 
   /*** gotten by Finalize() **************/
+  int max_area_index{-1};
+  int max_area_id{-1};
+  float max_area{-1.0f};
+
   int min_viewing_angle_index{-1};
   int min_viewing_angle_id{-1};
+  float min_viewing_angle = std::numeric_limits<float>::max();
 
   int min_distance_index{-1};
   int min_distance_id{-1};
+  float min_distance = std::numeric_limits<float>::max();
 
+  // TODO
+  /*
   Eigen::Vector3f mean_color;
   Eigen::Vector3f median_color;
   Eigen::Vector3f best_color_viewing_angle;
   Eigen::Vector3f mean_color_viewing_angle;
   Eigen::Vector3f median_color_viewing_angle;
+  */
   /**************************************/
 
   FaceInfo();

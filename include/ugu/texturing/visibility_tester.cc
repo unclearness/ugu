@@ -287,10 +287,38 @@ void FaceInfo::Update(const FaceInfoPerKeyframe& info) {
   visible_keyframes.push_back(info);
 }
 void FaceInfo::CalcStat() {
-  // todo
   if (visible_keyframes.empty()) {
     return;
   }
+
+  // make vectors
+  std::vector<int> ids;
+  std::vector<float> distances;
+  std::vector<float> viewing_angles;
+  std::vector<float> areas;
+  for (auto& kf : visible_keyframes) {
+    ids.push_back(kf.kf_id);
+    distances.push_back(kf.distance);
+    viewing_angles.push_back(kf.viewing_angle);
+    areas.push_back(kf.area);
+  }
+
+  auto max_area_it = std::max_element(areas.begin(), areas.end());
+  max_area_index = static_cast<int>(std::distance(areas.begin(), max_area_it));
+  max_area_id = visible_keyframes[max_area_index].kf_id;
+
+  auto min_viewing_angle_it =
+      std::min_element(viewing_angles.begin(), viewing_angles.end());
+  min_viewing_angle_index = static_cast<int>(
+      std::distance(viewing_angles.begin(), min_viewing_angle_it));
+  min_viewing_angle_id = visible_keyframes[min_viewing_angle_index].kf_id;
+
+  auto min_distance_it = std::min_element(distances.begin(), distances.end());
+  min_distance_index =
+      static_cast<int>(std::distance(distances.begin(), min_distance_it));
+  min_distance_id = visible_keyframes[min_distance_index].kf_id;
+
+  // TODO: calculate stats for colors insidef of faces
 }
 
 VisibilityInfo::VisibilityInfo() {}
@@ -317,8 +345,12 @@ void VisibilityInfo::CalcStatVertexInfo() {
 void VisibilityInfo::CalcStatFaceInfo() {
   Timer<> timer;
   timer.Start();
-  for (auto& f : face_info_list) {
-    f.CalcStat();
+  int face_info_list_num = static_cast<int>(face_info_list.size());
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
+  for (int i = 0; i < face_info_list_num; i++) {
+    face_info_list[i].CalcStat();
   }
   has_face_stat = true;
   timer.End();
