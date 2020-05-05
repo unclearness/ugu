@@ -33,10 +33,12 @@ using ugu::PinholeCamera;
 using ugu::Renderer;
 using ugu::RendererOption;
 using ugu::WriteFaceIdAsText;
+using ugu::zfill;
 
 namespace {
 void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
-          std::shared_ptr<Camera> camera, const Renderer& renderer) {
+          std::shared_ptr<Camera> camera, const Renderer& renderer,
+          bool number_prefix = true) {
   // images
   Image3b color;
   Image1f depth;
@@ -67,29 +69,29 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
 
   // from front
   eye = center;
-  eye[2] -= offset;
-  ugu::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w_mat);
+  eye[2] += offset;
+  ugu::c2w(eye, center, Eigen::Vector3f(0, 1, 0), &c2w_mat);
   pose_list.push_back(Eigen::Affine3d(c2w_mat.cast<double>()));
   name_list.push_back("front");
 
   // from back
   eye = center;
-  eye[2] += offset;
-  ugu::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w_mat);
+  eye[2] -= offset;
+  ugu::c2w(eye, center, Eigen::Vector3f(0, 1, 0), &c2w_mat);
   pose_list.push_back(Eigen::Affine3d(c2w_mat.cast<double>()));
   name_list.push_back("back");
 
   // from right
   eye = center;
   eye[0] += offset;
-  ugu::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w_mat);
+  ugu::c2w(eye, center, Eigen::Vector3f(0, 1, 0), &c2w_mat);
   pose_list.push_back(Eigen::Affine3d(c2w_mat.cast<double>()));
   name_list.push_back("right");
 
   // from left
   eye = center;
   eye[0] -= offset;
-  ugu::c2w(eye, center, Eigen::Vector3f(0, -1, 0), &c2w_mat);
+  ugu::c2w(eye, center, Eigen::Vector3f(0, 1, 0), &c2w_mat);
   pose_list.push_back(Eigen::Affine3d(c2w_mat.cast<double>()));
   name_list.push_back("left");
 
@@ -109,7 +111,10 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
 
   for (size_t i = 0; i < pose_list.size(); i++) {
     Eigen::Affine3d& c2w = pose_list[i];
-    std::string& prefix = name_list[i];
+    std::string prefix = name_list[i];
+    if (number_prefix) {
+      prefix = zfill(i);
+    }
 
     camera->set_c2w(c2w);
     renderer.Render(&color, &depth, &normal, &mask, &face_id);
@@ -180,12 +185,12 @@ int main(int argc, char* argv[]) {
 
   // original mesh with z:backward, y:up, x:right, like OpenGL
   // align z:forward, y:down, x:right
-  AlignMesh(mesh);
+  // AlignMesh(mesh);
 
   // initialize renderer with diffuse texture color and lambertian shading
   RendererOption option;
   option.diffuse_color = ugu::DiffuseColor::kTexture;
-  option.diffuse_shading = ugu::DiffuseShading::kLambertian;
+  option.diffuse_shading = ugu::DiffuseShading::kNone;
 #ifdef USE_RASTERIZER
   std::unique_ptr<ugu::Renderer> renderer =
       std::make_unique<ugu::Rasterizer>(option);

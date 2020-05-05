@@ -210,6 +210,11 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/sfs/marching_cubes_lut.h
     include/ugu/sfs/marching_cubes_lut.cc
 
+    include/ugu/texturing/visibility_tester.h
+    include/ugu/texturing/visibility_tester.cc
+    include/ugu/texturing/vertex_colorizer.h
+    include/ugu/texturing/vertex_colorizer.cc
+
     # implementations of header-only library
     ${UGU_STB_IMPLEMENTATION_CC}
     ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
@@ -250,6 +255,13 @@ if (NOT hasParent)
   target_include_directories(ugu_sfs_test PRIVATE ${Ugu_INCLUDE_DIRS})
   target_link_libraries(ugu_sfs_test
     ${Ugu_LIBS}
+  )
+
+  add_executable(ugu_texturing_test
+  test_texturing.cc)
+  target_include_directories(ugu_texturing_test PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(ugu_texturing_test
+  ${Ugu_LIBS}
   )
 endif()
 
