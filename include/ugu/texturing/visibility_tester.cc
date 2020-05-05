@@ -107,8 +107,7 @@ void NormalizeWeights(const std::vector<float>& weights,
                   [&](float& n) { n /= sum; });
   } else {
     // if sum is too small, just set even weights
-    float val =
-        1.0f / static_cast<float>(normalized_weights->size());
+    float val = 1.0f / static_cast<float>(normalized_weights->size());
     std::fill(normalized_weights->begin(), normalized_weights->end(), val);
   }
 }
@@ -164,6 +163,11 @@ T WeightedMedian(const std::vector<T>& data,
   }
 
   return data_weights[index].second;
+}
+
+inline float EdgeFunction(const Eigen::Vector2f& a, const Eigen::Vector2f& b,
+                          const Eigen::Vector2f& c) {
+  return (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
 }
 
 }  // namespace
@@ -255,6 +259,25 @@ void VertexInfo::CalcStat() {
   median_distance_color = WeightedMedian(colors, inv_distances);
 }
 
+int VertexInfo::VisibleFrom(int kf_id) const {
+  /*
+  bool res = std::any_of(visible_keyframes.begin(), visible_keyframes.end(),
+                         [kf_id](const VertexInfoPerKeyframe& infokf) {
+                           return infokf.kf_id == kf_id;
+                         });
+  */
+
+  int index = -1;
+  for (int i = 0; i < static_cast<int>(visible_keyframes.size()); i++) {
+    if (visible_keyframes[i].kf_id == kf_id) {
+      index = i;
+      break;
+    }
+  }
+
+  return index;
+}
+
 FaceInfoPerKeyframe::FaceInfoPerKeyframe() {}
 FaceInfoPerKeyframe::~FaceInfoPerKeyframe() {}
 
@@ -265,6 +288,9 @@ void FaceInfo::Update(const FaceInfoPerKeyframe& info) {
 }
 void FaceInfo::CalcStat() {
   // todo
+  if (visible_keyframes.empty()) {
+    return;
+  }
 }
 
 VisibilityInfo::VisibilityInfo() {}
@@ -565,7 +591,8 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
     if (option_.use_depth) {
       // convert hit position to camera coordinate to get
       // depth value
-      Eigen::Vector3f hit_pos_c = keyframe_->camera->w2c().cast<float>() * hit_pos_w;
+      Eigen::Vector3f hit_pos_c =
+          keyframe_->camera->w2c().cast<float>() * hit_pos_w;
 
       assert(0.0f <= hit_pos_c[2]);  // depth should be positive
       float diff =
@@ -607,7 +634,52 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
 bool VisibilityTester::TestFaces(VisibilityInfo* info) const {
   Timer<> timer;
   timer.Start();
-  // todo make face info
+  const auto& faces = mesh_->vertex_indices();
+  int face_num = static_cast<int>(faces.size());
+
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
+  for (int i = 0; i < face_num; i++) {
+    const auto& face = faces[i];
+
+    // update face info per keyframe
+    FaceInfoPerKeyframe face_info;
+    face_info.kf_id = keyframe_->id;
+    face_info.viewing_angle = 0.0f;
+    face_info.distance = 0.0f;
+    bool face_visible = true;
+    for (int j = 0; j < 3; j++) {
+      int vid = face[j];
+      const auto& vinfo = info->vertex_info_list[vid];
+      int visible_index = vinfo.VisibleFrom(face_info.kf_id);
+      // Face is visible only if all 3 vertices are visible
+      if (visible_index < 0) {
+        face_visible = false;
+        break;
+      }
+      const auto& vinfo_kf = vinfo.visible_keyframes[visible_index];
+
+      face_info.viewing_angle += vinfo_kf.viewing_angle;
+      face_info.distance += vinfo_kf.distance;
+      face_info.projected_tri[j] = vinfo_kf.projected_pos;
+    }
+    if (!face_visible) {
+      continue;
+    }
+
+    // Take average
+    face_info.viewing_angle /= 3;
+    face_info.distance /= 3;
+
+    // Calculate triangle area
+    face_info.area = 0.5f * std::abs(EdgeFunction(face_info.projected_tri[0],
+                                                  face_info.projected_tri[1],
+                                                  face_info.projected_tri[2]));
+
+    info->Update(i, face_info);
+  }
+
   timer.End();
   LOGI("face information collection: %.1f msecs\n", timer.elapsed_msec());
   return true;

@@ -51,8 +51,8 @@ struct VisibilityTesterOption {
 struct VertexInfoPerKeyframe {
   int kf_id{-1};  // positive keyframe id
   Eigen::Vector3f color;
-  Eigen::Vector2f projected_pos;      // projected 2d image space position
-  float viewing_angle{999.9f};  // radian
+  Eigen::Vector2f projected_pos;  // projected 2d image space position
+  float viewing_angle{999.9f};    // radian
   float distance{-999.9f};  // distance along with ray from camera (not depth)
 
   VertexInfoPerKeyframe();
@@ -78,7 +78,7 @@ struct VertexInfo {
   int min_distance_id{-1};
   Eigen::Vector3f min_distance_color;
 
-  Eigen::Vector3f mean_distance_color;    // weighted average by inverse distance
+  Eigen::Vector3f mean_distance_color;  // weighted average by inverse distance
   Eigen::Vector3f median_distance_color;  // weighted median by inverse distance
 
   float mean_viewing_angle{-1.0f};
@@ -92,14 +92,18 @@ struct VertexInfo {
   ~VertexInfo();
   void Update(const VertexInfoPerKeyframe& info);
   void CalcStat();
+  int VisibleFrom(int kf_id) const;
 };
 
 struct FaceInfoPerKeyframe {
   int kf_id;
   Eigen::Vector3f mean_color;    // mean inside projected triangle
   Eigen::Vector3f median_color;  // median inside projected triangle
-  float area;              // are in projected image space. unit is pixel*pixel
+  float area;  // are in projected image space. unit is pixel*pixel
   float viewing_angle;
+  float distance;
+
+  std::array<Eigen::Vector2f, 3> projected_tri;
 
   FaceInfoPerKeyframe();
   ~FaceInfoPerKeyframe();
@@ -109,6 +113,12 @@ struct FaceInfo {
   std::vector<FaceInfoPerKeyframe> visible_keyframes;
 
   /*** gotten by Finalize() **************/
+  int min_viewing_angle_index{-1};
+  int min_viewing_angle_id{-1};
+
+  int min_distance_index{-1};
+  int min_distance_id{-1};
+
   Eigen::Vector3f mean_color;
   Eigen::Vector3f median_color;
   Eigen::Vector3f best_color_viewing_angle;
