@@ -7,6 +7,7 @@
 #include <fstream>
 
 #include "ugu/camera.h"
+#include "ugu/texturing/texture_mapper.h"
 #include "ugu/texturing/vertex_colorizer.h"
 #include "ugu/texturing/visibility_tester.h"
 
@@ -88,6 +89,11 @@ int main(int argc, char* argv[]) {
 
   std::string output_ply_path = data_dir + "bunny_vertex_color.ply";
   output_mesh->WritePly(output_ply_path);
+
+  ugu::TextureMappingOption tmoption;
+  ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
+  // std::string output_obj_path = data_dir + "bunny_textured.obj";
+  output_mesh->WriteObj(data_dir, "bunny_textured");
 
   return 0;
 }

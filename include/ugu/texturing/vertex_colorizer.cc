@@ -10,7 +10,7 @@ namespace ugu {
 VertexColorizer::VertexColorizer() {}
 VertexColorizer::~VertexColorizer() {}
 bool VertexColorizer::Colorize(const VisibilityInfo& info, Mesh* mesh,
-                               ColorCriteria criteria) const {
+                               ViewSelectionCriteria criteria) const {
   if (!info.has_vertex_stat) {
     LOGE("no vertex stat\n");
     return false;
@@ -21,19 +21,19 @@ bool VertexColorizer::Colorize(const VisibilityInfo& info, Mesh* mesh,
   std::vector<Eigen::Vector3f> vertex_colors;
 
   for (size_t i = 0; i < info.vertex_info_list.size(); i++) {
-    if (criteria == ColorCriteria::kMinViewingAngle) {
+    if (criteria == ViewSelectionCriteria::kMinViewingAngle) {
       vertex_colors.push_back(info.vertex_info_list[i].min_viewing_angle_color);
-    } else if (criteria == ColorCriteria::kMinDistance) {
+    } else if (criteria == ViewSelectionCriteria::kMinDistance) {
       vertex_colors.push_back(info.vertex_info_list[i].min_distance_color);
-    } else if (criteria == ColorCriteria::kMeanViewingAngle) {
+    } else if (criteria == ViewSelectionCriteria::kMeanViewingAngle) {
       vertex_colors.push_back(
           info.vertex_info_list[i].mean_viewing_angle_color);
-    } else if (criteria == ColorCriteria::kMedianViewingAngle) {
+    } else if (criteria == ViewSelectionCriteria::kMedianViewingAngle) {
       vertex_colors.push_back(
           info.vertex_info_list[i].median_viewing_angle_color);
-    } else if (criteria == ColorCriteria::kMeanDistance) {
+    } else if (criteria == ViewSelectionCriteria::kMeanDistance) {
       vertex_colors.push_back(info.vertex_info_list[i].mean_distance_color);
-    } else if (criteria == ColorCriteria::kMedianDistance) {
+    } else if (criteria == ViewSelectionCriteria::kMedianDistance) {
       vertex_colors.push_back(info.vertex_info_list[i].median_distance_color);
     }
   }

@@ -20,6 +20,17 @@
 
 namespace ugu {
 
+enum class ViewSelectionCriteria {
+  kMinViewingAngle = 0,
+  kMinDistance = 1,
+  kMeanViewingAngle = 2,
+  kMedianViewingAngle = 3,
+  kMeanDistance = 4,
+  kMedianDistance = 5,
+  kMaxArea = 6
+};
+
+
 // Interpolation method in texture uv space
 // Meaningful only if DiffuseColor::kTexture is specified otherwise ignored
 enum class ColorInterpolation {
@@ -96,7 +107,8 @@ struct VertexInfo {
 };
 
 struct FaceInfoPerKeyframe {
-  int kf_id;
+  int kf_id{-1};
+  int face_id{-1};
   Eigen::Vector3f mean_color;    // mean inside projected triangle
   Eigen::Vector3f median_color;  // median inside projected triangle
   float area;  // are in projected image space. unit is pixel*pixel

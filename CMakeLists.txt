@@ -214,6 +214,8 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/texturing/visibility_tester.cc
     include/ugu/texturing/vertex_colorizer.h
     include/ugu/texturing/vertex_colorizer.cc
+    include/ugu/texturing/texture_mapper.h
+    include/ugu/texturing/texture_mapper.cc
 
     # implementations of header-only library
     ${UGU_STB_IMPLEMENTATION_CC}

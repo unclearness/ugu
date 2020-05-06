@@ -678,6 +678,7 @@ bool VisibilityTester::TestFaces(VisibilityInfo* info) const {
     // update face info per keyframe
     FaceInfoPerKeyframe face_info;
     face_info.kf_id = keyframe_->id;
+    face_info.face_id = i;
     face_info.viewing_angle = 0.0f;
     face_info.distance = 0.0f;
     bool face_visible = true;

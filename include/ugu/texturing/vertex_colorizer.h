@@ -11,22 +11,13 @@
 
 namespace ugu {
 
-enum class ColorCriteria {
-  kMinViewingAngle = 0,
-  kMinDistance = 1,
-  kMeanViewingAngle = 2,
-  kMedianViewingAngle = 3,
-  kMeanDistance = 4,
-  kMedianDistance = 5
-};
-
-
 class VertexColorizer {
  public:
   VertexColorizer();
   ~VertexColorizer();
   bool Colorize(const VisibilityInfo& info, Mesh* mesh,
-                ColorCriteria criteria = ColorCriteria::kMinViewingAngle) const;
+                ViewSelectionCriteria criteria =
+                    ViewSelectionCriteria::kMinViewingAngle) const;
 };
 
 }  // namespace ugu
