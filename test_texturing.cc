@@ -82,18 +82,23 @@ int main(int argc, char* argv[]) {
 
   tester.Test(keyframes, &info);
 
-  ugu::VertexColorizer vertex_colorizer;
   std::shared_ptr<ugu::Mesh> output_mesh =
       std::make_shared<ugu::Mesh>(*input_mesh.get());
-  vertex_colorizer.Colorize(info, output_mesh.get());
 
+  ugu::VertexColorizer vertex_colorizer;
+  vertex_colorizer.Colorize(info, output_mesh.get());
   std::string output_ply_path = data_dir + "bunny_vertex_color.ply";
   output_mesh->WritePly(output_ply_path);
 
   ugu::TextureMappingOption tmoption;
+
+  tmoption.uv_type = ugu::OutputUvType::kUseOriginalMeshUv;
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
-  // std::string output_obj_path = data_dir + "bunny_textured.obj";
-  output_mesh->WriteObj(data_dir, "bunny_textured");
+  output_mesh->WriteObj(data_dir, "bunny_textured_orguv");
+
+  tmoption.uv_type = ugu::OutputUvType::kGenerateSimpleTile;
+  ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
+  output_mesh->WriteObj(data_dir, "bunny_textured_newuv");
 
   return 0;
 }
