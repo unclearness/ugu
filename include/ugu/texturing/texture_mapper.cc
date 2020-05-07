@@ -229,13 +229,13 @@ bool GenerateTextureOnOriginalUv(
         float w0 = EdgeFunction(target_tri[1], target_tri[2], pixel_sample);
         float w1 = EdgeFunction(target_tri[2], target_tri[0], pixel_sample);
         float w2 = EdgeFunction(target_tri[0], target_tri[1], pixel_sample);
-        // Skip outside of the target triangle
         // Barycentric in the target triangle
         w0 *= inv_area;
         w1 *= inv_area;
         w2 *= inv_area;
 
-        // Barycentric coordinate should be negative inside of the triangle
+        // Barycentric coordinate should be positive inside of the triangle
+        // Skip outside of the target triangle
         if (w0 < 0 || w1 < 0 || w2 < 0) {
           continue;
         }
