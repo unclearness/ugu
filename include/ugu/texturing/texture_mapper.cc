@@ -171,6 +171,58 @@ inline ugu::Vec3b BilinerInterpolation(float x, float y,
   return color;
 }
 
+bool PaddingSimple(ugu::Image3b* texture, ugu::Image1b* mask, int kernel) {
+  ugu::Image3b org_texture;
+  texture->copyTo(org_texture);
+  ugu::Image1b org_mask;
+  mask->copyTo(org_mask);
+
+  int hk = kernel / 2;
+
+  for (int j = hk; j < texture->rows - hk; j++) {
+    for (int i = hk; i < texture->cols - hk; i++) {
+      // Skip valid
+      if (org_mask.at<unsigned char>(j, i) == 255) {
+        continue;
+      }
+
+      std::vector<ugu::Vec3b> valid_pixels;
+      for (int jj = -hk; jj <= hk; jj++) {
+        int y = j + jj;
+        for (int ii = -hk; ii <= hk; ii++) {
+          int x = i + ii;
+          if (org_mask.at<unsigned char>(y, x) == 255) {
+            valid_pixels.push_back(org_texture.at<ugu::Vec3b>(y, x));
+          }
+        }
+      }
+
+      if (valid_pixels.empty()) {
+        continue;
+      }
+
+      // Don't use Vec3b to avoid overflow
+      ugu::Vec3f average_color{0, 0, 0};
+      for (auto& p : valid_pixels) {
+        average_color[0] += p[0];
+        average_color[1] += p[1];
+        average_color[2] += p[2];
+      }
+
+      average_color[0] /= valid_pixels.size();
+      average_color[1] /= valid_pixels.size();
+      average_color[2] /= valid_pixels.size();
+
+      mask->at<unsigned char>(j, i) = 255;
+      texture->at<ugu::Vec3b>(j, i)[0] = average_color[0];
+      texture->at<ugu::Vec3b>(j, i)[1] = average_color[1];
+      texture->at<ugu::Vec3b>(j, i)[2] = average_color[2];
+    }
+  }
+
+  return true;
+}
+
 bool GenerateTextureOnOriginalUv(
     const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
     const ugu::VisibilityInfo& info, ugu::Mesh* mesh,
@@ -179,6 +231,7 @@ bool GenerateTextureOnOriginalUv(
         bestkfid2faceid,
     const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
   ugu::Image3b texture = ugu::Image3b::zeros(option.tex_h, option.tex_w);
+  ugu::Image1b mask = ugu::Image1b::zeros(option.tex_h, option.tex_w);
 
   // Rasterization to original UV
   // Loop per face
@@ -243,13 +296,17 @@ bool GenerateTextureOnOriginalUv(
         // Barycentric to src image patch
         Eigen::Vector2f src_pos =
             w0 * src_tri[0] + w1 * src_tri[1] + w2 * src_tri[2];
-        // printf("%d %d\n",x,y);
-        texture.at<ugu::Vec3b>(y, x) = BilinerInterpolation(
-            src_pos.x(), src_pos.y(),
-            color);  // color.at<ugu::Vec3b>(src_pos.y(), src_pos.x());
+        texture.at<ugu::Vec3b>(y, x) =
+            BilinerInterpolation(src_pos.x(), src_pos.y(), color);
+
+        mask.at<unsigned char>(y, x) = 255;
       }
     }
   }
+
+  // Add padding for atlas boundaries to avoid invalid color bleeding at
+  // rendering
+  PaddingSimple(&texture, &mask, option.padding_kernel);
 
   std::vector<ugu::ObjMaterial> materials(1);
   materials[0].name = option.texture_base_name;

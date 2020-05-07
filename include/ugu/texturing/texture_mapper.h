@@ -22,6 +22,7 @@ struct TextureMappingOption {
   std::string texture_base_name = "ugutex";
   int tex_w = 1024;
   int tex_h = 1024;
+  int padding_kernel = 3;
 };
 
 bool TextureMapping(const std::vector<std::shared_ptr<Keyframe>>& keyframes,
