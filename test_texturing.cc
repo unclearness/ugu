@@ -101,6 +101,8 @@ int main(int argc, char* argv[]) {
   output_mesh->WriteObj(data_dir, "bunny_textured_tileuv");
 
   tmoption.uv_type = ugu::OutputUvType::kGenerateSimpleTriangles;
+  tmoption.tex_w = 2048;
+  tmoption.tex_h = 2048;
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   output_mesh->WriteObj(data_dir, "bunny_textured_triuv");
 

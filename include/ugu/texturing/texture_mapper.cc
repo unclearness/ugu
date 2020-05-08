@@ -338,6 +338,8 @@ bool GenerateSimpleTrianglesTextureAndUv(
     const std::unordered_map<int, std::vector<ugu::FaceInfoPerKeyframe>>&
         bestkfid2faceid,
     const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
+  // Padding must be at least 2
+  // to pad right/left and up/down
   const int padding_tri = 2;
 
   int rect_num = static_cast<int>((mesh->vertex_indices().size() + 1) / 2);
@@ -346,30 +348,33 @@ bool GenerateSimpleTrianglesTextureAndUv(
     return false;
   }
   int max_rect_edge_len = 100;
-  int rect_w =
+  int sq_len =
       std::min(static_cast<int>(std::sqrt(pix_per_rect)), max_rect_edge_len);
   /*
-   * example. rect_short_len = 4
-   * ++++
-   * +++*
-   * ++**
-   * +***
-   * ****
+   * example. rect_w = 4
+   * * is padding on diagonal (fixed)
+   * + is upper triangle, - is lower triangle
+   * ++++**
+   * +++**-
+   * ++**--
+   * +**---
+   * **----
    *
    */
 
-  int max_rect_num = (option.tex_w / (rect_w + padding_tri)) *
-                     (option.tex_h / (rect_w + 1 + padding_tri));
+  int max_rect_num = (option.tex_w / (sq_len + 2 + padding_tri)) *
+                     (option.tex_h / (sq_len + 1 + padding_tri));
   while (max_rect_num < rect_num) {
-    rect_w--;
-    if (rect_w < 3) {
+    sq_len--;
+    if (sq_len < 3) {
       return false;
     }
-    max_rect_num = (option.tex_w / (rect_w + padding_tri)) *
-                   (option.tex_h / (rect_w + 1 + padding_tri));
+    max_rect_num = (option.tex_w / (sq_len + 2 + padding_tri)) *
+                   (option.tex_h / (sq_len + 1 + padding_tri));
   }
 
-  int rect_h = rect_w + 1;
+  int rect_w = sq_len + 2;
+  int rect_h = sq_len + 1;
 
   ugu::Image3b texture = ugu::Image3b::zeros(option.tex_h, option.tex_w);
   ugu::Image1b mask = ugu::Image1b::zeros(option.tex_h, option.tex_w);
@@ -398,18 +403,24 @@ bool GenerateSimpleTrianglesTextureAndUv(
     int rect_id = i / 2;
     int rect_x = rect_id % rect_w_num;
     int rect_y = rect_id / rect_w_num;
-    int rect_x_min = (rect_w + padding_tri) * rect_x;
-    int rect_x_max = rect_x_min + rect_w - 1;
-    int rect_y_min = (rect_h + padding_tri) * rect_y;
-    int rect_y_max = rect_y_min + rect_h - 1;
 
     std::array<Eigen::Vector2f, 3> target_tri, target_tri_uv;
     bool lower = i % 2 == 0;
     if (lower) {
+      int rect_x_min = (rect_w + padding_tri) * rect_x + 2;
+      int rect_x_max = rect_x_min + sq_len - 1;
+      int rect_y_min = (rect_h + padding_tri) * rect_y;
+      int rect_y_max = rect_y_min + sq_len - 1;
+
       target_tri[0] = Eigen::Vector2f{rect_x_min, rect_y_min};
       target_tri[1] = Eigen::Vector2f{rect_x_max, rect_y_min};
       target_tri[2] = Eigen::Vector2f{rect_x_max, rect_y_max};
     } else {
+      int rect_x_min = (rect_w + padding_tri) * rect_x;
+      int rect_x_max = rect_x_min + sq_len - 1;
+      int rect_y_min = (rect_h + padding_tri) * rect_y + 1;
+      int rect_y_max = rect_y_min + sq_len - 1;
+
       target_tri[0] = Eigen::Vector2f{rect_x_min, rect_y_min};
       target_tri[1] = Eigen::Vector2f{rect_x_min, rect_y_max};
       target_tri[2] = Eigen::Vector2f{rect_x_max, rect_y_max};
