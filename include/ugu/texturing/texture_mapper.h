@@ -13,7 +13,11 @@ namespace ugu {
 
 enum TextureMappingType { kSimpleProjection = 0 };
 
-enum OutputUvType { kGenerateSimpleTile = 0, kUseOriginalMeshUv = 1 };
+enum OutputUvType {
+  kGenerateSimpleTile = 0,
+  kUseOriginalMeshUv = 1,
+  kGenerateSimpleTriangles = 2
+};
 
 struct TextureMappingOption {
   ViewSelectionCriteria criteria = ViewSelectionCriteria::kMaxArea;

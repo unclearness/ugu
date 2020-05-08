@@ -60,7 +60,6 @@ bool GenerateSimpleTileTextureAndUv(
   int y_tile_num = static_cast<int>(keyframes.size() / x_tile_num) + 1;
 
   MakeTiledImage(keyframes, &texture, x_tile_num, y_tile_num);
-  // ugu::imwrite("tile.png", texture);
 
   // Convert projected_tri to UV by tile xy
   std::vector<Eigen::Vector2f> uv;
@@ -114,8 +113,6 @@ bool GenerateSimpleTileTextureAndUv(
   std::vector<ugu::ObjMaterial> materials(1);
   materials[0].name = option.texture_base_name;
   materials[0].diffuse_tex = texture;
-  // materials[0].diffuse_texname = "GenerateSimpleTileUv";
-  // materials[0].diffuse_texpath = "material000.png";
   mesh->set_materials(materials);
 
   std::vector<int> material_ids(mesh->vertex_indices().size(), 0);
@@ -129,8 +126,8 @@ inline float EdgeFunction(const T& a, const T& b, const T& c) {
   return (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
 }
 
-inline ugu::Vec3b BilinerInterpolation(float x, float y,
-                                       const ugu::Image3b& image) {
+inline ugu::Vec3b BilinearInterpolation(float x, float y,
+                                        const ugu::Image3b& image) {
   std::array<int, 2> pos_min = {{0, 0}};
   std::array<int, 2> pos_max = {{0, 0}};
   pos_min[0] = static_cast<int>(std::floor(x));
@@ -223,6 +220,66 @@ bool PaddingSimple(ugu::Image3b* texture, ugu::Image1b* mask, int kernel) {
   return true;
 }
 
+bool RasterizeTriangle(const std::array<Eigen::Vector2f, 3>& src_tri,
+                       const ugu::Image3b& src,
+                       const std::array<Eigen::Vector2f, 3>& target_tri,
+                       ugu::Image3b* target, ugu::Image1b* mask) {
+  // Area could be negative
+  float area = EdgeFunction(target_tri[0], target_tri[1], target_tri[2]);
+  if (std::abs(area) < std::numeric_limits<float>::min()) {
+    area = area > 0 ? std::numeric_limits<float>::min()
+                    : -std::numeric_limits<float>::min();
+  }
+  float inv_area = 1.0f / area;
+
+  // Loop for bounding box of the target triangle
+  int xmin =
+      std::min({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) - 1;
+  xmin = std::max(0, std::min(xmin, target->cols - 1));
+  int xmax =
+      std::max({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) + 1;
+  xmax = std::max(0, std::min(xmax, target->cols - 1));
+
+  int ymin =
+      std::min({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) - 1;
+  ymin = std::max(0, std::min(ymin, target->rows - 1));
+  int ymax =
+      std::max({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) + 1;
+  ymax = std::max(0, std::min(ymax, target->rows - 1));
+
+  for (int y = ymin; y <= ymax; y++) {
+    for (int x = xmin; x <= xmax; x++) {
+      Eigen::Vector2f pixel_sample(static_cast<float>(x),
+                                   static_cast<float>(y));
+      float w0 = EdgeFunction(target_tri[1], target_tri[2], pixel_sample);
+      float w1 = EdgeFunction(target_tri[2], target_tri[0], pixel_sample);
+      float w2 = EdgeFunction(target_tri[0], target_tri[1], pixel_sample);
+      // Barycentric in the target triangle
+      w0 *= inv_area;
+      w1 *= inv_area;
+      w2 *= inv_area;
+
+      // Barycentric coordinate should be positive inside of the triangle
+      // Skip outside of the target triangle
+      if (w0 < 0 || w1 < 0 || w2 < 0) {
+        continue;
+      }
+
+      // Barycentric to src image patch
+      Eigen::Vector2f src_pos =
+          w0 * src_tri[0] + w1 * src_tri[1] + w2 * src_tri[2];
+      target->at<ugu::Vec3b>(y, x) =
+          BilinearInterpolation(src_pos.x(), src_pos.y(), src);
+
+      if (mask != nullptr) {
+        mask->at<unsigned char>(y, x) = 255;
+      }
+    }
+  }
+
+  return true;
+}
+
 bool GenerateTextureOnOriginalUv(
     const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
     const ugu::VisibilityInfo& info, ugu::Mesh* mesh,
@@ -256,57 +313,115 @@ bool GenerateTextureOnOriginalUv(
       target_tri[j].y() = (1.0f - target_tri_uv[j].y()) * option.tex_h - 0.5f;
     }
 
-    // Area could be negative
-    float area = EdgeFunction(target_tri[0], target_tri[1], target_tri[2]);
-    float inv_area = 1.0f / area;
-
-    // Loop for bounding box of the target triangle
-    int xmin =
-        std::min({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) - 1;
-    xmin = std::max(0, std::min(xmin, option.tex_w - 1));
-    int xmax =
-        std::max({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) + 1;
-    xmax = std::max(0, std::min(xmax, option.tex_w - 1));
-
-    int ymin =
-        std::min({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) - 1;
-    ymin = std::max(0, std::min(ymin, option.tex_h - 1));
-    int ymax =
-        std::max({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) + 1;
-    ymax = std::max(0, std::min(ymax, option.tex_h - 1));
-
-    for (int y = ymin; y <= ymax; y++) {
-      for (int x = xmin; x <= xmax; x++) {
-        Eigen::Vector2f pixel_sample(static_cast<float>(x),
-                                     static_cast<float>(y));
-        float w0 = EdgeFunction(target_tri[1], target_tri[2], pixel_sample);
-        float w1 = EdgeFunction(target_tri[2], target_tri[0], pixel_sample);
-        float w2 = EdgeFunction(target_tri[0], target_tri[1], pixel_sample);
-        // Barycentric in the target triangle
-        w0 *= inv_area;
-        w1 *= inv_area;
-        w2 *= inv_area;
-
-        // Barycentric coordinate should be positive inside of the triangle
-        // Skip outside of the target triangle
-        if (w0 < 0 || w1 < 0 || w2 < 0) {
-          continue;
-        }
-
-        // Barycentric to src image patch
-        Eigen::Vector2f src_pos =
-            w0 * src_tri[0] + w1 * src_tri[1] + w2 * src_tri[2];
-        texture.at<ugu::Vec3b>(y, x) =
-            BilinerInterpolation(src_pos.x(), src_pos.y(), color);
-
-        mask.at<unsigned char>(y, x) = 255;
-      }
-    }
+    RasterizeTriangle(src_tri, color, target_tri, &texture, &mask);
   }
 
   // Add padding for atlas boundaries to avoid invalid color bleeding at
   // rendering
   PaddingSimple(&texture, &mask, option.padding_kernel);
+
+  std::vector<ugu::ObjMaterial> materials(1);
+  materials[0].name = option.texture_base_name;
+  materials[0].diffuse_tex = texture;
+  mesh->set_materials(materials);
+
+  std::vector<int> material_ids(mesh->vertex_indices().size(), 0);
+  mesh->set_material_ids(material_ids);
+
+  return true;
+}
+
+bool GenerateSimpleTrianglesTextureAndUv(
+    const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
+    const ugu::VisibilityInfo& info, ugu::Mesh* mesh,
+    const ugu::TextureMappingOption& option,
+    const std::unordered_map<int, std::vector<ugu::FaceInfoPerKeyframe>>&
+        bestkfid2faceid,
+    const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
+  int rect_num = static_cast<int>((mesh->vertex_indices().size() / 2));
+  int pix_per_rect = option.tex_h * option.tex_w / rect_num;
+  if (pix_per_rect < 6) {
+    return false;
+  }
+  int max_rect_edge_len = 100;
+  int rect_short_len =
+      std::min(static_cast<int>(std::sqrt(pix_per_rect)), max_rect_edge_len);
+  /*
+   * example. rect_short_len = 4
+   * ++++
+   * +++*
+   * ++**
+   * +***
+   * ****
+   *
+   */
+
+  int max_rect_num =
+      (option.tex_w / rect_short_len) * (option.tex_h / (rect_short_len + 1));
+  while (max_rect_num > rect_num) {
+    rect_short_len--;
+    if (rect_short_len < 2) {
+      return false;
+    }
+    max_rect_num =
+        (option.tex_w / rect_short_len) * (option.tex_h / (rect_short_len + 1));
+  }
+
+  ugu::Image3b texture = ugu::Image3b::zeros(option.tex_h, option.tex_w);
+  //  ugu::Image1b mask = ugu::Image1b::zeros(option.tex_h, option.tex_w);
+
+  // Loop per face
+  int rect_w = option.tex_w / rect_short_len;
+  // int rect_h = option.tex_h / (rect_short_len + 1);
+  std::vector<Eigen::Vector2f> uv;
+  std::vector<Eigen::Vector3i> uv_indices;
+  for (int i = 0; i < static_cast<int>(info.face_info_list.size()); i++) {
+    // Get corresponding kf_id, index and projected_tri
+    const auto& bestkf = faceid2bestkf[i];
+    if (bestkf.kf_id < 0) {
+      continue;
+    }
+    const auto& color = keyframes[bestkf.kf_id]->color;
+
+    const std::array<Eigen::Vector2f, 3>& src_tri = bestkf.projected_tri;
+
+    int rect_id = i / 2;
+    int rect_x = rect_id % rect_w;
+    int rect_y = rect_id / rect_w;
+    int rect_x_min = rect_short_len * rect_x;
+    int rect_x_max = rect_short_len * (rect_x + 1);
+    int rect_y_min = (rect_short_len + 1) * rect_y;
+    int rect_y_max = (rect_short_len + 1) * (rect_y + 1);
+    std::array<Eigen::Vector2f, 3> target_tri, target_tri_uv;
+    bool lower = i % 2 == 0;
+    if (lower) {
+      target_tri[0] = Eigen::Vector2f{rect_x_min, rect_y_min};
+      target_tri[1] = Eigen::Vector2f{rect_x_max, rect_y_min};
+      target_tri[2] = Eigen::Vector2f{rect_x_max, rect_y_max};
+    } else {
+      target_tri[0] = Eigen::Vector2f{rect_x_min, rect_y_min};
+      target_tri[1] = Eigen::Vector2f{rect_x_min, rect_y_max};
+      target_tri[2] = Eigen::Vector2f{rect_x_max, rect_y_max};
+    }
+
+    RasterizeTriangle(src_tri, color, target_tri, &texture, nullptr);
+
+    for (int j = 0; j < 3; j++) {
+      target_tri_uv[j].x() = (target_tri[j].x() + 0.5f) / option.tex_w;
+      target_tri_uv[j].y() = 1.0f - (target_tri[j].y() + 0.5f) / option.tex_h;
+    }
+
+    uv.push_back(target_tri_uv[0]);
+    uv.push_back(target_tri_uv[1]);
+    uv.push_back(target_tri_uv[2]);
+
+    int uv_size = static_cast<int>(uv.size());
+    uv_indices.push_back(
+        Eigen::Vector3i(uv_size - 3, uv_size - 2, uv_size - 1));
+  }
+
+  mesh->set_uv(uv);
+  mesh->set_uv_indices(uv_indices);
 
   std::vector<ugu::ObjMaterial> materials(1);
   materials[0].name = option.texture_base_name;
@@ -371,6 +486,10 @@ bool SimpleTextureMapping(
   if (option.uv_type == ugu::OutputUvType::kGenerateSimpleTile) {
     ret_tex_gen = GenerateSimpleTileTextureAndUv(
         keyframes, info, mesh, option, bestkfid2faceid, faceid2bestkf);
+  } else if (option.uv_type == ugu::OutputUvType::kGenerateSimpleTriangles) {
+    ret_tex_gen = GenerateSimpleTrianglesTextureAndUv(
+        keyframes, info, mesh, option, bestkfid2faceid, faceid2bestkf);
+
   } else if (option.uv_type == ugu::OutputUvType::kUseOriginalMeshUv) {
     if (mesh->uv().empty() ||
         mesh->uv_indices().size() != mesh->vertex_indices().size()) {
