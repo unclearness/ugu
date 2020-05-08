@@ -338,13 +338,15 @@ bool GenerateSimpleTrianglesTextureAndUv(
     const std::unordered_map<int, std::vector<ugu::FaceInfoPerKeyframe>>&
         bestkfid2faceid,
     const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
-  int rect_num = static_cast<int>((mesh->vertex_indices().size() / 2));
+  const int padding_tri = 2;
+
+  int rect_num = static_cast<int>((mesh->vertex_indices().size() + 1) / 2);
   int pix_per_rect = option.tex_h * option.tex_w / rect_num;
   if (pix_per_rect < 6) {
     return false;
   }
   int max_rect_edge_len = 100;
-  int rect_short_len =
+  int rect_w =
       std::min(static_cast<int>(std::sqrt(pix_per_rect)), max_rect_edge_len);
   /*
    * example. rect_short_len = 4
@@ -356,29 +358,37 @@ bool GenerateSimpleTrianglesTextureAndUv(
    *
    */
 
-  int max_rect_num =
-      (option.tex_w / rect_short_len) * (option.tex_h / (rect_short_len + 1));
-  while (max_rect_num > rect_num) {
-    rect_short_len--;
-    if (rect_short_len < 2) {
+  int max_rect_num = (option.tex_w / (rect_w + padding_tri)) *
+                     (option.tex_h / (rect_w + 1 + padding_tri));
+  while (max_rect_num < rect_num) {
+    rect_w--;
+    if (rect_w < 3) {
       return false;
     }
-    max_rect_num =
-        (option.tex_w / rect_short_len) * (option.tex_h / (rect_short_len + 1));
+    max_rect_num = (option.tex_w / (rect_w + padding_tri)) *
+                   (option.tex_h / (rect_w + 1 + padding_tri));
   }
 
+  int rect_h = rect_w + 1;
+
   ugu::Image3b texture = ugu::Image3b::zeros(option.tex_h, option.tex_w);
-  //  ugu::Image1b mask = ugu::Image1b::zeros(option.tex_h, option.tex_w);
+  ugu::Image1b mask = ugu::Image1b::zeros(option.tex_h, option.tex_w);
 
   // Loop per face
-  int rect_w = option.tex_w / rect_short_len;
-  // int rect_h = option.tex_h / (rect_short_len + 1);
+  int rect_w_num = option.tex_w / (rect_w + padding_tri);
+  // int rect_h_num = option.tex_h / (rect_h + padding_tri);
   std::vector<Eigen::Vector2f> uv;
   std::vector<Eigen::Vector3i> uv_indices;
   for (int i = 0; i < static_cast<int>(info.face_info_list.size()); i++) {
     // Get corresponding kf_id, index and projected_tri
     const auto& bestkf = faceid2bestkf[i];
     if (bestkf.kf_id < 0) {
+      uv.push_back(Eigen::Vector2f::Zero());
+      uv.push_back(Eigen::Vector2f::Zero());
+      uv.push_back(Eigen::Vector2f::Zero());
+      int uv_size = static_cast<int>(uv.size());
+      uv_indices.push_back(
+          Eigen::Vector3i(uv_size - 3, uv_size - 2, uv_size - 1));
       continue;
     }
     const auto& color = keyframes[bestkf.kf_id]->color;
@@ -386,12 +396,13 @@ bool GenerateSimpleTrianglesTextureAndUv(
     const std::array<Eigen::Vector2f, 3>& src_tri = bestkf.projected_tri;
 
     int rect_id = i / 2;
-    int rect_x = rect_id % rect_w;
-    int rect_y = rect_id / rect_w;
-    int rect_x_min = rect_short_len * rect_x;
-    int rect_x_max = rect_short_len * (rect_x + 1);
-    int rect_y_min = (rect_short_len + 1) * rect_y;
-    int rect_y_max = (rect_short_len + 1) * (rect_y + 1);
+    int rect_x = rect_id % rect_w_num;
+    int rect_y = rect_id / rect_w_num;
+    int rect_x_min = (rect_w + padding_tri) * rect_x;
+    int rect_x_max = rect_x_min + rect_w - 1;
+    int rect_y_min = (rect_h + padding_tri) * rect_y;
+    int rect_y_max = rect_y_min + rect_h - 1;
+
     std::array<Eigen::Vector2f, 3> target_tri, target_tri_uv;
     bool lower = i % 2 == 0;
     if (lower) {
@@ -404,21 +415,24 @@ bool GenerateSimpleTrianglesTextureAndUv(
       target_tri[2] = Eigen::Vector2f{rect_x_max, rect_y_max};
     }
 
-    RasterizeTriangle(src_tri, color, target_tri, &texture, nullptr);
+    RasterizeTriangle(src_tri, color, target_tri, &texture, &mask);
 
     for (int j = 0; j < 3; j++) {
       target_tri_uv[j].x() = (target_tri[j].x() + 0.5f) / option.tex_w;
-      target_tri_uv[j].y() = 1.0f - (target_tri[j].y() + 0.5f) / option.tex_h;
+      target_tri_uv[j].y() = 1.0f - ((target_tri[j].y() + 0.5f) / option.tex_h);
     }
 
     uv.push_back(target_tri_uv[0]);
     uv.push_back(target_tri_uv[1]);
     uv.push_back(target_tri_uv[2]);
-
     int uv_size = static_cast<int>(uv.size());
     uv_indices.push_back(
         Eigen::Vector3i(uv_size - 3, uv_size - 2, uv_size - 1));
   }
+
+  // Add padding for atlas boundaries to avoid invalid color bleeding at
+  // rendering
+  PaddingSimple(&texture, &mask, 3);
 
   mesh->set_uv(uv);
   mesh->set_uv_indices(uv_indices);
