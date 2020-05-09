@@ -683,15 +683,6 @@ struct Charts {
     std::sort(valid.begin(), valid.end(), compare);
 
     std::sort(invalid.begin(), invalid.end(), compare);
-
-#if 0
-    for (auto& c : valid) {
-      c.Finalize();
-    }
-    for (auto& c : invalid) {
-      c.Finalize();
-    }
-#endif
   }
 };
 
@@ -771,8 +762,8 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
                                 option.tex_h);
         atlas.uv.push_back(global_uv);
       }
-      Eigen::Vector3i uv_index(atlas.uv.size() - 1, atlas.uv.size() - 2,
-                               atlas.uv.size() - 3);
+      Eigen::Vector3i uv_index(atlas.uv.size() - 3, atlas.uv.size() - 2,
+                               atlas.uv.size() - 1);
       atlas.uv_indices[f.face_id] = uv_index;
     }
   }
@@ -781,8 +772,8 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
   atlas.uv.push_back(Eigen::Vector2f::Zero());
   atlas.uv.push_back(Eigen::Vector2f::Zero());
   atlas.uv.push_back(Eigen::Vector2f::Zero());
-  Eigen::Vector3i invalid_uv_index(atlas.uv.size() - 1, atlas.uv.size() - 2,
-                                   atlas.uv.size() - 3);
+  Eigen::Vector3i invalid_uv_index(atlas.uv.size() - 3, atlas.uv.size() - 2,
+                                   atlas.uv.size() - 1);
   for (const auto& c : charts.invalid) {
     for (const auto& f : c.faces) {
       atlas.uv_indices[f.face_id] = invalid_uv_index;
@@ -872,19 +863,6 @@ bool GenerateSimpleChartsTextureAndUv(
   }
 
   charts.Finalize();
-#if 1
-  int tmp = 0;
-  for (auto& c : charts.valid) {
-    printf("valid chart %d %d %d\n", c.faces[0].kf_id, c.faces.size(),
-           c.patch.rows * c.patch.cols);
-    tmp += c.faces.size();
-  }
-  for (auto& c : charts.invalid) {
-    printf("invalid chart %d %d\n", c.faces[0].kf_id, c.faces.size());
-    tmp += c.faces.size();
-  }
-  printf("%d == %d \n", tmp, mesh->vertex_indices().size());
-#endif
 
   std::vector<Atlas> atlas_list;
   if (!GenerateAtlas(charts, *mesh, &atlas_list, option)) {
