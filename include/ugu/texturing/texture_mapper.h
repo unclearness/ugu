@@ -16,7 +16,8 @@ enum TextureMappingType { kSimpleProjection = 0 };
 enum OutputUvType {
   kGenerateSimpleTile = 0,
   kUseOriginalMeshUv = 1,
-  kGenerateSimpleTriangles = 2
+  kGenerateSimpleTriangles = 2,
+  kGenerateSimpleCharts = 3
 };
 
 struct TextureMappingOption {

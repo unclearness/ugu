@@ -4,6 +4,7 @@
  */
 
 #include <algorithm>
+#include <deque>
 #include <functional>
 #include <unordered_map>
 #include <unordered_set>
@@ -459,7 +460,95 @@ bool GenerateSimpleTrianglesTextureAndUv(
   return true;
 }
 
-bool SimpleTextureMapping(
+struct Face2Face {
+  void Init(const std::vector<Eigen::Vector3i>& vertex_indices) {}
+
+  void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {}
+
+  bool RemoveFace(int face_id) { return true; }
+};
+
+struct Chart {
+  std::vector<ugu::FaceInfoPerKeyframe> faces;
+  ugu::Image3b patch;
+  std::vector<std::array<Eigen::Vector2f, 3>> uv;  // local UV in the patch
+  bool finalize(ugu::Image3b& color_kf) {
+    // Generate patch and convert projected_tri to local UV in the patch
+    return false;
+  }
+};
+
+bool GenerateSimpleChartsTextureAndUv(
+    const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
+    const ugu::VisibilityInfo& info, ugu::Mesh* mesh,
+    const ugu::TextureMappingOption& option,
+    const std::unordered_map<int, std::vector<ugu::FaceInfoPerKeyframe>>&
+        bestkfid2faceid,
+    const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
+  // Make data structure to get adjacent faces of a face in a constant time
+  Face2Face face2face;
+  face2face.Init(mesh->vertex_indices());
+
+  // Initialize all faces unselected
+  std::vector<Chart> charts;
+  // std::unordered_set<int> selected;
+  std::vector<bool> selected(mesh->vertex_indices().size(), false);
+
+  while (std::find(selected.begin(), selected.end(), false) != selected.end()) {
+    int seed_fid = std::distance(
+        selected.begin(), std::find(selected.begin(), selected.end(), false));
+    std::deque<int> queue;
+    const auto& bestkf = faceid2bestkf[seed_fid];
+
+    queue.push_back(seed_fid);
+
+    // Select an unselected face and make a new chart
+    Chart chart;
+    chart.faces.push_back(faceid2bestkf[seed_fid]);
+    selected[seed_fid] = true;
+
+    while (!queue.empty()) {
+      // (*) Add an unselected face to a queue
+      int fid = queue.front();
+      queue.pop_front();
+
+      // Get unselected adjacent faces
+      std::vector<int> adjacent_face_ids;
+      face2face.GetAdjacentFaces(fid, &adjacent_face_ids);
+
+      // Once checking adjacent faces, remove face id for computational
+      // effciency
+      face2face.RemoveFace(fid);
+
+      // If faces are empty, continue
+      if (adjacent_face_ids.empty()) {
+        continue;
+      }
+
+      // If adjacent faces have the same best kf && not selected
+      std::vector<int> adjacent_face_ids_bestkf;
+      std::copy_if(adjacent_face_ids.begin(), adjacent_face_ids.end(),
+                   std::back_inserter(adjacent_face_ids_bestkf), [&](int i) {
+                     return (faceid2bestkf[i].kf_id == bestkf.kf_id) &&
+                            !selected[i];
+                   });
+      // Add them to the chart, set them as selected
+      for (int added_fid : adjacent_face_ids_bestkf) {
+        queue.push_back(added_fid);
+        chart.faces.push_back(faceid2bestkf[added_fid]);
+        selected[added_fid] = true;
+      }
+
+      // Add them to the queue, and restart from (*)
+    }
+
+    charts.push_back(chart);
+  }
+
+  return true;
+}
+
+bool TextureMappingSimple(
     const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
     const ugu::VisibilityInfo& info, ugu::Mesh* mesh,
     const ugu::TextureMappingOption& option) {
@@ -515,6 +604,10 @@ bool SimpleTextureMapping(
     ret_tex_gen = GenerateSimpleTrianglesTextureAndUv(
         keyframes, info, mesh, option, bestkfid2faceid, faceid2bestkf);
 
+  } else if (option.uv_type == ugu::OutputUvType::kGenerateSimpleCharts) {
+    ret_tex_gen = GenerateSimpleChartsTextureAndUv(
+        keyframes, info, mesh, option, bestkfid2faceid, faceid2bestkf);
+
   } else if (option.uv_type == ugu::OutputUvType::kUseOriginalMeshUv) {
     if (mesh->uv().empty() ||
         mesh->uv_indices().size() != mesh->vertex_indices().size()) {
@@ -542,7 +635,7 @@ bool TextureMapping(const std::vector<std::shared_ptr<Keyframe>>& keyframes,
                     const VisibilityInfo& info, Mesh* mesh,
                     const TextureMappingOption& option) {
   if (option.type == TextureMappingType::kSimpleProjection) {
-    return SimpleTextureMapping(keyframes, info, mesh, option);
+    return TextureMappingSimple(keyframes, info, mesh, option);
   }
   LOGE("TextureMappingType %d is not implemented", option.type);
   return false;
