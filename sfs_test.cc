@@ -120,8 +120,8 @@ int main(int argc, char* argv[]) {
 
     std::string num = ugu::zfill(i);
 
-    ugu::Image1b silhouette;
-    silhouette.Load(data_dir + "/mask_" + num + ".png");
+    ugu::Image1b silhouette =
+        ugu::imread<ugu::Image1b>(data_dir + "/mask_" + num + ".png");
 
     ugu::Image1f sdf;
     // Carve() is the main process to update voxels. Corresponds to the fusion
@@ -131,7 +131,7 @@ int main(int argc, char* argv[]) {
     // save SDF visualization
     ugu::Image3b vis_sdf;
     ugu::SignedDistance2Color(sdf, &vis_sdf, -1.0f, 1.0f);
-    vis_sdf.WritePng(data_dir + "/sdf_" + num + ".png");
+    ugu::imwrite(data_dir + "/sdf_" + num + ".png", vis_sdf);
 
     ugu::Mesh mesh;
     // voxel extraction

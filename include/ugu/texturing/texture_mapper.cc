@@ -8,10 +8,17 @@
 #include <functional>
 #include <unordered_map>
 #include <unordered_set>
+#include <random>
 
 #include <Eigen/SparseCore>
 
 #include "texture_mapper.h"
+#include "bin_packer_2d.h"
+
+#ifdef UGU_USE_OPENCV
+#include "opencv2/imgproc.hpp"
+#endif
+#define DEBUG_TM
 
 namespace {
 
@@ -667,6 +674,46 @@ struct Charts {
   }
 };
 
+struct Atlas {
+  ugu::Image3b texture;
+  std::vector<int> face_id_list;
+};
+
+
+bool GenerateAtlas(const Charts& charts, std::vector<Atlas>* atlas_list,
+                   const ugu::TextureMappingOption& option) {
+
+  std::vector<ugu::Rect> rects, packed_pos,available_rects;
+  for (const auto& c : charts.valid) {
+    rects.push_back(ugu::Rect(0, 0, c.patch.cols, c.patch.rows));
+  }
+  ugu::BinPacking2D(rects, &packed_pos, &available_rects, option.tex_w, option.tex_h);
+
+#ifdef UGU_USE_OPENCV
+#ifdef DEBUG_TM
+  {
+    ugu::Image3b debug = ugu::Image3b::zeros(option.tex_h, option.tex_w);
+    std::mt19937 mt(0);
+    std::uniform_int_distribution<> dist(100, 255); 
+    for (const auto& r : packed_pos) {
+      cv::Rect cvrect(r.x, r.y, r.width, r.height);
+      cv::Scalar color(dist(mt), dist(mt), dist(mt));
+      cv::rectangle(debug, cvrect, color, -1);
+    }
+    for (const auto& r : available_rects) {
+      cv::Rect cvrect(r.x, r.y, r.width, r.height);
+      cv::Scalar color(0, 0, 255);
+      cv::rectangle(debug, cvrect, color, 1);
+    }
+    cv::imwrite("binpacking.png", debug);
+
+  }
+#endif
+#endif
+
+  return true;
+}
+
 bool GenerateSimpleChartsTextureAndUv(
     const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
     const ugu::VisibilityInfo& info, ugu::Mesh* mesh,
@@ -760,6 +807,9 @@ bool GenerateSimpleChartsTextureAndUv(
   }
   printf("%d == %d \n", tmp, mesh->vertex_indices().size());
 #endif
+
+  std::vector<Atlas> atlas_list;
+  GenerateAtlas(charts, &atlas_list, option);
 
   return true;
 }

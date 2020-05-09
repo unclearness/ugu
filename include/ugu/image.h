@@ -60,6 +60,8 @@ using Vec1w = std::uint16_t;
 using Vec3f = cv::Vec3f;
 using Vec3b = cv::Vec3b;
 
+using Point = cv::Point;
+
 using ImreadModes = cv::ImreadModes;
 
 template <typename T>
@@ -94,7 +96,7 @@ bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
   return true;
 }
 
-void minMaxLoc(const InputArray& src, double* minVal, double* maxVal = 0,
+inline void minMaxLoc(const cv::InputArray& src, double* minVal, double* maxVal = 0,
                Point* minLoc = 0, Point* maxLoc = 0) {
   cv::minMaxLoc(src, minVal, maxVal, minLoc, maxLoc);
 }
@@ -102,14 +104,17 @@ void minMaxLoc(const InputArray& src, double* minVal, double* maxVal = 0,
 #else
 
 template <typename TT, int N>
-using Vec = std::array<TT, N>;
+using Vec_ = std::array<TT, N>;
 
-using Vec1f = Vec<float, 1>;
-using Vec1i = std::array<int, 1>;
-using Vec1w = std::array<std::uint16_t, 1>;
-using Vec1b = std::array<unsigned char, 1>;
-using Vec3b = std::array<unsigned char, 3>;
-using Vec3f = std::array<float, 3>;
+using Vec1f = Vec_<float, 1>;
+using Vec1i = Vec_<int, 1>;
+using Vec1w = Vec_<std::uint16_t, 1>;
+using Vec1b = Vec_<unsigned char, 1>;
+using Vec3b = Vec_<unsigned char, 3>;
+using Vec3f = Vec_<float, 3>;
+
+template <typename TT, int N>
+using Point_ = Vec_<TT, N>;
 
 template <typename T>
 class Image {

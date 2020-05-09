@@ -209,7 +209,7 @@ void MakeSignedDistanceField(const Image1b& mask,
   if (minmax_normalize) {
     // Outside of roi is set to 0, so does not affect min/max
     double max_dist, min_dist;
-    minMaxLoc(*dist, &min_dist, &max_dist);
+    ugu::minMaxLoc(*dist, &min_dist, &max_dist);
 
     float abs_max = static_cast<float>(std::max(std::abs(max_dist), std::abs(min_dist)));
 
@@ -430,7 +430,7 @@ bool VoxelCarver::Carve(const Camera& camera, const Image1b& silhouette,
 
   timer.Start();
   double min_sdf, max_sdf;
-  minMaxLoc(*sdf, &min_sdf, &max_sdf);
+  ugu::minMaxLoc(*sdf, &min_sdf, &max_sdf);
   const Eigen::Vector3i& voxel_num = voxel_grid_->voxel_num();
   const Eigen::Affine3f& w2c = camera.w2c().cast<float>();
 #if defined(_OPENMP) && defined(VACANCY_USE_OPENMP)

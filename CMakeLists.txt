@@ -216,6 +216,8 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/texturing/vertex_colorizer.cc
     include/ugu/texturing/texture_mapper.h
     include/ugu/texturing/texture_mapper.cc
+    include/ugu/texturing/bin_packer_2d.h
+    include/ugu/texturing/bin_packer_2d.cc
 
     # implementations of header-only library
     ${UGU_STB_IMPLEMENTATION_CC}
