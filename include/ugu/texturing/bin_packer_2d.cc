@@ -16,7 +16,7 @@ bool FindBestRect(const std::vector<ugu::Rect>& available_rects,
 
   for (int i = 0; i < static_cast<int>(available_rects.size()); i++) {
     const ugu::Rect& rect = available_rects[i];
-    if (target.area() <= rect.area() &&
+    if (target.height <= rect.height && target.width <= rect.width &&
         (rect.area() - target.area()) < best_area_diff) {
       best_area_diff = rect.area() - target.area();
       *best_rect = rect;

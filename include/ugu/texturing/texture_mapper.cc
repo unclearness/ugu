@@ -6,14 +6,14 @@
 #include <algorithm>
 #include <deque>
 #include <functional>
+#include <random>
 #include <unordered_map>
 #include <unordered_set>
-#include <random>
 
 #include <Eigen/SparseCore>
 
-#include "texture_mapper.h"
 #include "bin_packer_2d.h"
+#include "texture_mapper.h"
 
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgproc.hpp"
@@ -559,8 +559,14 @@ struct Face2Face {
 struct Chart {
   std::vector<ugu::FaceInfoPerKeyframe> faces;
   ugu::Image3b patch;
-  std::vector<std::array<Eigen::Vector2f, 3>> uv;  // local UV in the patch
-  bool Finalize(const ugu::Image3b& color_kf, int padding = 1) {
+  std::vector<std::array<Eigen::Vector2f, 3>>
+      local_pos;                                        // position in the patch
+  std::vector<std::array<Eigen::Vector2f, 3>> uv_face;  // local UV in the patch
+  // std::vector<Eigen::Vector2f> uv;
+  // std::vector<Eigen::Vector3i> uv_indices;
+  bool Finalize(const ugu::Image3b& color_kf,
+                const std::vector<Eigen::Vector3i>& vertex_indices,
+                int padding = 1) {
     if (faces.empty()) {
       ugu::LOGE("Finalize() but empty\n");
       return false;
@@ -575,14 +581,15 @@ struct Chart {
       }
     }
 
-    uv.resize(faces.size());
+    uv_face.resize(faces.size());
+    local_pos.resize(faces.size());
 
     // If this chart is not visible, set all local UV to zero
     if (kf_id < 0) {
       const static std::array<Eigen::Vector2f, 3> zero = {
           Eigen::Vector2f::Zero(), Eigen::Vector2f::Zero(),
           Eigen::Vector2f::Zero()};
-      std::fill(uv.begin(), uv.end(), zero);
+      std::fill(uv_face.begin(), uv_face.end(), zero);
       return true;
     }
 
@@ -625,17 +632,31 @@ struct Chart {
     // Convert projected_tri to local UV in the patch
     for (int i = 0; i < static_cast<int>(faces.size()); i++) {
       const auto& f = faces[i];
-      std::array<Eigen::Vector2f, 3> local_tri;
+      std::array<Eigen::Vector2f, 3>& local_tri = local_pos[i];
       for (int j = 0; j < 3; j++) {
         // Convert to patch coordinate
         local_tri[j].x() = f.projected_tri[j].x() - xmin + padding;
         local_tri[j].y() = f.projected_tri[j].y() - ymin + padding;
 
         // Convert to 0-1 UV
-        uv[i][j].x() = (local_tri[j].x() + 0.5f) / patch.cols;
-        uv[i][j].y() = 1.0f - ((local_tri[j].y() + 0.5f) / patch.rows);
+        uv_face[i][j].x() = (local_tri[j].x() + 0.5f) / patch.cols;
+        uv_face[i][j].y() = 1.0f - ((local_tri[j].y() + 0.5f) / patch.rows);
       }
     }
+
+#if 0
+    // Make uv and uv_indices
+    // vertex id -> local_uv
+    std::unordered_map<int, Eigen::Vector2f> vid2uv;
+    for (int i = 0; i < static_cast<int>(faces.size()); i++) {
+      const auto& f = faces[i];
+      const auto& uvf = uv_face[i];
+      const auto& vi = vertex_indices[f.face_id];
+      for (int j = 0; j < 3; j++) {
+        vid2uv.insert(std::make_pair(vi[j], uvf[j]));
+      }
+    }
+#endif
 
     return true;
   }
@@ -677,24 +698,29 @@ struct Charts {
 struct Atlas {
   ugu::Image3b texture;
   std::vector<int> face_id_list;
+  std::vector<Eigen::Vector2f> uv;
+  std::vector<Eigen::Vector3i> uv_indices;
 };
 
-
-bool GenerateAtlas(const Charts& charts, std::vector<Atlas>* atlas_list,
+bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
+                   std::vector<Atlas>* atlas_list,
                    const ugu::TextureMappingOption& option) {
-
-  std::vector<ugu::Rect> rects, packed_pos,available_rects;
+  std::vector<ugu::Rect> rects, packed_pos, available_rects;
   for (const auto& c : charts.valid) {
     rects.push_back(ugu::Rect(0, 0, c.patch.cols, c.patch.rows));
   }
-  ugu::BinPacking2D(rects, &packed_pos, &available_rects, option.tex_w, option.tex_h);
+
+  if (!ugu::BinPacking2D(rects, &packed_pos, &available_rects, option.tex_w,
+                         option.tex_h)) {
+    return false;
+  }
 
 #ifdef UGU_USE_OPENCV
 #ifdef DEBUG_TM
   {
     ugu::Image3b debug = ugu::Image3b::zeros(option.tex_h, option.tex_w);
     std::mt19937 mt(0);
-    std::uniform_int_distribution<> dist(100, 255); 
+    std::uniform_int_distribution<> dist(100, 255);
     for (const auto& r : packed_pos) {
       cv::Rect cvrect(r.x, r.y, r.width, r.height);
       cv::Scalar color(dist(mt), dist(mt), dist(mt));
@@ -706,10 +732,62 @@ bool GenerateAtlas(const Charts& charts, std::vector<Atlas>* atlas_list,
       cv::rectangle(debug, cvrect, color, 1);
     }
     cv::imwrite("binpacking.png", debug);
-
   }
 #endif
 #endif
+
+  // TODO: more than one
+  atlas_list->resize(1);
+  auto& atlas = atlas_list->at(0);
+  atlas.uv.clear();
+  atlas.uv_indices.resize(mesh.vertex_indices().size());
+
+  atlas.texture = ugu::Image3b::zeros(option.tex_h, option.tex_w);
+
+  // Set valid charts
+  for (int k = 0; k < static_cast<int>(charts.valid.size()); k++) {
+    const auto& chart = charts.valid[k];
+    const ugu::Rect& rect = packed_pos[k];
+
+    // Copy image
+    for (int y = 0; y < chart.patch.rows; y++) {
+      // printf("%d %d %d %d % d\n", y,  rect.y, rect.height, rect.x,
+      // rect.width);
+      std::memcpy(
+          atlas.texture.data + (atlas.texture.cols * (y + rect.y) + rect.x) * 3,
+          chart.patch.data + (chart.patch.cols * y) * 3, chart.patch.cols * 3);
+    }
+
+    // TODO: Assign the same id for the same vertex in the same chart
+    for (int i = 0; i < static_cast<int>(chart.faces.size()); i++) {
+      const auto& f = chart.faces[i];
+
+      // Convert to global UV in the Atlas
+      for (int ii = 0; ii < 3; ii++) {
+        Eigen::Vector2f global_uv;
+        global_uv.x() =
+            (chart.local_pos[i][ii].x() + rect.x + 0.5f) / option.tex_w;
+        global_uv.y() = 1.0f - ((chart.local_pos[i][ii].y() + rect.y + 0.5f) /
+                                option.tex_h);
+        atlas.uv.push_back(global_uv);
+      }
+      Eigen::Vector3i uv_index(atlas.uv.size() - 1, atlas.uv.size() - 2,
+                               atlas.uv.size() - 3);
+      atlas.uv_indices[f.face_id] = uv_index;
+    }
+  }
+
+  // Set invalid charts
+  atlas.uv.push_back(Eigen::Vector2f::Zero());
+  atlas.uv.push_back(Eigen::Vector2f::Zero());
+  atlas.uv.push_back(Eigen::Vector2f::Zero());
+  Eigen::Vector3i invalid_uv_index(atlas.uv.size() - 1, atlas.uv.size() - 2,
+                                   atlas.uv.size() - 3);
+  for (const auto& c : charts.invalid) {
+    for (const auto& f : c.faces) {
+      atlas.uv_indices[f.face_id] = invalid_uv_index;
+    }
+  }
 
   return true;
 }
@@ -783,9 +861,9 @@ bool GenerateSimpleChartsTextureAndUv(
 
     // Finalize chart and add
     if (bestkf.kf_id < 0) {
-      chart.Finalize(color_empty);
+      chart.Finalize(color_empty, mesh->vertex_indices());
     } else {
-      chart.Finalize(keyframes[bestkf.kf_id]->color);
+      chart.Finalize(keyframes[bestkf.kf_id]->color, mesh->vertex_indices());
 
       // ugu::imwrite(std::to_string(charts.valid.size()) + ".png",
       // chart.patch);
@@ -809,7 +887,21 @@ bool GenerateSimpleChartsTextureAndUv(
 #endif
 
   std::vector<Atlas> atlas_list;
-  GenerateAtlas(charts, &atlas_list, option);
+  if (!GenerateAtlas(charts, *mesh, &atlas_list, option)) {
+    ugu::LOGE("GenerateAtlas failed\n");
+    return false;
+  }
+
+  mesh->set_uv(atlas_list[0].uv);
+  mesh->set_uv_indices(atlas_list[0].uv_indices);
+
+  std::vector<ugu::ObjMaterial> materials(1);
+  materials[0].name = option.texture_base_name;
+  materials[0].diffuse_tex = atlas_list[0].texture;
+  mesh->set_materials(materials);
+
+  std::vector<int> material_ids(mesh->vertex_indices().size(), 0);
+  mesh->set_material_ids(material_ids);
 
   return true;
 }
