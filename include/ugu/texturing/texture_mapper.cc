@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include <Eigen/SparseCore>
+
 #include "texture_mapper.h"
 
 namespace {
@@ -462,7 +464,7 @@ bool GenerateSimpleTrianglesTextureAndUv(
 
 struct Face2Face {
   // https://qiita.com/shinjiogaki/items/d16abb018a843c09b8c8
-  Eigen::MatrixXi mat_;
+  Eigen::SparseMatrix<int> mat_;  // Stores face_id + 1 to use SparseMatrix ()
   std::vector<Eigen::Vector3i> vertex_indices_;
 
   void Init(int num_vertices,
@@ -471,47 +473,47 @@ struct Face2Face {
     std::copy(vertex_indices.begin(), vertex_indices.end(),
               std::back_inserter(vertex_indices_));
 
-    mat_ = Eigen::MatrixXi(num_vertices, num_vertices);
-    mat_.setConstant(-1);
+    mat_ = Eigen::SparseMatrix<int>(num_vertices, num_vertices);
 
     for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
       const Eigen::Vector3i& face = vertex_indices_[i];
-      mat_(face[0], face[1]) = i;
-      mat_(face[1], face[2]) = i;
-      mat_(face[2], face[0]) = i;
+      // i + 1 for SparseMatrix
+      mat_.insert(face[0], face[1]) = i + 1;
+      mat_.insert(face[1], face[2]) = i + 1;
+      mat_.insert(face[2], face[0]) = i + 1;
     }
   }
 
   void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {
     const Eigen::Vector3i& face = vertex_indices_[face_id];
     adjacent_face_ids->clear();
-    int m0 = mat_(face[1], face[0]);
-    if (0 <= m0) {
-      adjacent_face_ids->push_back(m0);
+    int& m0 = mat_.coeffRef(face[1], face[0]);
+    if (0 < m0) {
+      adjacent_face_ids->push_back(m0 - 1);
     }
-    int m1 = mat_(face[2], face[1]);
-    if (0 <= m1) {
-      adjacent_face_ids->push_back(m1);
+    int& m1 = mat_.coeffRef(face[2], face[1]);
+    if (0 < m1) {
+      adjacent_face_ids->push_back(m1 - 1);
     }
-    int m2 = mat_(face[0], face[2]);
-    if (0 <= m2) {
-      adjacent_face_ids->push_back(m2);
+    int& m2 = mat_.coeffRef(face[0], face[2]);
+    if (0 < m2) {
+      adjacent_face_ids->push_back(m2 - 1);
     }
   }
 
   bool RemoveFace(int face_id) {
     const Eigen::Vector3i& face = vertex_indices_[face_id];
-    int& m0 = mat_(face[0], face[1]);
-    int& m1 = mat_(face[1], face[2]);
-    int& m2 = mat_(face[2], face[0]);
+    int& m0 = mat_.coeffRef(face[0], face[1]);
+    int& m1 = mat_.coeffRef(face[1], face[2]);
+    int& m2 = mat_.coeffRef(face[2], face[0]);
 
-    if (m0 < 0 && m1 < 0 && m2 < 0) {
+    if (m0 == 0 && m1 == 0 && m2 == 0) {
       return false;
     }
 
-    m0 = -1;
-    m1 = -1;
-    m2 = -1;
+    m0 = 0;
+    m1 = 0;
+    m2 = 0;
 
     return true;
   }
@@ -521,9 +523,56 @@ struct Chart {
   std::vector<ugu::FaceInfoPerKeyframe> faces;
   ugu::Image3b patch;
   std::vector<std::array<Eigen::Vector2f, 3>> uv;  // local UV in the patch
-  bool finalize(ugu::Image3b& color_kf) {
+  bool Finalize(const ugu::Image3b& color_kf) {
+    if (faces.empty()) {
+      ugu::LOGE("Finalize() but empty\n");
+      return false;
+    }
+
+    int kf_id = faces[0].kf_id;
+    for (int i = 0; i < static_cast<int>(faces.size()); i++) {
+      if (kf_id != faces[i].kf_id) {
+        ugu::LOGE("Finalize() but different kf_id index:%d %d %d \n", i, kf_id,
+                  faces[i].kf_id);
+        return false;
+      }
+    }
+
     // Generate patch and convert projected_tri to local UV in the patch
     return false;
+  }
+};
+
+struct Charts {
+  std::vector<Chart> valid;    // visible, kf_id >= 0
+  std::vector<Chart> invalid;  // not visible, kf_id < 0
+
+  void Add(const Chart& chart) {
+    if (chart.faces[0].kf_id < 0) {
+      invalid.push_back(chart);
+    } else {
+      valid.push_back(chart);
+    }
+  }
+
+  void Finalize() {
+    // Sort by patch area
+    std::function<bool(const Chart&, const Chart&)> compare =
+        [](const Chart& a, const Chart& b) -> bool {
+      return a.patch.rows * a.patch.cols > b.patch.rows * b.patch.cols;
+    };
+    std::sort(valid.begin(), valid.end(), compare);
+
+    std::sort(invalid.begin(), invalid.end(), compare);
+
+#if 0
+    for (auto& c : valid) {
+      c.Finalize();
+    }
+    for (auto& c : invalid) {
+      c.Finalize();
+    }
+#endif
   }
 };
 
@@ -539,9 +588,12 @@ bool GenerateSimpleChartsTextureAndUv(
   face2face.Init(mesh->vertices().size(), mesh->vertex_indices());
 
   // Initialize all faces unselected
-  std::vector<Chart> charts;
+  // std::vector<Chart> charts;
+  Charts charts;
   // std::unordered_set<int> selected;
   std::vector<bool> selected(mesh->vertex_indices().size(), false);
+
+  ugu::Image3b color_empty;
 
   while (std::find(selected.begin(), selected.end(), false) != selected.end()) {
     int seed_fid = std::distance(
@@ -584,6 +636,9 @@ bool GenerateSimpleChartsTextureAndUv(
       // Add them to the chart, set them as selected
       for (int added_fid : adjacent_face_ids_bestkf) {
         queue.push_back(added_fid);
+        if (bestkf.kf_id != faceid2bestkf[added_fid].kf_id) {
+          printf("%d %d\n", bestkf.kf_id, faceid2bestkf[added_fid].kf_id);
+        }
         chart.faces.push_back(faceid2bestkf[added_fid]);
         selected[added_fid] = true;
       }
@@ -591,12 +646,28 @@ bool GenerateSimpleChartsTextureAndUv(
       // Add them to the queue, and restart from (*)
     }
 
-    charts.push_back(chart);
+    // Finalize chart and add
+    if (bestkf.kf_id < 0) {
+      chart.Finalize(color_empty);
+    } else {
+      chart.Finalize(keyframes[bestkf.kf_id]->color);
+    }
+    charts.Add(chart);
   }
 
-  for (auto& c : charts) {
-    printf("chart %d %d\n", c.faces[0].kf_id, c.faces.size());
+  charts.Finalize();
+#if 1
+  int tmp = 0;
+  for (auto& c : charts.valid) {
+    printf("valid chart %d %d\n", c.faces[0].kf_id, c.faces.size());
+    tmp += c.faces.size();
   }
+  for (auto& c : charts.invalid) {
+    printf("invalid chart %d %d\n", c.faces[0].kf_id, c.faces.size());
+    tmp += c.faces.size();
+  }
+  printf("%d == %d \n", tmp, mesh->vertex_indices().size());
+#endif
 
   return true;
 }
