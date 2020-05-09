@@ -461,11 +461,60 @@ bool GenerateSimpleTrianglesTextureAndUv(
 }
 
 struct Face2Face {
-  void Init(const std::vector<Eigen::Vector3i>& vertex_indices) {}
+  // https://qiita.com/shinjiogaki/items/d16abb018a843c09b8c8
+  Eigen::MatrixXi mat_;
+  std::vector<Eigen::Vector3i> vertex_indices_;
 
-  void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {}
+  void Init(int num_vertices,
+            const std::vector<Eigen::Vector3i>& vertex_indices) {
+    vertex_indices_.clear();
+    std::copy(vertex_indices.begin(), vertex_indices.end(),
+              std::back_inserter(vertex_indices_));
 
-  bool RemoveFace(int face_id) { return true; }
+    mat_ = Eigen::MatrixXi(num_vertices, num_vertices);
+    mat_.setConstant(-1);
+
+    for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
+      const Eigen::Vector3i& face = vertex_indices_[i];
+      mat_(face[0], face[1]) = i;
+      mat_(face[1], face[2]) = i;
+      mat_(face[2], face[0]) = i;
+    }
+  }
+
+  void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {
+    const Eigen::Vector3i& face = vertex_indices_[face_id];
+    adjacent_face_ids->clear();
+    int m0 = mat_(face[1], face[0]);
+    if (0 <= m0) {
+      adjacent_face_ids->push_back(m0);
+    }
+    int m1 = mat_(face[2], face[1]);
+    if (0 <= m1) {
+      adjacent_face_ids->push_back(m1);
+    }
+    int m2 = mat_(face[0], face[2]);
+    if (0 <= m2) {
+      adjacent_face_ids->push_back(m2);
+    }
+  }
+
+  bool RemoveFace(int face_id) {
+    const Eigen::Vector3i& face = vertex_indices_[face_id];
+    int& m0 = mat_(face[0], face[1]);
+    int& m1 = mat_(face[1], face[2]);
+    int& m2 = mat_(face[2], face[0]);
+
+    if (m0 < 0 && m1 < 0 && m2 < 0) {
+      return false;
+    }
+
+    m0 = -1;
+    m1 = -1;
+    m2 = -1;
+
+    return true;
+  }
 };
 
 struct Chart {
@@ -487,7 +536,7 @@ bool GenerateSimpleChartsTextureAndUv(
     const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
   // Make data structure to get adjacent faces of a face in a constant time
   Face2Face face2face;
-  face2face.Init(mesh->vertex_indices());
+  face2face.Init(mesh->vertices().size(), mesh->vertex_indices());
 
   // Initialize all faces unselected
   std::vector<Chart> charts;
@@ -543,6 +592,10 @@ bool GenerateSimpleChartsTextureAndUv(
     }
 
     charts.push_back(chart);
+  }
+
+  for (auto& c : charts) {
+    printf("chart %d %d\n", c.faces[0].kf_id, c.faces.size());
   }
 
   return true;
