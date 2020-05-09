@@ -553,7 +553,7 @@ struct Chart {
   std::vector<ugu::FaceInfoPerKeyframe> faces;
   ugu::Image3b patch;
   std::vector<std::array<Eigen::Vector2f, 3>> uv;  // local UV in the patch
-  bool Finalize(const ugu::Image3b& color_kf, int padding = 10) {
+  bool Finalize(const ugu::Image3b& color_kf, int padding = 1) {
     if (faces.empty()) {
       ugu::LOGE("Finalize() but empty\n");
       return false;
@@ -579,7 +579,7 @@ struct Chart {
       return true;
     }
 
-    // Generate patch and convert projected_tri to local UV in the patch
+    // Generate patch
     std::vector<float> x_list, y_list;
     std::for_each(faces.begin(), faces.end(),
                   [&](const ugu::FaceInfoPerKeyframe& x) {
@@ -612,7 +612,23 @@ struct Chart {
       std::memcpy(dst_adr, src_adr, data_width);
     }
 
+    // Padding border
     PaddingBorderSimple(&patch, padding);
+
+    // Convert projected_tri to local UV in the patch
+    for (int i = 0; i < static_cast<int>(faces.size()); i++) {
+      const auto& f = faces[i];
+      std::array<Eigen::Vector2f, 3> local_tri;
+      for (int j = 0; j < 3; j++) {
+        // Convert to patch coordinate
+        local_tri[j].x() = f.projected_tri[j].x() - xmin + padding;
+        local_tri[j].y() = f.projected_tri[j].y() - ymin + padding;
+
+        // Convert to 0-1 UV
+        uv[i][j].x() = (local_tri[j].x() + 0.5f) / patch.cols;
+        uv[i][j].y() = 1.0f - ((local_tri[j].y() + 0.5f) / patch.rows);
+      }
+    }
 
     return true;
   }
@@ -711,9 +727,6 @@ bool GenerateSimpleChartsTextureAndUv(
       // Add them to the chart, set them as selected
       for (int added_fid : adjacent_face_ids_bestkf) {
         queue.push_back(added_fid);
-        if (bestkf.kf_id != faceid2bestkf[added_fid].kf_id) {
-          printf("%d %d\n", bestkf.kf_id, faceid2bestkf[added_fid].kf_id);
-        }
         chart.faces.push_back(faceid2bestkf[added_fid]);
         selected[added_fid] = true;
       }
@@ -727,7 +740,8 @@ bool GenerateSimpleChartsTextureAndUv(
     } else {
       chart.Finalize(keyframes[bestkf.kf_id]->color);
 
-      ugu::imwrite(std::to_string(charts.valid.size()) + ".png", chart.patch);
+      // ugu::imwrite(std::to_string(charts.valid.size()) + ".png",
+      // chart.patch);
     }
     charts.Add(chart);
   }
