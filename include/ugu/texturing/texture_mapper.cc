@@ -223,6 +223,36 @@ bool PaddingSimple(ugu::Image3b* texture, ugu::Image1b* mask, int kernel) {
   return true;
 }
 
+bool PaddingBorderSimple(ugu::Image3b* texture, int padding) {
+  // Horizontal padding
+  for (int y = 0; y < padding; y++) {
+    for (int x = 0; x < texture->cols; x++) {
+      texture->at<ugu::Vec3b>(y, x) = texture->at<ugu::Vec3b>(padding, x);
+    }
+  }
+  for (int y = texture->rows - padding; y < texture->rows; y++) {
+    for (int x = 0; x < texture->cols; x++) {
+      texture->at<ugu::Vec3b>(y, x) =
+          texture->at<ugu::Vec3b>(texture->rows - padding - 1, x);
+    }
+  }
+
+  // Vertical padding
+  for (int y = 0; y < texture->rows; y++) {
+    for (int x = 0; x < padding; x++) {
+      texture->at<ugu::Vec3b>(y, x) = texture->at<ugu::Vec3b>(y, padding);
+    }
+  }
+  for (int y = 0; y < texture->rows; y++) {
+    for (int x = texture->cols - padding; x < texture->cols; x++) {
+      texture->at<ugu::Vec3b>(y, x) =
+          texture->at<ugu::Vec3b>(y, texture->cols - padding - 1);
+    }
+  }
+
+  return true;
+}
+
 bool RasterizeTriangle(const std::array<Eigen::Vector2f, 3>& src_tri,
                        const ugu::Image3b& src,
                        const std::array<Eigen::Vector2f, 3>& target_tri,
@@ -523,7 +553,7 @@ struct Chart {
   std::vector<ugu::FaceInfoPerKeyframe> faces;
   ugu::Image3b patch;
   std::vector<std::array<Eigen::Vector2f, 3>> uv;  // local UV in the patch
-  bool Finalize(const ugu::Image3b& color_kf) {
+  bool Finalize(const ugu::Image3b& color_kf, int padding = 10) {
     if (faces.empty()) {
       ugu::LOGE("Finalize() but empty\n");
       return false;
@@ -538,8 +568,53 @@ struct Chart {
       }
     }
 
+    uv.resize(faces.size());
+
+    // If this chart is not visible, set all local UV to zero
+    if (kf_id < 0) {
+      const static std::array<Eigen::Vector2f, 3> zero = {
+          Eigen::Vector2f::Zero(), Eigen::Vector2f::Zero(),
+          Eigen::Vector2f::Zero()};
+      std::fill(uv.begin(), uv.end(), zero);
+      return true;
+    }
+
     // Generate patch and convert projected_tri to local UV in the patch
-    return false;
+    std::vector<float> x_list, y_list;
+    std::for_each(faces.begin(), faces.end(),
+                  [&](const ugu::FaceInfoPerKeyframe& x) {
+                    for (int j = 0; j < 3; j++) {
+                      x_list.push_back(x.projected_tri[j].x());
+                      y_list.push_back(x.projected_tri[j].y());
+                    }
+                  });
+    float xminf, xmaxf, yminf, ymaxf;
+    auto xtmp = std::minmax_element(x_list.begin(), x_list.end());
+    std::tie(xminf, xmaxf) = std::tie(*xtmp.first, *xtmp.second);
+    auto ytmp = std::minmax_element(y_list.begin(), y_list.end());
+    std::tie(yminf, ymaxf) = std::tie(*ytmp.first, *ytmp.second);
+    int xmin = static_cast<int>(std::floor(xminf));
+    int ymin = static_cast<int>(std::floor(yminf));
+    int xmax = static_cast<int>(std::ceil(xmaxf));
+    int ymax = static_cast<int>(std::ceil(ymaxf));
+
+    assert(xmin <= xmax);
+    assert(ymin <= ymax);
+
+    patch = ugu::Image3b::zeros(ymax - ymin + 1 + padding * 2,
+                                xmax - xmin + 1 + padding * 2);
+
+    size_t data_width = sizeof(unsigned char) * 3 * (xmax - xmin + 1);
+    for (int y = ymin; y <= ymax; y++) {
+      unsigned char* dst_adr =
+          (patch.data + padding * 3) + (patch.cols * (y - ymin + padding)) * 3;
+      unsigned char* src_adr = color_kf.data + (color_kf.cols * y + xmin) * 3;
+      std::memcpy(dst_adr, src_adr, data_width);
+    }
+
+    PaddingBorderSimple(&patch, padding);
+
+    return true;
   }
 };
 
@@ -651,6 +726,8 @@ bool GenerateSimpleChartsTextureAndUv(
       chart.Finalize(color_empty);
     } else {
       chart.Finalize(keyframes[bestkf.kf_id]->color);
+
+      ugu::imwrite(std::to_string(charts.valid.size()) + ".png", chart.patch);
     }
     charts.Add(chart);
   }
@@ -659,7 +736,8 @@ bool GenerateSimpleChartsTextureAndUv(
 #if 1
   int tmp = 0;
   for (auto& c : charts.valid) {
-    printf("valid chart %d %d\n", c.faces[0].kf_id, c.faces.size());
+    printf("valid chart %d %d %d\n", c.faces[0].kf_id, c.faces.size(),
+           c.patch.rows * c.patch.cols);
     tmp += c.faces.size();
   }
   for (auto& c : charts.invalid) {
