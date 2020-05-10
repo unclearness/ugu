@@ -29,7 +29,7 @@
 
 - Original code: https://github.com/unclearness/currender
 
-## Surface-from-Silhouette (SfS)
+## Shape-from-Silhouette (SfS)
 
 <img src="https://raw.githubusercontent.com/wiki/unclearness/vacancy/images/how_it_works.gif" width="640">
 
