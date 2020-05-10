@@ -71,9 +71,12 @@ bool BinPacking2D(const std::vector<Rect>& rects, std::vector<Rect>* packed_pos,
   available_rects->push_back(Rect(0, 0, w, h));
   packed_pos->clear();
 
-  while (!available_rects->empty()) {
+  while (true) {
     if (rects_.empty()) {
       break;
+    }
+    if (available_rects->empty()) {
+      return false;
     }
 
     Rect rect = rects_.front();

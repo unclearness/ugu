@@ -718,7 +718,8 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
   int current_tex_h = option.tex_h;
   int bin_packing_try_num = 0;
   const float pyramid_ratio = std::sqrt(2.0f);
-  // TODO: Fix -1 for w and h. Why is this needed? Without -1, get 1 pixel
+  // TODO 1: Add padding for image boundary
+  // TODO 2: Fix -1 for w and h. Why is this needed? Without -1, get 1 pixel
   // outside rects..
   while (!ugu::BinPacking2D(rects, &packed_pos, &available_rects,
                             current_tex_w - 1, current_tex_h - 1)) {
@@ -807,9 +808,18 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
   }
 
   // Set invalid charts
-  atlas.uv.push_back(Eigen::Vector2f::Zero());
-  atlas.uv.push_back(Eigen::Vector2f::Zero());
-  atlas.uv.push_back(Eigen::Vector2f::Zero());
+  // Default is (0, 0)
+  // TODO: Add padding to ensure there is no color
+  Eigen::Vector2f invalid_uv = Eigen::Vector2f::Zero();
+  if (!available_rects.empty()) {
+    // If rects are left, set its position as invalid_uv
+    invalid_uv.x() = (available_rects[0].x + 0.5f) / atlas.texture.cols;
+    invalid_uv.y() =
+        1.0f - ((available_rects[0].y + 0.5f) / atlas.texture.rows);
+  }
+  atlas.uv.push_back(invalid_uv);
+  atlas.uv.push_back(invalid_uv);
+  atlas.uv.push_back(invalid_uv);
   Eigen::Vector3i invalid_uv_index(static_cast<int>(atlas.uv.size() - 3),
                                    static_cast<int>(atlas.uv.size() - 2),
                                    static_cast<int>(atlas.uv.size() - 1));
