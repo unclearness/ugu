@@ -15,6 +15,7 @@
 
 #include "bin_packer_2d.h"
 #include "texture_mapper.h"
+#include "ugu/timer.h"
 
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgproc.hpp"
@@ -503,10 +504,16 @@ bool GenerateSimpleTrianglesTextureAndUv(
   return true;
 }
 
+// TODO: Faster and more memory efficient way
+// #define USE_SPARSE_MAT
 struct Face2Face {
   // https://qiita.com/shinjiogaki/items/d16abb018a843c09b8c8
-  Eigen::SparseMatrix<int> mat_;  // Stores face_id + 1 to use SparseMatrix ()
   std::vector<Eigen::Vector3i> vertex_indices_;
+
+#ifdef USE_SPARSE_MAT
+  // Sparse matrix version
+  // Much less memory but much slower since random access is NOT O(1)
+  Eigen::SparseMatrix<int> mat_;  // Stores face_id + 1 to use SparseMatrix ()
 
   void Init(int num_vertices,
             const std::vector<Eigen::Vector3i>& vertex_indices) {
@@ -558,6 +565,65 @@ struct Face2Face {
 
     return true;
   }
+#else
+  // Normal matrix version
+  // Much more memory but much faster since random access is O(1)
+
+  Eigen::MatrixXi mat_;  // Stores face_id + 1 to use SparseMatrix ()
+
+  void Init(int num_vertices,
+            const std::vector<Eigen::Vector3i>& vertex_indices) {
+    vertex_indices_.clear();
+    std::copy(vertex_indices.begin(), vertex_indices.end(),
+              std::back_inserter(vertex_indices_));
+
+    mat_ = Eigen::SparseMatrix<int>(num_vertices, num_vertices);
+    mat_.setZero();
+
+    for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
+      const Eigen::Vector3i& face = vertex_indices_[i];
+      // i + 1 for SparseMatrix
+      mat_(face[0], face[1]) = i + 1;
+      mat_(face[1], face[2]) = i + 1;
+      mat_(face[2], face[0]) = i + 1;
+    }
+  }
+
+  void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {
+    const Eigen::Vector3i& face = vertex_indices_[face_id];
+    adjacent_face_ids->clear();
+    int& m0 = mat_.coeffRef(face[1], face[0]);
+    if (0 < m0) {
+      adjacent_face_ids->push_back(m0 - 1);
+    }
+    int& m1 = mat_.coeffRef(face[2], face[1]);
+    if (0 < m1) {
+      adjacent_face_ids->push_back(m1 - 1);
+    }
+    int& m2 = mat_.coeffRef(face[0], face[2]);
+    if (0 < m2) {
+      adjacent_face_ids->push_back(m2 - 1);
+    }
+  }
+
+  bool RemoveFace(int face_id) {
+    const Eigen::Vector3i& face = vertex_indices_[face_id];
+    int& m0 = mat_.coeffRef(face[0], face[1]);
+    int& m1 = mat_.coeffRef(face[1], face[2]);
+    int& m2 = mat_.coeffRef(face[2], face[0]);
+
+    if (m0 == 0 && m1 == 0 && m2 == 0) {
+      return false;
+    }
+
+    m0 = 0;
+    m1 = 0;
+    m2 = 0;
+
+    return true;
+  }
+
+#endif
 };
 
 struct Chart {
@@ -820,7 +886,6 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
 #if 0
     // Decompose into uv per face
     // This causes 3 * face_num uv
-    // TODO: Assign the same id for the same vertex in the same chart
     for (int i = 0; i < static_cast<int>(chart.faces.size()); i++) {
       const auto& f = chart.faces[i];
 
@@ -839,8 +904,10 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
       atlas.uv_indices[f.face_id] = uv_index;
 
     }
-#endif  // 0
 
+#else
+
+    // Assign the same uv id for the same vertex in the same chart
     // Convert to global UV in the Atlas
     int uv_index_offset = static_cast<int>(atlas.uv.size());
     for (int i = 0; i < static_cast<int>(chart.image_pos_list.size()); i++) {
@@ -862,6 +929,7 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
       global_index[2] = uv_index_offset + local_index[2];
       atlas.uv_indices[f.face_id] = global_index;
     }
+#endif
   }
 
   // Set invalid charts
@@ -898,6 +966,8 @@ bool GenerateSimpleChartsTextureAndUv(
     const std::unordered_map<int, std::vector<ugu::FaceInfoPerKeyframe>>&
         bestkfid2faceid,
     const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
+  ugu::Timer<> timer;
+  timer.Start();
   // Make data structure to get adjacent faces of a face in a constant time
   Face2Face face2face;
   face2face.Init(static_cast<int>(mesh->vertices().size()),
@@ -968,6 +1038,9 @@ bool GenerateSimpleChartsTextureAndUv(
     }
     charts.Add(chart);
   }
+
+  timer.End();
+  ugu::LOGI("elapsed time for chart generation: %f ms\n", timer.elapsed_msec());
 
   charts.Finalize();
 
