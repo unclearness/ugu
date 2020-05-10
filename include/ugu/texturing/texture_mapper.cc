@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <deque>
 #include <functional>
+#include <map>
 #include <random>
 #include <unordered_map>
 #include <unordered_set>
@@ -563,10 +564,11 @@ struct Chart {
   std::vector<ugu::FaceInfoPerKeyframe> faces;
   ugu::Image3b patch;
   std::vector<std::array<Eigen::Vector2f, 3>>
-      local_pos;                                        // position in the patch
-  std::vector<std::array<Eigen::Vector2f, 3>> uv_face;  // local UV in the patch
-  // std::vector<Eigen::Vector2f> uv;
-  // std::vector<Eigen::Vector3i> uv_indices;
+      local_tris_face;  // position in the patch
+  // std::vector<std::array<Eigen::Vector2f, 3>> uv_face;  // local UV in the
+  // patch
+  std::vector<Eigen::Vector2f> image_pos_list;
+  std::vector<Eigen::Vector3i> image_pos_indices;
 
   Chart() {}
   ~Chart() {}
@@ -588,8 +590,10 @@ struct Chart {
       }
     }
 
+    local_tris_face.resize(faces.size());
+
+#if 0
     uv_face.resize(faces.size());
-    local_pos.resize(faces.size());
 
     // If this chart is not visible, set all local UV to zero
     if (kf_id < 0) {
@@ -599,6 +603,7 @@ struct Chart {
       std::fill(uv_face.begin(), uv_face.end(), zero);
       return true;
     }
+#endif
 
     // Generate patch
     std::vector<float> x_list, y_list;
@@ -639,31 +644,56 @@ struct Chart {
     // Convert projected_tri to local UV in the patch
     for (int i = 0; i < static_cast<int>(faces.size()); i++) {
       const auto& f = faces[i];
-      std::array<Eigen::Vector2f, 3>& local_tri = local_pos[i];
+      std::array<Eigen::Vector2f, 3>& local_tri = local_tris_face[i];
       for (int j = 0; j < 3; j++) {
         // Convert to patch coordinate
         local_tri[j].x() = f.projected_tri[j].x() - xmin + padding;
         local_tri[j].y() = f.projected_tri[j].y() - ymin + padding;
 
+#if 0
         // Convert to 0-1 UV
         uv_face[i][j].x() = (local_tri[j].x() + 0.5f) / patch.cols;
         uv_face[i][j].y() = 1.0f - ((local_tri[j].y() + 0.5f) / patch.rows);
+#endif
       }
     }
 
-#if 0
     // Make uv and uv_indices
-    // vertex id -> local_uv
-    std::unordered_map<int, Eigen::Vector2f> vid2uv;
+    // Make map original vertex id -> local_uv
+    std::map<int, Eigen::Vector2f> vid2ipos;
     for (int i = 0; i < static_cast<int>(faces.size()); i++) {
       const auto& f = faces[i];
-      const auto& uvf = uv_face[i];
+      const auto& iposf = local_tris_face[i];
       const auto& vi = vertex_indices[f.face_id];
       for (int j = 0; j < 3; j++) {
-        vid2uv.insert(std::make_pair(vi[j], uvf[j]));
+        vid2ipos.insert(std::make_pair(vi[j], iposf[j]));
       }
     }
-#endif
+
+    // Get keys of vid2ipos and convert them to local uv_indices
+    std::vector<int> org_vids;
+    std::unordered_map<int, int> org2new;
+    image_pos_list.clear();
+    image_pos_indices.clear();
+    std::for_each(vid2ipos.begin(), vid2ipos.end(),
+                  [&](const std::pair<int, Eigen::Vector2f>& p) {
+                    org_vids.push_back(p.first);
+                    image_pos_list.push_back(p.second);
+                  });
+    for (int i = 0; i < static_cast<int>(org_vids.size()); i++) {
+      org2new.insert(std::make_pair(org_vids[i], i));
+    }
+
+    // Set local image_pos_indices
+    for (int i = 0; i < static_cast<int>(faces.size()); i++) {
+      const auto& f = faces[i];
+      const auto& vi = vertex_indices[f.face_id];
+      Eigen::Vector3i index;
+      for (int j = 0; j < 3; j++) {
+        index[j] = org2new[vi[j]];
+      }
+      image_pos_indices.emplace_back(index);
+    }
 
     return true;
   }
@@ -787,6 +817,9 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
           chart.patch.data + (chart.patch.cols * y) * 3, chart.patch.cols * 3);
     }
 
+#if 0
+    // Decompose into uv per face
+    // This causes 3 * face_num uv
     // TODO: Assign the same id for the same vertex in the same chart
     for (int i = 0; i < static_cast<int>(chart.faces.size()); i++) {
       const auto& f = chart.faces[i];
@@ -795,8 +828,8 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
       for (int ii = 0; ii < 3; ii++) {
         Eigen::Vector2f global_uv;
         global_uv.x() =
-            (chart.local_pos[i][ii].x() + rect.x + 0.5f) / atlas.texture.cols;
-        global_uv.y() = 1.0f - ((chart.local_pos[i][ii].y() + rect.y + 0.5f) /
+            (chart.local_tris_face[i][ii].x() + rect.x + 0.5f) / atlas.texture.cols;
+        global_uv.y() = 1.0f - ((chart.local_tris_face[i][ii].y() + rect.y + 0.5f) /
                                 atlas.texture.rows);
         atlas.uv.push_back(global_uv);
       }
@@ -804,6 +837,30 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
                                static_cast<int>(atlas.uv.size() - 2),
                                static_cast<int>(atlas.uv.size() - 1));
       atlas.uv_indices[f.face_id] = uv_index;
+
+    }
+#endif  // 0
+
+    // Convert to global UV in the Atlas
+    int uv_index_offset = static_cast<int>(atlas.uv.size());
+    for (int i = 0; i < static_cast<int>(chart.image_pos_list.size()); i++) {
+      Eigen::Vector2f global_uv;
+      global_uv.x() =
+          (chart.image_pos_list[i].x() + rect.x + 0.5f) / atlas.texture.cols;
+      global_uv.y() = 1.0f - ((chart.image_pos_list[i].y() + rect.y + 0.5f) /
+                              atlas.texture.rows);
+      atlas.uv.emplace_back(global_uv);
+    }
+
+    // Convert to global UV indieces in the Atlas
+    for (int i = 0; i < static_cast<int>(chart.faces.size()); i++) {
+      const auto& f = chart.faces[i];
+      Eigen::Vector3i global_index;
+      const Eigen::Vector3i& local_index = chart.image_pos_indices[i];
+      global_index[0] = uv_index_offset + local_index[0];
+      global_index[1] = uv_index_offset + local_index[1];
+      global_index[2] = uv_index_offset + local_index[2];
+      atlas.uv_indices[f.face_id] = global_index;
     }
   }
 
@@ -829,6 +886,8 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
     }
   }
 
+  printf("uv size -> %d\n", atlas.uv.size());
+
   return true;
 }
 
@@ -845,9 +904,7 @@ bool GenerateSimpleChartsTextureAndUv(
                  mesh->vertex_indices());
 
   // Initialize all faces unselected
-  // std::vector<Chart> charts;
   Charts charts;
-  // std::unordered_set<int> selected;
   std::vector<bool> selected(mesh->vertex_indices().size(), false);
 
   ugu::Image3b color_empty;
