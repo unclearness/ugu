@@ -9,7 +9,7 @@
 - Comparizon table
 
 ||Vertex Color|Projective UV| Tile UV| Triangle UV|Predefined UV|
-|---|---|---|---|---|---|
+|---|:---:|:---:|:---:|:---:|:---:|
 |Runtime Speed|✅|❌||||
 |Runtime Memory||❌||||
 |UV Space Efficiency|||❌||❓|
