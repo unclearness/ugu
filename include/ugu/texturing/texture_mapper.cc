@@ -67,9 +67,11 @@ bool GenerateSimpleTileTextureAndUv(
   ugu::Image3b texture;
 
   // Make tiled image and get tile xy
-  int x_tile_num =
-      keyframes.size() < 5 ? static_cast<int>(keyframes.size()) : 5;
-  int y_tile_num = static_cast<int>(keyframes.size() / x_tile_num) + 1;
+  const int default_x_tile_num = 3;
+  int x_tile_num = keyframes.size() < default_x_tile_num
+                       ? static_cast<int>(keyframes.size())
+                       : default_x_tile_num;
+  int y_tile_num = static_cast<int>((keyframes.size()+1) / x_tile_num);
 
   MakeTiledImage(keyframes, &texture, x_tile_num, y_tile_num);
 

@@ -1,6 +1,41 @@
 # **UGU**: **U**nclearness **G**eometry **U**tility
 **UGU** is a small geometry library which implements camera, image, mesh, etc.
 
+# Features
+## Texture Mapping
+
+<img src="https://raw.githubusercontent.com/wiki/unclearness/ugu/images/texture_mapping.png" width="640">
+
+- Comparizon table
+
+||Vertex Color|Projective UV| Tile UV| Triangle UV|Predefined UV|
+|---|---|---|---|---|---|
+|Runtime Speed|✅|❌||||
+|Runtime Memory||❌||||
+|UV Space Efficiency|||❌||❓|
+|Quality at Rendering|❌|✅|✅|❌|❓|
+
+
+## CPU Rendering
+
+|color|depth|
+|---|---|
+|![](https://raw.githubusercontent.com/wiki/unclearness/ugu/images/renderer/front_color.png)|![](https://raw.githubusercontent.com/wiki/unclearness/ugu/images/renderer/front_vis_depth.png)|
+
+
+|normal|mask|face id|
+|---|---|---|
+|![](https://raw.githubusercontent.com/wiki/unclearness/ugu/images/renderer/front_vis_normal.png)|![](https://raw.githubusercontent.com/wiki/unclearness/ugu/images/renderer/front_mask.png)|![](https://raw.githubusercontent.com/wiki/unclearness/ugu/images/renderer/front_vis_face_id.png)|
+
+- Original code: https://github.com/unclearness/currender
+
+## Surface-from-Silhouette (SfS)
+
+<img src="https://raw.githubusercontent.com/wiki/unclearness/vacancy/images/how_it_works.gif" width="640">
+
+- Original code: https://github.com/unclearness/vacancy
+
+
 # Dependencies
 ## Mandatory
 - Eigen
