@@ -19,6 +19,7 @@ void CopyVec(const std::vector<T>& src, std::vector<T>* dst,
              bool clear_dst = true) {
   if (clear_dst) {
     dst->clear();
+    dst->reserve(src.size());
   }
   std::copy(src.begin(), src.end(), std::back_inserter(*dst));
 }

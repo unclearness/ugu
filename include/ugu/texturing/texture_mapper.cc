@@ -147,10 +147,10 @@ inline ugu::Vec3b BilinearInterpolation(float x, float y,
 
   // really need these?
   if (pos_min[0] < 0.0f) {
-    pos_min[0] = 0.0f;
+    pos_min[0] = 0;
   }
   if (pos_min[1] < 0.0f) {
-    pos_min[1] = 0.0f;
+    pos_min[1] = 0;
   }
   if (image.cols <= pos_max[0]) {
     pos_max[0] = image.cols - 1;
@@ -221,9 +221,12 @@ bool PaddingSimple(ugu::Image3b* texture, ugu::Image1b* mask, int kernel) {
       average_color[2] /= valid_pixels.size();
 
       mask->at<unsigned char>(j, i) = 255;
-      texture->at<ugu::Vec3b>(j, i)[0] = average_color[0];
-      texture->at<ugu::Vec3b>(j, i)[1] = average_color[1];
-      texture->at<ugu::Vec3b>(j, i)[2] = average_color[2];
+      texture->at<ugu::Vec3b>(j, i)[0] =
+          static_cast<unsigned char>(average_color[0]);
+      texture->at<ugu::Vec3b>(j, i)[1] =
+          static_cast<unsigned char>(average_color[1]);
+      texture->at<ugu::Vec3b>(j, i)[2] =
+          static_cast<unsigned char>(average_color[2]);
     }
   }
 
@@ -273,18 +276,18 @@ bool RasterizeTriangle(const std::array<Eigen::Vector2f, 3>& src_tri,
   float inv_area = 1.0f / area;
 
   // Loop for bounding box of the target triangle
-  int xmin =
-      std::min({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) - 1;
+  int xmin = static_cast<int>(
+      std::min({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) - 1);
   xmin = std::max(0, std::min(xmin, target->cols - 1));
-  int xmax =
-      std::max({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) + 1;
+  int xmax = static_cast<int>(
+      std::max({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) + 1);
   xmax = std::max(0, std::min(xmax, target->cols - 1));
 
-  int ymin =
-      std::min({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) - 1;
+  int ymin = static_cast<int>(
+      std::min({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) - 1);
   ymin = std::max(0, std::min(ymin, target->rows - 1));
-  int ymax =
-      std::max({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) + 1;
+  int ymax = static_cast<int>(
+      std::max({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) + 1);
   ymax = std::max(0, std::min(ymax, target->rows - 1));
 
   for (int y = ymin; y <= ymax; y++) {
@@ -564,6 +567,10 @@ struct Chart {
   std::vector<std::array<Eigen::Vector2f, 3>> uv_face;  // local UV in the patch
   // std::vector<Eigen::Vector2f> uv;
   // std::vector<Eigen::Vector3i> uv_indices;
+
+  Chart() {}
+  ~Chart() {}
+
   bool Finalize(const ugu::Image3b& color_kf,
                 const std::vector<Eigen::Vector3i>& vertex_indices,
                 int padding = 1) {
@@ -666,6 +673,9 @@ struct Charts {
   std::vector<Chart> valid;    // visible, kf_id >= 0
   std::vector<Chart> invalid;  // not visible, kf_id < 0
 
+  Charts() {}
+  ~Charts() {}
+
   void Add(const Chart& chart) {
     if (chart.faces[0].kf_id < 0) {
       invalid.push_back(chart);
@@ -691,6 +701,8 @@ struct Atlas {
   std::vector<int> face_id_list;
   std::vector<Eigen::Vector2f> uv;
   std::vector<Eigen::Vector3i> uv_indices;
+  Atlas() {}
+  ~Atlas() {}
 };
 
 bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
@@ -701,19 +713,46 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
     rects.push_back(ugu::Rect(0, 0, c.patch.cols, c.patch.rows));
   }
 
-  if (!ugu::BinPacking2D(rects, &packed_pos, &available_rects, option.tex_w,
-                         option.tex_h)) {
-    return false;
+  const int max_tex_len = 8192;  // 8K
+  int current_tex_w = option.tex_w;
+  int current_tex_h = option.tex_h;
+  int bin_packing_try_num = 0;
+  const float pyramid_ratio = std::sqrt(2.0f);
+  // TODO: Fix -1 for w and h. Why is this needed? Without -1, get 1 pixel
+  // outside rects..
+  while (!ugu::BinPacking2D(rects, &packed_pos, &available_rects,
+                            current_tex_w - 1, current_tex_h - 1)) {
+    bin_packing_try_num++;
+    current_tex_w = static_cast<int>(
+        option.tex_w * std::pow(pyramid_ratio, bin_packing_try_num));
+    current_tex_h = static_cast<int>(
+        option.tex_h * std::pow(pyramid_ratio, bin_packing_try_num));
+
+    // TODO: more than one Atlas
+    if (max_tex_len < current_tex_w || max_tex_len < current_tex_h) {
+      ugu::LOGE("Failed to pack in one texture\n");
+      return false;
+    }
+  }
+
+  if (bin_packing_try_num > 0) {
+    ugu::LOGW("Texture size is adjusted (%d, %d) -> (%d, %d)\n", option.tex_w,
+              option.tex_h, current_tex_w, current_tex_h);
   }
 
 #ifdef UGU_USE_OPENCV
 #ifdef DEBUG_TM
   {
-    ugu::Image3b debug = ugu::Image3b::zeros(option.tex_h, option.tex_w);
+    ugu::Image3b debug = ugu::Image3b::zeros(current_tex_h, current_tex_w);
     std::mt19937 mt(0);
     std::uniform_int_distribution<> dist(100, 255);
-    for (const auto& r : packed_pos) {
+    for (int i = 0; i < static_cast<int>(packed_pos.size()); i++) {
+      const auto& r = packed_pos[i];
       cv::Rect cvrect(r.x, r.y, r.width, r.height);
+      if (current_tex_w <= r.x + r.width || current_tex_h <= r.y + r.height) {
+        printf("index %d is outside! %d %d %d %d\n", i, r.x, r.width, r.y,
+               r.height);
+      }
       cv::Scalar color(dist(mt), dist(mt), dist(mt));
       cv::rectangle(debug, cvrect, color, -1);
     }
@@ -733,7 +772,7 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
   atlas.uv.clear();
   atlas.uv_indices.resize(mesh.vertex_indices().size());
 
-  atlas.texture = ugu::Image3b::zeros(option.tex_h, option.tex_w);
+  atlas.texture = ugu::Image3b::zeros(current_tex_h, current_tex_w);
 
   // Set valid charts
   for (int k = 0; k < static_cast<int>(charts.valid.size()); k++) {
@@ -742,8 +781,6 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
 
     // Copy image
     for (int y = 0; y < chart.patch.rows; y++) {
-      // printf("%d %d %d %d % d\n", y,  rect.y, rect.height, rect.x,
-      // rect.width);
       std::memcpy(
           atlas.texture.data + (atlas.texture.cols * (y + rect.y) + rect.x) * 3,
           chart.patch.data + (chart.patch.cols * y) * 3, chart.patch.cols * 3);
@@ -757,13 +794,14 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
       for (int ii = 0; ii < 3; ii++) {
         Eigen::Vector2f global_uv;
         global_uv.x() =
-            (chart.local_pos[i][ii].x() + rect.x + 0.5f) / option.tex_w;
+            (chart.local_pos[i][ii].x() + rect.x + 0.5f) / atlas.texture.cols;
         global_uv.y() = 1.0f - ((chart.local_pos[i][ii].y() + rect.y + 0.5f) /
-                                option.tex_h);
+                                atlas.texture.rows);
         atlas.uv.push_back(global_uv);
       }
-      Eigen::Vector3i uv_index(atlas.uv.size() - 3, atlas.uv.size() - 2,
-                               atlas.uv.size() - 1);
+      Eigen::Vector3i uv_index(static_cast<int>(atlas.uv.size() - 3),
+                               static_cast<int>(atlas.uv.size() - 2),
+                               static_cast<int>(atlas.uv.size() - 1));
       atlas.uv_indices[f.face_id] = uv_index;
     }
   }
@@ -772,8 +810,9 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
   atlas.uv.push_back(Eigen::Vector2f::Zero());
   atlas.uv.push_back(Eigen::Vector2f::Zero());
   atlas.uv.push_back(Eigen::Vector2f::Zero());
-  Eigen::Vector3i invalid_uv_index(atlas.uv.size() - 3, atlas.uv.size() - 2,
-                                   atlas.uv.size() - 1);
+  Eigen::Vector3i invalid_uv_index(static_cast<int>(atlas.uv.size() - 3),
+                                   static_cast<int>(atlas.uv.size() - 2),
+                                   static_cast<int>(atlas.uv.size() - 1));
   for (const auto& c : charts.invalid) {
     for (const auto& f : c.faces) {
       atlas.uv_indices[f.face_id] = invalid_uv_index;
@@ -792,7 +831,8 @@ bool GenerateSimpleChartsTextureAndUv(
     const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
   // Make data structure to get adjacent faces of a face in a constant time
   Face2Face face2face;
-  face2face.Init(mesh->vertices().size(), mesh->vertex_indices());
+  face2face.Init(static_cast<int>(mesh->vertices().size()),
+                 mesh->vertex_indices());
 
   // Initialize all faces unselected
   // std::vector<Chart> charts;
@@ -803,8 +843,8 @@ bool GenerateSimpleChartsTextureAndUv(
   ugu::Image3b color_empty;
 
   while (std::find(selected.begin(), selected.end(), false) != selected.end()) {
-    int seed_fid = std::distance(
-        selected.begin(), std::find(selected.begin(), selected.end(), false));
+    int seed_fid = static_cast<int>(std::distance(
+        selected.begin(), std::find(selected.begin(), selected.end(), false)));
     std::deque<int> queue;
     const auto& bestkf = faceid2bestkf[seed_fid];
 

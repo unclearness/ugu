@@ -39,7 +39,7 @@ bool CutRect(const ugu::Rect& src, const ugu::Rect& target, ugu::Rect* cut1,
     cut1->height = target.height;
 
     cut2->x = src.x;
-    cut2->y = cut1->y + cut1->height + 1;
+    cut2->y = src.y + target.height;
     cut2->width = src.width;
     cut2->height = src.height - target.height;
 
@@ -49,7 +49,7 @@ bool CutRect(const ugu::Rect& src, const ugu::Rect& target, ugu::Rect* cut1,
     cut1->width = target.width;
     cut1->height = src.height;
 
-    cut2->x = cut1->x + cut1->width + 1;
+    cut2->x = src.x + target.width;
     cut2->y = src.y;
     cut2->width = src.width - target.width;
     cut2->height = src.height;
@@ -85,7 +85,8 @@ bool BinPacking2D(const std::vector<Rect>& rects, std::vector<Rect>* packed_pos,
       FindBestRect(*available_rects, rect, &best_index, &best_rect);
       if (best_index < 0 || best_rect.area() < rect.area()) {
         return false;
-      } else if (best_rect.area() == rect.area()) {
+      } else if (best_rect.height == rect.height &&
+                 best_rect.width == rect.width) {
         packed_pos->push_back(best_rect);
         available_rects->erase(available_rects->begin() + best_index);
         break;
