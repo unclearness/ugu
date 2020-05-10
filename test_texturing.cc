@@ -86,13 +86,12 @@ int main(int argc, char* argv[]) {
       std::make_shared<ugu::Mesh>(*input_mesh.get());
 
   ugu::TextureMappingOption tmoption;
-#if 0
+
   ugu::VertexColorizer vertex_colorizer;
   vertex_colorizer.Colorize(info, output_mesh.get());
   std::string output_ply_path = data_dir + "bunny_vertex_color.ply";
   output_mesh->WritePly(output_ply_path);
 
-  
   tmoption.uv_type = ugu::OutputUvType::kUseOriginalMeshUv;
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   output_mesh->WriteObj(data_dir, "bunny_textured_orguv");
@@ -102,13 +101,12 @@ int main(int argc, char* argv[]) {
   output_mesh->WriteObj(data_dir, "bunny_textured_tileuv");
 
   tmoption.uv_type = ugu::OutputUvType::kGenerateSimpleTriangles;
-  tmoption.tex_w = 2048;
-  tmoption.tex_h = 2048;
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   output_mesh->WriteObj(data_dir, "bunny_textured_triuv");
-#endif
 
   tmoption.uv_type = ugu::OutputUvType::kGenerateSimpleCharts;
+  tmoption.tex_h = 512;
+  tmoption.tex_w = 512;
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   output_mesh->WriteObj(data_dir, "bunny_textured_charts");
 
