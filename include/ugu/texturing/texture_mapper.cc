@@ -71,7 +71,7 @@ bool GenerateSimpleTileTextureAndUv(
   int x_tile_num = keyframes.size() < default_x_tile_num
                        ? static_cast<int>(keyframes.size())
                        : default_x_tile_num;
-  int y_tile_num = static_cast<int>((keyframes.size()+1) / x_tile_num);
+  int y_tile_num = static_cast<int>((keyframes.size() + 1) / x_tile_num);
 
   MakeTiledImage(keyframes, &texture, x_tile_num, y_tile_num);
 
@@ -506,15 +506,16 @@ bool GenerateSimpleTrianglesTextureAndUv(
   return true;
 }
 
-// TODO: Faster and more memory efficient way
-// #define USE_SPARSE_MAT
+#define USE_SPARSE_MAT
 struct Face2Face {
   // https://qiita.com/shinjiogaki/items/d16abb018a843c09b8c8
   std::vector<Eigen::Vector3i> vertex_indices_;
 
 #ifdef USE_SPARSE_MAT
   // Sparse matrix version
-  // Much less memory but much slower since random access is NOT O(1)
+  // - Much less memory
+  // - Faster Init by setFromTriplets()
+  // - Slower GetAdjacentFaces since random access is not O(1)
   Eigen::SparseMatrix<int> mat_;  // Stores face_id + 1 to use SparseMatrix ()
 
   void Init(int num_vertices,
@@ -525,6 +526,20 @@ struct Face2Face {
 
     mat_ = Eigen::SparseMatrix<int>(num_vertices, num_vertices);
 
+#if 1
+    std::vector<Eigen::Triplet<int>> triplet_list;
+    triplet_list.reserve(vertex_indices_.size() * 3);
+    for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
+      const Eigen::Vector3i& face = vertex_indices_[i];
+      triplet_list.push_back(Eigen::Triplet<int>(face[0], face[1], i + 1));
+      triplet_list.push_back(Eigen::Triplet<int>(face[1], face[2], i + 1));
+      triplet_list.push_back(Eigen::Triplet<int>(face[2], face[0], i + 1));
+    }
+
+    mat_.setFromTriplets(triplet_list.begin(), triplet_list.end());
+
+#else
+    // insert per elemenet is sloooooooooooooow
     for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
       const Eigen::Vector3i& face = vertex_indices_[i];
       // i + 1 for SparseMatrix
@@ -532,6 +547,7 @@ struct Face2Face {
       mat_.insert(face[1], face[2]) = i + 1;
       mat_.insert(face[2], face[0]) = i + 1;
     }
+#endif
   }
 
   void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {
@@ -569,7 +585,9 @@ struct Face2Face {
   }
 #else
   // Normal matrix version
-  // Much more memory but much faster since random access is O(1)
+  // - Much more memory
+  // - Slower Init by inserting per element
+  // - Faster GetAdjacentFaces since random access is O(1)
 
   Eigen::MatrixXi mat_;  // Stores face_id + 1 to use SparseMatrix ()
 
@@ -579,16 +597,36 @@ struct Face2Face {
     std::copy(vertex_indices.begin(), vertex_indices.end(),
               std::back_inserter(vertex_indices_));
 
-    mat_ = Eigen::SparseMatrix<int>(num_vertices, num_vertices);
+#if 1
+    mat_ = Eigen::MatrixXi(num_vertices, num_vertices);
     mat_.setZero();
 
+    // insert per element is slow
     for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
       const Eigen::Vector3i& face = vertex_indices_[i];
-      // i + 1 for SparseMatrix
+      // i + 1 for SparseMatrix compatibility
       mat_(face[0], face[1]) = i + 1;
       mat_(face[1], face[2]) = i + 1;
       mat_(face[2], face[0]) = i + 1;
     }
+#else
+
+    // from SparseMatrix version
+    // not fast
+    Eigen::SparseMatrix<int> spmat =
+        Eigen::SparseMatrix<int>(num_vertices, num_vertices);
+    std::vector<Eigen::Triplet<int>> triplet_list;
+    triplet_list.reserve(vertex_indices_.size() * 3);
+    for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
+      const Eigen::Vector3i& face = vertex_indices_[i];
+      triplet_list.push_back(Eigen::Triplet<int>(face[0], face[1], i + 1));
+      triplet_list.push_back(Eigen::Triplet<int>(face[1], face[2], i + 1));
+      triplet_list.push_back(Eigen::Triplet<int>(face[2], face[0], i + 1));
+    }
+    spmat.setFromTriplets(triplet_list.begin(), triplet_list.end());
+
+    mat_ = Eigen::MatrixXi(spmat);
+#endif
   }
 
   void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {
