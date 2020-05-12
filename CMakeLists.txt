@@ -181,6 +181,7 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/common.h
     include/ugu/camera.h
     include/ugu/mesh.h
+    include/ugu/face_adjacency.h
     include/ugu/image.h
     include/ugu/log.h
     include/ugu/util.h

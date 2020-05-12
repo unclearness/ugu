@@ -11,10 +11,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include <Eigen/SparseCore>
-
 #include "bin_packer_2d.h"
 #include "texture_mapper.h"
+
+#include "ugu/face_adjacency.h"
 #include "ugu/timer.h"
 
 #ifdef UGU_USE_OPENCV
@@ -63,6 +63,8 @@ bool GenerateSimpleTileTextureAndUv(
     const std::unordered_map<int, std::vector<ugu::FaceInfoPerKeyframe>>&
         bestkfid2faceid,
     const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
+  (void)bestkfid2faceid;
+
   // Make tiled image and get tile xy
   ugu::Image3b texture;
 
@@ -169,7 +171,7 @@ inline ugu::Vec3b BilinearInterpolation(float x, float y,
   // bilinear interpolation
   ugu::Vec3b color;
   for (int i = 0; i < 3; i++) {
-    color[i] =
+    float colorf =
         (1.0f - local_u) * (1.0f - local_v) *
             image.at<ugu::Vec3b>(pos_min[1], pos_min[0])[i] +
         local_u * (1.0f - local_v) *
@@ -177,6 +179,7 @@ inline ugu::Vec3b BilinearInterpolation(float x, float y,
         (1.0f - local_u) * local_v *
             image.at<ugu::Vec3b>(pos_min[1], pos_max[0])[i] +
         local_u * local_v * image.at<ugu::Vec3b>(pos_max[1], pos_max[0])[i];
+    color[i] = static_cast<unsigned char>(colorf);
   }
 
   return color;
@@ -334,6 +337,8 @@ bool GenerateTextureOnOriginalUv(
     const std::unordered_map<int, std::vector<ugu::FaceInfoPerKeyframe>>&
         bestkfid2faceid,
     const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
+  (void)bestkfid2faceid;
+
   ugu::Image3b texture = ugu::Image3b::zeros(option.tex_h, option.tex_w);
   ugu::Image1b mask = ugu::Image1b::zeros(option.tex_h, option.tex_w);
 
@@ -385,6 +390,8 @@ bool GenerateSimpleTrianglesTextureAndUv(
     const std::unordered_map<int, std::vector<ugu::FaceInfoPerKeyframe>>&
         bestkfid2faceid,
     const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
+  (void)bestkfid2faceid;
+
   // Padding must be at least 2
   // to pad right/left and up/down
   const int padding_tri = 2;
@@ -505,166 +512,6 @@ bool GenerateSimpleTrianglesTextureAndUv(
 
   return true;
 }
-
-#define USE_SPARSE_MAT
-struct Face2Face {
-  // https://qiita.com/shinjiogaki/items/d16abb018a843c09b8c8
-  std::vector<Eigen::Vector3i> vertex_indices_;
-
-#ifdef USE_SPARSE_MAT
-  // Sparse matrix version
-  // - Much less memory
-  // - Faster Init by setFromTriplets()
-  // - Slower GetAdjacentFaces since random access is not O(1)
-  Eigen::SparseMatrix<int> mat_;  // Stores face_id + 1 to use SparseMatrix ()
-
-  void Init(int num_vertices,
-            const std::vector<Eigen::Vector3i>& vertex_indices) {
-    vertex_indices_.clear();
-    std::copy(vertex_indices.begin(), vertex_indices.end(),
-              std::back_inserter(vertex_indices_));
-
-    mat_ = Eigen::SparseMatrix<int>(num_vertices, num_vertices);
-
-#if 1
-    std::vector<Eigen::Triplet<int>> triplet_list;
-    triplet_list.reserve(vertex_indices_.size() * 3);
-    for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
-      const Eigen::Vector3i& face = vertex_indices_[i];
-      triplet_list.push_back(Eigen::Triplet<int>(face[0], face[1], i + 1));
-      triplet_list.push_back(Eigen::Triplet<int>(face[1], face[2], i + 1));
-      triplet_list.push_back(Eigen::Triplet<int>(face[2], face[0], i + 1));
-    }
-
-    mat_.setFromTriplets(triplet_list.begin(), triplet_list.end());
-
-#else
-    // insert per elemenet is sloooooooooooooow
-    for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
-      const Eigen::Vector3i& face = vertex_indices_[i];
-      // i + 1 for SparseMatrix
-      mat_.insert(face[0], face[1]) = i + 1;
-      mat_.insert(face[1], face[2]) = i + 1;
-      mat_.insert(face[2], face[0]) = i + 1;
-    }
-#endif
-  }
-
-  void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {
-    const Eigen::Vector3i& face = vertex_indices_[face_id];
-    adjacent_face_ids->clear();
-    int& m0 = mat_.coeffRef(face[1], face[0]);
-    if (0 < m0) {
-      adjacent_face_ids->push_back(m0 - 1);
-    }
-    int& m1 = mat_.coeffRef(face[2], face[1]);
-    if (0 < m1) {
-      adjacent_face_ids->push_back(m1 - 1);
-    }
-    int& m2 = mat_.coeffRef(face[0], face[2]);
-    if (0 < m2) {
-      adjacent_face_ids->push_back(m2 - 1);
-    }
-  }
-
-  bool RemoveFace(int face_id) {
-    const Eigen::Vector3i& face = vertex_indices_[face_id];
-    int& m0 = mat_.coeffRef(face[0], face[1]);
-    int& m1 = mat_.coeffRef(face[1], face[2]);
-    int& m2 = mat_.coeffRef(face[2], face[0]);
-
-    if (m0 == 0 && m1 == 0 && m2 == 0) {
-      return false;
-    }
-
-    m0 = 0;
-    m1 = 0;
-    m2 = 0;
-
-    return true;
-  }
-#else
-  // Normal matrix version
-  // - Much more memory
-  // - Slower Init by inserting per element
-  // - Faster GetAdjacentFaces since random access is O(1)
-
-  Eigen::MatrixXi mat_;  // Stores face_id + 1 to use SparseMatrix ()
-
-  void Init(int num_vertices,
-            const std::vector<Eigen::Vector3i>& vertex_indices) {
-    vertex_indices_.clear();
-    std::copy(vertex_indices.begin(), vertex_indices.end(),
-              std::back_inserter(vertex_indices_));
-
-#if 1
-    mat_ = Eigen::MatrixXi(num_vertices, num_vertices);
-    mat_.setZero();
-
-    // insert per element is slow
-    for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
-      const Eigen::Vector3i& face = vertex_indices_[i];
-      // i + 1 for SparseMatrix compatibility
-      mat_(face[0], face[1]) = i + 1;
-      mat_(face[1], face[2]) = i + 1;
-      mat_(face[2], face[0]) = i + 1;
-    }
-#else
-
-    // from SparseMatrix version
-    // not fast
-    Eigen::SparseMatrix<int> spmat =
-        Eigen::SparseMatrix<int>(num_vertices, num_vertices);
-    std::vector<Eigen::Triplet<int>> triplet_list;
-    triplet_list.reserve(vertex_indices_.size() * 3);
-    for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
-      const Eigen::Vector3i& face = vertex_indices_[i];
-      triplet_list.push_back(Eigen::Triplet<int>(face[0], face[1], i + 1));
-      triplet_list.push_back(Eigen::Triplet<int>(face[1], face[2], i + 1));
-      triplet_list.push_back(Eigen::Triplet<int>(face[2], face[0], i + 1));
-    }
-    spmat.setFromTriplets(triplet_list.begin(), triplet_list.end());
-
-    mat_ = Eigen::MatrixXi(spmat);
-#endif
-  }
-
-  void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {
-    const Eigen::Vector3i& face = vertex_indices_[face_id];
-    adjacent_face_ids->clear();
-    int& m0 = mat_.coeffRef(face[1], face[0]);
-    if (0 < m0) {
-      adjacent_face_ids->push_back(m0 - 1);
-    }
-    int& m1 = mat_.coeffRef(face[2], face[1]);
-    if (0 < m1) {
-      adjacent_face_ids->push_back(m1 - 1);
-    }
-    int& m2 = mat_.coeffRef(face[0], face[2]);
-    if (0 < m2) {
-      adjacent_face_ids->push_back(m2 - 1);
-    }
-  }
-
-  bool RemoveFace(int face_id) {
-    const Eigen::Vector3i& face = vertex_indices_[face_id];
-    int& m0 = mat_.coeffRef(face[0], face[1]);
-    int& m1 = mat_.coeffRef(face[1], face[2]);
-    int& m2 = mat_.coeffRef(face[2], face[0]);
-
-    if (m0 == 0 && m1 == 0 && m2 == 0) {
-      return false;
-    }
-
-    m0 = 0;
-    m1 = 0;
-    m2 = 0;
-
-    return true;
-  }
-
-#endif
-};
 
 struct Chart {
   std::vector<ugu::FaceInfoPerKeyframe> faces;
@@ -994,8 +841,6 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
     }
   }
 
-  printf("uv size -> %d\n", atlas.uv.size());
-
   return true;
 }
 
@@ -1006,12 +851,15 @@ bool GenerateSimpleChartsTextureAndUv(
     const std::unordered_map<int, std::vector<ugu::FaceInfoPerKeyframe>>&
         bestkfid2faceid,
     const std::vector<ugu::FaceInfoPerKeyframe>& faceid2bestkf) {
+  (void)info;
+  (void)bestkfid2faceid;
+
   ugu::Timer<> timer;
   timer.Start();
   // Make data structure to get adjacent faces of a face in a constant time
-  Face2Face face2face;
-  face2face.Init(static_cast<int>(mesh->vertices().size()),
-                 mesh->vertex_indices());
+  ugu::FaceAdjacency face_adjacency;
+  face_adjacency.Init(static_cast<int>(mesh->vertices().size()),
+                      mesh->vertex_indices());
 
   // Initialize all faces unselected
   Charts charts;
@@ -1039,11 +887,11 @@ bool GenerateSimpleChartsTextureAndUv(
 
       // Get unselected adjacent faces
       std::vector<int> adjacent_face_ids;
-      face2face.GetAdjacentFaces(fid, &adjacent_face_ids);
+      face_adjacency.GetAdjacentFaces(fid, &adjacent_face_ids);
 
       // Once checking adjacent faces, remove face id for computational
       // effciency
-      face2face.RemoveFace(fid);
+      face_adjacency.RemoveFace(fid);
 
       // If faces are empty, continue
       if (adjacent_face_ids.empty()) {
