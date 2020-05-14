@@ -88,8 +88,8 @@ bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
         for (int jj = -hk; jj <= hk; jj++) {
           for (int ii = -hk; ii <= hk; ii++) {
             // SAD
-            unsigned char rval =
-                BilinearInterpolation(i + ii + k, j + jj, right)[0];
+            double rval = BilinearInterpolation(
+                i + ii + k, static_cast<float>(j + jj), 0, right);
             float sad = std::abs(static_cast<float>(
                 (left.at<unsigned char>(j + jj, i + ii) - rval)));
             current_cost += sad;

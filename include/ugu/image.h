@@ -524,6 +524,46 @@ T BilinearInterpolation(float x, float y, const ugu::Image<T>& image) {
   return color;
 }
 
+template <typename T>
+double BilinearInterpolation(float x, float y, int channel,
+                             const ugu::Image<T>& image) {
+  std::array<int, 2> pos_min = {{0, 0}};
+  std::array<int, 2> pos_max = {{0, 0}};
+  pos_min[0] = static_cast<int>(std::floor(x));
+  pos_min[1] = static_cast<int>(std::floor(y));
+  pos_max[0] = pos_min[0] + 1;
+  pos_max[1] = pos_min[1] + 1;
+
+  // really need these?
+  if (pos_min[0] < 0.0f) {
+    pos_min[0] = 0;
+  }
+  if (pos_min[1] < 0.0f) {
+    pos_min[1] = 0;
+  }
+  if (image.cols <= pos_max[0]) {
+    pos_max[0] = image.cols - 1;
+  }
+  if (image.rows <= pos_max[1]) {
+    pos_max[1] = image.rows - 1;
+  }
+
+  double local_u = x - pos_min[0];
+  double local_v = y - pos_min[1];
+
+  // bilinear interpolation
+  double color =
+      (1.0 - local_u) * (1.0 - local_v) *
+          image.at<T>(pos_min[1], pos_min[0])[channel] +
+      local_u * (1.0f - local_v) *
+          image.at<T>(pos_max[1], pos_min[0])[channel] +
+      (1.0 - local_u) * local_v *
+          image.at<T>(pos_min[1], pos_max[0])[channel] +
+      local_u * local_v * image.at<T>(pos_max[1], pos_max[0])[channel];
+
+  return color;
+}
+
 void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d = 200.0f,
                 float max_d = 1500.0f);
 
