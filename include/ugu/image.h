@@ -96,8 +96,9 @@ bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
   return true;
 }
 
-inline void minMaxLoc(const cv::InputArray& src, double* minVal, double* maxVal = 0,
-               Point* minLoc = 0, Point* maxLoc = 0) {
+inline void minMaxLoc(const cv::InputArray& src, double* minVal,
+                      double* maxVal = 0, Point* minLoc = 0,
+                      Point* maxLoc = 0) {
   cv::minMaxLoc(src, minVal, maxVal, minLoc, maxLoc);
 }
 
@@ -490,6 +491,11 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal);
 void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id);
 
 void Color2Gray(const Image3b& color, Image1b* gray);
+
+void Conv(const Image1b& src, Image1f* dst, float* filter, int kernel_size);
+void SobelX(const Image1b& gray, Image1f* gradx, bool scharr = false);
+void SobelY(const Image1b& gray, Image1f* grady, bool scharr = false);
+void Laplacian(const Image1b& gray, Image1f* laplacian);
 
 #ifdef UGU_USE_TINYCOLORMAP
 void Depth2Color(

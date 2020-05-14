@@ -3,7 +3,10 @@
  * All rights reserved.
  */
 
+#include <random>
+
 #include "ugu/stereo/base.h"
+#include "ugu/stereo/patchmatch_stereo_impl.h"
 
 namespace ugu {
 
@@ -25,14 +28,14 @@ bool Disparity2Depth(const Image1f& disparity, Image1f* depth, float baseline,
 
 bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
                              Image1f* disparity, Image1f* cost, Image1f* depth,
-                             const StereoParam& param, int kernel,
-                             float max_disparity) {
+                             const StereoParam& param) {
   if (left.rows != right.rows || left.cols != right.cols) {
     LOGE("Left and right size missmatch\n");
     return false;
   }
 
-  const int hk = kernel / 2;
+  const int hk = param.kernel / 2;
+  float max_disparity = param.max_disparity;
   if (max_disparity < 0) {
     max_disparity = static_cast<float>(left.cols - 1);
   }
@@ -86,12 +89,21 @@ bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
   return true;
 }
 
-struct PlaneParam {};
+bool ComputeStereoBruteForce(const Image3b& left, const Image3b& right,
+                             Image1f* disparity, Image1f* cost, Image1f* depth,
+                             const StereoParam& param) {
+  Image1b left_gray, right_gray;
+  Color2Gray(left, &left_gray);
+  Color2Gray(right, &right_gray);
+  return ComputeStereoBruteForce(left_gray, right_gray, disparity, cost, depth,
+                                 param);
+}
 
 bool ComputePatchMatchStereo(const Image3b& left, const Image3b& right,
-                             Image1f* disparity, Image1f* depth, bool temporal,
-                             bool refinement) {
-  return true;
+                             Image1f* disparity, Image1f* cost, Image1f* depth,
+                             const PatchMatchStereoParam& param) {
+  return ComputePatchMatchStereoImpl(left, right, disparity, cost, depth,
+                                     param);
 }
 
 }  // namespace ugu

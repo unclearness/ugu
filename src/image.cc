@@ -318,11 +318,58 @@ void Color2Gray(const Image3b& color, Image1b* gray) {
   for (int y = 0; y < color.rows; y++) {
     for (int x = 0; x < color.cols; x++) {
       const Vec3b& c = color.at<Vec3b>(y, x);
-      gray->at<unsigned char>(y, x) =
-          0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+      gray->at<unsigned char>(y, x) = static_cast<unsigned char>(
+          0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]);
     }
   }
 #endif
+}
+
+void Conv(const Image1b& src, Image1f* dst, float* filter, int kernel_size) {
+  const int hk = kernel_size / 3;
+
+  // unsigned char* src_data = src.data;
+  // float* dst_data = reinterpret_cast<float*>(dst->data);
+  dst->setTo(0.0f);
+  for (int y = hk; y < src.rows - hk; y++) {
+    for (int x = hk; x < src.cols - hk; x++) {
+      float& dst_val = dst->at<float>(y, x);
+      for (int yy = -hk; yy <= hk; yy++) {
+        for (int xx = -hk; xx <= hk; xx++) {
+          dst_val += filter[yy * kernel_size + xx] *
+                     src.at<unsigned char>(y + yy, x + xx);
+        }
+      }
+    }
+  }
+}
+
+void SobelX(const Image1b& gray, Image1f* gradx, bool scharr) {
+  float sobelx[9] = {-1, 0, 1, -2, 0, 2, -1, 0, 1};
+  float scharrx[9] = {-3, 0, 3, -10, 0, 10, -3, 0, 3};
+
+  if (scharr) {
+    Conv(gray, gradx, scharrx, 3);
+  } else {
+    Conv(gray, gradx, sobelx, 3);
+  }
+}
+
+void SobelY(const Image1b& gray, Image1f* grady, bool scharr) {
+  float sobely[9] = {-1, -2, -1, 0, 0, 0, 1, 2, 1};
+  float scharry[9] = {-3, -10, -3, 0, 0, 0, 3, 10, 3};
+
+  if (scharr) {
+    Conv(gray, grady, scharry, 3);
+  } else {
+    Conv(gray, grady, sobely, 3);
+  }
+}
+
+void Laplacian(const Image1b& gray, Image1f* laplacian) {
+  float l[9] = {0, 1, 0, 1, -4, 1, 0, 1, 0};
+
+  Conv(gray, laplacian, l, 3);
 }
 
 void BoxFilter(const Image1b& src, Image1b* dst, int kernel) {
