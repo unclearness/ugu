@@ -7,11 +7,16 @@
 
 #include <vector>
 
+#define UGU_FACE_ADJACENCY_USE_SPARSE_MAT
+
+#ifdef UGU_FACE_ADJACENCY_USE_SPARSE_MAT
 #include "Eigen/SparseCore"
+#else
+#include "Eigen/Core"
+#endif
 
 namespace ugu {
 
-#define UGU_FACE_ADJACENCY_USE_SPARSE_MAT
 struct FaceAdjacency {
   // https://qiita.com/shinjiogaki/items/d16abb018a843c09b8c8
   std::vector<Eigen::Vector3i> vertex_indices_;
@@ -55,39 +60,6 @@ struct FaceAdjacency {
 #endif
   }
 
-  void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {
-    const Eigen::Vector3i& face = vertex_indices_[face_id];
-    adjacent_face_ids->clear();
-    int& m0 = mat_.coeffRef(face[1], face[0]);
-    if (0 < m0) {
-      adjacent_face_ids->push_back(m0 - 1);
-    }
-    int& m1 = mat_.coeffRef(face[2], face[1]);
-    if (0 < m1) {
-      adjacent_face_ids->push_back(m1 - 1);
-    }
-    int& m2 = mat_.coeffRef(face[0], face[2]);
-    if (0 < m2) {
-      adjacent_face_ids->push_back(m2 - 1);
-    }
-  }
-
-  bool RemoveFace(int face_id) {
-    const Eigen::Vector3i& face = vertex_indices_[face_id];
-    int& m0 = mat_.coeffRef(face[0], face[1]);
-    int& m1 = mat_.coeffRef(face[1], face[2]);
-    int& m2 = mat_.coeffRef(face[2], face[0]);
-
-    if (m0 == 0 && m1 == 0 && m2 == 0) {
-      return false;
-    }
-
-    m0 = 0;
-    m1 = 0;
-    m2 = 0;
-
-    return true;
-  }
 #else
   // Dense matrix version
   // - Much more memory
@@ -103,16 +75,20 @@ struct FaceAdjacency {
               std::back_inserter(vertex_indices_));
 
 #if 1
-    mat_ = Eigen::MatrixXi(num_vertices, num_vertices);
-    mat_.setZero();
+
+    // TODO: initialization with zero is slow
+    mat_ = Eigen::MatrixXi::Zero(num_vertices, num_vertices);
+
+    // mat_ = Eigen::MatrixXi(num_vertices, num_vertices); // this line is fast
+    // mat_.setZero(); // slow
 
     // insert per element is slow
     for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
       const Eigen::Vector3i& face = vertex_indices_[i];
       // i + 1 for SparseMatrix compatibility
-      mat_(face[0], face[1]) = i + 1;
-      mat_(face[1], face[2]) = i + 1;
-      mat_(face[2], face[0]) = i + 1;
+      mat_.coeffRef(face[0], face[1]) = i + 1;
+      mat_.coeffRef(face[1], face[2]) = i + 1;
+      mat_.coeffRef(face[2], face[0]) = i + 1;
     }
 #else
 
@@ -134,6 +110,8 @@ struct FaceAdjacency {
 #endif
   }
 
+#endif
+
   void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {
     const Eigen::Vector3i& face = vertex_indices_[face_id];
     adjacent_face_ids->clear();
@@ -167,7 +145,5 @@ struct FaceAdjacency {
 
     return true;
   }
-
-#endif
 };
 }  // namespace ugu
