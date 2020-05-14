@@ -489,6 +489,8 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal);
 
 void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id);
 
+void Color2Gray(const Image3b& color, Image1b* gray);
+
 #ifdef UGU_USE_TINYCOLORMAP
 void Depth2Color(
     const Image1f& depth, Image3b* vis_depth, float min_d = 200.0f,

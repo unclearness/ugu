@@ -306,6 +306,25 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
   }
 }
 
+void Color2Gray(const Image3b& color, Image1b* gray) {
+#ifdef UGU_USE_OPENCV
+  // BGR
+  cv::cvtColor(color, *gray, cv::COLOR_BGR2GRAY);
+#else
+  // RGB
+  if (color.rows != gray->rows || color.cols != gray->cols) {
+    *gray = Image1b::zeros(color.rows, color.cols);
+  }
+  for (int y = 0; y < color.rows; y++) {
+    for (int x = 0; x < color.cols; x++) {
+      const Vec3b& c = color.at<Vec3b>(y, x);
+      gray->at<unsigned char>(y, x) =
+          0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+    }
+  }
+#endif
+}
+
 void BoxFilter(const Image1b& src, Image1b* dst, int kernel) {
   BoxFilterCpuIntegral<unsigned char>(src, dst, kernel);
 }

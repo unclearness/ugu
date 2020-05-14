@@ -36,25 +36,10 @@ using ugu::WriteFaceIdAsText;
 using ugu::zfill;
 
 namespace {
-void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
-          std::shared_ptr<Camera> camera, const Renderer& renderer,
-          bool number_prefix = true) {
-  // images
-  Image3b color;
-  Image1f depth;
-  Image1w depthw;
-  Image3f normal;
-  Image1b mask;
-  Image1i face_id;
-  Image1b vis_depth;
-  Image3b vis_normal;
-  Image3b vis_face_id;
-  Mesh view_mesh, view_point_cloud;
-  const float kMaxConnectZDiff = 100.0f;
 
-  // for pose output by tum format
-  std::vector<Eigen::Affine3d> poses;
-
+void PreparePoseAndName(const std::shared_ptr<Mesh> mesh,
+                        std::vector<Eigen::Affine3d>& pose_list,
+                        std::vector<std::string>& name_list) {
   MeshStats stats = mesh->stats();
   Eigen::Vector3f center = stats.center;
   Eigen::Vector3f eye;
@@ -63,9 +48,6 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   // translation offset is the largest edge length of bounding box * 1.5
   Eigen::Vector3f diff = stats.bb_max - stats.bb_min;
   float offset = std::max(diff[0], std::max(diff[1], diff[2])) * 1.5f;
-
-  std::vector<Eigen::Affine3d> pose_list;
-  std::vector<std::string> name_list;
 
   // from front
   eye = center;
@@ -108,6 +90,30 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   ugu::c2w(eye, center, Eigen::Vector3f(0, 0, -1), &c2w_mat);
   pose_list.push_back(Eigen::Affine3d(c2w_mat.cast<double>()));
   name_list.push_back("bottom");
+}
+
+void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
+          std::shared_ptr<Camera> camera, const Renderer& renderer,
+          bool number_prefix = true) {
+  // images
+  Image3b color;
+  Image1f depth;
+  Image1w depthw;
+  Image3f normal;
+  Image1b mask;
+  Image1i face_id;
+  Image1b vis_depth;
+  Image3b vis_normal;
+  Image3b vis_face_id;
+  Mesh view_mesh, view_point_cloud;
+  const float kMaxConnectZDiff = 100.0f;
+
+  // for pose output by tum format
+  std::vector<Eigen::Affine3d> poses;
+
+  std::vector<Eigen::Affine3d> pose_list;
+  std::vector<std::string> name_list;
+  PreparePoseAndName(mesh, pose_list, name_list);
 
   for (size_t i = 0; i < pose_list.size(); i++) {
     Eigen::Affine3d& c2w = pose_list[i];
@@ -137,6 +143,26 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   }
 
   ugu::WriteTumFormat(poses, out_dir + "tumpose.txt");
+
+  // For stereo test
+  //MeshStats stats = mesh->stats();
+  // translation offset is the largest edge length of bounding box * 1.5
+  //Eigen::Vector3f diff = stats.bb_max - stats.bb_min;
+  double baseline = -50.0f;//- diff.maxCoeff() / 5;
+  for (size_t i = 0; i < pose_list.size(); i++) {
+    Eigen::Affine3d c2w = pose_list[i];
+    std::string prefix = name_list[i];
+    if (number_prefix) {
+      prefix = zfill(i);
+    }
+    prefix = "r_" + prefix;
+
+    // Add baseline
+    c2w = c2w * Eigen::Translation3d(baseline, 0.0, 0.0);
+    camera->set_c2w(c2w);
+    renderer.Render(&color, &depth, &normal, &mask, &face_id);
+    imwrite(out_dir + prefix + "_color.png", color);
+  }
 }
 
 void AlignMesh(std::shared_ptr<Mesh> mesh) {

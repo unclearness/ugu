@@ -220,6 +220,9 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/texturing/bin_packer_2d.h
     include/ugu/texturing/bin_packer_2d.cc
 
+    include/ugu/stereo/base.h
+    include/ugu/stereo/base.cc
+
     # implementations of header-only library
     ${UGU_STB_IMPLEMENTATION_CC}
     ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
@@ -266,6 +269,13 @@ if (NOT hasParent)
   test_texturing.cc)
   target_include_directories(ugu_texturing_test PRIVATE ${Ugu_INCLUDE_DIRS})
   target_link_libraries(ugu_texturing_test
+  ${Ugu_LIBS}
+  )
+
+  add_executable(ugu_stereo_test
+  test_stereo.cc)
+  target_include_directories(ugu_stereo_test PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(ugu_stereo_test
   ${Ugu_LIBS}
   )
 endif()
