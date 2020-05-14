@@ -57,7 +57,7 @@ bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
     for (int i = hk; i < w - hk; i++) {
       float& disp = disparity->at<float>(j, i);
       float& c = cost->at<float>(j, i);
-
+      int mink = 0;
       // Find the best match in the same row
       // Integer pixel (not sub-pixel) accuracy
       for (int k = 0; k < max_disparity_i - i; k++) {
@@ -75,9 +75,29 @@ bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
         if (current_cost < c) {
           c = current_cost;
           disp = static_cast<float>(k);
-          if (k == 0) {
-            disp = 0.001f;
+          mink = k;
+        }
+      }
+
+      // Sub-pixel
+      if (param.subpixel_step < 0.0f || 1.0f <= param.subpixel_step) {
+        continue;
+      }
+      for (float k = mink - 0.5f; k <= mink + 0.5f; k += param.subpixel_step) {
+        float current_cost = 0.0f;
+        for (int jj = -hk; jj <= hk; jj++) {
+          for (int ii = -hk; ii <= hk; ii++) {
+            // SAD
+            unsigned char rval =
+                BilinearInterpolation(i + ii + k, j + jj, right)[0];
+            float sad = std::abs(static_cast<float>(
+                (left.at<unsigned char>(j + jj, i + ii) - rval)));
+            current_cost += sad;
           }
+        }
+        if (current_cost < c) {
+          c = current_cost;
+          disp = static_cast<float>(k);
         }
       }
     }
@@ -87,7 +107,7 @@ bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
                   param.rcx, param.mind, param.maxd);
 
   return true;
-}
+}  // namespace ugu
 
 bool ComputeStereoBruteForce(const Image3b& left, const Image3b& right,
                              Image1f* disparity, Image1f* cost, Image1f* depth,

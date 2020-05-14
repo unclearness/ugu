@@ -652,7 +652,7 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
       vertex_info.color[1] = color[1];
       vertex_info.color[2] = color[2];
     } else if (option_.interp == ColorInterpolation::kBilinear) {
-      BilinearInterpolation(image_p.x(), image_p.y(), keyframe_->color,
+      ::BilinearInterpolation(image_p.x(), image_p.y(), keyframe_->color,
                             &vertex_info.color);
     }
     info->Update(i, vertex_info);

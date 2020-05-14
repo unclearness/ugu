@@ -19,6 +19,8 @@ struct StereoParam {
 
   float max_disparity = -1.0f;
   int kernel = 11;
+
+  float subpixel_step = 0.1f;
 };
 
 struct PatchMatchStereoParam {

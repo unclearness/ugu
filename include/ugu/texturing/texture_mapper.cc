@@ -142,49 +142,6 @@ inline float EdgeFunction(const T& a, const T& b, const T& c) {
   return (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
 }
 
-inline ugu::Vec3b BilinearInterpolation(float x, float y,
-                                        const ugu::Image3b& image) {
-  std::array<int, 2> pos_min = {{0, 0}};
-  std::array<int, 2> pos_max = {{0, 0}};
-  pos_min[0] = static_cast<int>(std::floor(x));
-  pos_min[1] = static_cast<int>(std::floor(y));
-  pos_max[0] = pos_min[0] + 1;
-  pos_max[1] = pos_min[1] + 1;
-
-  // really need these?
-  if (pos_min[0] < 0.0f) {
-    pos_min[0] = 0;
-  }
-  if (pos_min[1] < 0.0f) {
-    pos_min[1] = 0;
-  }
-  if (image.cols <= pos_max[0]) {
-    pos_max[0] = image.cols - 1;
-  }
-  if (image.rows <= pos_max[1]) {
-    pos_max[1] = image.rows - 1;
-  }
-
-  float local_u = x - pos_min[0];
-  float local_v = y - pos_min[1];
-
-  // bilinear interpolation
-  ugu::Vec3b color;
-  for (int i = 0; i < 3; i++) {
-    float colorf =
-        (1.0f - local_u) * (1.0f - local_v) *
-            image.at<ugu::Vec3b>(pos_min[1], pos_min[0])[i] +
-        local_u * (1.0f - local_v) *
-            image.at<ugu::Vec3b>(pos_max[1], pos_min[0])[i] +
-        (1.0f - local_u) * local_v *
-            image.at<ugu::Vec3b>(pos_min[1], pos_max[0])[i] +
-        local_u * local_v * image.at<ugu::Vec3b>(pos_max[1], pos_max[0])[i];
-    color[i] = static_cast<unsigned char>(colorf);
-  }
-
-  return color;
-}
-
 bool PaddingSimple(ugu::Image3b* texture, ugu::Image1b* mask, int kernel) {
   ugu::Image3b org_texture;
   texture->copyTo(org_texture);
