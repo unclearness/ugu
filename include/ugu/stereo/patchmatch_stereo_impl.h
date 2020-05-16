@@ -321,6 +321,84 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
   return true;
 }
 
+inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
+                                      Image1b* valid_mask,
+                                      float left_right_consistency_th) {
+  if (valid_mask->rows != ldisparity->rows ||
+      valid_mask->cols != ldisparity->cols) {
+    *valid_mask = Image1b::zeros(ldisparity->rows, ldisparity->cols);
+  }
+  valid_mask->setTo(255);
+
+  for (int j = 0; j < ldisparity->rows; j++) {
+    for (int i = 0; i < ldisparity->cols; i++) {
+      float& l = ldisparity->at<float>(j, i);
+      float& r = rdisparity->at<float>(j, i);
+      // Left disparity is plus, right one is negative
+      float diff = std::abs(l + r);
+      if (left_right_consistency_th < diff) {
+        l = std::numeric_limits<float>::max();
+        r = std::numeric_limits<float>::max();
+        valid_mask->at<unsigned char>(j, i) = 0;
+      }
+    }
+  }
+
+  return true;
+}
+
+inline bool FillHoleNn(Image1f* disparity, Image3f* plane,
+                       const Image1b& valid_mask) {
+  // TODO: Faster alogrithm
+
+  Image1b valid_mask_ = Image1b::zeros(valid_mask.rows, valid_mask.cols);
+  valid_mask.copyTo(valid_mask_);
+  for (int j = 0; j < disparity->rows; j++) {
+    for (int i = 0; i < disparity->cols; i++) {
+      unsigned char& v = valid_mask_.at<unsigned char>(j, i);
+      if (v == 255) {
+        continue;
+      }
+
+      float& d = disparity->at<float>(j, i);
+      Vec3f& p = plane->at<Vec3f>(j, i);
+      float ld = std::numeric_limits<float>::max();
+      Vec3f lp;
+      for (int l = i - 1; 0 <= l; l--) {
+        unsigned char lv = valid_mask_.at<unsigned char>(j, l);
+        if (lv == 255) {
+          lp = plane->at<Vec3f>(j, l);
+          ld = lp[0] * i + lp[1] * j + lp[2];
+          v = 255;
+          break;
+        }
+      }
+
+      float rd = std::numeric_limits<float>::max();
+      Vec3f rp;
+      for (int r = i + 1; r < disparity->rows; r++) {
+        unsigned char rv = valid_mask_.at<unsigned char>(j, r);
+        if (rv == 255) {
+          rp = plane->at<Vec3f>(j, r);
+          rd = lp[0] * i + lp[1] * j + lp[2];
+          v = 255;
+          break;
+        }
+      }
+
+      if (rd < ld) {
+        p = rp;
+        d = rd;
+      } else {
+        p = lp;
+        d = ld;
+      }
+    }
+  }
+
+  return true;
+}
+
 inline bool RandomSearchPlaneRefinement(
     int nowx, int nowy, const Image3b& first, const Image3b& second,
     const Image1f& grad1, Image1f* disparity1, Image1f* cost1,
@@ -610,6 +688,20 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
 
   // Post-processing
   if (param.left_right_consistency) {
+    Image1b valid_mask;
+    LeftRightConsistencyCheck(ldisparity, rdisparity, &valid_mask,
+                              param.left_right_consistency_th);
+
+    ugu::imwrite("valid_mask.png", valid_mask);
+
+    // Hole filling for invalidated pixels
+    if (param.fill_hole_nn) {
+      FillHoleNn(ldisparity, &lplane, valid_mask);
+
+      // Weighted median filter for filled pixels
+      if (param.weighted_median_for_filled) {
+      }
+    }
   }
 
   Disparity2Depth(*ldisparity, depth, param.base_param.baseline,
