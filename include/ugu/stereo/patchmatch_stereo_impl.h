@@ -16,9 +16,10 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
                                 const Image3b& right, const Image1b& left_gray,
                                 const Image1b& right_gray,
                                 const Image1f& left_grad,
-                                const Image1f& right_grad, int minx, int maxx,
-                                int miny, int maxy, float gamma, float alpha,
-                                float tau_col, float tau_grad) {
+                                const Image1f& right_grad, int posx, int posy,
+                                int minx, int maxx, int miny, int maxy,
+                                float gamma, float alpha, float tau_col,
+                                float tau_grad) {
   const float inverse_gamma = 1.0f / gamma;
 
   std::function<float(int, int, float)> rho = [&](int lx, int y,
@@ -48,9 +49,10 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
   };
 
   float cost_val = 0.0f;
+  const Vec3b& lc = left.at<Vec3b>(posy, posx);
+  const float w = static_cast<float>(left.cols - 1);
   for (int j = miny; j <= maxy; j++) {
     for (int i = minx; i <= maxx; i++) {
-      const Vec3b& lc = left.at<Vec3b>(j, i);
       const Vec3b& rc = right.at<Vec3b>(j, i);
       float absdiff = 0.0f;
       for (int k = 0; k < 3; k++) {
@@ -58,7 +60,14 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
       }
       float w = std::exp(-absdiff * inverse_gamma);
 
-      float rx = plane[0] * i + plane[1] * j + plane[2];
+      float d = plane[0] * i + plane[1] * j + plane[2];
+      float rx = static_cast<float>(i - d);
+
+      // rx may be outside of image.
+      // Because original plane is defined for (posx, posy)
+      // but we are evaluating its surrounding pixels.
+      // TODO: better guard
+      rx = std::max(std::min(rx, w), 0.0f);
 
       float rho_val = rho(i, j, rx);
 
@@ -83,10 +92,10 @@ inline bool CalcPatchMatchCost(const Image3f& plane, const Image3b& left,
       int miny = j - half_ps;
       int maxy = j + half_ps;
       const Vec3f& p = plane.at<Vec3f>(j, i);
-      float c =
-          CalcPatchMatchCost(p, left, right, left_gray, right_gray, left_grad,
-                             right_grad, minx, maxx, miny, maxy, param.gamma,
-                             param.alpha, param.tau_col, param.tau_grad);
+      float c = CalcPatchMatchCost(p, left, right, left_gray, right_gray,
+                                   left_grad, right_grad, i, j, minx, maxx,
+                                   miny, maxy, param.gamma, param.alpha,
+                                   param.tau_col, param.tau_grad);
       cost->at<float>(j, i) = c;
     }
   }
@@ -104,10 +113,10 @@ inline bool InitPlaneRandom(Image3f* plane_image,
           ? initial_random_disparity_range
           : static_cast<float>(plane_image->rows - 1);
 
-  std::uniform_real_distribution<float> normalxy_dist(-1.0f, 1.0f);
-
-  // z must be facing (negative)
-  std::uniform_real_distribution<float> normalz_dist(-1.0f, -0.00001f);
+  // z must be facing (negative), cos(theta) < 0
+  const double pi = 3.14159265358979323846;
+  std::uniform_real_distribution<float> theta_dist(pi / 2, 3 * pi / 2);
+  std::uniform_real_distribution<float> phi_dist(0.0f, 2 * pi);
 
   for (int j = half_patch_size; j < plane_image->rows - half_patch_size; j++) {
     for (int i = half_patch_size; i < plane_image->cols - half_patch_size;
@@ -115,12 +124,13 @@ inline bool InitPlaneRandom(Image3f* plane_image,
       float disparity_max = 1.0f;
       // Maximaum disparity depends on left or right
       if (is_right) {
-        disparity_max = std::min(initial_random_disparity_range,
-                                 static_cast<float>(i - half_patch_size + 1));
-      } else {
         disparity_max = std::min(
             initial_random_disparity_range,
             static_cast<float>(plane_image->cols - i - half_patch_size + 1));
+
+      } else {
+        disparity_max = std::min(initial_random_disparity_range,
+                                 static_cast<float>(i - half_patch_size + 1));
       }
       std::uniform_real_distribution<float> disparity_dist(0.000001f,
                                                            disparity_max);
@@ -131,9 +141,11 @@ inline bool InitPlaneRandom(Image3f* plane_image,
       }
       Eigen::Vector3f n(0.0f, 0.0f, -1.0f);
       if (!fronto_parallel) {
-        n[0] = normalxy_dist(engine);
-        n[1] = normalxy_dist(engine);
-        n[2] = normalz_dist(engine);
+        float theta = theta_dist(engine);
+        float phi = phi_dist(engine);
+        n[0] = sin(theta) * cos(phi);
+        n[1] = sin(theta) * sin(phi);
+        n[2] = cos(theta);
         n.normalize();
       }
       Vec3f& p = plane_image->at<Vec3f>(j, i);
@@ -260,10 +272,12 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
 #endif
 
   // Random Initilalization
+  // printf("left\n");
   InitPlaneRandom(&lplane, engine, param.initial_random_disparity_range,
                   param.fronto_parallel_window, param.patch_size / 2, false);
   CalcPatchMatchCost(lplane, left, right, left_gray, right_gray, left_grad,
                      right_grad, lcost, param);
+  // printf("right\n");
   InitPlaneRandom(&rplane, engine, param.initial_random_disparity_range,
                   param.fronto_parallel_window, param.patch_size / 2, true);
   CalcPatchMatchCost(rplane, right, left, right_gray, left_gray, right_grad,
