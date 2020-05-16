@@ -163,8 +163,9 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
 
   // z must be facing (negative), cos(theta) < 0
   const double pi = 3.14159265358979323846;
-  std::uniform_real_distribution<float> theta_dist(
-      static_cast<float>(pi / 2), static_cast<float>(3 * pi / 2));
+  const float normal_rad_th = radians(75.0f);
+  std::uniform_real_distribution<float> theta_dist(normal_rad_th
+     , static_cast<float>(pi));
   std::uniform_real_distribution<float> phi_dist(0.0f,
                                                  static_cast<float>(2 * pi));
 
@@ -435,7 +436,7 @@ inline bool WeightedMedianForFilled(Image1f* disparity, const Image3b& color,
       std::vector<float> weights;
       for (int jj = miny; jj <= maxy; jj++) {
         for (int ii = minx; ii <= maxx; ii++) {
-          data.push_back(disparity->at<float>(jj, ii));
+          data.push_back(org_disparity.at<float>(jj, ii));
 
           const Vec3b& near_c = color.at<Vec3b>(jj, ii);
           float l1 = L1(c, near_c);
