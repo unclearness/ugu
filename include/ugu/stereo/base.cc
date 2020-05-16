@@ -31,8 +31,8 @@ bool VisualizeCost(const Image1f& cost, Image3b* vis_cost, float minc,
   if (minc < 0.0 || maxc < 0 || minc > maxc) {
     double minVal, maxVal;
     ugu::minMaxLoc(cost, &minVal, &maxVal);
-    minc = minVal;
-    maxc = maxVal;
+    minc = static_cast<float>(minVal);
+    maxc = static_cast<float>(maxVal);
   }
 
   if (vis_cost->cols != cost.cols || vis_cost->rows != cost.rows) {
