@@ -20,6 +20,12 @@ inline float L1(const Vec3b& a, const Vec3b& b) {
   return val;
 }
 
+inline void RecoverNormalFromPlane(const Vec3f& p, Vec3f* n) {
+  (*n)[2] = -1.0f / std::sqrt((p[0] * p[0] + p[1] * p[1] + 1.0f));
+  (*n)[0] = -p[0] * (*n)[2];
+  (*n)[1] = -p[1] * (*n)[2];
+}
+
 struct Correspondence {
   // first->at<int>(j, i) -> i' of second
   // Image1i first2second;
@@ -123,6 +129,8 @@ inline bool CalcPatchMatchCost(const Image3f& plane, const Image3b& left,
                                const Image1f& right_grad, Image1f* cost,
                                const PatchMatchStereoParam& param) {
   const int half_ps = param.patch_size / 2;
+
+#pragma omp parallel
   for (int j = half_ps; j < plane.rows - half_ps; j++) {
     for (int i = half_ps; i < plane.cols - half_ps; i++) {
       int minx = i - half_ps;
@@ -263,8 +271,8 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
     Vec3f trans_p;
     trans_p[0] = -p2[0];
     trans_p[1] = p2[1];
-    trans_p[2] =
-        disparity2->at<float>(nowy, x2) - trans_p[0] * nowx - trans_p[1] * nowy;
+    trans_p[2] = -disparity2->at<float>(nowy, x2) - trans_p[0] * nowx -
+                 trans_p[1] * nowy;
 
     float trans_cost = CalcPatchMatchCost(
         trans_p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny,
@@ -278,7 +286,7 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
     }
   }
 
-#if 0
+#if 0 
 				  float d = now_p[0] * nowx + now_p[1] * nowy + now_p[2];
   float rx = std::round(nowx - d);
 
@@ -298,12 +306,78 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
   return true;
 }
 
+inline bool RandomSearchPlaneRefinement(
+    int nowx, int nowy, const Image3b& first, const Image3b& second,
+    const Image1f& grad1, Image1f* disparity1, Image1f* cost1,
+    PlaneImage* plane1, const Image1f& grad2,
+    const PatchMatchStereoParam& param, std::default_random_engine& engine,
+    const std::uniform_real_distribution<float>& z_offset_dist,
+    const std::uniform_real_distribution<float>& normal_offset_dist) {
+  const int half_ps = param.patch_size / 2;
+
+  float& now_cost = cost1->at<float>(nowy, nowx);
+
+  if (now_cost < 0.0000001f) {
+    return true;
+  }
+
+  int minx = nowx - half_ps;
+  int maxx = nowx + half_ps;
+  int miny = nowy - half_ps;
+  int maxy = nowy + half_ps;
+
+  float& now_d = disparity1->at<float>(nowy, nowx);
+  float random_d = now_d;
+  Vec3f& now_p = plane1->at<Vec3f>(nowy, nowx);
+  Vec3f random_p = now_p;
+  Vec3f normal;
+  RecoverNormalFromPlane(random_p, &normal);
+
+  random_d += z_offset_dist(engine);
+  if ((now_d > 0 && random_d < 0) || (now_d < 0 && random_d > 0)) {
+    random_d *= -1.0f;
+  }
+
+  normal[0] += normal_offset_dist(engine);
+  normal[1] += normal_offset_dist(engine);
+  normal[2] += normal_offset_dist(engine);
+  if (normal[2] > 0) {
+    normal[2] *= -1.0f;
+  }
+  float len =
+      normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2];
+  normal[0] /= len;
+  normal[1] /= len;
+  normal[2] /= len;
+
+  float inverse_normal_z = 1.0f / normal[2];
+
+  random_p[0] = -normal[0] * inverse_normal_z;
+  random_p[1] = -normal[1] * inverse_normal_z;
+  random_p[2] = (normal[0] * nowx + normal[1] * nowy + normal[2] * random_d) *
+                inverse_normal_z;
+
+  float random_cost = CalcPatchMatchCost(
+      random_p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny, maxy,
+      param.gamma, param.alpha, param.tau_col, param.tau_grad);
+
+  if (random_cost < now_cost) {
+    now_cost = random_cost;
+    now_p = random_p;
+    now_d = random_d;
+  }
+
+  return true;
+}
+
 inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
     const Image3b& first, const Image3b& second, const Image1f& grad1,
     Image1f* disparity1, Image1f* cost1, PlaneImage* plane1,
     const Image1f& grad2, Image1f* disparity2, Image1f* cost2,
     PlaneImage* plane2, const PatchMatchStereoParam& param,
-    const Correspondence& first2second) {
+    const Correspondence& first2second, std::default_random_engine& engine,
+    const std::uniform_real_distribution<float>& z_offset_dist,
+    const std::uniform_real_distribution<float>& normal_offset_dist) {
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
   const int h = first.rows;
@@ -328,6 +402,9 @@ inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
 
       // Plane refinement (random re-initialization)
       if (param.plane_refinement) {
+        RandomSearchPlaneRefinement(i, j, first, second, grad1, disparity1,
+                                    cost1, plane1, grad2, param, engine,
+                                    z_offset_dist, normal_offset_dist);
       }
     }
   }
@@ -340,7 +417,9 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
     Image1f* disparity1, Image1f* cost1, PlaneImage* plane1,
     const Image1f& grad2, Image1f* disparity2, Image1f* cost2,
     PlaneImage* plane2, const PatchMatchStereoParam& param,
-    const Correspondence& first2second) {
+    const Correspondence& first2second, std::default_random_engine& engine,
+    const std::uniform_real_distribution<float>& z_offset_dist,
+    const std::uniform_real_distribution<float>& normal_offset_dist) {
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
   const int h = first.rows;
@@ -365,6 +444,9 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
 
       // Plane refinement (random re-initialization)
       if (param.plane_refinement) {
+        RandomSearchPlaneRefinement(i, j, first, second, grad1, disparity1,
+                                    cost1, plane1, grad2, param, engine,
+                                    z_offset_dist, normal_offset_dist);
       }
     }
   }
@@ -444,39 +526,57 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
 
   {
     Image3b vis_lcost, vis_rcost;
-    VisualizeCost(*lcost, &vis_lcost, 0, 100);
-    VisualizeCost(*rcost, &vis_rcost, 0, 100);
+    VisualizeCost(*lcost, &vis_lcost, 0, 50);
+    VisualizeCost(*rcost, &vis_rcost, 0, 50);
     ugu::imwrite("lcost_init.png", vis_lcost);
     ugu::imwrite("rcost_init.png", vis_rcost);
   }
 
+  float z_max = param.initial_random_disparity_range > 0.0f
+                    ? param.initial_random_disparity_range * 0.5f
+                    : static_cast<float>(left.rows - 1) * 0.5f;
+  float n_max = 1.0f;
+
   for (int i = 0; i < param.iter; i++) {
+    std::uniform_real_distribution<float> z_offset_dist(-z_max, z_max);
+    std::uniform_real_distribution<float> normal_offset_dist(-n_max, n_max);
+
     if (param.alternately_reverse && i % 2 == 1) {
       // Left
       ComputePatchMatchStereoImplBodyFromLowerRight(
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
-          rcost, &rplane, param, l2r);
+          rcost, &rplane, param, l2r, engine, z_offset_dist,
+          normal_offset_dist);
       r2l.Update(*ldisparity);
 
       // Right
       ComputePatchMatchStereoImplBodyFromLowerRight(
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
-          lcost, &lplane, param, r2l);
+          lcost, &lplane, param, r2l, engine, z_offset_dist,
+          normal_offset_dist);
       l2r.Update(*rdisparity);
 
     } else {
       // Left
       ComputePatchMatchStereoImplBodyFromUpperLeft(
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
-          rcost, &rplane, param, l2r);
+          rcost, &rplane, param, l2r, engine, z_offset_dist,
+          normal_offset_dist);
       r2l.Update(*ldisparity);
 
       // Right
       ComputePatchMatchStereoImplBodyFromUpperLeft(
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
-          lcost, &lplane, param, r2l);
+          lcost, &lplane, param, r2l, engine, z_offset_dist,
+          normal_offset_dist);
       l2r.Update(*rdisparity);
     }
+
+    z_max = z_max * 0.5f;
+    if (z_max < 0.1f) {
+      z_max = 0.1f;
+    }
+    n_max = n_max * 0.5f;
   }
 
   // Post-processing
@@ -497,8 +597,8 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
 
   {
     Image3b vis_lcost, vis_rcost;
-    VisualizeCost(*lcost, &vis_lcost, 0, 100);
-    VisualizeCost(*rcost, &vis_rcost, 0, 100);
+    VisualizeCost(*lcost, &vis_lcost, 0, 50);
+    VisualizeCost(*rcost, &vis_rcost, 0, 50);
     ugu::imwrite("lcost.png", vis_lcost);
     ugu::imwrite("rcost.png", vis_rcost);
   }

@@ -40,21 +40,44 @@ int main(int argc, char* argv[]) {
   Color2Gray(right_c, &right);
 
   ugu::Image1f disparity, cost, depth;
-  ugu::ComputeStereoBruteForce(left, right, &disparity, &cost, &depth, param);
 
   ugu::Image1b vis_depth;
-  Depth2Gray(depth, &vis_depth);
-  ugu::imwrite(data_dir + "stereo_vis_depth.png", vis_depth);
 
   const float kMaxConnectZDiff = 100.0f;
   std::shared_ptr<ugu::Camera> camera = std::make_shared<ugu::PinholeCamera>(
       width, height, Eigen::Affine3d::Identity(), principal_point,
       focal_length);
+
+#if 0
+  ugu::ComputeStereoBruteForce(left, right, &disparity, &cost, &depth, param);
+
+  Depth2Gray(depth, &vis_depth);
+  ugu::imwrite(data_dir + "stereo_vis_depth.png", vis_depth);
+
+
   ugu::Mesh view_mesh, view_point_cloud;
   ugu::Depth2Mesh(depth, left_c, *camera, &view_mesh, kMaxConnectZDiff);
   ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
   view_point_cloud.WritePly(data_dir + "stereo_mesh.ply");
   view_mesh.WriteObj(data_dir, "stereo_mesh");
+#endif
+  ugu::PatchMatchStereoParam pmparam;
+  pmparam.base_param = param;
+  // pmparam.initial_random_disparity_range = 50.0f;
+  // pmparam.view_propagation = false;
+  ugu::Image1f rdisparity, rcost;
+  ugu::ComputePatchMatchStereo(left_c, right_c, &disparity, &cost, &rdisparity,
+                               &rcost, &depth, pmparam);
+  Depth2Gray(depth, &vis_depth);
+  ugu::imwrite(data_dir + "pmstereo_vis_depth.png", vis_depth);
+
+  {
+    ugu::Mesh view_mesh, view_point_cloud;
+    ugu::Depth2Mesh(depth, left_c, *camera, &view_mesh, kMaxConnectZDiff);
+    ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
+    view_point_cloud.WritePly(data_dir + "pmstereo_mesh.ply");
+    view_mesh.WriteObj(data_dir, "pmstereo_mesh");
+  }
 
   return 0;
 }
