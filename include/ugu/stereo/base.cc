@@ -82,14 +82,14 @@ bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
       int mink = 0;
       // Find the best match in the same row
       // Integer pixel (not sub-pixel) accuracy
-      for (int k = 0; k < max_disparity_i - i; k++) {
+      for (int k = 0; k <  i; k++) {
         float current_cost = 0.0f;
         for (int jj = -hk; jj <= hk; jj++) {
           for (int ii = -hk; ii <= hk; ii++) {
             // SAD
             float sad = std::abs(static_cast<float>(
                 (left.at<unsigned char>(j + jj, i + ii) -
-                 right.at<unsigned char>(j + jj, i + ii + k))));
+                 right.at<unsigned char>(j + jj, i + ii - k))));
 
             current_cost += sad;
           }
@@ -111,7 +111,7 @@ bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
           for (int ii = -hk; ii <= hk; ii++) {
             // SAD
             double rval = BilinearInterpolation(
-                i + ii + k, static_cast<float>(j + jj), 0, right);
+                i + ii - k, static_cast<float>(j + jj), 0, right);
             float sad = std::abs(static_cast<float>(
                 (left.at<unsigned char>(j + jj, i + ii) - rval)));
             current_cost += sad;

@@ -11,6 +11,7 @@ int main(int argc, char* argv[]) {
   (void)argv;
 
   std::string data_dir = "../data/bunny/";
+  // data_dir = "../data/scenes2005/Art/";
 
   // Make PinholeCamera
   // borrow KinectV1 intrinsics of Freiburg 1 RGB
@@ -35,6 +36,9 @@ int main(int argc, char* argv[]) {
   left_c = ugu::imread<ugu::Image3b>(data_dir + "00000_color.png");
   right_c = ugu::imread<ugu::Image3b>(data_dir + "r_00000_color.png");
 
+  // left_c = ugu::imread<ugu::Image3b>(data_dir + "view5.png");
+  // right_c = ugu::imread<ugu::Image3b>(data_dir + "view1.png");
+
   ugu::Image1b left, right;
   Color2Gray(left_c, &left);
   Color2Gray(right_c, &right);
@@ -48,23 +52,19 @@ int main(int argc, char* argv[]) {
       width, height, Eigen::Affine3d::Identity(), principal_point,
       focal_length);
 
-#if 0
   ugu::ComputeStereoBruteForce(left, right, &disparity, &cost, &depth, param);
 
   Depth2Gray(depth, &vis_depth);
   ugu::imwrite(data_dir + "stereo_vis_depth.png", vis_depth);
-
 
   ugu::Mesh view_mesh, view_point_cloud;
   ugu::Depth2Mesh(depth, left_c, *camera, &view_mesh, kMaxConnectZDiff);
   ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
   view_point_cloud.WritePly(data_dir + "stereo_mesh.ply");
   view_mesh.WriteObj(data_dir, "stereo_mesh");
-#endif
+
   ugu::PatchMatchStereoParam pmparam;
   pmparam.base_param = param;
-  // pmparam.initial_random_disparity_range = 50.0f;
-  // pmparam.view_propagation = false;
   ugu::Image1f rdisparity, rcost;
   ugu::ComputePatchMatchStereo(left_c, right_c, &disparity, &cost, &rdisparity,
                                &rcost, &depth, pmparam);

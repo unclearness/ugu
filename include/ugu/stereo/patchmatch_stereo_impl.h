@@ -103,7 +103,9 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
   const float width = static_cast<float>(left.cols - 1);
   for (int j = miny; j <= maxy; j++) {
     for (int i = minx; i <= maxx; i++) {
-      const Vec3b& rc = right.at<Vec3b>(j, i);
+
+      // Question: Take color of the same image. Is this right?
+      const Vec3b& rc = left.at<Vec3b>(j, i);
       float l1 = L1(lc, rc);
       float w = std::exp(-l1 * inverse_gamma);
 
@@ -218,7 +220,7 @@ inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
   float& now_cost = cost1->at<float>(nowy, nowx);
 
   if (now_cost < 0.0000001f) {
-    // return true;
+    return true;
   }
 
   const int half_ps = param.patch_size / 2;
@@ -266,7 +268,7 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
   Vec3f& now_p = plane1->at<Vec3f>(nowy, nowx);
 
   if (now_cost < 0.0000001f) {
-    // return true;
+    return true;
   }
 
   std::vector<int> match_x_list;
