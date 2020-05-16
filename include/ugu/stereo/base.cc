@@ -26,6 +26,28 @@ bool Disparity2Depth(const Image1f& disparity, Image1f* depth, float baseline,
   return true;
 }
 
+bool VisualizeCost(const Image1f& cost, Image3b* vis_cost, float minc,
+                   float maxc) {
+  if (minc < 0.0 || maxc < 0 || minc > maxc) {
+    double minVal, maxVal;
+    ugu::minMaxLoc(cost, &minVal, &maxVal);
+    minc = minVal;
+    maxc = maxVal;
+  }
+
+  if (vis_cost->cols != cost.cols || vis_cost->rows != cost.rows) {
+    *vis_cost = Image3b::zeros(cost.rows, cost.cols);
+  }
+
+#ifdef UGU_USE_TINYCOLORMAP
+  Depth2Color(cost, vis_cost, minc, maxc);
+#else
+  // TODO
+#endif
+
+  return true;
+}
+
 bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
                              Image1f* disparity, Image1f* cost, Image1f* depth,
                              const StereoParam& param) {

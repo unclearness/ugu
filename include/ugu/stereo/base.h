@@ -50,6 +50,8 @@ struct PatchMatchStereoParam {
 bool Disparity2Depth(const Image1f& disparity, Image1f* depth, float baseline,
                      float fx, float lcx, float rcx, float mind, float maxd);
 
+bool VisualizeCost(const Image1f& cost, Image3b* vis_cost, float minc = -1.0f, float maxc = -1.0f);
+
 bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
                              Image1f* disparity, Image1f* cost, Image1f* depth,
                              const StereoParam& param);
