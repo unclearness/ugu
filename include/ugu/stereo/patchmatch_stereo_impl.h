@@ -20,6 +20,47 @@ inline float L1(const Vec3b& a, const Vec3b& b) {
   return val;
 }
 
+struct Correspondence {
+  // first->at<int>(j, i) -> i' of second
+  // Image1i first2second;
+  // Image1i second2first;
+  // (i', j') of second -> [i1, i2, ...] list of first view correspondence
+
+  // first->at<int>(j, i) -> list of corresponding x of sencond
+  // std::map<std::pair<int, int>, std::vector<int>> second2frist;
+  std::vector<std::vector<std::vector<int>>> first2second;
+
+  void Update(const Image1f& disparity2) {
+    // Init
+    first2second.clear();
+    first2second.resize(disparity2.rows);
+    std::for_each(first2second.begin(), first2second.end(),
+                  [&](std::vector<std::vector<int>>& col) {
+                    col.resize(disparity2.cols);
+                  });
+
+    for (int j = 0; j < disparity2.rows; j++) {
+      for (int i = 0; i < disparity2.cols; i++) {
+        float d = disparity2.at<float>(j, i);
+
+        float rx = std::round(i - d);
+        rx = std::max(std::min(rx, static_cast<float>(disparity2.cols - 1)),
+                      0.0f);
+        int rx_i = static_cast<int>(rx);
+
+        first2second[j][rx_i].push_back(i);
+      }
+    }
+  }
+
+  void Get(int x, int y, std::vector<int>* match_x_list) const {
+    match_x_list->clear();
+
+    std::copy(first2second[y][x].begin(), first2second[y][x].end(),
+              std::back_inserter(*match_x_list));
+  }
+};
+
 inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
                                 const Image3b& right, const Image1f& left_grad,
                                 const Image1f& right_grad, int posx, int posy,
@@ -164,7 +205,7 @@ inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
                                Image1f* disparity1, Image1f* cost1,
                                PlaneImage* plane1,
                                const PatchMatchStereoParam& param) {
-  float& now_cost = cost1->at<float>(nowy, nowy);
+  float& now_cost = cost1->at<float>(nowy, nowx);
 
   if (now_cost < 0.0000001f) {
     return true;
@@ -192,11 +233,77 @@ inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
   return true;
 }
 
+inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
+                            const Image3b& second, const Image1f& grad1,
+                            Image1f* disparity1, Image1f* cost1,
+                            PlaneImage* plane1, const Image1f& grad2,
+                            Image1f* disparity2, PlaneImage* plane2,
+                            const PatchMatchStereoParam& param,
+                            const Correspondence& first2second) {
+  const int half_ps = param.patch_size / 2;
+
+  float& now_cost = cost1->at<float>(nowy, nowx);
+  Vec3f& now_p = plane1->at<Vec3f>(nowy, nowx);
+
+  if (now_cost < 0.0000001f) {
+    return true;
+  }
+
+  std::vector<int> match_x_list;
+  first2second.Get(nowx, nowy, &match_x_list);
+
+  int minx = nowx - half_ps;
+  int maxx = nowx + half_ps;
+  int miny = nowy - half_ps;
+  int maxy = nowy + half_ps;
+
+  for (const int x2 : match_x_list) {
+    const Vec3f& p2 = plane2->at<Vec3f>(nowy, x2);
+    // Transform to first view
+    Vec3f trans_p;
+    trans_p[0] = -p2[0];
+    trans_p[1] = p2[1];
+    trans_p[2] =
+        disparity2->at<float>(nowy, x2) - trans_p[0] * nowx - trans_p[1] * nowy;
+
+    float trans_cost = CalcPatchMatchCost(
+        trans_p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny,
+        maxy, param.gamma, param.alpha, param.tau_col, param.tau_grad);
+
+    if (trans_cost < now_cost) {
+      now_cost = trans_cost;
+      now_p = trans_p;
+      float d = trans_p[0] * nowx + trans_p[1] * nowy + trans_p[2];
+      disparity1->at<float>(nowy, nowx) = d;
+    }
+  }
+
+#if 0
+				  float d = now_p[0] * nowx + now_p[1] * nowy + now_p[2];
+  float rx = std::round(nowx - d);
+
+  // rx may be outside of image.
+  // Because original plane is defined for (posx, posy)
+  // but we are evaluating its surrounding pixels.
+  // TODO: better guard
+  rx = std::max(std::min(rx, static_cast<float>(second.cols - 1)), 0.0f);
+  int rx_i = static_cast<int>(rx);
+
+  float& trans_cost = cost2->at<float>(nowy, rx_i);
+
+  if (trans_cost < now_cost) {
+  }
+#endif  // 0
+
+  return true;
+}
+
 inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
     const Image3b& first, const Image3b& second, const Image1f& grad1,
     Image1f* disparity1, Image1f* cost1, PlaneImage* plane1,
     const Image1f& grad2, Image1f* disparity2, Image1f* cost2,
-    PlaneImage* plane2, const PatchMatchStereoParam& param) {
+    PlaneImage* plane2, const PatchMatchStereoParam& param,
+    const Correspondence& first2second) {
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
   const int h = first.rows;
@@ -211,6 +318,8 @@ inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
 
       // View propagation
       if (param.view_propagation) {
+        ViewPropagation(i, j, first, second, grad1, disparity1, cost1, plane1,
+                        grad2, disparity2, plane2, param, first2second);
       }
 
       // Temporal propagation
@@ -230,7 +339,8 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
     const Image3b& first, const Image3b& second, const Image1f& grad1,
     Image1f* disparity1, Image1f* cost1, PlaneImage* plane1,
     const Image1f& grad2, Image1f* disparity2, Image1f* cost2,
-    PlaneImage* plane2, const PatchMatchStereoParam& param) {
+    PlaneImage* plane2, const PatchMatchStereoParam& param,
+    const Correspondence& first2second) {
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
   const int h = first.rows;
@@ -245,6 +355,8 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
 
       // View propagation
       if (param.view_propagation) {
+        ViewPropagation(i, j, first, second, grad1, disparity1, cost1, plane1,
+                        grad2, disparity2, plane2, param, first2second);
       }
 
       // Temporal propagation
@@ -326,6 +438,10 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
                   param.fronto_parallel_window, param.patch_size / 2, true);
   CalcPatchMatchCost(rplane, right, left, rgrad, lgrad, rcost, param);
 
+  Correspondence l2r, r2l;
+  l2r.Update(*rdisparity);
+  r2l.Update(*ldisparity);
+
   {
     Image3b vis_lcost, vis_rcost;
     VisualizeCost(*lcost, &vis_lcost, 0, 100);
@@ -339,23 +455,27 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
       // Left
       ComputePatchMatchStereoImplBodyFromLowerRight(
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
-          rcost, &rplane, param);
+          rcost, &rplane, param, l2r);
+      r2l.Update(*ldisparity);
 
       // Right
       ComputePatchMatchStereoImplBodyFromLowerRight(
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
-          lcost, &lplane, param);
+          lcost, &lplane, param, r2l);
+      l2r.Update(*rdisparity);
 
     } else {
       // Left
       ComputePatchMatchStereoImplBodyFromUpperLeft(
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
-          rcost, &rplane, param);
+          rcost, &rplane, param, l2r);
+      r2l.Update(*ldisparity);
 
       // Right
       ComputePatchMatchStereoImplBodyFromUpperLeft(
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
-          lcost, &lplane, param);
+          lcost, &lplane, param, r2l);
+      l2r.Update(*rdisparity);
     }
   }
 
