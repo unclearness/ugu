@@ -120,10 +120,12 @@ bool ComputeStereoBruteForce(const Image3b& left, const Image3b& right,
 }
 
 bool ComputePatchMatchStereo(const Image3b& left, const Image3b& right,
-                             Image1f* disparity, Image1f* cost, Image1f* depth,
+                             Image1f* ldisparity, Image1f* lcost,
+                             Image1f* rdisparity, Image1f* rcost,
+                             Image1f* depth,
                              const PatchMatchStereoParam& param) {
-  return ComputePatchMatchStereoImpl(left, right, disparity, cost, depth,
-                                     param);
+  return ComputePatchMatchStereoImpl(left, right, ldisparity, lcost, rdisparity,
+                                     rcost, depth, param);
 }
 
 }  // namespace ugu

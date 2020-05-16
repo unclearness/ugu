@@ -10,6 +10,8 @@
 
 namespace ugu {
 
+using PlaneImage = Image3f;
+
 inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
                                 const Image3b& right, const Image1b& left_gray,
                                 const Image1b& right_gray,
@@ -67,12 +69,40 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
   return cost_val;
 }
 
-inline bool InitPatchMatchStereo(Image3f* plane_image,
-                                 std::default_random_engine& engine,
-                                 float initial_random_disparity_range,
-                                 bool fronto_parallel, int half_patch_size) {
-  std::uniform_real_distribution<float> disparity_dist(
-      0.000001f, initial_random_disparity_range);
+inline bool CalcPatchMatchCost(const Image3f& plane, const Image3b& left,
+                               const Image3b& right, const Image1b& left_gray,
+                               const Image1b& right_gray,
+                               const Image1f& left_grad,
+                               const Image1f& right_grad, Image1f* cost,
+                               const PatchMatchStereoParam& param) {
+  const int half_ps = param.patch_size / 2;
+  for (int j = half_ps; j < plane.rows - half_ps; j++) {
+    for (int i = half_ps; i < plane.cols - half_ps; i++) {
+      int minx = i - half_ps;
+      int maxx = i + half_ps;
+      int miny = j - half_ps;
+      int maxy = j + half_ps;
+      const Vec3f& p = plane.at<Vec3f>(j, i);
+      float c =
+          CalcPatchMatchCost(p, left, right, left_gray, right_gray, left_grad,
+                             right_grad, minx, maxx, miny, maxy, param.gamma,
+                             param.alpha, param.tau_col, param.tau_grad);
+      cost->at<float>(j, i) = c;
+    }
+  }
+
+  return true;
+}
+
+inline bool InitPlaneRandom(Image3f* plane_image,
+                            std::default_random_engine& engine,
+                            float initial_random_disparity_range,
+                            bool fronto_parallel, int half_patch_size,
+                            bool is_right) {
+  initial_random_disparity_range =
+      initial_random_disparity_range > 0.0f
+          ? initial_random_disparity_range
+          : static_cast<float>(plane_image->rows - 1);
 
   std::uniform_real_distribution<float> normalxy_dist(-1.0f, 1.0f);
 
@@ -82,9 +112,25 @@ inline bool InitPatchMatchStereo(Image3f* plane_image,
   for (int j = half_patch_size; j < plane_image->rows - half_patch_size; j++) {
     for (int i = half_patch_size; i < plane_image->cols - half_patch_size;
          i++) {
+      float disparity_max = 1.0f;
+      // Maximaum disparity depends on left or right
+      if (is_right) {
+        disparity_max = std::min(initial_random_disparity_range,
+                                 static_cast<float>(i - half_patch_size + 1));
+      } else {
+        disparity_max = std::min(
+            initial_random_disparity_range,
+            static_cast<float>(plane_image->cols - i - half_patch_size + 1));
+      }
+      std::uniform_real_distribution<float> disparity_dist(0.000001f,
+                                                           disparity_max);
       float d = disparity_dist(engine);
+      // Set disparity as negative for right image
+      if (is_right) {
+        d *= -1.0f;
+      }
       Eigen::Vector3f n(0.0f, 0.0f, -1.0f);
-      if (fronto_parallel) {
+      if (!fronto_parallel) {
         n[0] = normalxy_dist(engine);
         n[1] = normalxy_dist(engine);
         n[2] = normalz_dist(engine);
@@ -101,14 +147,156 @@ inline bool InitPatchMatchStereo(Image3f* plane_image,
   return true;
 }
 
+inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
+    const Image3b& first, const Image3b& second, Image1f* disparity1,
+    Image1f* cost1, PlaneImage* plane1, Image1f* disparity2, Image1f* cost2,
+    PlaneImage* plane2, const PatchMatchStereoParam& param) {
+  const int half_ps = param.patch_size / 2;
+  const int w = first.cols;
+  const int h = first.rows;
+
+  for (int j = half_ps; j < h - half_ps; j++) {
+    for (int i = half_ps; i < w - half_ps; i++) {
+      // Spacial propagation
+
+      // View propagation
+      if (param.view_propagation) {
+      }
+
+      // Temporal propagation
+      if (param.temporal_propagation) {
+      }
+
+      // Plane refinement (random re-initialization)
+      if (param.plane_refinement) {
+      }
+    }
+  }
+
+  return true;
+}
+
+inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
+    const Image3b& first, const Image3b& second, Image1f* disparity1,
+    Image1f* cost1, PlaneImage* plane1, Image1f* disparity2, Image1f* cost2,
+    PlaneImage* plane2, const PatchMatchStereoParam& param) {
+  const int half_ps = param.patch_size / 2;
+  const int w = first.cols;
+  const int h = first.rows;
+
+  for (int j = h - half_ps - 1; half_ps < j; j--) {
+    for (int i = w - half_ps - 1; half_ps < i; i--) {
+      // Spacial propagation
+
+      // View propagation
+      if (param.view_propagation) {
+      }
+
+      // Temporal propagation
+      if (param.temporal_propagation) {
+      }
+
+      // Plane refinement (random re-initialization)
+      if (param.plane_refinement) {
+      }
+    }
+  }
+
+  return true;
+}
+
 inline bool ComputePatchMatchStereoImpl(const Image3b& left,
                                         const Image3b& right,
-                                        Image1f* disparity, Image1f* cost,
+                                        Image1f* ldisparity, Image1f* lcost,
+                                        Image1f* rdisparity, Image1f* rcost,
                                         Image1f* depth,
                                         const PatchMatchStereoParam& param) {
+  if (left.rows != right.rows || left.cols != right.cols) {
+    LOGE("Left and right size missmatch\n");
+    return false;
+  }
+
+  const int w = left.cols;
+  const int h = left.rows;
+  if (ldisparity->rows != h || ldisparity->cols != w) {
+    *ldisparity = Image1f::zeros(h, w);
+  }
+  if (lcost->rows != h || lcost->cols != w) {
+    *lcost = Image1f::zeros(h, w);
+    lcost->setTo(std::numeric_limits<float>::max());
+  }
+  if (rdisparity->rows != h || rdisparity->cols != w) {
+    *rdisparity = Image1f::zeros(h, w);
+  }
+  if (rcost->rows != h || rcost->cols != w) {
+    *rcost = Image1f::zeros(h, w);
+    rcost->setTo(std::numeric_limits<float>::max());
+  }
+  if (depth->rows != h || depth->cols != w) {
+    *depth = Image1f::zeros(h, w);
+  }
+
   std::default_random_engine engine(param.random_seed);
 
-  Image3f plane_image = Image3f::zeros(left.rows, right.cols);
+  PlaneImage lplane = Image3f::zeros(left.rows, left.cols);
+  PlaneImage rplane = Image3f::zeros(left.rows, left.cols);
+
+  Image1b left_gray, right_gray;
+  Color2Gray(left, &left_gray);
+  Color2Gray(right, &right_gray);
+
+  Image1f left_grad, right_grad;
+  left_grad = Image1f::zeros(left.rows, left.cols);
+  right_grad = Image1f::zeros(left.rows, left.cols);
+  SobelX(left_gray, &left_grad);
+  SobelX(right_gray, &right_grad);
+
+#if 0
+  Image1b vis_lgrad, vis_rgrad;
+  Depth2Gray(left_grad, &vis_lgrad, -200, 200);
+  Depth2Gray(right_grad, &vis_rgrad, -200, 200);
+  ugu::imwrite("lgrad.png", vis_lgrad);
+  ugu::imwrite("rgrad.png", vis_rgrad);
+#endif
+
+  // Random Initilalization
+  InitPlaneRandom(&lplane, engine, param.initial_random_disparity_range,
+                  param.fronto_parallel_window, param.patch_size / 2, false);
+  CalcPatchMatchCost(lplane, left, right, left_gray, right_gray, left_grad,
+                     right_grad, lcost, param);
+  InitPlaneRandom(&rplane, engine, param.initial_random_disparity_range,
+                  param.fronto_parallel_window, param.patch_size / 2, true);
+  CalcPatchMatchCost(rplane, right, left, right_gray, left_gray, right_grad,
+                     left_grad, rcost, param);
+
+  for (int i = 0; i < param.iter; i++) {
+    if (param.alternately_reverse && i % 2 == 1) {
+      // Left
+      ComputePatchMatchStereoImplBodyFromLowerRight(left, right, ldisparity,
+                                                    lcost, &lplane, rdisparity,
+                                                    rcost, &rplane, param);
+
+      // Right
+      ComputePatchMatchStereoImplBodyFromLowerRight(right, left, rdisparity,
+                                                    rcost, &rplane, ldisparity,
+                                                    lcost, &lplane, param);
+
+    } else {
+      // Left
+      ComputePatchMatchStereoImplBodyFromUpperLeft(left, right, ldisparity,
+                                                   lcost, &lplane, rdisparity,
+                                                   rcost, &rplane, param);
+
+      // Right
+      ComputePatchMatchStereoImplBodyFromUpperLeft(right, left, rdisparity,
+                                                   rcost, &rplane, ldisparity,
+                                                   lcost, &lplane, param);
+    }
+  }
+
+  // Post-processing
+  if (param.left_right_consistency) {
+  }
 
   return true;
 }

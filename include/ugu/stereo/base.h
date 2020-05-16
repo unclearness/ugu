@@ -26,12 +26,19 @@ struct StereoParam {
 struct PatchMatchStereoParam {
   StereoParam base_param;
 
-  int iter = 5;
+  int iter = 3;
   int random_seed = 0;
+  int patch_size = 11;
 
-  float alpha;
+  float gamma = 10.0f;
+  float alpha = 0.9f;
+  float tau_col = 10.0f;
+  float tau_grad = 2.0f;
+
   bool fronto_parallel_window = false;
   float initial_random_disparity_range = -1.0f;
+  bool initial_disparity_integer = false;
+  bool alternately_reverse = true;
 
   bool view_propagation = true;
   bool temporal_propagation = false;
@@ -52,7 +59,9 @@ bool ComputeStereoBruteForce(const Image3b& left, const Image3b& right,
                              const StereoParam& param);
 
 bool ComputePatchMatchStereo(const Image3b& left, const Image3b& right,
-                             Image1f* disparity, Image1f* cost, Image1f* depth,
+                             Image1f* ldisparity, Image1f* lcost,
+                             Image1f* rdisparity, Image1f* rcost,
+                             Image1f* depth,
                              const PatchMatchStereoParam& param);
 
 }  // namespace ugu

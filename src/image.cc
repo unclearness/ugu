@@ -326,7 +326,7 @@ void Color2Gray(const Image3b& color, Image1b* gray) {
 }
 
 void Conv(const Image1b& src, Image1f* dst, float* filter, int kernel_size) {
-  const int hk = kernel_size / 3;
+  const int hk = kernel_size / 2;
 
   // unsigned char* src_data = src.data;
   // float* dst_data = reinterpret_cast<float*>(dst->data);
@@ -336,7 +336,7 @@ void Conv(const Image1b& src, Image1f* dst, float* filter, int kernel_size) {
       float& dst_val = dst->at<float>(y, x);
       for (int yy = -hk; yy <= hk; yy++) {
         for (int xx = -hk; xx <= hk; xx++) {
-          dst_val += filter[yy * kernel_size + xx] *
+          dst_val += filter[(yy+hk) * kernel_size + (xx+hk)] *
                      src.at<unsigned char>(y + yy, x + xx);
         }
       }
