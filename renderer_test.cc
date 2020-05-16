@@ -148,7 +148,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   //MeshStats stats = mesh->stats();
   // translation offset is the largest edge length of bounding box * 1.5
   //Eigen::Vector3f diff = stats.bb_max - stats.bb_min;
-  double baseline = -50.0f;//- diff.maxCoeff() / 5;
+  double baseline = 50.0f;//- diff.maxCoeff() / 5;
   for (size_t i = 0; i < pose_list.size(); i++) {
     Eigen::Affine3d c2w = pose_list[i];
     std::string prefix = name_list[i];

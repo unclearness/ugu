@@ -212,11 +212,12 @@ inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
                                const Image1f& grad1, const Image1f& grad2,
                                Image1f* disparity1, Image1f* cost1,
                                PlaneImage* plane1,
-                               const PatchMatchStereoParam& param) {
+                               const PatchMatchStereoParam& param,
+                               bool is_right) {
   float& now_cost = cost1->at<float>(nowy, nowx);
 
   if (now_cost < 0.0000001f) {
-    return true;
+    // return true;
   }
 
   const int half_ps = param.patch_size / 2;
@@ -231,10 +232,16 @@ inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
       p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny, maxy,
       param.gamma, param.alpha, param.tau_col, param.tau_grad);
 
-  if (from_cost < now_cost) {
+  float d = p[0] * nowx + p[1] * nowy + p[2];
+
+  if (from_cost < now_cost && ((!is_right && 0 <= d) || (is_right && 0 >= d))) {
+    if (is_right) {
+      // printf("cost %f -> %f\n", now_cost, from_cost);
+      // printf("disp %f -> %f\n", disparity1->at<float>(nowy, nowx), d);
+    }
     now_cost = from_cost;
     plane1->at<Vec3f>(nowy, nowx) = p;
-    float d = p[0] * nowx + p[1] * nowy + p[2];
+
     disparity1->at<float>(nowy, nowx) = d;
   }
 
@@ -247,14 +254,14 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
                             PlaneImage* plane1, const Image1f& grad2,
                             Image1f* disparity2, PlaneImage* plane2,
                             const PatchMatchStereoParam& param,
-                            const Correspondence& first2second) {
+                            const Correspondence& first2second, bool is_right) {
   const int half_ps = param.patch_size / 2;
 
   float& now_cost = cost1->at<float>(nowy, nowx);
   Vec3f& now_p = plane1->at<Vec3f>(nowy, nowx);
 
   if (now_cost < 0.0000001f) {
-    return true;
+    // return true;
   }
 
   std::vector<int> match_x_list;
@@ -278,10 +285,12 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
         trans_p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny,
         maxy, param.gamma, param.alpha, param.tau_col, param.tau_grad);
 
-    if (trans_cost < now_cost) {
+    float d = trans_p[0] * nowx + trans_p[1] * nowy + trans_p[2];
+
+    if (trans_cost < now_cost &&
+        ((!is_right && 0 <= d) || (is_right && 0 >= d))) {
       now_cost = trans_cost;
       now_p = trans_p;
-      float d = trans_p[0] * nowx + trans_p[1] * nowy + trans_p[2];
       disparity1->at<float>(nowy, nowx) = d;
     }
   }
@@ -377,7 +386,8 @@ inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
     PlaneImage* plane2, const PatchMatchStereoParam& param,
     const Correspondence& first2second, std::default_random_engine& engine,
     const std::uniform_real_distribution<float>& z_offset_dist,
-    const std::uniform_real_distribution<float>& normal_offset_dist) {
+    const std::uniform_real_distribution<float>& normal_offset_dist,
+    bool is_right) {
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
   const int h = first.rows;
@@ -386,14 +396,15 @@ inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
     for (int i = half_ps; i < w - half_ps; i++) {
       // Spacial propagation
       SpatialPropagation(i, j, i - 1, j, first, second, grad1, grad2,
-                         disparity1, cost1, plane1, param);
+                         disparity1, cost1, plane1, param, is_right);
       SpatialPropagation(i, j, i, j - 1, first, second, grad1, grad2,
-                         disparity1, cost1, plane1, param);
+                         disparity1, cost1, plane1, param, is_right);
 
       // View propagation
       if (param.view_propagation) {
         ViewPropagation(i, j, first, second, grad1, disparity1, cost1, plane1,
-                        grad2, disparity2, plane2, param, first2second);
+                        grad2, disparity2, plane2, param, first2second,
+                        is_right);
       }
 
       // Temporal propagation
@@ -419,7 +430,8 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
     PlaneImage* plane2, const PatchMatchStereoParam& param,
     const Correspondence& first2second, std::default_random_engine& engine,
     const std::uniform_real_distribution<float>& z_offset_dist,
-    const std::uniform_real_distribution<float>& normal_offset_dist) {
+    const std::uniform_real_distribution<float>& normal_offset_dist,
+    bool is_right) {
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
   const int h = first.rows;
@@ -428,14 +440,15 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
     for (int i = w - half_ps - 1; half_ps < i; i--) {
       // Spacial propagation
       SpatialPropagation(i, j, i + 1, j, first, second, grad1, grad2,
-                         disparity1, cost1, plane1, param);
+                         disparity1, cost1, plane1, param, is_right);
       SpatialPropagation(i, j, i, j + 1, first, second, grad1, grad2,
-                         disparity1, cost1, plane1, param);
+                         disparity1, cost1, plane1, param, is_right);
 
       // View propagation
       if (param.view_propagation) {
         ViewPropagation(i, j, first, second, grad1, disparity1, cost1, plane1,
-                        grad2, disparity2, plane2, param, first2second);
+                        grad2, disparity2, plane2, param, first2second,
+                        is_right);
       }
 
       // Temporal propagation
@@ -543,32 +556,36 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
 
     if (param.alternately_reverse && i % 2 == 1) {
       // Left
+      printf("reverse left\n");
       ComputePatchMatchStereoImplBodyFromLowerRight(
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
-          rcost, &rplane, param, l2r, engine, z_offset_dist,
-          normal_offset_dist);
+          rcost, &rplane, param, l2r, engine, z_offset_dist, normal_offset_dist,
+          false);
       r2l.Update(*ldisparity);
 
       // Right
+      printf("reverse right\n");
       ComputePatchMatchStereoImplBodyFromLowerRight(
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
-          lcost, &lplane, param, r2l, engine, z_offset_dist,
-          normal_offset_dist);
+          lcost, &lplane, param, r2l, engine, z_offset_dist, normal_offset_dist,
+          true);
       l2r.Update(*rdisparity);
 
     } else {
       // Left
+      printf("left\n");
       ComputePatchMatchStereoImplBodyFromUpperLeft(
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
-          rcost, &rplane, param, l2r, engine, z_offset_dist,
-          normal_offset_dist);
+          rcost, &rplane, param, l2r, engine, z_offset_dist, normal_offset_dist,
+          false);
       r2l.Update(*ldisparity);
 
       // Right
+      printf("right\n");
       ComputePatchMatchStereoImplBodyFromUpperLeft(
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
-          lcost, &lplane, param, r2l, engine, z_offset_dist,
-          normal_offset_dist);
+          lcost, &lplane, param, r2l, engine, z_offset_dist, normal_offset_dist,
+          true);
       l2r.Update(*rdisparity);
     }
 
