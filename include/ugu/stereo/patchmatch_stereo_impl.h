@@ -228,13 +228,17 @@ inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
   int maxy = nowy + half_ps;
 
   const Vec3f p = plane1->at<Vec3f>(fromy, fromx);
+
+  float d = p[0] * nowx + p[1] * nowy + p[2];
+  if ((!is_right && d < 0) || (is_right && 0 < d)) {
+    return true;
+  }
+
   float from_cost = CalcPatchMatchCost(
       p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny, maxy,
       param.gamma, param.alpha, param.tau_col, param.tau_grad);
 
-  float d = p[0] * nowx + p[1] * nowy + p[2];
-
-  if (from_cost < now_cost && ((!is_right && 0 <= d) || (is_right && 0 >= d))) {
+  if (from_cost < now_cost) {
     if (is_right) {
       // printf("cost %f -> %f\n", now_cost, from_cost);
       // printf("disp %f -> %f\n", disparity1->at<float>(nowy, nowx), d);
@@ -280,15 +284,17 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
     trans_p[1] = p2[1];
     trans_p[2] = -disparity2->at<float>(nowy, x2) - trans_p[0] * nowx -
                  trans_p[1] * nowy;
+    float d = trans_p[0] * nowx + trans_p[1] * nowy + trans_p[2];
+    // printf("%f -> %f\n", disparity2->at<float>(nowy, x2), d);
+    if ((!is_right && d < 0) || (is_right && 0 < d)) {
+      continue;
+    }
 
     float trans_cost = CalcPatchMatchCost(
         trans_p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny,
         maxy, param.gamma, param.alpha, param.tau_col, param.tau_grad);
 
-    float d = trans_p[0] * nowx + trans_p[1] * nowy + trans_p[2];
-
-    if (trans_cost < now_cost &&
-        ((!is_right && 0 <= d) || (is_right && 0 >= d))) {
+    if (trans_cost < now_cost) {
       now_cost = trans_cost;
       now_p = trans_p;
       disparity1->at<float>(nowy, nowx) = d;
@@ -327,7 +333,7 @@ inline bool RandomSearchPlaneRefinement(
   float& now_cost = cost1->at<float>(nowy, nowx);
 
   if (now_cost < 0.0000001f) {
-    return true;
+    // return true;
   }
 
   int minx = nowx - half_ps;
@@ -347,9 +353,15 @@ inline bool RandomSearchPlaneRefinement(
     random_d *= -1.0f;
   }
 
-  normal[0] += normal_offset_dist(engine);
-  normal[1] += normal_offset_dist(engine);
-  normal[2] += normal_offset_dist(engine);
+  for (int k = 0; k < 3; k++) {
+    normal[k] += normal_offset_dist(engine);
+    // Add small value to avoid zero division
+    if (normal[k] < 0) {
+      normal[k] -= 0.00001f;
+    } else {
+      normal[k] += 0.00001f;
+    }
+  }
   if (normal[2] > 0) {
     normal[2] *= -1.0f;
   }
