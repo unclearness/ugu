@@ -9,6 +9,7 @@
 #include <iterator>
 
 #include "ugu/timer.h"
+#include "ugu/util.h"
 
 namespace {
 void PrepareRay(nanort::Ray<float>* ray, const Eigen::Vector3f& camera_pos_w,
@@ -94,75 +95,6 @@ Eigen::Vector3f MedianColor(const std::vector<Eigen::Vector3f>& colors) {
     median[i] = Median(ith_channel_list[i]);
   }
   return median;
-}
-
-void NormalizeWeights(const std::vector<float>& weights,
-                      std::vector<float>* normalized_weights) {
-  assert(!weights.empty());
-  std::copy(weights.begin(), weights.end(),
-            std::back_inserter(*normalized_weights));
-  float sum = std::accumulate(weights.begin(), weights.end(), 0.0f);
-  if (sum > 0.000001) {
-    std::for_each(normalized_weights->begin(), normalized_weights->end(),
-                  [&](float& n) { n /= sum; });
-  } else {
-    // if sum is too small, just set even weights
-    float val = 1.0f / static_cast<float>(normalized_weights->size());
-    std::fill(normalized_weights->begin(), normalized_weights->end(), val);
-  }
-}
-
-template <typename T>
-Eigen::Matrix<T, 3, 1> WeightedAverage(
-    const std::vector<Eigen::Matrix<T, 3, 1>>& data,
-    const std::vector<float>& weights) {
-  assert(data.size() > 0);
-  assert(data.size() == weights.size());
-
-  std::vector<float> normalized_weights;
-  NormalizeWeights(weights, &normalized_weights);
-
-  double weighted_average[3];
-  for (size_t i = 0; i < data.size(); i++) {
-    weighted_average[0] += (data[i][0] * normalized_weights[i]);
-    weighted_average[1] += (data[i][1] * normalized_weights[i]);
-    weighted_average[2] += (data[i][2] * normalized_weights[i]);
-  }
-
-  return Eigen::Matrix<T, 3, 1>(static_cast<float>(weighted_average[0]),
-                                static_cast<float>(weighted_average[1]),
-                                static_cast<float>(weighted_average[2]));
-}
-
-template <typename T>
-T WeightedMedian(const std::vector<T>& data,
-                 const std::vector<float>& weights) {
-  assert(data.size() > 0);
-  assert(data.size() == weights.size());
-
-  std::vector<float> normalized_weights;
-  NormalizeWeights(weights, &normalized_weights);
-
-  std::vector<std::pair<float, T>> data_weights;
-  for (size_t i = 0; i < data.size(); i++) {
-    data_weights.push_back(std::make_pair(normalized_weights[i], data[i]));
-  }
-  std::sort(data_weights.begin(), data_weights.end(),
-            [](const std::pair<float, T>& a, const std::pair<float, T>& b) {
-              return a.first < b.first;
-            });
-
-  float weights_sum{0};
-  size_t index{0};
-  for (size_t i = 0; i < data_weights.size(); i++) {
-    weights_sum += data_weights[i].first;
-    if (weights_sum > 0.5f) {
-      index = i;
-      break;
-    }
-  }
-
-  return data_weights[index].second;
 }
 
 inline float EdgeFunction(const Eigen::Vector2f& a, const Eigen::Vector2f& b,
@@ -251,12 +183,12 @@ void VertexInfo::CalcStat() {
   median_color = MedianColor(colors);
 
   // weighted average
-  mean_viewing_angle_color = WeightedAverage(colors, inv_viewing_angles);
-  mean_distance_color = WeightedAverage(colors, inv_distances);
+  mean_viewing_angle_color = ugu::WeightedAverage(colors, inv_viewing_angles);
+  mean_distance_color = ugu::WeightedAverage(colors, inv_distances);
 
   // weighted median
-  median_viewing_angle_color = WeightedMedian(colors, inv_viewing_angles);
-  median_distance_color = WeightedMedian(colors, inv_distances);
+  median_viewing_angle_color = ugu::WeightedMedian(colors, inv_viewing_angles);
+  median_distance_color = ugu::WeightedMedian(colors, inv_distances);
 }
 
 int VertexInfo::VisibleFrom(int kf_id) const {
@@ -653,7 +585,7 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
       vertex_info.color[2] = color[2];
     } else if (option_.interp == ColorInterpolation::kBilinear) {
       ::BilinearInterpolation(image_p.x(), image_p.y(), keyframe_->color,
-                            &vertex_info.color);
+                              &vertex_info.color);
     }
     info->Update(i, vertex_info);
   }

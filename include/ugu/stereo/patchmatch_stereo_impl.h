@@ -7,6 +7,7 @@
 #include <random>
 
 #include "ugu/stereo/base.h"
+#include "ugu/util.h"
 
 namespace ugu {
 
@@ -364,6 +365,9 @@ inline bool FillHoleNn(Image1f* disparity, Image3f* plane,
       Vec3f& p = plane->at<Vec3f>(j, i);
       float ld = std::numeric_limits<float>::max();
       Vec3f lp;
+      lp[0] = 0.0f;
+      lp[1] = 0.0f;
+      lp[2] = 0.0f;
       for (int l = i - 1; 0 <= l; l--) {
         unsigned char lv = valid_mask_.at<unsigned char>(j, l);
         if (lv == 255) {
@@ -376,6 +380,9 @@ inline bool FillHoleNn(Image1f* disparity, Image3f* plane,
 
       float rd = std::numeric_limits<float>::max();
       Vec3f rp;
+      rp[0] = 0.0f;
+      rp[1] = 0.0f;
+      rp[2] = 0.0f;
       for (int r = i + 1; r < disparity->rows; r++) {
         unsigned char rv = valid_mask_.at<unsigned char>(j, r);
         if (rv == 255) {
@@ -386,6 +393,7 @@ inline bool FillHoleNn(Image1f* disparity, Image3f* plane,
         }
       }
 
+      // Prefer to lower disparity
       if (rd < ld) {
         p = rp;
         d = rd;
@@ -393,6 +401,49 @@ inline bool FillHoleNn(Image1f* disparity, Image3f* plane,
         p = lp;
         d = ld;
       }
+    }
+  }
+
+  return true;
+}
+
+inline bool WeightedMedianForFilled(Image1f* disparity, const Image3b& color,
+                                    const Image1b& valid_mask,
+                                    const PatchMatchStereoParam& param) {
+  const float inverse_gamma = 1.0f / param.gamma;
+  const int hk = param.patch_size / 2;
+  Image1f org_disparity = Image1f::zeros(valid_mask.rows, valid_mask.cols);
+  disparity->copyTo(org_disparity);
+
+  for (int j = 0; j < disparity->rows; j++) {
+    int miny = std::max(j - hk, 0);
+    int maxy = std::min(j + hk, disparity->rows - 1);
+
+    for (int i = 0; i < disparity->cols; i++) {
+      unsigned char v = valid_mask.at<unsigned char>(j, i);
+      if (v == 255) {
+        continue;
+      }
+      const Vec3b& c = color.at<Vec3b>(j, i);
+
+      int minx = std::max(i - hk, 0);
+      int maxx = std::min(i + hk, disparity->cols - 1);
+
+      std::vector<float> data;
+      std::vector<float> weights;
+      for (int jj = miny; jj <= maxy; jj++) {
+        for (int ii = minx; ii <= maxx; ii++) {
+          data.push_back(disparity->at<float>(jj, ii));
+
+          const Vec3b& near_c = color.at<Vec3b>(jj, ii);
+          float l1 = L1(c, near_c);
+          float w = std::exp(-l1 * inverse_gamma);
+
+          weights.push_back(w);
+        }
+      }
+
+      disparity->at<float>(j, i) = WeightedMedian(data, weights);
     }
   }
 
@@ -478,6 +529,7 @@ inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
     const std::uniform_real_distribution<float>& z_offset_dist,
     const std::uniform_real_distribution<float>& normal_offset_dist,
     bool is_right) {
+  (void)cost2;
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
   const int h = first.rows;
@@ -522,6 +574,7 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
     const std::uniform_real_distribution<float>& z_offset_dist,
     const std::uniform_real_distribution<float>& normal_offset_dist,
     bool is_right) {
+  (void)cost2;
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
   const int h = first.rows;
@@ -700,6 +753,7 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
 
       // Weighted median filter for filled pixels
       if (param.weighted_median_for_filled) {
+        WeightedMedianForFilled(ldisparity, left, valid_mask, param);
       }
     }
   }
