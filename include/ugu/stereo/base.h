@@ -48,6 +48,9 @@ struct PatchMatchStereoParam {
   float left_right_consistency_th = 1.0f;
   bool fill_hole_nn = true;
   bool weighted_median_for_filled = true;
+
+  bool debug = true;
+  int debug_step = 80;
 };
 
 bool Disparity2Depth(const Image1f& disparity, Image1f* depth, float baseline,

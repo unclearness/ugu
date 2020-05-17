@@ -103,11 +103,11 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
   const float width = static_cast<float>(left.cols - 1);
   for (int j = miny; j <= maxy; j++) {
     for (int i = minx; i <= maxx; i++) {
-
       // Question: Take color of the same image. Is this right?
       const Vec3b& rc = left.at<Vec3b>(j, i);
       float l1 = L1(lc, rc);
-      float w = std::exp(-l1 * inverse_gamma);
+      double w = std::exp(static_cast<double>(-l1) *
+                          static_cast<double>(inverse_gamma));
 
       float d = plane[0] * i + plane[1] * j + plane[2];
       float rx = static_cast<float>(i - d);
@@ -120,7 +120,7 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
 
       float rho_val = rho(i, j, rx);
 
-      cost_val += (w * rho_val);
+      cost_val += static_cast<float>(w * rho_val);
     }
   }
 
@@ -164,8 +164,8 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
   // z must be facing (negative), cos(theta) < 0
   const double pi = 3.14159265358979323846;
   const float normal_rad_th = radians(75.0f);
-  std::uniform_real_distribution<float> theta_dist(normal_rad_th
-     , static_cast<float>(pi));
+  std::uniform_real_distribution<float> theta_dist(
+      static_cast<float>(pi - normal_rad_th), static_cast<float>(pi));
   std::uniform_real_distribution<float> phi_dist(0.0f,
                                                  static_cast<float>(2 * pi));
 
@@ -436,17 +436,37 @@ inline bool WeightedMedianForFilled(Image1f* disparity, const Image3b& color,
       std::vector<float> weights;
       for (int jj = miny; jj <= maxy; jj++) {
         for (int ii = minx; ii <= maxx; ii++) {
+#if 0
+          // Qestion: skip invalid pixels. Is this right?
+          if (valid_mask.at<unsigned char>(j, i) == 0) {
+            continue;
+          }
+#endif
           data.push_back(org_disparity.at<float>(jj, ii));
 
           const Vec3b& near_c = color.at<Vec3b>(jj, ii);
           float l1 = L1(c, near_c);
-          float w = std::exp(-l1 * inverse_gamma);
-
-          weights.push_back(w);
+          double w = std::exp(static_cast<double>(-l1) *
+                              static_cast<double>(inverse_gamma));
+          weights.push_back(static_cast<float>(w));
         }
       }
 
-      disparity->at<float>(j, i) = WeightedMedian(data, weights);
+#if 0
+      if (weights[0] < 1 && WeightedMedian(data, weights) > 0) {
+        for (int k = 0; k < data.size(); k++) {
+          ugu::LOGI("%f %f\n", data[k], weights[k]);
+        }
+        ugu::LOGI("%f -> %f\n", disparity->at<float>(j, i),
+                  WeightedMedian(data, weights));
+      }
+#endif  // 0
+
+      if (!data.empty()) {
+        disparity->at<float>(j, i) = WeightedMedian(data, weights);
+      } else {
+        disparity->at<float>(j, i) = std::numeric_limits<float>::max();
+      }
     }
   }
 
@@ -523,6 +543,30 @@ inline bool RandomSearchPlaneRefinement(
   return true;
 }
 
+inline bool DebugDump(const Image1f& disparity, const Image1f& cost,
+                      const std::string& prefix, bool is_right) {
+  Image1b vis_disp = Image1b::zeros(disparity.rows, disparity.cols);
+  Depth2Gray(disparity, &vis_disp, is_right ? -100.0f : 0.0f,
+             is_right ? 0.0f : 100.0f);
+  ugu::imwrite("disp_" + prefix + ".png", vis_disp);
+
+  Image3b vis_cost = Image3b::zeros(disparity.rows, disparity.cols);
+  VisualizeCost(cost, &vis_cost, 0, 50);
+  ugu::imwrite("cost_" + prefix + ".png", vis_cost);
+
+  return true;
+}
+
+inline bool DebugDump(const Image1f& disparity, const Image1f& cost, int iter,
+                      int stage, bool is_right) {
+  std::string prefix = is_right ? "r_" : "l_";
+  prefix = prefix + std::to_string(iter) + "_" + std::to_string(stage);
+
+  DebugDump(disparity, cost, prefix, is_right);
+
+  return true;
+}
+
 inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
     const Image3b& first, const Image3b& second, const Image1f& grad1,
     Image1f* disparity1, Image1f* cost1, PlaneImage* plane1,
@@ -531,13 +575,18 @@ inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
     const Correspondence& first2second, std::default_random_engine& engine,
     const std::uniform_real_distribution<float>& z_offset_dist,
     const std::uniform_real_distribution<float>& normal_offset_dist,
-    bool is_right) {
+    bool is_right, int iter) {
   (void)cost2;
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
   const int h = first.rows;
 
   for (int j = half_ps; j < h - half_ps; j++) {
+    if (param.debug && (j - half_ps) % param.debug_step == 0) {
+      int stage = (j - half_ps) / param.debug_step;
+      DebugDump(*disparity1, *cost1, iter, stage, is_right);
+    }
+
     for (int i = half_ps; i < w - half_ps; i++) {
       // Spacial propagation
       SpatialPropagation(i, j, i - 1, j, first, second, grad1, grad2,
@@ -576,13 +625,18 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
     const Correspondence& first2second, std::default_random_engine& engine,
     const std::uniform_real_distribution<float>& z_offset_dist,
     const std::uniform_real_distribution<float>& normal_offset_dist,
-    bool is_right) {
+    bool is_right, int iter) {
   (void)cost2;
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
   const int h = first.rows;
 
   for (int j = h - half_ps - 1; half_ps < j; j--) {
+    if (param.debug && ((h - half_ps - 1) - j) % param.debug_step == 0) {
+      int stage = ((h - half_ps - 1) - j) / param.debug_step;
+      DebugDump(*disparity1, *cost1, iter, stage, is_right);
+    }
+
     for (int i = w - half_ps - 1; half_ps < i; i--) {
       // Spacial propagation
       SpatialPropagation(i, j, i + 1, j, first, second, grad1, grad2,
@@ -659,21 +713,19 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
   SobelX(left_gray, &lgrad);
   SobelX(right_gray, &rgrad);
 
-#if 1
-  Image1b vis_lgrad, vis_rgrad;
-  Depth2Gray(lgrad, &vis_lgrad, -200, 200);
-  Depth2Gray(rgrad, &vis_rgrad, -200, 200);
-  ugu::imwrite("lgrad.png", vis_lgrad);
-  ugu::imwrite("rgrad.png", vis_rgrad);
-#endif
+  if (param.debug) {
+    Image1b vis_lgrad, vis_rgrad;
+    Depth2Gray(lgrad, &vis_lgrad, -200, 200);
+    Depth2Gray(rgrad, &vis_rgrad, -200, 200);
+    ugu::imwrite("lgrad.png", vis_lgrad);
+    ugu::imwrite("rgrad.png", vis_rgrad);
+  }
 
   // Random Initilalization
-  // printf("left\n");
   InitPlaneRandom(&lplane, ldisparity, engine,
                   param.initial_random_disparity_range,
                   param.fronto_parallel_window, param.patch_size / 2, false);
   CalcPatchMatchCost(lplane, left, right, lgrad, rgrad, lcost, param);
-  // printf("right\n");
   InitPlaneRandom(&rplane, rdisparity, engine,
                   param.initial_random_disparity_range,
                   param.fronto_parallel_window, param.patch_size / 2, true);
@@ -683,12 +735,9 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
   l2r.Update(*rdisparity);
   r2l.Update(*ldisparity);
 
-  {
-    Image3b vis_lcost, vis_rcost;
-    VisualizeCost(*lcost, &vis_lcost, 0, 50);
-    VisualizeCost(*rcost, &vis_rcost, 0, 50);
-    ugu::imwrite("lcost_init.png", vis_lcost);
-    ugu::imwrite("rcost_init.png", vis_rcost);
+  if (param.debug) {
+    DebugDump(*ldisparity, *lcost, "l_init", false);
+    DebugDump(*rdisparity, *rcost, "r_init", true);
   }
 
   float z_max = param.initial_random_disparity_range > 0.0f
@@ -697,41 +746,42 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
   float n_max = 1.0f;
 
   for (int i = 0; i < param.iter; i++) {
+    ugu::LOGI("iter %d\n", i);
     std::uniform_real_distribution<float> z_offset_dist(-z_max, z_max);
     std::uniform_real_distribution<float> normal_offset_dist(-n_max, n_max);
 
     if (param.alternately_reverse && i % 2 == 1) {
       // Left
-      printf("reverse left\n");
+      ugu::LOGI("reverse left\n");
       ComputePatchMatchStereoImplBodyFromLowerRight(
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
           rcost, &rplane, param, l2r, engine, z_offset_dist, normal_offset_dist,
-          false);
+          false, i);
       r2l.Update(*ldisparity);
 
       // Right
-      printf("reverse right\n");
+      ugu::LOGI("reverse right\n");
       ComputePatchMatchStereoImplBodyFromLowerRight(
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
           lcost, &lplane, param, r2l, engine, z_offset_dist, normal_offset_dist,
-          true);
+          true, i);
       l2r.Update(*rdisparity);
 
     } else {
       // Left
-      printf("left\n");
+      ugu::LOGI("left\n");
       ComputePatchMatchStereoImplBodyFromUpperLeft(
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
           rcost, &rplane, param, l2r, engine, z_offset_dist, normal_offset_dist,
-          false);
+          false, i);
       r2l.Update(*ldisparity);
 
       // Right
-      printf("right\n");
+      ugu::LOGI("right\n");
       ComputePatchMatchStereoImplBodyFromUpperLeft(
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
           lcost, &lplane, param, r2l, engine, z_offset_dist, normal_offset_dist,
-          true);
+          true, i);
       l2r.Update(*rdisparity);
     }
 
@@ -742,21 +792,37 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
     n_max = n_max * 0.5f;
   }
 
+  if (param.debug) {
+    DebugDump(*ldisparity, *lcost, "l_iterend", false);
+    DebugDump(*rdisparity, *rcost, "r_iterend", true);
+  }
+
   // Post-processing
   if (param.left_right_consistency) {
     Image1b valid_mask;
     LeftRightConsistencyCheck(ldisparity, rdisparity, &valid_mask,
                               param.left_right_consistency_th);
 
-    ugu::imwrite("valid_mask.png", valid_mask);
+    if (param.debug) {
+      ugu::imwrite("valid_mask.png", valid_mask);
+      DebugDump(*ldisparity, *lcost, "l_lrconsistency", false);
+    }
 
     // Hole filling for invalidated pixels
     if (param.fill_hole_nn) {
       FillHoleNn(ldisparity, &lplane, valid_mask);
 
+      if (param.debug) {
+        DebugDump(*ldisparity, *lcost, "l_fillholenn", false);
+      }
+
       // Weighted median filter for filled pixels
       if (param.weighted_median_for_filled) {
         WeightedMedianForFilled(ldisparity, left, valid_mask, param);
+
+        if (param.debug) {
+          DebugDump(*ldisparity, *lcost, "l_filled", false);
+        }
       }
     }
   }
@@ -773,12 +839,9 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
                   param.base_param.maxd);
 #endif
 
-  {
-    Image3b vis_lcost, vis_rcost;
-    VisualizeCost(*lcost, &vis_lcost, 0, 50);
-    VisualizeCost(*rcost, &vis_rcost, 0, 50);
-    ugu::imwrite("lcost.png", vis_lcost);
-    ugu::imwrite("rcost.png", vis_rcost);
+  if (param.debug) {
+    DebugDump(*ldisparity, *lcost, "l_end", false);
+    DebugDump(*rdisparity, *rcost, "r_end", true);
   }
 
   return true;

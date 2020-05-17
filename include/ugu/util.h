@@ -40,9 +40,15 @@ void WriteFaceIdAsText(const Image1i& face_id, const std::string& path);
 inline void NormalizeWeights(const std::vector<float>& weights,
                       std::vector<float>* normalized_weights) {
   assert(!weights.empty());
+  normalized_weights->clear();
   std::copy(weights.begin(), weights.end(),
             std::back_inserter(*normalized_weights));
-  float sum = std::accumulate(weights.begin(), weights.end(), 0.0f);
+  // Add eps
+  const float eps = 0.000001f;
+  std::for_each(normalized_weights->begin(),
+                              normalized_weights->end(), [&](float& x){x += eps;});
+  float sum = std::accumulate(normalized_weights->begin(),
+                              normalized_weights->end(), 0.0f);
   if (sum > 0.000001) {
     std::for_each(normalized_weights->begin(), normalized_weights->end(),
                   [&](float& n) { n /= sum; });
