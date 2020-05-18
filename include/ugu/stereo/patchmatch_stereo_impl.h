@@ -8,6 +8,7 @@
 
 #include "ugu/stereo/base.h"
 #include "ugu/util.h"
+#include "ugu/timer.h"
 
 namespace {
 const double pi = 3.14159265358979323846;
@@ -133,7 +134,7 @@ struct Correspondence {
   // std::map<std::pair<int, int>, std::vector<int>> second2frist;
   std::vector<std::vector<std::vector<int>>> first2second;
 
-  void Update(const Image1f& disparity2) {
+  void Update(const Image1f& disparity2, const int half_patch_size) {
     // Init
     first2second.clear();
     first2second.resize(disparity2.rows);
@@ -147,8 +148,9 @@ struct Correspondence {
         float d = disparity2.at<float>(j, i);
 
         float rx = std::round(i - d);
-        rx = std::max(std::min(rx, static_cast<float>(disparity2.cols - 1)),
-                      0.0f);
+        rx = std::max(std::min(rx, static_cast<float>(disparity2.cols - 1 -
+                                                      half_patch_size)),
+                      static_cast<float>(half_patch_size));
         int rx_i = static_cast<int>(rx);
 
         first2second[j][rx_i].push_back(i);
@@ -169,7 +171,7 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
                                 const Image1f& right_grad, int posx, int posy,
                                 int minx, int maxx, int miny, int maxy,
                                 float gamma, float alpha, float tau_col,
-                                float tau_grad) {
+                                float tau_grad, int half_patch_size) {
   const float inverse_gamma = 1.0f / gamma;
 
   std::function<float(int, int, float)> rho = [&](int lx, int y,
@@ -196,7 +198,7 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
 
   float cost_val = 0.0f;
   const Vec3b& lc = left.at<Vec3b>(posy, posx);
-  const float width = static_cast<float>(left.cols - 1);
+  const float width = static_cast<float>(left.cols - 1 - half_patch_size);
   for (int j = miny; j <= maxy; j++) {
     for (int i = minx; i <= maxx; i++) {
       // Question: Take color of the same image. Is this right?
@@ -212,7 +214,7 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
       // Because original plane is defined for (posx, posy)
       // but we are evaluating its surrounding pixels.
       // TODO: better guard
-      rx = std::max(std::min(rx, width), 0.0f);
+      rx = std::max(std::min(rx, width), static_cast<float>(half_patch_size));
 
       float rho_val = rho(i, j, rx);
 
@@ -237,9 +239,9 @@ inline bool CalcPatchMatchCost(const Image3f& plane, const Image3b& left,
       int miny = j - half_ps;
       int maxy = j + half_ps;
       const Vec3f& p = plane.at<Vec3f>(j, i);
-      float c = CalcPatchMatchCost(p, left, right, left_grad, right_grad, i, j,
-                                   minx, maxx, miny, maxy, param.gamma,
-                                   param.alpha, param.tau_col, param.tau_grad);
+      float c = CalcPatchMatchCost(
+          p, left, right, left_grad, right_grad, i, j, minx, maxx, miny, maxy,
+          param.gamma, param.alpha, param.tau_col, param.tau_grad, half_ps);
       cost->at<float>(j, i) = c;
     }
   }
@@ -351,7 +353,7 @@ inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
 
   float from_cost = CalcPatchMatchCost(
       p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny, maxy,
-      param.gamma, param.alpha, param.tau_col, param.tau_grad);
+      param.gamma, param.alpha, param.tau_col, param.tau_grad, half_ps);
 
   if (from_cost < now_cost) {
     if (is_right) {
@@ -407,7 +409,7 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
 
     float trans_cost = CalcPatchMatchCost(
         trans_p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny,
-        maxy, param.gamma, param.alpha, param.tau_col, param.tau_grad);
+        maxy, param.gamma, param.alpha, param.tau_col, param.tau_grad, half_ps);
 
     if (trans_cost < now_cost) {
       now_cost = trans_cost;
@@ -688,7 +690,7 @@ inline bool RandomSearchPlaneRefinement(
 
   float random_cost = CalcPatchMatchCost(
       random_p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny, maxy,
-      param.gamma, param.alpha, param.tau_col, param.tau_grad);
+      param.gamma, param.alpha, param.tau_col, param.tau_grad, half_ps);
 
   if (random_cost < now_cost) {
     now_cost = random_cost;
@@ -890,8 +892,8 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
   CalcPatchMatchCost(rplane, right, left, rgrad, lgrad, rcost, param);
 
   Correspondence l2r, r2l;
-  l2r.Update(*rdisparity);
-  r2l.Update(*ldisparity);
+  l2r.Update(*rdisparity, param.patch_size / 2);
+  r2l.Update(*ldisparity, param.patch_size / 2);
 
   if (param.debug) {
     DebugDump(*ldisparity, *lcost, "l_init", false);
@@ -918,7 +920,7 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
           rcost, &rplane, param, l2r, engine, dist, z_max, theta_deg_max,
           phi_deg_max, false, i);
-      r2l.Update(*ldisparity);
+      r2l.Update(*ldisparity, param.patch_size / 2);
 
       // Right
       ugu::LOGI("reverse right\n");
@@ -926,7 +928,7 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
           lcost, &lplane, param, r2l, engine, dist, z_max, theta_deg_max,
           phi_deg_max, true, i);
-      l2r.Update(*rdisparity);
+      l2r.Update(*rdisparity, param.patch_size / 2);
 
     } else {
       // Left
@@ -935,7 +937,7 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
           rcost, &rplane, param, l2r, engine, dist, z_max, theta_deg_max,
           phi_deg_max, false, i);
-      r2l.Update(*ldisparity);
+      r2l.Update(*ldisparity, param.patch_size / 2);
 
       // Right
       ugu::LOGI("right\n");
@@ -943,7 +945,7 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
           lcost, &lplane, param, r2l, engine, dist, z_max, theta_deg_max,
           phi_deg_max, true, i);
-      l2r.Update(*rdisparity);
+      l2r.Update(*rdisparity, param.patch_size / 2);
     }
 
     z_max = z_max * 0.5f;
