@@ -136,17 +136,25 @@ struct Correspondence {
 
   void Update(const Image1f& disparity2, const int half_patch_size) {
     // Init
-    first2second.clear();
-    first2second.resize(disparity2.rows);
-    std::for_each(first2second.begin(), first2second.end(),
-                  [&](std::vector<std::vector<int>>& col) {
-                    col.resize(disparity2.cols);
-                  });
+    if (first2second.size() != disparity2.rows) {
+      first2second.clear();
+      first2second.resize(disparity2.rows);
+      std::for_each(first2second.begin(), first2second.end(),
+                    [&](std::vector<std::vector<int>>& col) {
+                      col.resize(disparity2.cols);
+                    });
+    } else {
+      for (int j = 0; j < disparity2.rows; j++) {
+        for (int i = 0; i < disparity2.cols; i++) {
+          first2second[j][i].clear();
+        }
+      }
+    }
 
     for (int j = 0; j < disparity2.rows; j++) {
       for (int i = 0; i < disparity2.cols; i++) {
         float d = disparity2.at<float>(j, i);
-
+#if 1
         float rx = std::round(i - d);
         rx = std::max(std::min(rx, static_cast<float>(disparity2.cols - 1 -
                                                       half_patch_size)),
@@ -154,6 +162,27 @@ struct Correspondence {
         int rx_i = static_cast<int>(rx);
 
         first2second[j][rx_i].push_back(i);
+#else
+        {
+          float rx = std::floor(i - d);
+          rx = std::max(std::min(rx, static_cast<float>(disparity2.cols - 1 -
+                                                        half_patch_size)),
+                        static_cast<float>(half_patch_size));
+          int rx_i = static_cast<int>(rx);
+
+          first2second[j][rx_i].push_back(i);
+        }
+
+        {
+          float rx = std::ceil(i - d);
+          rx = std::max(std::min(rx, static_cast<float>(disparity2.cols - 1 -
+                                                        half_patch_size)),
+                        static_cast<float>(half_patch_size));
+          int rx_i = static_cast<int>(rx);
+
+          first2second[j][rx_i].push_back(i);
+        }
+#endif
       }
     }
   }
@@ -190,17 +219,19 @@ inline float Rho(int lx, int y, float rx, const Image3b& left,
   return color_term + grad_term;
 }
 
-inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
-                                const Image3b& right, const Image1f& left_grad,
-                                const Image1f& right_grad, int posx, int posy,
-                                int minx, int maxx, int miny, int maxy,
-                                float gamma, float alpha, float tau_col,
-                                float tau_grad, int half_patch_size) {
+inline float CalcPatchMatchCost(
+    const Vec3f& plane, const Image3b& left, const Image3b& right,
+    const Image1f& left_grad, const Image1f& right_grad, int posx, int posy,
+    int minx, int maxx, int miny, int maxy, float gamma, float alpha,
+    float tau_col, float tau_grad, int half_patch_size,
+    float early_terminate_th = std::numeric_limits<float>::max()) {
   const float inverse_gamma = 1.0f / gamma;
 
   float cost_val = 0.0f;
   const Vec3b& lc = left.at<Vec3b>(posy, posx);
   const float width = static_cast<float>(left.cols - 1 - half_patch_size);
+
+  //#pragma omp parallel for reduction(+:cost_val)
   for (int j = miny; j <= maxy; j++) {
     for (int i = minx; i <= maxx; i++) {
       // Question: Take color of the same image. Is this right?
@@ -223,6 +254,10 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
 
       cost_val += static_cast<float>(w * rho_val);
     }
+
+    if (j % 2 == 1 && early_terminate_th < cost_val) {
+      return cost_val;
+    }
   }
 
   return cost_val;
@@ -234,7 +269,7 @@ inline bool CalcPatchMatchCost(const Image3f& plane, const Image3b& left,
                                const PatchMatchStereoParam& param) {
   const int half_ps = param.patch_size / 2;
 
-#pragma omp parallel
+#pragma omp parallel for
   for (int j = half_ps; j < plane.rows - half_ps; j++) {
     for (int i = half_ps; i < plane.cols - half_ps; i++) {
       int minx = i - half_ps;
@@ -347,16 +382,17 @@ inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
   int miny = nowy - half_ps;
   int maxy = nowy + half_ps;
 
-  const Vec3f p = plane1->at<Vec3f>(fromy, fromx);
+  const Vec3f& p = plane1->at<Vec3f>(fromy, fromx);
 
   float d = p[0] * nowx + p[1] * nowy + p[2];
   if (!ValidateDisparity(nowx, d, half_ps, first.cols, is_right)) {
     return false;
   }
 
-  float from_cost = CalcPatchMatchCost(
-      p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny, maxy,
-      param.gamma, param.alpha, param.tau_col, param.tau_grad, half_ps);
+  float from_cost =
+      CalcPatchMatchCost(p, first, second, grad1, grad2, nowx, nowy, minx, maxx,
+                         miny, maxy, param.gamma, param.alpha, param.tau_col,
+                         param.tau_grad, half_ps, now_cost);
 
   if (from_cost < now_cost) {
     if (is_right) {
@@ -365,7 +401,6 @@ inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
     }
     now_cost = from_cost;
     plane1->at<Vec3f>(nowy, nowx) = p;
-
     disparity1->at<float>(nowy, nowx) = d;
   }
 
@@ -410,9 +445,10 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
       continue;
     }
 
-    float trans_cost = CalcPatchMatchCost(
-        trans_p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny,
-        maxy, param.gamma, param.alpha, param.tau_col, param.tau_grad, half_ps);
+    float trans_cost =
+        CalcPatchMatchCost(trans_p, first, second, grad1, grad2, nowx, nowy,
+                           minx, maxx, miny, maxy, param.gamma, param.alpha,
+                           param.tau_col, param.tau_grad, half_ps, now_cost);
 
     if (trans_cost < now_cost) {
       now_cost = trans_cost;
@@ -443,16 +479,66 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
 
 inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
                                       Image1b* valid_mask,
-                                      float left_right_consistency_th) {
+                                      float left_right_consistency_th,
+                                      int half_patch_size) {
   if (valid_mask->rows != ldisparity->rows ||
       valid_mask->cols != ldisparity->cols) {
     *valid_mask = Image1b::zeros(ldisparity->rows, ldisparity->cols);
   }
   valid_mask->setTo(255);
 
+  // Check left to right
   for (int j = 0; j < ldisparity->rows; j++) {
     for (int i = 0; i < ldisparity->cols; i++) {
-      float& l = ldisparity->at<float>(j, i);
+      float& ld = ldisparity->at<float>(j, i);
+      float rx = std::round(i - ld);
+      rx = std::max(std::min(rx, static_cast<float>(rdisparity->cols - 1 -
+                                                    half_patch_size)),
+                    static_cast<float>(half_patch_size));
+      int rx_i = static_cast<int>(rx);
+
+      float& rd = rdisparity->at<float>(j, rx_i);
+      // Left disparity is plus, right one is negative
+      float diff = std::abs(ld + rd);
+      if (left_right_consistency_th < diff) {
+        ld = std::numeric_limits<float>::max();
+        rd = std::numeric_limits<float>::lowest();
+        valid_mask->at<unsigned char>(j, i) = 0;
+      }
+    }
+  }
+
+  // Check right to left
+  for (int j = 0; j < rdisparity->rows; j++) {
+    for (int i = 0; i < rdisparity->cols; i++) {
+      float& rd = rdisparity->at<float>(j, i);
+      float lx = std::round(i - rd);
+      lx = std::max(std::min(lx, static_cast<float>(ldisparity->cols - 1 -
+                                                    half_patch_size)),
+                    static_cast<float>(half_patch_size));
+      int lx_i = static_cast<int>(lx);
+
+      float& ld = ldisparity->at<float>(j, lx_i);
+      // Left disparity is plus, right one is negative
+      float diff = std::abs(ld + rd);
+      if (left_right_consistency_th < diff) {
+        ld = std::numeric_limits<float>::max();
+        rd = std::numeric_limits<float>::lowest();
+        valid_mask->at<unsigned char>(j, i) = 0;
+      }
+    }
+  }
+
+#if 0
+  for (int j = 0; j < ldisparity->rows; j++) {
+    for (int i = 0; i < ldisparity->cols; i++) {
+      float& d = ldisparity->at<float>(j, i);
+      float rx = std::round(i - d);
+      rx = std::max(std::min(rx, static_cast<float>(rdisparity->cols - 1 -
+                                                    half_patch_size)),
+                    static_cast<float>(half_patch_size));
+      int rx_i = static_cast<int>(rx);
+
       float& r = rdisparity->at<float>(j, i);
       // Left disparity is plus, right one is negative
       float diff = std::abs(l + r);
@@ -463,6 +549,7 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
       }
     }
   }
+#endif
 
   return true;
 }
@@ -691,9 +778,10 @@ inline bool RandomSearchPlaneRefinement(
   random_p[2] = (normal[0] * nowx + normal[1] * nowy + normal[2] * random_d) *
                 inverse_normal_z;
 
-  float random_cost = CalcPatchMatchCost(
-      random_p, first, second, grad1, grad2, nowx, nowy, minx, maxx, miny, maxy,
-      param.gamma, param.alpha, param.tau_col, param.tau_grad, half_ps);
+  float random_cost =
+      CalcPatchMatchCost(random_p, first, second, grad1, grad2, nowx, nowy,
+                         minx, maxx, miny, maxy, param.gamma, param.alpha,
+                         param.tau_col, param.tau_grad, half_ps, now_cost);
 
   if (random_cost < now_cost) {
     now_cost = random_cost;
@@ -975,7 +1063,8 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
   if (param.left_right_consistency) {
     Image1b valid_mask;
     LeftRightConsistencyCheck(ldisparity, rdisparity, &valid_mask,
-                              param.left_right_consistency_th);
+                              param.left_right_consistency_th,
+                              param.patch_size / 2);
     if (param.debug) {
       ugu::imwrite("valid_mask.png", valid_mask);
       DebugDump(*ldisparity, *lcost, "l_lrconsistency", false);
