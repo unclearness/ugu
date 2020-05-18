@@ -36,8 +36,8 @@ int main(int argc, char* argv[]) {
   left_c = ugu::imread<ugu::Image3b>(data_dir + "00000_color.png");
   right_c = ugu::imread<ugu::Image3b>(data_dir + "r_00000_color.png");
 
-  // left_c = ugu::imread<ugu::Image3b>(data_dir + "view5.png");
-  // right_c = ugu::imread<ugu::Image3b>(data_dir + "view1.png");
+  // left_c = ugu::imread<ugu::Image3b>(data_dir + "view1.png");
+  // right_c = ugu::imread<ugu::Image3b>(data_dir + "view5.png");
 
   ugu::Image1b left, right;
   Color2Gray(left_c, &left);
@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
 
   const float kMaxConnectZDiff = 100.0f;
   std::shared_ptr<ugu::Camera> camera = std::make_shared<ugu::PinholeCamera>(
-      width, height, Eigen::Affine3d::Identity(), principal_point,
+      left_c.cols, left_c.rows, Eigen::Affine3d::Identity(), principal_point,
       focal_length);
 
   ugu::ComputeStereoBruteForce(left, right, &disparity, &cost, &depth, param);
