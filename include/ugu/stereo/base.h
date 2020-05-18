@@ -37,6 +37,11 @@ struct PatchMatchStereoParam {
 
   bool fronto_parallel_window = false;
   float initial_random_disparity_range = -1.0f;
+  float theta_deg_min = 0.0f;
+  float theta_deg_max = 75.0f;
+  float phi_deg_min = 0.0f;
+  float phi_deg_max = 360.0f;
+
   bool initial_disparity_integer = false;
   bool alternately_reverse = true;
 
