@@ -12,7 +12,6 @@
 namespace {
 const double pi = 3.14159265358979323846;
 
-
 inline bool ValidateDisparity(int x, float d, int half_patch_size, int width,
                               bool is_right) {
   float disparity_max = 0.0f;
@@ -30,7 +29,6 @@ inline bool ValidateDisparity(int x, float d, int half_patch_size, int width,
       return false;
     }
     disparity_max = static_cast<float>(x - half_patch_size + 1);
-
   }
 
   if (disparity_max < d) {
@@ -60,6 +58,57 @@ inline bool AssertDisparity(const ugu::Image1f& disparity, int half_patch_size,
   return true;
 }
 
+inline void RecoverNormalFromPlane(const ugu::Vec3f& p, ugu::Vec3f* n) {
+  (*n)[2] = -1.0f / std::sqrt((p[0] * p[0] + p[1] * p[1] + 1.0f));
+  (*n)[0] = -p[0] * (*n)[2];
+  (*n)[1] = -p[1] * (*n)[2];
+}
+
+inline bool ValidatePlane(int x, int y, const ugu::Vec3f& plane,
+                          int half_patch_size, int width, bool is_right) {
+  ugu::Vec3f normal;
+  RecoverNormalFromPlane(plane, &normal);
+  if (normal[2] > 0) {
+    return false;
+  }
+
+  float len = std::sqrt(normal[0] * normal[0] + normal[1] * normal[1] +
+                        normal[2] * normal[2]);
+
+  if (std::abs(len - 1.0f) > 0.001f) {
+    return false;
+  }
+
+  float d = x * plane[0] + y * plane[1] + plane[2];
+
+  if (!ValidateDisparity(x, d, half_patch_size, width, is_right)) {
+    return false;
+  }
+
+  return true;
+}
+
+inline bool AssertPlaneImage(const ugu::Image3f& plane, int half_patch_size,
+                             bool is_right) {
+#if _DEBUG
+
+  for (int j = half_patch_size; j < plane.rows - half_patch_size; j++) {
+    for (int i = half_patch_size; i < plane.cols - half_patch_size; i++) {
+      const auto& p = plane.at<ugu::Vec3f>(j, i);
+      if (!ValidatePlane(i, j, p, half_patch_size, plane.cols, is_right)) {
+        printf("%d (%f %f %f) %d %d %d\n", i, p[0], p[1], p[2], half_patch_size,
+               plane.cols, is_right);
+        assert(false);
+        return false;
+      }
+    }
+  }
+
+#endif
+
+  return true;
+}
+
 }  // namespace
 
 namespace ugu {
@@ -72,12 +121,6 @@ inline float L1(const Vec3b& a, const Vec3b& b) {
     val += std::abs(a[k] - b[k]);
   }
   return val;
-}
-
-inline void RecoverNormalFromPlane(const Vec3f& p, Vec3f* n) {
-  (*n)[2] = -1.0f / std::sqrt((p[0] * p[0] + p[1] * p[1] + 1.0f));
-  (*n)[0] = -p[0] * (*n)[2];
-  (*n)[1] = -p[1] * (*n)[2];
 }
 
 struct Correspondence {
@@ -258,7 +301,7 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
       Eigen::Vector3f n(0.0f, 0.0f, -1.0f);
       if (!fronto_parallel) {
         // z must be facing (negative), cos(theta) < 0
-        float theta = theta_dist(engine) + +pi * 0.5f;
+        float theta = theta_dist(engine) + static_cast<float>(pi * 0.5f);
         float phi = phi_dist(engine);
         n[0] = sin(theta) * cos(phi);
         n[1] = sin(theta) * sin(phi);
@@ -274,11 +317,10 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
   }
 
   AssertDisparity(*disparity, half_patch_size, is_right);
+  AssertPlaneImage(*plane_image, half_patch_size, is_right);
 
   return true;
 }
-
-
 
 inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
                                const Image3b& first, const Image3b& second,
@@ -613,13 +655,14 @@ inline bool RandomSearchPlaneRefinement(
   float rtheta_min = theta - radians(theta_deg_max) >= 0.0f
                          ? theta - radians(theta_deg_max)
                          : 0.0f;
-  float rtheta_max = theta + radians(theta_deg_max) <= pi * 0.5
-                         ? theta + radians(theta_deg_max)
-                         : pi * 0.5;
+  float rtheta_max =
+      theta + radians(theta_deg_max) <= static_cast<float>(pi * 0.5)
+          ? theta + radians(theta_deg_max)
+          : static_cast<float>(pi * 0.5);
   r = uniform_dist(engine);
   theta = (rtheta_max - rtheta_min) * r + rtheta_min;
   assert(theta >= 0.0f && theta <= pi * 0.5);
-  theta += (pi * 0.5f);
+  theta += static_cast<float>(pi * 0.5f);
 
   r = uniform_dist(engine);
   r = 2.0f * r - 1.0f;
@@ -664,7 +707,7 @@ inline bool DebugDump(const Image1f& disparity, const Image1f& cost,
   ugu::imwrite("disp_" + prefix + ".png", vis_disp);
 
   Image3b vis_cost = Image3b::zeros(disparity.rows, disparity.cols);
-  VisualizeCost(cost, &vis_cost, 0, 150);
+  VisualizeCost(cost, &vis_cost, 0, 100);
   ugu::imwrite("cost_" + prefix + ".png", vis_cost);
 
   return true;
@@ -913,6 +956,9 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
 
     AssertDisparity(*ldisparity, param.patch_size / 2, false);
     AssertDisparity(*rdisparity, param.patch_size / 2, true);
+
+    AssertPlaneImage(lplane, param.patch_size / 2, false);
+    AssertPlaneImage(rplane, param.patch_size / 2, true);
   }
 
   if (param.debug) {
