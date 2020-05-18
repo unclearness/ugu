@@ -11,7 +11,56 @@
 
 namespace {
 const double pi = 3.14159265358979323846;
+
+
+inline bool ValidateDisparity(int x, float d, int half_patch_size, int width,
+                              bool is_right) {
+  float disparity_max = 0.0f;
+
+  if (is_right) {
+    if (d > 0) {
+      return false;
+    }
+
+    disparity_max = static_cast<float>(width - x - half_patch_size + 1);
+    d *= -1.0f;
+
+  } else {
+    if (d < 0) {
+      return false;
+    }
+    disparity_max = static_cast<float>(x - half_patch_size + 1);
+
+  }
+
+  if (disparity_max < d) {
+    return false;
+  }
+
+  return true;
 }
+inline bool AssertDisparity(const ugu::Image1f& disparity, int half_patch_size,
+                            bool is_right) {
+#if _DEBUG
+
+  for (int j = half_patch_size; j < disparity.rows - half_patch_size; j++) {
+    for (int i = half_patch_size; i < disparity.cols - half_patch_size; i++) {
+      if (!ValidateDisparity(i, disparity.at<float>(j, i), half_patch_size,
+                             disparity.cols, is_right)) {
+        printf("%d %f %d %d %d\n", i, disparity.at<float>(j, i),
+               half_patch_size, disparity.cols, is_right);
+        assert(false);
+        return false;
+      }
+    }
+  }
+
+#endif
+
+  return true;
+}
+
+}  // namespace
 
 namespace ugu {
 
@@ -177,7 +226,6 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
       plane_image->cols);
   for (int i = half_patch_size; i < plane_image->cols - half_patch_size; i++) {
     float disparity_max = 1.0f;
-    float disparity_max = 1.0f;
     // Maximaum disparity depends on left or right
     if (is_right) {
       disparity_max = std::min(
@@ -188,6 +236,7 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
       disparity_max = std::min(initial_random_disparity_range,
                                static_cast<float>(i - half_patch_size + 1));
     }
+
     std::uniform_real_distribution<float> disparity_dist(0.000001f,
                                                          disparity_max);
     disparity_dists[i] = disparity_dist;
@@ -198,7 +247,7 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
          i++) {
       std::uniform_real_distribution<float>& disparity_dist =
           disparity_dists[i];
- 
+
       float& d = disparity->at<float>(j, i);
       d = disparity_dist(engine);
       // Set disparity as negative for right image
@@ -209,7 +258,7 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
       Eigen::Vector3f n(0.0f, 0.0f, -1.0f);
       if (!fronto_parallel) {
         // z must be facing (negative), cos(theta) < 0
-        float theta = - theta_dist(engine);
+        float theta = theta_dist(engine) + +pi * 0.5f;
         float phi = phi_dist(engine);
         n[0] = sin(theta) * cos(phi);
         n[1] = sin(theta) * sin(phi);
@@ -224,8 +273,12 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
     }
   }
 
+  AssertDisparity(*disparity, half_patch_size, is_right);
+
   return true;
 }
+
+
 
 inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
                                const Image3b& first, const Image3b& second,
@@ -250,8 +303,8 @@ inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
   const Vec3f p = plane1->at<Vec3f>(fromy, fromx);
 
   float d = p[0] * nowx + p[1] * nowy + p[2];
-  if ((!is_right && d < 0) || (is_right && 0 < d)) {
-    return true;
+  if (!ValidateDisparity(nowx, d, half_ps, first.cols, is_right)) {
+    return false;
   }
 
   float from_cost = CalcPatchMatchCost(
@@ -305,8 +358,8 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
     trans_p[2] = -disparity2->at<float>(nowy, x2) - trans_p[0] * nowx -
                  trans_p[1] * nowy;
     float d = trans_p[0] * nowx + trans_p[1] * nowy + trans_p[2];
-    // printf("%f -> %f\n", disparity2->at<float>(nowy, x2), d);
-    if ((!is_right && d < 0) || (is_right && 0 < d)) {
+
+    if (!ValidateDisparity(nowx, d, half_ps, first.cols, is_right)) {
       continue;
     }
 
@@ -512,8 +565,8 @@ inline bool RandomSearchPlaneRefinement(
     const Image1f& grad1, Image1f* disparity1, Image1f* cost1,
     PlaneImage* plane1, const Image1f& grad2,
     const PatchMatchStereoParam& param, std::default_random_engine& engine,
-    const std::uniform_real_distribution<float>& z_offset_dist,
-    const std::uniform_real_distribution<float>& normal_offset_dist) {
+    const std::uniform_real_distribution<float>& uniform_dist, float z_max,
+    float theta_deg_max, float phi_deg_max, bool is_right) {
   const int half_ps = param.patch_size / 2;
 
   float& now_cost = cost1->at<float>(nowy, nowx);
@@ -534,28 +587,49 @@ inline bool RandomSearchPlaneRefinement(
   Vec3f normal;
   RecoverNormalFromPlane(random_p, &normal);
 
-  float z_offset = z_offset_dist(engine);
-  float tmp_d = random_d + z_offset;
-  while ((now_d > 0 && (tmp_d < 0 || (first.cols - 1 < tmp_d))) ||
-         (now_d < 0 && (tmp_d > 0 || (-first.cols + 1 > tmp_d)))) {
-    z_offset = z_offset_dist(engine);
-    tmp_d = random_d + z_offset;
-    printf("%f %f %f %f\n", now_d, random_d, z_offset, tmp_d);
-  }
-  random_d = tmp_d;
+  float random_d_max, random_d_min;
+  if (is_right) {
+    random_d_max = now_d + z_max <= 0.0f ? now_d + z_max : 0.0f;
+    random_d_min = (now_d - z_max) > -(first.cols - nowx - half_ps + 1)
+                       ? now_d - z_max
+                       : -(first.cols - nowx - half_ps + 1);
 
-  for (int k = 0; k < 3; k++) {
-    normal[k] += normal_offset_dist(engine);
-    // Add small value to avoid zero division
-    if (normal[k] < 0) {
-      normal[k] -= 0.00001f;
-    } else {
-      normal[k] += 0.00001f;
-    }
+  } else {
+    random_d_max = (nowx - half_ps + 1) > (now_d + z_max)
+                       ? (now_d + z_max)
+                       : (nowx - half_ps + 1);
+    random_d_min = now_d - z_max >= 0.0f ? now_d - z_max : 0.0f;
   }
-  if (normal[2] > 0) {
-    normal[2] *= -1.0f;
-  }
+
+  assert(random_d_max > random_d_min);
+  float r = uniform_dist(engine);  // 0~1
+  random_d = (random_d_max - random_d_min) * r + random_d_min;
+  assert(int(nowx - random_d) >= 0.0f);
+  assert(int(nowx - random_d) <= first.cols - 1);
+
+  float theta = acos(-normal[2]);  // positive
+  float phi = atan2(normal[1], normal[0]);
+
+  float rtheta_min = theta - radians(theta_deg_max) >= 0.0f
+                         ? theta - radians(theta_deg_max)
+                         : 0.0f;
+  float rtheta_max = theta + radians(theta_deg_max) <= pi * 0.5
+                         ? theta + radians(theta_deg_max)
+                         : pi * 0.5;
+  r = uniform_dist(engine);
+  theta = (rtheta_max - rtheta_min) * r + rtheta_min;
+  assert(theta >= 0.0f && theta <= pi * 0.5);
+  theta += (pi * 0.5f);
+
+  r = uniform_dist(engine);
+  r = 2.0f * r - 1.0f;
+  phi = radians(phi_deg_max) * r + phi;
+
+  normal[0] = sin(theta) * cos(phi);
+  normal[1] = sin(theta) * sin(phi);
+  normal[2] = cos(theta);
+  assert(normal[2] <= 0.0f && normal[2] >= -1.0f);
+
   float len =
       normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2];
   normal[0] /= len;
@@ -590,7 +664,7 @@ inline bool DebugDump(const Image1f& disparity, const Image1f& cost,
   ugu::imwrite("disp_" + prefix + ".png", vis_disp);
 
   Image3b vis_cost = Image3b::zeros(disparity.rows, disparity.cols);
-  VisualizeCost(cost, &vis_cost, 0, 50);
+  VisualizeCost(cost, &vis_cost, 0, 150);
   ugu::imwrite("cost_" + prefix + ".png", vis_cost);
 
   return true;
@@ -612,9 +686,8 @@ inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
     const Image1f& grad2, Image1f* disparity2, Image1f* cost2,
     PlaneImage* plane2, const PatchMatchStereoParam& param,
     const Correspondence& first2second, std::default_random_engine& engine,
-    const std::uniform_real_distribution<float>& z_offset_dist,
-    const std::uniform_real_distribution<float>& normal_offset_dist,
-    bool is_right, int iter) {
+    const std::uniform_real_distribution<float>& uniform_dist, float z_max,
+    float theta_deg_max, float phi_deg_max, bool is_right, int iter) {
   (void)cost2;
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
@@ -646,9 +719,9 @@ inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
 
       // Plane refinement (random re-initialization)
       if (param.plane_refinement) {
-        RandomSearchPlaneRefinement(i, j, first, second, grad1, disparity1,
-                                    cost1, plane1, grad2, param, engine,
-                                    z_offset_dist, normal_offset_dist);
+        RandomSearchPlaneRefinement(
+            i, j, first, second, grad1, disparity1, cost1, plane1, grad2, param,
+            engine, uniform_dist, z_max, theta_deg_max, phi_deg_max, is_right);
       }
     }
   }
@@ -661,8 +734,9 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
     Image1f* disparity1, Image1f* cost1, PlaneImage* plane1,
     const Image1f& grad2, Image1f* disparity2, Image1f* cost2,
     PlaneImage* plane2, const PatchMatchStereoParam& param,
-    const Correspondence& first2second, const PlaneImage& random_plane,
-    bool is_right, int iter) {
+    const Correspondence& first2second, std::default_random_engine& engine,
+    const std::uniform_real_distribution<float>& uniform_dist, float z_max,
+    float theta_deg_max, float phi_deg_max, bool is_right, int iter) {
   (void)cost2;
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
@@ -694,8 +768,9 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
 
       // Plane refinement (random re-initialization)
       if (param.plane_refinement) {
-        RandomSearchPlaneRefinement(i, j, first, second, grad1, disparity1,
-                                    cost1, plane1, grad2, param, random_plane);
+        RandomSearchPlaneRefinement(
+            i, j, first, second, grad1, disparity1, cost1, plane1, grad2, param,
+            engine, uniform_dist, z_max, theta_deg_max, phi_deg_max, is_right);
       }
     }
   }
@@ -761,13 +836,13 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
   InitPlaneRandom(&lplane, ldisparity, engine,
                   param.initial_random_disparity_range,
                   param.fronto_parallel_window, param.patch_size / 2, false,
-                  param.theta_deg_min, param.theta_deg_min, param.phi_deg_min,
+                  param.theta_deg_min, param.theta_deg_max, param.phi_deg_min,
                   param.phi_deg_max);
   CalcPatchMatchCost(lplane, left, right, lgrad, rgrad, lcost, param);
   InitPlaneRandom(&rplane, rdisparity, engine,
                   param.initial_random_disparity_range,
                   param.fronto_parallel_window, param.patch_size / 2, true,
-                  param.theta_deg_min, param.theta_deg_min, param.phi_deg_min,
+                  param.theta_deg_min, param.theta_deg_max, param.phi_deg_min,
                   param.phi_deg_max);
   CalcPatchMatchCost(rplane, right, left, rgrad, lgrad, rcost, param);
 
@@ -780,44 +855,34 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
     DebugDump(*rdisparity, *rcost, "r_init", true);
   }
 
-
-  Image1f lrandomdisparity = Image1f::zeros(h, w);
-  Image1f rrandomdisparity = Image1f::zeros(h, w);
-  PlaneImage lrandomplane = Image3f::zeros(left.rows, left.cols);
-  PlaneImage rrandomplane = Image3f::zeros(left.rows, left.cols);
   float z_max = param.initial_random_disparity_range > 0.0f
                     ? param.initial_random_disparity_range * 0.5f
                     : static_cast<float>(left.rows - 1) * 0.5f;
   float theta_deg_max = param.theta_deg_max * 0.5f;
-  float theta_deg_min = param.theta_deg_min;
+  // float theta_deg_min = param.theta_deg_min;
   float phi_deg_max = param.phi_deg_max * 0.5f;
-  float phi_deg_min = param.phi_deg_min;
+  // float phi_deg_min = param.phi_deg_min;
+
+  std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
   for (int i = 0; i < param.iter; i++) {
     ugu::LOGI("iter %d\n", i);
-
-  InitPlaneRandom(&lrandomplane, &lrandomdisparity, engine, z_max,
-                    param.fronto_parallel_window, param.patch_size / 2, false,
-                    theta_deg_min, theta_deg_min, phi_deg_min, phi_deg_max);
-    InitPlaneRandom(&rrandomplane, &rrandomdisparity, engine, z_max,
-                    param.fronto_parallel_window, param.patch_size / 2, true,
-                    theta_deg_min, theta_deg_min, phi_deg_min, phi_deg_max);
 
     if (param.alternately_reverse && i % 2 == 1) {
       // Left
       ugu::LOGI("reverse left\n");
       ComputePatchMatchStereoImplBodyFromLowerRight(
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
-          rcost, &rplane, param, l2r, lrandomplane,
-          false, i);
+          rcost, &rplane, param, l2r, engine, dist, z_max, theta_deg_max,
+          phi_deg_max, false, i);
       r2l.Update(*ldisparity);
 
       // Right
       ugu::LOGI("reverse right\n");
       ComputePatchMatchStereoImplBodyFromLowerRight(
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
-          lcost, &lplane, param, r2l, rrandomplane,
-          true, i);
+          lcost, &lplane, param, r2l, engine, dist, z_max, theta_deg_max,
+          phi_deg_max, true, i);
       l2r.Update(*rdisparity);
 
     } else {
@@ -825,16 +890,16 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
       ugu::LOGI("left\n");
       ComputePatchMatchStereoImplBodyFromUpperLeft(
           left, right, lgrad, ldisparity, lcost, &lplane, rgrad, rdisparity,
-          rcost, &rplane, param, l2r, lrandomplane,
-          false, i);
+          rcost, &rplane, param, l2r, engine, dist, z_max, theta_deg_max,
+          phi_deg_max, false, i);
       r2l.Update(*ldisparity);
 
       // Right
       ugu::LOGI("right\n");
       ComputePatchMatchStereoImplBodyFromUpperLeft(
           right, left, rgrad, rdisparity, rcost, &rplane, lgrad, ldisparity,
-          lcost, &lplane, param, r2l, rrandomplane,
-          true, i);
+          lcost, &lplane, param, r2l, engine, dist, z_max, theta_deg_max,
+          phi_deg_max, true, i);
       l2r.Update(*rdisparity);
     }
 
@@ -842,10 +907,12 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
     if (z_max < 0.1f) {
       z_max = 0.1f;
     }
-   
+
     theta_deg_max *= 0.5f;
     phi_deg_max *= 0.5f;
 
+    AssertDisparity(*ldisparity, param.patch_size / 2, false);
+    AssertDisparity(*rdisparity, param.patch_size / 2, true);
   }
 
   if (param.debug) {
