@@ -7,8 +7,8 @@
 #include <random>
 
 #include "ugu/stereo/base.h"
-#include "ugu/util.h"
 #include "ugu/timer.h"
+#include "ugu/util.h"
 
 namespace {
 const double pi = 3.14159265358979323846;
@@ -166,6 +166,30 @@ struct Correspondence {
   }
 };
 
+inline float Rho(int lx, int y, float rx, const Image3b& left,
+                 const Image3b& right, const Image1f& left_grad,
+                 const Image1f& right_grad, float alpha, float tau_col,
+                 float tau_grad) {
+  int rxmin = static_cast<int>(std::floor(rx));
+  int rxmax = rxmin + 1;
+  float w[2] = {rx - rxmin, rxmax - rx};
+
+  float l1_color0 = L1(left.at<Vec3b>(y, lx), right.at<Vec3b>(y, rxmin));
+  float l1_color1 = L1(left.at<Vec3b>(y, lx), right.at<Vec3b>(y, rxmax));
+  float l1_color = w[0] * l1_color0 + w[1] * l1_color1;
+  float color_term = (1.0f - alpha) * std::min(l1_color, tau_col);
+
+  float absdiff_grad0 =
+      std::abs(left_grad.at<float>(y, lx) - right_grad.at<float>(y, rxmin));
+  float absdiff_grad1 =
+      std::abs(left_grad.at<float>(y, lx) - right_grad.at<float>(y, rxmax));
+  float absdiff_grad = w[0] * absdiff_grad0 + w[1] * absdiff_grad1;
+
+  float grad_term = alpha * std::min(absdiff_grad, tau_grad);
+
+  return color_term + grad_term;
+}
+
 inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
                                 const Image3b& right, const Image1f& left_grad,
                                 const Image1f& right_grad, int posx, int posy,
@@ -173,28 +197,6 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
                                 float gamma, float alpha, float tau_col,
                                 float tau_grad, int half_patch_size) {
   const float inverse_gamma = 1.0f / gamma;
-
-  std::function<float(int, int, float)> rho = [&](int lx, int y,
-                                                  float rx) -> float {
-    int rxmin = static_cast<int>(std::floor(rx));
-    int rxmax = rxmin + 1;
-    float w[2] = {rx - rxmin, rxmax - rx};
-
-    float l1_color0 = L1(left.at<Vec3b>(y, lx), right.at<Vec3b>(y, rxmin));
-    float l1_color1 = L1(left.at<Vec3b>(y, lx), right.at<Vec3b>(y, rxmax));
-    float l1_color = w[0] * l1_color0 + w[1] * l1_color1;
-    float color_term = (1.0f - alpha) * std::min(l1_color, tau_col);
-
-    float absdiff_grad0 =
-        std::abs(left_grad.at<float>(y, lx) - right_grad.at<float>(y, rxmin));
-    float absdiff_grad1 =
-        std::abs(left_grad.at<float>(y, lx) - right_grad.at<float>(y, rxmax));
-    float absdiff_grad = w[0] * absdiff_grad0 + w[1] * absdiff_grad1;
-
-    float grad_term = alpha * std::min(absdiff_grad, tau_grad);
-
-    return color_term + grad_term;
-  };
 
   float cost_val = 0.0f;
   const Vec3b& lc = left.at<Vec3b>(posy, posx);
@@ -216,7 +218,8 @@ inline float CalcPatchMatchCost(const Vec3f& plane, const Image3b& left,
       // TODO: better guard
       rx = std::max(std::min(rx, width), static_cast<float>(half_patch_size));
 
-      float rho_val = rho(i, j, rx);
+      float rho_val = Rho(i, j, rx, left, right, left_grad, right_grad, alpha,
+                          tau_col, tau_grad);
 
       cost_val += static_cast<float>(w * rho_val);
     }
