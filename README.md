@@ -23,7 +23,8 @@
 - PatchMatch Stereo
   - in : rectified left and right image pair
   - out: disparity, cost, plane image, left right consistency mask, and depth (if baseline and intrinsics are avairable)
-  - Takes approx. 90 sec. for middlebury dataset third size (463 * 370)
+  - Speed: approx. 90 sec. with post-process for middlebury dataset third size (463 * 370)
+  - Reference: Bleyer, Michael, Christoph Rhemann, and Carsten Rother. "PatchMatch Stereo-Stereo Matching with Slanted Support Windows." Bmvc. Vol. 11. 2011.
 
 <img src="https://raw.githubusercontent.com/wiki/unclearness/ugu/images/patchmatch_stereo.gif" width="640">
 

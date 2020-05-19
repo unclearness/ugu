@@ -1,6 +1,12 @@
 /*
- * Copyright (C) 2019, unclearness
+ * Copyright (C) 2020, unclearness
  * All rights reserved.
+ *
+ *
+ * Implementation of the following paper
+ *
+ * Bleyer, Michael, Christoph Rhemann, and Carsten Rother. "PatchMatch
+ * Stereo-Stereo Matching with Slanted Support Windows." Bmvc. Vol. 11. 2011.
  */
 
 #include <functional>
