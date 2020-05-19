@@ -125,13 +125,7 @@ inline float L1(const Vec3b& a, const Vec3b& b) {
 }
 
 struct Correspondence {
-  // first->at<int>(j, i) -> i' of second
-  // Image1i first2second;
-  // Image1i second2first;
-  // (i', j') of second -> [i1, i2, ...] list of first view correspondence
-
-  // first->at<int>(j, i) -> list of corresponding x of sencond
-  // std::map<std::pair<int, int>, std::vector<int>> second2frist;
+  // first2second[y][second_x] -> first_x list
   std::vector<std::vector<std::vector<int>>> first2second;
 
   void Update(const Image1f& disparity2, const int half_patch_size) {
@@ -254,8 +248,9 @@ inline float CalcPatchMatchCost(
 
       cost_val += static_cast<float>(w * rho_val);
     }
-
     if (j % 2 == 1 && early_terminate_th < cost_val) {
+      // ugu::LOGI("early stopped %f < %f (%d < %d < %d)\n", early_terminate_th,
+      // cost_val, miny, j, maxy);
       return cost_val;
     }
   }
@@ -341,11 +336,11 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
       Eigen::Vector3f n(0.0f, 0.0f, -1.0f);
       if (!fronto_parallel) {
         // z must be facing (negative), cos(theta) < 0
-        float theta = theta_dist(engine) + static_cast<float>(pi * 0.5f);
+        float theta = theta_dist(engine);
         float phi = phi_dist(engine);
         n[0] = sin(theta) * cos(phi);
         n[1] = sin(theta) * sin(phi);
-        n[2] = cos(theta);
+        n[2] = -cos(theta);
         n.normalize();
       }
       Vec3f& p = plane_image->at<Vec3f>(j, i);
@@ -440,10 +435,14 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
     Vec3f trans_p;
     trans_p[0] = p2[0];
     trans_p[1] = p2[1];
-    trans_p[2] = -org_d - trans_p[0] * nowx -
-                 trans_p[1] * nowy;
-    float d = trans_p[0] * nowx + trans_p[1] * nowy + trans_p[2];
-    assert(std::abs(d + org_d) < 0.0001f);
+    trans_p[2] = static_cast<float>(static_cast<double>(-org_d) -
+                                    static_cast<double>(trans_p[0]) * nowx -
+                                    static_cast<double>(trans_p[1]) * nowy);
+    float d =
+        static_cast<float>(static_cast<double>(trans_p[0]) * nowx +
+                           static_cast<double>(trans_p[1]) * nowy + trans_p[2]);
+    assert(std::abs(d + org_d) < 0.01f);
+
     if (!ValidateDisparity(nowx, d, half_ps, first.cols, is_right)) {
       continue;
     }
@@ -481,14 +480,21 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
 }
 
 inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
-                                      Image1b* valid_mask,
+                                      Image1b* lvalid_mask,
+                                      Image1b* rvalid_mask,
                                       float left_right_consistency_th,
                                       int half_patch_size) {
-  if (valid_mask->rows != ldisparity->rows ||
-      valid_mask->cols != ldisparity->cols) {
-    *valid_mask = Image1b::zeros(ldisparity->rows, ldisparity->cols);
+  if (lvalid_mask->rows != ldisparity->rows ||
+      lvalid_mask->cols != ldisparity->cols) {
+    *lvalid_mask = Image1b::zeros(ldisparity->rows, ldisparity->cols);
   }
-  valid_mask->setTo(255);
+  lvalid_mask->setTo(255);
+
+  if (rvalid_mask->rows != rdisparity->rows ||
+      rvalid_mask->cols != rdisparity->cols) {
+    *rvalid_mask = Image1b::zeros(rdisparity->rows, rdisparity->cols);
+  }
+  rvalid_mask->setTo(255);
 
   // Check left to right
   for (int j = 0; j < ldisparity->rows; j++) {
@@ -506,7 +512,7 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
       if (left_right_consistency_th < diff) {
         ld = std::numeric_limits<float>::max();
         rd = std::numeric_limits<float>::lowest();
-        valid_mask->at<unsigned char>(j, i) = 0;
+        lvalid_mask->at<unsigned char>(j, i) = 0;
       }
     }
   }
@@ -527,7 +533,7 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
       if (left_right_consistency_th < diff) {
         ld = std::numeric_limits<float>::max();
         rd = std::numeric_limits<float>::lowest();
-        valid_mask->at<unsigned char>(j, i) = 0;
+        rvalid_mask->at<unsigned char>(j, i) = 0;
       }
     }
   }
@@ -557,8 +563,9 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
   return true;
 }
 
-inline bool FillHoleNnLeft(Image1f* disparity, Image3f* plane,
-                           const Image1b& valid_mask) {
+inline bool FillHoleNn(Image1f* disparity, Image3f* plane,
+                       const Image1b& valid_mask, int half_patch_size,
+                       bool is_right) {
   // TODO: Faster alogrithm
 
   Image1b valid_mask_ = Image1b::zeros(valid_mask.rows, valid_mask.cols);
@@ -583,7 +590,8 @@ inline bool FillHoleNnLeft(Image1f* disparity, Image3f* plane,
         if (lv == 255) {
           const Vec3f& tmp_p = plane->at<Vec3f>(j, l);
           float tmp_d = tmp_p[0] * i + tmp_p[1] * j + tmp_p[2];
-          if (tmp_d < 0) {
+          if (!ValidateDisparity(l, d, half_patch_size, disparity->cols,
+                                 is_right)) {
             continue;
           }
           lp = tmp_p;
@@ -604,7 +612,8 @@ inline bool FillHoleNnLeft(Image1f* disparity, Image3f* plane,
         if (rv == 255) {
           const Vec3f& tmp_p = plane->at<Vec3f>(j, r);
           float tmp_d = tmp_p[0] * i + tmp_p[1] * j + tmp_p[2];
-          if (tmp_d < 0) {
+          if (!ValidateDisparity(r, d, half_patch_size, disparity->cols,
+                                 is_right)) {
             continue;
           }
           rp = tmp_p;
@@ -621,7 +630,7 @@ inline bool FillHoleNnLeft(Image1f* disparity, Image3f* plane,
       }
 
       // Prefer to lower disparity
-      if (rd < ld) {
+      if ((!is_right && rd < ld) || (is_right && rd > ld)) {
         p = rp;
         d = rd;
       } else {
@@ -721,8 +730,12 @@ inline bool RandomSearchPlaneRefinement(
   float random_d = now_d;
   Vec3f& now_p = plane1->at<Vec3f>(nowy, nowx);
   Vec3f random_p = now_p;
-  Vec3f normal;
-  RecoverNormalFromPlane(random_p, &normal);
+  Vec3f normal_f;
+  Vec3d normal;
+  RecoverNormalFromPlane(random_p, &normal_f);
+  normal[0] = normal_f[0];
+  normal[1] = normal_f[1];
+  normal[2] = normal_f[2];
 
   float random_d_max, random_d_min;
   if (is_right) {
@@ -744,20 +757,21 @@ inline bool RandomSearchPlaneRefinement(
   assert(int(nowx - random_d) >= 0.0f);
   assert(int(nowx - random_d) <= first.cols - 1);
 
-  float theta = acos(-normal[2]);  // positive
-  float phi = atan2(normal[1], normal[0]);
+  float theta = static_cast<float>(acos(-normal[2]));  // positive
+  float phi = static_cast<float>(atan2(normal[1], normal[0]));
 
   float rtheta_min = theta - radians(theta_deg_max) >= 0.0f
                          ? theta - radians(theta_deg_max)
                          : 0.0f;
+  const float theta_deg_max_internal = 89.0f;
   float rtheta_max =
-      theta + radians(theta_deg_max) <= static_cast<float>(pi * 0.5)
+      theta + radians(theta_deg_max) <= radians(theta_deg_max_internal)
           ? theta + radians(theta_deg_max)
-          : static_cast<float>(pi * 0.5);
+          : radians(theta_deg_max_internal);
   r = uniform_dist(engine);
   theta = (rtheta_max - rtheta_min) * r + rtheta_min;
   assert(theta >= 0.0f && theta <= pi * 0.5);
-  theta += static_cast<float>(pi * 0.5f);
+  // theta += static_cast<float>(pi * 0.5f);
 
   r = uniform_dist(engine);
   r = 2.0f * r - 1.0f;
@@ -765,21 +779,22 @@ inline bool RandomSearchPlaneRefinement(
 
   normal[0] = sin(theta) * cos(phi);
   normal[1] = sin(theta) * sin(phi);
-  normal[2] = cos(theta);
+  normal[2] = -cos(theta);
   assert(normal[2] <= 0.0f && normal[2] >= -1.0f);
 
-  float len =
+  double len =
       normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2];
   normal[0] /= len;
   normal[1] /= len;
   normal[2] /= len;
 
-  float inverse_normal_z = 1.0f / normal[2];
+  double inverse_normal_z = 1.0 / normal[2];
 
-  random_p[0] = -normal[0] * inverse_normal_z;
-  random_p[1] = -normal[1] * inverse_normal_z;
-  random_p[2] = (normal[0] * nowx + normal[1] * nowy + normal[2] * random_d) *
-                inverse_normal_z;
+  random_p[0] = static_cast<float>(-normal[0] * inverse_normal_z);
+  random_p[1] = static_cast<float>(-normal[1] * inverse_normal_z);
+  random_p[2] = static_cast<float>(
+      (normal[0] * nowx + normal[1] * nowy + normal[2] * random_d) *
+      inverse_normal_z);
 
   float random_cost =
       CalcPatchMatchCost(random_p, first, second, grad1, grad2, nowx, nowy,
@@ -1064,27 +1079,34 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
 
   // Post-processing
   if (param.left_right_consistency) {
-    Image1b valid_mask;
-    LeftRightConsistencyCheck(ldisparity, rdisparity, &valid_mask,
-                              param.left_right_consistency_th,
+    Image1b l_valid_mask, r_valid_mask;
+    LeftRightConsistencyCheck(ldisparity, rdisparity, &l_valid_mask,
+                              &r_valid_mask, param.left_right_consistency_th,
                               param.patch_size / 2);
     if (param.debug) {
-      ugu::imwrite("valid_mask.png", valid_mask);
+      ugu::imwrite("l_valid_mask.png", l_valid_mask);
+      ugu::imwrite("r_valid_mask.png", r_valid_mask);
       DebugDump(*ldisparity, *lcost, "l_lrconsistency", false);
+      DebugDump(*rdisparity, *rcost, "r_lrconsistency", true);
     }
 
     // Hole filling for invalidated pixels
     if (param.fill_hole_nn) {
-      FillHoleNnLeft(ldisparity, &lplane, valid_mask);
+      FillHoleNn(ldisparity, &lplane, l_valid_mask, param.patch_size / 2,
+                 false);
+      FillHoleNn(rdisparity, &rplane, r_valid_mask, param.patch_size / 2, true);
       if (param.debug) {
         DebugDump(*ldisparity, *lcost, "l_fillholenn", false);
+        DebugDump(*rdisparity, *rcost, "r_fillholenn", true);
       }
 
       // Weighted median filter for filled pixels
       if (param.weighted_median_for_filled) {
-        WeightedMedianForFilled(ldisparity, left, valid_mask, param);
+        WeightedMedianForFilled(ldisparity, left, l_valid_mask, param);
+        WeightedMedianForFilled(rdisparity, right, r_valid_mask, param);
         if (param.debug) {
           DebugDump(*ldisparity, *lcost, "l_filled", false);
+          DebugDump(*rdisparity, *rcost, "r_filled", true);
         }
       }
     }

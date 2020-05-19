@@ -113,6 +113,7 @@ using Vec1w = Vec_<std::uint16_t, 1>;
 using Vec1b = Vec_<unsigned char, 1>;
 using Vec3b = Vec_<unsigned char, 3>;
 using Vec3f = Vec_<float, 3>;
+using Vec3d = Vec_<double, 3>;
 
 template <typename TT, int N>
 using Point_ = Vec_<TT, N>;
