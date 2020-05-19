@@ -4,6 +4,9 @@
 # Features
 ## Texture Mapping
 
+- in : texture-less mesh, camera parameters, (predefined UV on the mesh, optional)
+- out: textured mesh
+
 <img src="https://raw.githubusercontent.com/wiki/unclearness/ugu/images/texture_mapping.png" width="640">
 
 - Comparizon table
@@ -11,12 +14,23 @@
 ||Vertex Color|Projective UV| Tile UV| Triangle UV|Predefined UV|
 |---|:---:|:---:|:---:|:---:|:---:|
 |Runtime Speed|✅|❌||||
-|Runtime Memory||❌||||
+|Runtime Memory||||||
 |UV Space Efficiency|||❌||❓|
 |Quality at Rendering|❌|✅|✅|❌|❓|
 
+## Dense Stereo
+
+- PatchMatch Stereo
+  - in : rectified left and right image pair
+  - out: disparity, cost, plane image, left right consistency mask, and depth (if baseline and intrinsics are avairable)
+  - Takes approx. 90 sec. for middlebury dataset third size (463 * 370)
+
+<img src="https://raw.githubusercontent.com/wiki/unclearness/ugu/images/patchmatch_stereo.gif" width="640">
 
 ## CPU Rendering
+
+- in : mesh, camera parameters
+- out: color, depth, normal, mask and face id
 
 |color|depth|
 |---|---|
@@ -30,6 +44,9 @@
 - Original code: https://github.com/unclearness/currender
 
 ## Shape-from-Silhouette (SfS)
+
+- in : silhouettes, camera parameters
+- out: mesh
 
 <img src="https://raw.githubusercontent.com/wiki/unclearness/vacancy/images/how_it_works.gif" width="640">
 

@@ -860,8 +860,16 @@ inline bool RandomSearchPlaneRefinement(
 inline bool DebugDump(const Image1f& disparity, const Image1f& cost,
                       const std::string& prefix, bool is_right) {
   Image1b vis_disp = Image1b::zeros(disparity.rows, disparity.cols);
-  Depth2Gray(disparity, &vis_disp, is_right ? -100.0f : 0.0f,
-             is_right ? 0.0f : 100.0f);
+  Image1f tmp_disp = Image1f::zeros(disparity.rows, disparity.cols);
+  disparity.copyTo(tmp_disp);
+  if (is_right) {
+    for (int j = 0; j < tmp_disp.rows; j++) {
+      for (int i = 0; i < tmp_disp.cols; i++) {
+        tmp_disp.at<float>(j, i) *= -1.0f;
+      }
+    }
+  }
+  Depth2Gray(tmp_disp, &vis_disp, 0.0f, 255.0f / 3);
   ugu::imwrite("disp_" + prefix + ".png", vis_disp);
 
   Image3b vis_cost = Image3b::zeros(disparity.rows, disparity.cols);
