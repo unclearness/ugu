@@ -291,6 +291,9 @@ inline bool CalcPatchMatchCost(const Image3f& plane, const Image3b& left,
                                const Image3b& right, const Image1f& left_grad,
                                const Image1f& right_grad, Image1f* cost,
                                const PatchMatchStereoParam& param) {
+  Timer<> timer;
+  timer.Start();
+
   const int half_ps = param.patch_size / 2;
 
 #pragma omp parallel for
@@ -308,6 +311,9 @@ inline bool CalcPatchMatchCost(const Image3f& plane, const Image3b& left,
     }
   }
 
+  timer.End();
+  ugu::LOGI("CalcPatchMatchCost: %.2f ms\n", timer.elapsed_msec());
+
   return true;
 }
 
@@ -319,6 +325,9 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
                             float theta_deg_max = 75.0f,
                             float phi_deg_min = 0.0f,
                             float phi_deg_max = 360.0f) {
+  Timer<> timer;
+  timer.Start();
+
   initial_random_disparity_range =
       initial_random_disparity_range > 0.0f
           ? initial_random_disparity_range
@@ -382,6 +391,9 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
 
   AssertDisparity(*disparity, half_patch_size, is_right);
   AssertPlaneImage(*plane_image, half_patch_size, is_right);
+
+  timer.End();
+  ugu::LOGI("InitPlaneRandom: %.2f ms\n", timer.elapsed_msec());
 
   return true;
 }
@@ -513,6 +525,8 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
                                       Image1b* rvalid_mask,
                                       float left_right_consistency_th,
                                       int half_patch_size) {
+  Timer<> timer;
+  timer.Start();
   if (lvalid_mask->rows != ldisparity->rows ||
       lvalid_mask->cols != ldisparity->cols) {
     *lvalid_mask = Image1b::zeros(ldisparity->rows, ldisparity->cols);
@@ -569,6 +583,8 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
     }
   }
 
+  timer.End();
+  ugu::LOGI("LeftRightConsistencyCheck: %.2f ms\n", timer.elapsed_msec());
   return true;
 }
 
@@ -576,6 +592,8 @@ inline bool FillHoleNn(Image1f* disparity, Image3f* plane,
                        const Image1b& valid_mask, int half_patch_size,
                        bool is_right) {
   // TODO: Faster alogrithm
+  Timer<> timer;
+  timer.Start();
 
   Image1b valid_mask_ = Image1b::zeros(valid_mask.rows, valid_mask.cols);
   valid_mask.copyTo(valid_mask_);
@@ -649,17 +667,25 @@ inline bool FillHoleNn(Image1f* disparity, Image3f* plane,
     }
   }
 
+  timer.End();
+  ugu::LOGI("FillHoleNn: %.2f ms\n", timer.elapsed_msec());
+
   return true;
 }
 
 inline bool WeightedMedianForFilled(Image1f* disparity, const Image3b& color,
                                     const Image1b& valid_mask,
-                                    const PatchMatchStereoParam& param) {
+                                    const PatchMatchStereoParam& param,
+                                    bool is_right) {
+  Timer<> timer;
+  timer.Start();
+
   const float inverse_gamma = 1.0f / param.gamma;
   const int hk = param.patch_size / 2;
   Image1f org_disparity = Image1f::zeros(valid_mask.rows, valid_mask.cols);
   disparity->copyTo(org_disparity);
 
+#pragma omp parallel for
   for (int j = 0; j < disparity->rows; j++) {
     int miny = std::max(j - hk, 0);
     int maxy = std::min(j + hk, disparity->rows - 1);
@@ -688,9 +714,8 @@ inline bool WeightedMedianForFilled(Image1f* disparity, const Image3b& color,
 
           const Vec3b& near_c = color.at<Vec3b>(jj, ii);
           float l1 = L1(c, near_c);
-          double w = std::exp(static_cast<double>(-l1) *
-                              static_cast<double>(inverse_gamma));
-          weights.push_back(static_cast<float>(w));
+          float w = std::exp(-l1 * inverse_gamma);
+          weights.push_back(w);
         }
       }
 
@@ -707,10 +732,14 @@ inline bool WeightedMedianForFilled(Image1f* disparity, const Image3b& color,
       if (!data.empty()) {
         disparity->at<float>(j, i) = WeightedMedian(data, weights);
       } else {
-        disparity->at<float>(j, i) = std::numeric_limits<float>::max();
+        disparity->at<float>(j, i) = is_right
+                                         ? std::numeric_limits<float>::lowest()
+                                         : std::numeric_limits<float>::max();
       }
     }
   }
+  timer.End();
+  ugu::LOGI("WeightedMedianForFilled: %.2f ms\n", timer.elapsed_msec());
 
   return true;
 }
@@ -851,6 +880,9 @@ inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
     const Correspondence& first2second, std::default_random_engine& engine,
     const std::uniform_real_distribution<float>& uniform_dist, float z_max,
     float theta_deg_max, float phi_deg_max, bool is_right, int iter) {
+  Timer<> timer;
+  timer.Start();
+
   (void)cost2;
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
@@ -889,6 +921,10 @@ inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
     }
   }
 
+  timer.End();
+  ugu::LOGI("ComputePatchMatchStereoImplBodyFromUpperLeft: %.2f ms\n",
+            timer.elapsed_msec());
+
   return true;
 }
 
@@ -900,6 +936,9 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
     const Correspondence& first2second, std::default_random_engine& engine,
     const std::uniform_real_distribution<float>& uniform_dist, float z_max,
     float theta_deg_max, float phi_deg_max, bool is_right, int iter) {
+  Timer<> timer;
+  timer.Start();
+
   (void)cost2;
   const int half_ps = param.patch_size / 2;
   const int w = first.cols;
@@ -937,6 +976,10 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
       }
     }
   }
+
+  timer.End();
+  ugu::LOGI("ComputePatchMatchStereoImplBodyFromLowerRight: %.2f ms\n",
+            timer.elapsed_msec());
 
   return true;
 }
@@ -1111,8 +1154,8 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
 
       // Weighted median filter for filled pixels
       if (param.weighted_median_for_filled) {
-        WeightedMedianForFilled(ldisparity, left, l_valid_mask, param);
-        WeightedMedianForFilled(rdisparity, right, r_valid_mask, param);
+        WeightedMedianForFilled(ldisparity, left, l_valid_mask, param, false);
+        WeightedMedianForFilled(rdisparity, right, r_valid_mask, param, true);
         if (param.debug) {
           DebugDump(*ldisparity, *lcost, "l_filled", false);
           DebugDump(*rdisparity, *rcost, "r_filled", true);
