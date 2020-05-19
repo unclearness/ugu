@@ -513,6 +513,7 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
         ld = std::numeric_limits<float>::max();
         rd = std::numeric_limits<float>::lowest();
         lvalid_mask->at<unsigned char>(j, i) = 0;
+        rvalid_mask->at<unsigned char>(j, rx_i) = 0;
       }
     }
   }
@@ -534,31 +535,10 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
         ld = std::numeric_limits<float>::max();
         rd = std::numeric_limits<float>::lowest();
         rvalid_mask->at<unsigned char>(j, i) = 0;
+        lvalid_mask->at<unsigned char>(j, lx_i) = 0;
       }
     }
   }
-
-#if 0
-  for (int j = 0; j < ldisparity->rows; j++) {
-    for (int i = 0; i < ldisparity->cols; i++) {
-      float& d = ldisparity->at<float>(j, i);
-      float rx = std::round(i - d);
-      rx = std::max(std::min(rx, static_cast<float>(rdisparity->cols - 1 -
-                                                    half_patch_size)),
-                    static_cast<float>(half_patch_size));
-      int rx_i = static_cast<int>(rx);
-
-      float& r = rdisparity->at<float>(j, i);
-      // Left disparity is plus, right one is negative
-      float diff = std::abs(l + r);
-      if (left_right_consistency_th < diff) {
-        l = std::numeric_limits<float>::max();
-        r = std::numeric_limits<float>::lowest();
-        valid_mask->at<unsigned char>(j, i) = 0;
-      }
-    }
-  }
-#endif
 
   return true;
 }
