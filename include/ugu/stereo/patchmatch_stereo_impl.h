@@ -53,6 +53,11 @@ inline bool AssertDisparity(const ugu::Image1f& disparity, int half_patch_size,
       }
     }
   }
+#else
+
+  (void)disparity;
+  (void)half_patch_size;
+  (void)is_right;
 
 #endif
 
@@ -104,7 +109,10 @@ inline bool AssertPlaneImage(const ugu::Image3f& plane, int half_patch_size,
       }
     }
   }
-
+#else
+  (void)plane;
+  (void)half_patch_size;
+  (void)is_right;
 #endif
 
   return true;
@@ -189,10 +197,11 @@ struct Correspondence {
   }
 };
 
-inline float Rho(int lx, int y, float rx, const Image3b& left,
-                 const Image3b& right, const Image1f& left_grad,
-                 const Image1f& right_grad, float alpha, float tau_col,
-                 float tau_grad, const Vec3b& left_y_lx) {
+inline float Rho(int lx, int y, float rx, const Image3b& right,
+                 const Image1f& left_grad, const Image1f& right_grad,
+                 float alpha, float tau_col, float tau_grad,
+                 const Vec3b& left_y_lx) {
+#if 1
   int rxmin = static_cast<int>(std::floor(rx));
   int rxmax = rxmin + 1;
   float w[2] = {rx - rxmin, rxmax - rx};
@@ -209,6 +218,17 @@ inline float Rho(int lx, int y, float rx, const Image3b& left,
 
   float grad_term = alpha * std::min(absdiff_grad, tau_grad);
 
+#else
+  float rx_i = static_cast<int>(std::round(rx));
+  float l1_color = L1(left_y_lx, right.at<Vec3b>(y, rx_i));
+  float color_term = (1.0f - alpha) * std::min(l1_color, tau_col);
+
+  const float& lg = left_grad.at<float>(y, lx);
+  float absdiff_grad = std::abs(lg - right_grad.at<float>(y, rx_i));
+  float grad_term = alpha * std::min(absdiff_grad, tau_grad);
+
+#endif  // 0
+
   return color_term + grad_term;
 }
 
@@ -224,14 +244,24 @@ inline float CalcPatchMatchCost(
   const Vec3b& lc = left.at<Vec3b>(posy, posx);
   const float width = static_cast<float>(left.cols - 1 - half_patch_size);
 
+  // For l1 skip
+  const float w_skip = 0.01f;
+  const float l1_skip_th = -std::log(w_skip) * gamma;
+
   //#pragma omp parallel for reduction(+:cost_val)
   for (int j = miny; j <= maxy; j++) {
     for (int i = minx; i <= maxx; i++) {
       // Question: Take color of the same image. Is this right?
       const Vec3b& rc = left.at<Vec3b>(j, i);
       float l1 = L1(lc, rc);
-      double w = std::exp(static_cast<double>(-l1) *
-                          static_cast<double>(inverse_gamma));
+
+      // Skip if l1 is too big -> w is small
+      //  -> w * rho is zero -> cost_val doesn't change
+      if (l1_skip_th < l1) {
+        continue;
+      }
+
+      float w = std::exp(-l1 * inverse_gamma);
 
       float d = plane[0] * i + plane[1] * j + plane[2];
       float rx = static_cast<float>(i - d);
@@ -242,10 +272,10 @@ inline float CalcPatchMatchCost(
       // TODO: better guard
       rx = std::max(std::min(rx, width), static_cast<float>(half_patch_size));
 
-      float rho_val = Rho(i, j, rx, left, right, left_grad, right_grad, alpha,
+      float rho_val = Rho(i, j, rx, right, left_grad, right_grad, alpha,
                           tau_col, tau_grad, rc);
 
-      cost_val += static_cast<float>(w * rho_val);
+      cost_val += (w * rho_val);
     }
     if (early_terminate_th < cost_val) {
       // ugu::LOGI("early stopped %f < %f (%d < %d < %d)\n", early_terminate_th,
