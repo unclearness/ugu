@@ -389,6 +389,8 @@ inline bool SpatialPropagation(int nowx, int nowy, int fromx, int fromy,
     return false;
   }
 
+  // TODO: Integral image like accelation of original PatchMatch
+
   float from_cost =
       CalcPatchMatchCost(p, first, second, grad1, grad2, nowx, nowy, minx, maxx,
                          miny, maxy, param.gamma, param.alpha, param.tau_col,
@@ -433,14 +435,15 @@ inline bool ViewPropagation(int nowx, int nowy, const Image3b& first,
 
   for (const int x2 : match_x_list) {
     const Vec3f& p2 = plane2->at<Vec3f>(nowy, x2);
+    const float org_d = disparity2->at<float>(nowy, x2);
     // Transform to first view
     Vec3f trans_p;
-    trans_p[0] = -p2[0];
+    trans_p[0] = p2[0];
     trans_p[1] = p2[1];
-    trans_p[2] = -disparity2->at<float>(nowy, x2) - trans_p[0] * nowx -
+    trans_p[2] = -org_d - trans_p[0] * nowx -
                  trans_p[1] * nowy;
     float d = trans_p[0] * nowx + trans_p[1] * nowy + trans_p[2];
-
+    assert(std::abs(d + org_d) < 0.0001f);
     if (!ValidateDisparity(nowx, d, half_ps, first.cols, is_right)) {
       continue;
     }
