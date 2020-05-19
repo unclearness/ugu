@@ -3,6 +3,7 @@
 
 #include "ugu/camera.h"
 #include "ugu/stereo/base.h"
+#include "ugu/timer.h"
 #include "ugu/util.h"
 
 // test by bunny data
@@ -11,7 +12,6 @@ int main(int argc, char* argv[]) {
   (void)argv;
 
   std::string data_dir = "../data/bunny/";
-  // data_dir = "../data/scenes2005/Art/";
 
   // Make PinholeCamera
   // borrow KinectV1 intrinsics of Freiburg 1 RGB
@@ -36,8 +36,11 @@ int main(int argc, char* argv[]) {
   left_c = ugu::imread<ugu::Image3b>(data_dir + "00000_color.png");
   right_c = ugu::imread<ugu::Image3b>(data_dir + "r_00000_color.png");
 
-  // left_c = ugu::imread<ugu::Image3b>(data_dir + "view1.png");
-  // right_c = ugu::imread<ugu::Image3b>(data_dir + "view5.png");
+#if 0
+  data_dir = "../data/scenes2005/Art/";
+  left_c = ugu::imread<ugu::Image3b>(data_dir + "view1.png");
+  right_c = ugu::imread<ugu::Image3b>(data_dir + "view5.png");
+#endif
 
   ugu::Image1b left, right;
   Color2Gray(left_c, &left);
@@ -51,7 +54,7 @@ int main(int argc, char* argv[]) {
   std::shared_ptr<ugu::Camera> camera = std::make_shared<ugu::PinholeCamera>(
       left_c.cols, left_c.rows, Eigen::Affine3d::Identity(), principal_point,
       focal_length);
-
+#if 0
   ugu::ComputeStereoBruteForce(left, right, &disparity, &cost, &depth, param);
 
   Depth2Gray(depth, &vis_depth);
@@ -62,12 +65,17 @@ int main(int argc, char* argv[]) {
   ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
   view_point_cloud.WritePly(data_dir + "stereo_mesh.ply");
   view_mesh.WriteObj(data_dir, "stereo_mesh");
-
+#endif
   ugu::PatchMatchStereoParam pmparam;
   pmparam.base_param = param;
   ugu::Image1f rdisparity, rcost;
+  ugu::Timer<> timer;
+  timer.Start();
+
   ugu::ComputePatchMatchStereo(left_c, right_c, &disparity, &cost, &rdisparity,
                                &rcost, &depth, pmparam);
+  timer.End();
+  ugu::LOGI("%f ms\n", timer.elapsed_msec());
   Depth2Gray(depth, &vis_depth);
   ugu::imwrite(data_dir + "pmstereo_vis_depth.png", vis_depth);
 
