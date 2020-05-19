@@ -117,11 +117,11 @@ namespace ugu {
 using PlaneImage = Image3f;
 
 inline float L1(const Vec3b& a, const Vec3b& b) {
-  float val = 0.0f;
-  for (int k = 0; k < 3; k++) {
-    val += std::abs(a[k] - b[k]);
-  }
-  return val;
+  int val = 0;
+  val += std::abs(a[0] - b[0]);
+  val += std::abs(a[1] - b[1]);
+  val += std::abs(a[2] - b[2]);
+  return static_cast<float>(val);
 }
 
 struct Correspondence {
@@ -192,20 +192,19 @@ struct Correspondence {
 inline float Rho(int lx, int y, float rx, const Image3b& left,
                  const Image3b& right, const Image1f& left_grad,
                  const Image1f& right_grad, float alpha, float tau_col,
-                 float tau_grad) {
+                 float tau_grad, const Vec3b& left_y_lx) {
   int rxmin = static_cast<int>(std::floor(rx));
   int rxmax = rxmin + 1;
   float w[2] = {rx - rxmin, rxmax - rx};
 
-  float l1_color0 = L1(left.at<Vec3b>(y, lx), right.at<Vec3b>(y, rxmin));
-  float l1_color1 = L1(left.at<Vec3b>(y, lx), right.at<Vec3b>(y, rxmax));
+  float l1_color0 = L1(left_y_lx, right.at<Vec3b>(y, rxmin));
+  float l1_color1 = L1(left_y_lx, right.at<Vec3b>(y, rxmax));
   float l1_color = w[0] * l1_color0 + w[1] * l1_color1;
   float color_term = (1.0f - alpha) * std::min(l1_color, tau_col);
 
-  float absdiff_grad0 =
-      std::abs(left_grad.at<float>(y, lx) - right_grad.at<float>(y, rxmin));
-  float absdiff_grad1 =
-      std::abs(left_grad.at<float>(y, lx) - right_grad.at<float>(y, rxmax));
+  const float& lg = left_grad.at<float>(y, lx);
+  float absdiff_grad0 = std::abs(lg - right_grad.at<float>(y, rxmin));
+  float absdiff_grad1 = std::abs(lg - right_grad.at<float>(y, rxmax));
   float absdiff_grad = w[0] * absdiff_grad0 + w[1] * absdiff_grad1;
 
   float grad_term = alpha * std::min(absdiff_grad, tau_grad);
@@ -244,11 +243,11 @@ inline float CalcPatchMatchCost(
       rx = std::max(std::min(rx, width), static_cast<float>(half_patch_size));
 
       float rho_val = Rho(i, j, rx, left, right, left_grad, right_grad, alpha,
-                          tau_col, tau_grad);
+                          tau_col, tau_grad, rc);
 
       cost_val += static_cast<float>(w * rho_val);
     }
-    if (j % 2 == 1 && early_terminate_th < cost_val) {
+    if (early_terminate_th < cost_val) {
       // ugu::LOGI("early stopped %f < %f (%d < %d < %d)\n", early_terminate_th,
       // cost_val, miny, j, maxy);
       return cost_val;
