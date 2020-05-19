@@ -104,6 +104,14 @@ inline bool AssertPlaneImage(const ugu::Image3f& plane, int half_patch_size,
       if (!ValidatePlane(i, j, p, half_patch_size, plane.cols, is_right)) {
         printf("%d (%f %f %f) %d %d %d\n", i, p[0], p[1], p[2], half_patch_size,
                plane.cols, is_right);
+        ugu::Vec3f normal;
+        RecoverNormalFromPlane(p, &normal);
+        float len = std::sqrt(normal[0] * normal[0] + normal[1] * normal[1] +
+                              normal[2] * normal[2]);
+        printf("(%f %f %f) %f\n", normal[0], normal[1], normal[2], len);
+        float d = i * p[0] + j * p[1] + p[2];
+        printf("%f %d\n", d,
+               ValidateDisparity(i, d, half_patch_size, plane.cols, is_right));
         assert(false);
         return false;
       }
@@ -340,17 +348,19 @@ inline bool InitPlaneRandom(Image3f* plane_image, Image1f* disparity,
 
   std::vector<std::uniform_real_distribution<float>> disparity_dists(
       plane_image->cols);
+  const float eps = 0.01f;
   for (int i = half_patch_size; i < plane_image->cols - half_patch_size; i++) {
     float disparity_max = 1.0f;
     // Maximaum disparity depends on left or right
     if (is_right) {
-      disparity_max = std::min(
-          initial_random_disparity_range,
-          static_cast<float>(plane_image->cols - i - half_patch_size + 1));
+      disparity_max = std::min(initial_random_disparity_range,
+                               static_cast<float>(plane_image->cols - i -
+                                                  half_patch_size + 1 - eps));
 
     } else {
-      disparity_max = std::min(initial_random_disparity_range,
-                               static_cast<float>(i - half_patch_size + 1));
+      disparity_max =
+          std::min(initial_random_disparity_range,
+                   static_cast<float>(i - half_patch_size + 1 - eps));
     }
 
     std::uniform_real_distribution<float> disparity_dist(0.000001f,
@@ -617,7 +627,7 @@ inline bool FillHoleNn(Image1f* disparity, Image3f* plane,
         if (lv == 255) {
           const Vec3f& tmp_p = plane->at<Vec3f>(j, l);
           float tmp_d = tmp_p[0] * i + tmp_p[1] * j + tmp_p[2];
-          if (!ValidateDisparity(l, d, half_patch_size, disparity->cols,
+          if (!ValidateDisparity(l, tmp_d, half_patch_size, disparity->cols,
                                  is_right)) {
             continue;
           }
@@ -639,7 +649,7 @@ inline bool FillHoleNn(Image1f* disparity, Image3f* plane,
         if (rv == 255) {
           const Vec3f& tmp_p = plane->at<Vec3f>(j, r);
           float tmp_d = tmp_p[0] * i + tmp_p[1] * j + tmp_p[2];
-          if (!ValidateDisparity(r, d, half_patch_size, disparity->cols,
+          if (!ValidateDisparity(r, tmp_d, half_patch_size, disparity->cols,
                                  is_right)) {
             continue;
           }
@@ -655,7 +665,6 @@ inline bool FillHoleNn(Image1f* disparity, Image3f* plane,
       if (!updated) {
         continue;
       }
-
       // Prefer to lower disparity
       if ((!is_right && rd < ld) || (is_right && rd > ld)) {
         p = rp;
