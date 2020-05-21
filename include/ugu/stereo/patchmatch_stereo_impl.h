@@ -572,7 +572,7 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
         ld = std::numeric_limits<float>::max();
         rd = std::numeric_limits<float>::lowest();
         lvalid_mask->at<unsigned char>(j, i) = 0;
-        rvalid_mask->at<unsigned char>(j, rx_i) = 0;
+        //rvalid_mask->at<unsigned char>(j, rx_i) = 0;
       }
     }
   }
@@ -594,7 +594,7 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
         ld = std::numeric_limits<float>::max();
         rd = std::numeric_limits<float>::lowest();
         rvalid_mask->at<unsigned char>(j, i) = 0;
-        lvalid_mask->at<unsigned char>(j, lx_i) = 0;
+        //lvalid_mask->at<unsigned char>(j, lx_i) = 0;
       }
     }
   }
@@ -1153,10 +1153,10 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
   }
 
   // Post-processing
-  if (param.left_right_consistency) {
+  if (param.base_param.left_right_consistency) {
     Image1b l_valid_mask, r_valid_mask;
     LeftRightConsistencyCheck(ldisparity, rdisparity, &l_valid_mask,
-                              &r_valid_mask, param.left_right_consistency_th,
+                              &r_valid_mask, param.base_param.left_right_consistency_th,
                               param.patch_size / 2);
     if (param.debug) {
       ugu::imwrite("l_valid_mask.png", l_valid_mask);

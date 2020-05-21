@@ -9,6 +9,22 @@
 
 namespace ugu {
 
+enum class StereoCost {
+  SSD = 0,
+  SAD = 1,
+  HAMMING = 2 // only with census_transform
+};
+
+enum class HoleFilling {
+  NONE = 0,
+  NN = 1
+};
+
+enum class FilterForFilled {
+ NONE = 0,
+ MEDIAN = 1 
+};
+
 struct StereoParam {
   float fx, fy;
   float lcx, lcy, rcx, rcy;
@@ -20,7 +36,17 @@ struct StereoParam {
   float max_disparity = -1.0f;
   int kernel = 11;
 
-  float subpixel_step = 0.1f;
+  StereoCost cost = StereoCost::SSD;
+  bool census_transform = false;
+
+  bool compute_right = false;
+  bool left_right_consistency = true;
+  float left_right_consistency_th = 1.0f;
+
+  HoleFilling hole_filling = HoleFilling::NN;
+  FilterForFilled filter_for_filled = FilterForFilled::MEDIAN;
+
+  //float subpixel_step = 0.1f;
 };
 
 struct PatchMatchStereoParam {
@@ -49,8 +75,7 @@ struct PatchMatchStereoParam {
   bool temporal_propagation = false;
   bool plane_refinement = true;
 
-  bool left_right_consistency = true;
-  float left_right_consistency_th = 1.0f;
+
   bool fill_hole_nn = true;
   bool weighted_median_for_filled = true;
 
@@ -64,7 +89,13 @@ bool Disparity2Depth(const Image1f& disparity, Image1f* depth, float baseline,
 bool VisualizeCost(const Image1f& cost, Image3b* vis_cost, float minc = -1.0f,
                    float maxc = -1.0f);
 
+bool CensusTransform8u(const Image1b& gray, Image1b* census);
+
 bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
+                             Image1f* disparity, Image1f* cost, Image1f* depth,
+                             const StereoParam& param);
+
+bool ComputeStereoBruteForceCensus(const Image1b& lcensus, const Image1b& rcensus,
                              Image1f* disparity, Image1f* cost, Image1f* depth,
                              const StereoParam& param);
 
@@ -77,5 +108,17 @@ bool ComputePatchMatchStereo(const Image3b& left, const Image3b& right,
                              Image1f* rdisparity, Image1f* rcost,
                              Image1f* depth,
                              const PatchMatchStereoParam& param);
+
+struct ErrorStat {
+  float mean;
+  float stdev;
+  float min;
+  float max;
+  Image1f data;
+};
+
+bool ComputeDisparityErrorStat(const Image1f& computed, const Image1f& gt,
+                               ErrorStat* stat, bool singned_dist = false,
+                               float truncation_th = -1.0f);
 
 }  // namespace ugu
