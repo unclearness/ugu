@@ -17,58 +17,6 @@
 #include "ugu/util.h"
 
 namespace {
-const double pi = 3.14159265358979323846;
-
-inline bool ValidateDisparity(int x, float d, int half_patch_size, int width,
-                              bool is_right) {
-  float disparity_max = 0.0f;
-
-  if (is_right) {
-    if (d > 0) {
-      return false;
-    }
-
-    disparity_max = static_cast<float>(width - x - half_patch_size + 1);
-    d *= -1.0f;
-
-  } else {
-    if (d < 0) {
-      return false;
-    }
-    disparity_max = static_cast<float>(x - half_patch_size + 1);
-  }
-
-  if (disparity_max < d) {
-    return false;
-  }
-
-  return true;
-}
-inline bool AssertDisparity(const ugu::Image1f& disparity, int half_patch_size,
-                            bool is_right) {
-#if _DEBUG
-
-  for (int j = half_patch_size; j < disparity.rows - half_patch_size; j++) {
-    for (int i = half_patch_size; i < disparity.cols - half_patch_size; i++) {
-      if (!ValidateDisparity(i, disparity.at<float>(j, i), half_patch_size,
-                             disparity.cols, is_right)) {
-        printf("%d %f %d %d %d\n", i, disparity.at<float>(j, i),
-               half_patch_size, disparity.cols, is_right);
-        assert(false);
-        return false;
-      }
-    }
-  }
-#else
-
-  (void)disparity;
-  (void)half_patch_size;
-  (void)is_right;
-
-#endif
-
-  return true;
-}
 
 inline void RecoverNormalFromPlane(const ugu::Vec3f& p, ugu::Vec3f* n) {
   (*n)[2] = -1.0f / std::sqrt((p[0] * p[0] + p[1] * p[1] + 1.0f));
@@ -93,7 +41,7 @@ inline bool ValidatePlane(int x, int y, const ugu::Vec3f& plane,
 
   float d = x * plane[0] + y * plane[1] + plane[2];
 
-  if (!ValidateDisparity(x, d, half_patch_size, width, is_right)) {
+  if (!ugu::ValidateDisparity(x, d, half_patch_size, width, is_right)) {
     return false;
   }
 
@@ -310,7 +258,9 @@ inline bool CalcPatchMatchCost(const Image3f& plane, const Image3b& left,
 
   const int half_ps = param.patch_size / 2;
 
+#ifdef UGU_USE_OPENMP
 #pragma omp parallel for
+#endif
   for (int j = half_ps; j < plane.rows - half_ps; j++) {
     for (int i = half_ps; i < plane.cols - half_ps; i++) {
       int minx = i - half_ps;
@@ -572,7 +522,7 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
         ld = std::numeric_limits<float>::max();
         rd = std::numeric_limits<float>::lowest();
         lvalid_mask->at<unsigned char>(j, i) = 0;
-        //rvalid_mask->at<unsigned char>(j, rx_i) = 0;
+        // rvalid_mask->at<unsigned char>(j, rx_i) = 0;
       }
     }
   }
@@ -594,7 +544,7 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
         ld = std::numeric_limits<float>::max();
         rd = std::numeric_limits<float>::lowest();
         rvalid_mask->at<unsigned char>(j, i) = 0;
-        //lvalid_mask->at<unsigned char>(j, lx_i) = 0;
+        // lvalid_mask->at<unsigned char>(j, lx_i) = 0;
       }
     }
   }
@@ -700,7 +650,9 @@ inline bool WeightedMedianForFilled(Image1f* disparity, const Image3b& color,
   Image1f org_disparity = Image1f::zeros(valid_mask.rows, valid_mask.cols);
   disparity->copyTo(org_disparity);
 
+#ifdef UGU_USE_OPENMP
 #pragma omp parallel for
+#endif
   for (int j = 0; j < disparity->rows; j++) {
     int miny = std::max(j - hk, 0);
     int maxy = std::min(j + hk, disparity->rows - 1);
@@ -1155,9 +1107,9 @@ inline bool ComputePatchMatchStereoImpl(const Image3b& left,
   // Post-processing
   if (param.base_param.left_right_consistency) {
     Image1b l_valid_mask, r_valid_mask;
-    LeftRightConsistencyCheck(ldisparity, rdisparity, &l_valid_mask,
-                              &r_valid_mask, param.base_param.left_right_consistency_th,
-                              param.patch_size / 2);
+    LeftRightConsistencyCheck(
+        ldisparity, rdisparity, &l_valid_mask, &r_valid_mask,
+        param.base_param.left_right_consistency_th, param.patch_size / 2);
     if (param.debug) {
       ugu::imwrite("l_valid_mask.png", l_valid_mask);
       ugu::imwrite("r_valid_mask.png", r_valid_mask);

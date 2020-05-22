@@ -25,6 +25,51 @@ enum class FilterForFilled {
  MEDIAN = 1 
 };
 
+template <typename T, typename TT>
+TT Sad(const ugu::Image<T>& a, const ugu::Image<T>& b, int minx, int maxx,
+       int miny, int maxy, int offsetx, int offsety) {
+  TT cost = TT(0);
+  for (int jj = miny; jj <= maxy; jj++) {
+    for (int ii = minx; ii <= maxx; ii++) {
+      const T& a_val = a.at<T>(jj, ii);
+      const T& b_val = b.at<T>(jj + offsety, ii + offsetx);
+      for (int c = 0; c < a.channels(); c++) {
+        cost += static_cast<TT>(std::abs(a_val[c] - b_val[c]));
+      }
+    }
+  }
+  return cost;
+}
+
+template <typename T, typename TT>
+TT Ssd(const ugu::Image<T>& a, const ugu::Image<T>& b, int minx, int maxx,
+       int miny, int maxy, int offsetx, int offsety) {
+  TT cost = TT(0);
+  for (int jj = miny; jj <= maxy; jj++) {
+    for (int ii = minx; ii <= maxx; ii++) {
+      const T& a_val = a.at<T>(jj, ii);
+      const T& b_val = b.at<T>(jj + offsety, ii + offsetx);
+      for (int c = 0; c < a.channels(); c++) {
+        cost += static_cast<TT>((a_val[c] - b_val[c]) * (a_val[c] - b_val[c]));
+      }
+    }
+  }
+  return cost;
+}
+
+template <typename T>
+T Hamming(T n1, T n2) {
+  T x = n1 ^ n2;
+  T bits = T(0);
+
+  while (x > 0) {
+    bits += x & 1;
+    x >>= 1;
+  }
+
+  return bits;
+}
+
 struct StereoParam {
   float fx, fy;
   float lcx, lcy, rcx, rcy;
@@ -47,6 +92,14 @@ struct StereoParam {
   FilterForFilled filter_for_filled = FilterForFilled::MEDIAN;
 
   //float subpixel_step = 0.1f;
+};
+
+struct SgmParam {
+  StereoParam base_param;
+
+  float p1 = 3.0f;
+  float p2 = 20.0f;
+
 };
 
 struct PatchMatchStereoParam {
@@ -83,6 +136,15 @@ struct PatchMatchStereoParam {
   int debug_step = 80;
 };
 
+// all_cost[j][i][d]: cost of disparity d at (i, j)
+using AllDisparityCost = std::vector<std::vector<std::vector<float>>>;
+
+bool ValidateDisparity(int x, float d, int half_patch_size, int width,
+                       bool is_right);
+
+bool AssertDisparity(const ugu::Image1f& disparity, int half_patch_size,
+                            bool is_right);
+
 bool Disparity2Depth(const Image1f& disparity, Image1f* depth, float baseline,
                      float fx, float lcx, float rcx, float mind, float maxd);
 
@@ -95,13 +157,23 @@ bool ComputeStereoBruteForce(const Image1b& left, const Image1b& right,
                              Image1f* disparity, Image1f* cost, Image1f* depth,
                              const StereoParam& param);
 
-bool ComputeStereoBruteForceCensus(const Image1b& lcensus, const Image1b& rcensus,
-                             Image1f* disparity, Image1f* cost, Image1f* depth,
-                             const StereoParam& param);
-
 bool ComputeStereoBruteForce(const Image3b& left, const Image3b& right,
                              Image1f* disparity, Image1f* cost, Image1f* depth,
                              const StereoParam& param);
+
+bool ComputeStereoBruteForceCensus(const Image1b& lcensus,
+                                   const Image1b& rcensus, Image1f* disparity,
+                                   Image1f* cost, Image1f* depth,
+                                   const StereoParam& param);
+
+
+bool ComputeStereoSgm(const Image1b& left, const Image1b& right,
+                      Image1f* disparity, Image1f* cost, Image1f* depth,
+                      const SgmParam& param);
+
+bool ComputeStereoSgm(const Image3b& left, const Image3b& right,
+                      Image1f* disparity, Image1f* cost, Image1f* depth,
+                      const SgmParam& param);
 
 bool ComputePatchMatchStereo(const Image3b& left, const Image3b& right,
                              Image1f* ldisparity, Image1f* lcost,
@@ -114,11 +186,11 @@ struct ErrorStat {
   float stdev;
   float min;
   float max;
-  Image1f data;
 };
 
 bool ComputeDisparityErrorStat(const Image1f& computed, const Image1f& gt,
-                               ErrorStat* stat, bool singned_dist = false,
+                               Image1f* error, ErrorStat* stat,
+                               bool singned_dist = false,
                                float truncation_th = -1.0f);
 
 }  // namespace ugu

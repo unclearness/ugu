@@ -15,6 +15,8 @@
 
 namespace ugu {
 
+static const double pi = 3.14159265358979323846;
+
 // borrow from glm
 // radians
 template <typename genType>
