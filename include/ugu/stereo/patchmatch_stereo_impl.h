@@ -65,7 +65,8 @@ inline bool AssertPlaneImage(const ugu::Image3f& plane, int half_patch_size,
         printf("(%f %f %f) %f\n", normal[0], normal[1], normal[2], len);
         float d = i * p[0] + j * p[1] + p[2];
         printf("%f %d\n", d,
-               ugu::ValidateDisparity(i, d, half_patch_size, plane.cols, is_right));
+               ugu::ValidateDisparity(i, d, half_patch_size, plane.cols,
+                                      is_right));
         assert(false);
         return false;
       }

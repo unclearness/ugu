@@ -12,18 +12,12 @@ namespace ugu {
 enum class StereoCost {
   SSD = 0,
   SAD = 1,
-  HAMMING = 2 // only with census_transform
+  HAMMING = 2  // only with census_transform
 };
 
-enum class HoleFilling {
-  NONE = 0,
-  NN = 1
-};
+enum class HoleFilling { NONE = 0, NN = 1 };
 
-enum class FilterForFilled {
- NONE = 0,
- MEDIAN = 1 
-};
+enum class FilterForFilled { NONE = 0, MEDIAN = 1 };
 
 template <typename T, typename TT>
 TT Sad(const ugu::Image<T>& a, const ugu::Image<T>& b, int minx, int maxx,
@@ -91,7 +85,7 @@ struct StereoParam {
   HoleFilling hole_filling = HoleFilling::NN;
   FilterForFilled filter_for_filled = FilterForFilled::MEDIAN;
 
-  //float subpixel_step = 0.1f;
+  // float subpixel_step = 0.1f;
 };
 
 struct SgmParam {
@@ -99,7 +93,6 @@ struct SgmParam {
 
   float p1 = 3.0f;
   float p2 = 20.0f;
-
 };
 
 struct PatchMatchStereoParam {
@@ -128,7 +121,6 @@ struct PatchMatchStereoParam {
   bool temporal_propagation = false;
   bool plane_refinement = true;
 
-
   bool fill_hole_nn = true;
   bool weighted_median_for_filled = true;
 
@@ -145,14 +137,14 @@ struct Path8Cost {
   AllDisparityCost cost;
 };
 using Path8Costs = std::array<Path8Cost, 8>;
-void InitPath8Costs(Path8Costs* cost, int h, int w,
-                          int max_disparity_i, float init_val);
+void InitPath8Costs(Path8Costs* cost, int h, int w, int max_disparity_i,
+                    float init_val);
 
 bool ValidateDisparity(int x, float d, int half_patch_size, int width,
                        bool is_right);
 
 bool AssertDisparity(const ugu::Image1f& disparity, int half_patch_size,
-                            bool is_right);
+                     bool is_right);
 
 bool Disparity2Depth(const Image1f& disparity, Image1f* depth, float baseline,
                      float fx, float lcx, float rcx, float mind, float maxd);
@@ -174,7 +166,6 @@ bool ComputeStereoBruteForceCensus(const Image1b& lcensus,
                                    const Image1b& rcensus, Image1f* disparity,
                                    Image1f* cost, Image1f* depth,
                                    const StereoParam& param);
-
 
 bool ComputeStereoSgm(const Image1b& left, const Image1b& right,
                       Image1f* disparity, Image1f* cost, Image1f* depth,

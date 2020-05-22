@@ -63,6 +63,10 @@ int main(int argc, char* argv[]) {
 
 #if 1
   {
+    param.census_transform = true;
+    param.kernel = 3;
+    param.cost = ugu::StereoCost::HAMMING;
+    param.max_disparity = 50;
     timer.Start();
     ugu::ComputeStereoBruteForceCensus(lcensus, rcensus, &disparity, &cost,
                                        &depth, param);
@@ -70,37 +74,58 @@ int main(int argc, char* argv[]) {
     ugu::LOGI("ComputeStereoBruteForceCensus: %f ms\n", timer.elapsed_msec());
 
     Depth2Gray(depth, &vis_depth);
-    ugu::imwrite(data_dir + "stereocensus_vis_depth.png", vis_depth);
+    ugu::imwrite(data_dir + "naivecensus_vis_depth.png", vis_depth);
 
     ugu::Mesh view_mesh, view_point_cloud;
     ugu::Depth2Mesh(depth, left_c, *camera, &view_mesh, kMaxConnectZDiff);
     ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
-    view_point_cloud.WritePly(data_dir + "stereocensus_mesh.ply");
-    view_mesh.WriteObj(data_dir, "stereocensus_mesh");
+    view_point_cloud.WritePly(data_dir + "naivecensus_mesh.ply");
+    view_mesh.WriteObj(data_dir, "naivecensus_mesh");
   }
 #endif
 
 #if 1
-  param.cost = ugu::StereoCost::SAD;
-  //param.kernel = 3;
-  // param.max_disparity = 50;
-  timer.Start();
-  ugu::ComputeStereoBruteForce(left, right, &disparity, &cost, &depth,
-                               param);
-  timer.End();
-  ugu::LOGI("ComputeStereoBruteForce: %f ms\n", timer.elapsed_msec());
+  {
+    ugu::SgmParam sgm_param;
 
-  Depth2Gray(depth, &vis_depth);
-  ugu::imwrite(data_dir + "stereo_vis_depth.png", vis_depth);
+    sgm_param.base_param = param;
+    timer.Start();
+    ugu::ComputeStereoSgm(left, right, &disparity, &cost, &depth, sgm_param);
+    timer.End();
+    ugu::LOGI("ComputeStereoSgm: %f ms\n", timer.elapsed_msec());
 
-  ugu::Mesh view_mesh, view_point_cloud;
-  ugu::Depth2Mesh(depth, left_c, *camera, &view_mesh, kMaxConnectZDiff);
-  ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
-  view_point_cloud.WritePly(data_dir + "stereo_mesh.ply");
-  view_mesh.WriteObj(data_dir, "stereo_mesh");
+    Depth2Gray(depth, &vis_depth);
+    ugu::imwrite(data_dir + "sgm_vis_depth.png", vis_depth);
+
+    ugu::Mesh view_mesh, view_point_cloud;
+    ugu::Depth2Mesh(depth, left_c, *camera, &view_mesh, kMaxConnectZDiff);
+    ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
+    view_point_cloud.WritePly(data_dir + "sgm_mesh.ply");
+    view_mesh.WriteObj(data_dir, "sgm_mesh");
+  }
 #endif
 
-  return 0;
+#if 1
+  {
+    param.census_transform = false;
+    param.kernel = 35;
+    param.cost = ugu::StereoCost::SAD;
+    param.max_disparity = -1.0f;
+    timer.Start();
+    ugu::ComputeStereoBruteForce(left, right, &disparity, &cost, &depth, param);
+    timer.End();
+    ugu::LOGI("ComputeStereoBruteForce: %f ms\n", timer.elapsed_msec());
+
+    Depth2Gray(depth, &vis_depth);
+    ugu::imwrite(data_dir + "naivesad_vis_depth.png", vis_depth);
+
+    ugu::Mesh view_mesh, view_point_cloud;
+    ugu::Depth2Mesh(depth, left_c, *camera, &view_mesh, kMaxConnectZDiff);
+    ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
+    view_point_cloud.WritePly(data_dir + "naivesad_mesh.ply");
+    view_mesh.WriteObj(data_dir, "naivesad_mesh");
+  }
+#endif
 
   ugu::PatchMatchStereoParam pmparam;
   pmparam.base_param = param;

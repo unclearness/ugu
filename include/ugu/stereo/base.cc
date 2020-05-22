@@ -104,6 +104,8 @@ bool VisualizeCost(const Image1f& cost, Image3b* vis_cost, float minc,
 // DUMMY
 bool CensusTransform8u(const Image3b& color, Image1b* census) {
   ugu::LOGE("CensusTransform8u is invalid for Image3b\n");
+  (void)color;
+  (void)census;
   return false;
 }
 
@@ -210,7 +212,7 @@ bool ComputeStereoBruteForceCensusImpl(
       // Find the best match in the same row
       // Integer pixel (not sub-pixel) accuracy
       int d_range = std::min(max_disparity_i, i);
-      for (int k = 0; k < d_range; k++) {
+      for (int k = 0; k <= d_range; k++) {
         unsigned char current_cost =
             Hamming<unsigned char>(lcensus.at<unsigned char>(j, i),
                                    rcensus.at<unsigned char>(j, i - k));
@@ -221,7 +223,7 @@ bool ComputeStereoBruteForceCensusImpl(
           c = static_cast<float>(current_cost);
           disp = static_cast<float>(k);
           mink = k;
-          if (c == 0) {
+          if (c == 0 && !keep_all_cost) {
             // if cost is 0, prefer to smaller disparity
             break;
           }
@@ -493,7 +495,7 @@ bool ComputeStereoSgmImpl(const Image<T>& left, const Image<T>& right,
   // Init sum_cost
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < hk; i++) {
-      for (int d = 0; d < max_disparity_i; d++) {
+      for (int d = 0; d <= max_disparity_i; d++) {
         sum_cost[j][i][d] = all_cost[j][i][d];
         for (int k = 0; k < 8; k++) {
           path8_costs[k].cost[j][i][d] = all_cost[j][i][d];
@@ -503,7 +505,7 @@ bool ComputeStereoSgmImpl(const Image<T>& left, const Image<T>& right,
   }
   for (int j = 0; j < hk; j++) {
     for (int i = 0; i < w; i++) {
-      for (int d = 0; d < max_disparity_i; d++) {
+      for (int d = 0; d <= max_disparity_i; d++) {
         sum_cost[j][i][d] = all_cost[j][i][d];
         for (int k = 0; k < 8; k++) {
           path8_costs[k].cost[j][i][d] = all_cost[j][i][d];
@@ -514,7 +516,7 @@ bool ComputeStereoSgmImpl(const Image<T>& left, const Image<T>& right,
 
   for (int j = 0; j < h; j++) {
     for (int i = w - hk; i < w; i++) {
-      for (int d = 0; d < max_disparity_i; d++) {
+      for (int d = 0; d <= max_disparity_i; d++) {
         sum_cost[j][i][d] = all_cost[j][i][d];
         for (int k = 0; k < 8; k++) {
           path8_costs[k].cost[j][i][d] = all_cost[j][i][d];
@@ -524,7 +526,7 @@ bool ComputeStereoSgmImpl(const Image<T>& left, const Image<T>& right,
   }
   for (int j = h - hk; j < h; j++) {
     for (int i = 0; i < w; i++) {
-      for (int d = 0; d < max_disparity_i; d++) {
+      for (int d = 0; d <= max_disparity_i; d++) {
         sum_cost[j][i][d] = all_cost[j][i][d];
         for (int k = 0; k < 8; k++) {
           path8_costs[k].cost[j][i][d] = all_cost[j][i][d];
@@ -539,7 +541,7 @@ bool ComputeStereoSgmImpl(const Image<T>& left, const Image<T>& right,
   // Cost aggregation from upper left
   for (int j = hk + 1; j < h - hk - 1; j++) {
     for (int i = hk + 1; i < w - hk - 1; i++) {
-      //int d_range = std::min(max_disparity_i, i);
+      // int d_range = std::min(max_disparity_i, i);
       for (int d = 0; d <= max_disparity_i; d++) {
         for (int k = 0; k < 4; k++) {
           sum_cost[j][i][d] +=
@@ -552,7 +554,7 @@ bool ComputeStereoSgmImpl(const Image<T>& left, const Image<T>& right,
   // Cost aggregation from lower right
   for (int j = h - hk - 1; j >= hk + 1; j--) {
     for (int i = w - hk - 1; i >= hk + 1; i--) {
-      //int d_range = std::min(max_disparity_i, i);
+      // int d_range = std::min(max_disparity_i, i);
       for (int d = 0; d <= max_disparity_i; d++) {
         for (int k = 4; k < 8; k++) {
           sum_cost[j][i][d] +=
@@ -573,7 +575,7 @@ bool ComputeStereoSgmImpl(const Image<T>& left, const Image<T>& right,
       float& disp = disparity->at<float>(j, i);
       c = sum_cost[j][i][0];
       disp = 0.0f;
-      for (int d = 1; d < max_disparity_i; d++) {
+      for (int d = 1; d <= max_disparity_i; d++) {
         if (sum_cost[j][i][d] < c) {
           c = sum_cost[j][i][d];
           disp = static_cast<float>(d);
