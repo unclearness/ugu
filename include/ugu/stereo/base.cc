@@ -7,7 +7,7 @@
 
 #include "ugu/stereo/base.h"
 #include "ugu/stereo/patchmatch_stereo_impl.h"
-#include "ugu/stereo/sgm_impl.h"
+//#include "ugu/stereo/sgm_impl.h"
 
 namespace ugu {
 
@@ -239,6 +239,57 @@ bool ComputeStereoBruteForceCensusImpl(
   return true;
 }
 
+void InitAllDisparityCost(AllDisparityCost* all_cost, int h, int w,
+                          int max_disparity_i, float init_val) {
+  all_cost->clear();
+  all_cost->resize(h);
+  for (auto& row : *all_cost) {
+    row.resize(w);
+    for (auto& p : row) {
+      p.resize(max_disparity_i + 1, init_val);
+    }
+  }
+}
+
+void InitPath8Costs(Path8Costs* costs, int h, int w, int max_disparity_i,
+                    float init_val) {
+  for (auto& c : *costs) {
+    InitAllDisparityCost(&c.cost, h, w, max_disparity_i, init_val);
+  }
+
+  /*
+   012
+   3+4
+   567
+  */
+
+  // From upper left
+  (*costs)[0].x = -1;
+  (*costs)[0].y = -1;
+
+  (*costs)[1].x = 0;
+  (*costs)[1].y = -1;
+
+  (*costs)[2].x = 1;
+  (*costs)[2].y = -1;
+
+  (*costs)[3].x = -1;
+  (*costs)[3].y = 0;
+
+  // From lower right
+  (*costs)[4].x = 1;
+  (*costs)[4].y = 0;
+
+  (*costs)[5].x = -1;
+  (*costs)[5].y = 1;
+
+  (*costs)[6].x = 0;
+  (*costs)[6].y = 1;
+
+  (*costs)[7].x = 1;
+  (*costs)[7].y = 1;
+}
+
 template <typename T>
 bool ComputeStereoBruteForceImpl(const Image<T>& left, const Image<T>& right,
                                  Image1f* disparity, AllDisparityCost* all_cost,
@@ -270,14 +321,8 @@ bool ComputeStereoBruteForceImpl(const Image<T>& left, const Image<T>& right,
   best_cost->setTo(std::numeric_limits<float>::max());
 
   if (keep_all_cost && all_cost->size() != h) {
-    all_cost->clear();
-    all_cost->resize(h);
-    for (auto& row : *all_cost) {
-      row.resize(w);
-      for (auto& p : row) {
-        p.resize(max_disparity_i);
-      }
-    }
+    InitAllDisparityCost(all_cost, h, w, max_disparity_i,
+                         std::numeric_limits<float>::max());
   }
 
   if (depth->rows != h || depth->cols != w) {
@@ -328,7 +373,7 @@ bool ComputeStereoBruteForceImpl(const Image<T>& left, const Image<T>& right,
       // Find the best match in the same row
       // Integer pixel (not sub-pixel) accuracy
       int d_range = std::min(max_disparity_i, i);
-      for (int k = 0; k < d_range; k++) {
+      for (int k = 0; k <= d_range; k++) {
         int current_cost =
             cost_func(left, right, i - hk, i + hk, j - hk, j + hk, -k, 0);
         if (keep_all_cost) {
@@ -371,6 +416,179 @@ bool ComputeStereoBruteForceImpl(const Image<T>& left, const Image<T>& right,
 
   Disparity2Depth(*disparity, depth, param.baseline, param.fx, param.lcx,
                   param.rcx, param.mind, param.maxd);
+
+  return true;
+}
+
+float AggregateCost(int x, int y, int now_d, int path_num,
+                    const AllDisparityCost& all_cost, Path8Costs* path8_costs,
+                    float p1, float p2, int max_disparity) {
+  int offsetx = path8_costs->at(path_num).x;
+  int offsety = path8_costs->at(path_num).y;
+
+  const float& now_cost = all_cost[y][x][now_d];
+
+  float v0, v1, v2, v3;
+  v0 = std::numeric_limits<float>::max();
+  v1 = std::numeric_limits<float>::max();
+  v2 = std::numeric_limits<float>::max();
+  v3 = std::numeric_limits<float>::max();
+
+  // Search disparity
+  for (int d = 0; d <= max_disparity; d++) {
+    const float& prev_cost = all_cost[y + offsety][x + offsetx][d];
+
+    if (now_d == d) {
+      v0 = prev_cost;
+    } else if (now_d == d + 1) {
+      v1 = prev_cost + p1;
+    } else if (now_d == d - 1) {
+      v2 = prev_cost + p1;
+    } else {
+      float tmp_v = prev_cost + p2;
+      if (tmp_v < v3) {
+        v3 = tmp_v;
+      }
+    }
+  }
+
+  // Select minimum cost for current pix.
+  path8_costs->at(path_num).cost[y][x][now_d] =
+      std::min({v0, v1, v2, v3}) + now_cost;
+
+  return path8_costs->at(path_num).cost[y][x][now_d];
+}
+
+template <typename T>
+bool ComputeStereoSgmImpl(const Image<T>& left, const Image<T>& right,
+                          Image1f* disparity, Image1f* cost, Image1f* depth,
+                          const SgmParam& param) {
+  Timer<> timer;
+  timer.Start();
+
+  const int hk = param.base_param.kernel / 2;
+  float max_disparity = param.base_param.max_disparity;
+  if (max_disparity < 0) {
+    max_disparity = static_cast<float>(left.cols - 1);
+  }
+  const int max_disparity_i = static_cast<int>(max_disparity);
+  const int w = left.cols;
+  const int h = left.rows;
+
+  AllDisparityCost all_cost, sum_cost;
+  bool ret = ComputeStereoBruteForceImpl(left, right, disparity, &all_cost,
+                                         cost, depth, param.base_param, true);
+  if (!ret) {
+    return false;
+  }
+  timer.End();
+  ugu::LOGI("Brute force initialization: %.2f ms\n", timer.elapsed_msec());
+
+  timer.Start();
+  Path8Costs path8_costs;
+  // Aggregate cost
+  InitAllDisparityCost(&sum_cost, h, w, max_disparity_i, 0.0f);
+  InitPath8Costs(&path8_costs, h, w, max_disparity_i, 0.0f);
+
+  // Init sum_cost
+  for (int j = 0; j < h; j++) {
+    for (int i = 0; i < hk; i++) {
+      for (int d = 0; d < max_disparity_i; d++) {
+        sum_cost[j][i][d] = all_cost[j][i][d];
+        for (int k = 0; k < 8; k++) {
+          path8_costs[k].cost[j][i][d] = all_cost[j][i][d];
+        }
+      }
+    }
+  }
+  for (int j = 0; j < hk; j++) {
+    for (int i = 0; i < w; i++) {
+      for (int d = 0; d < max_disparity_i; d++) {
+        sum_cost[j][i][d] = all_cost[j][i][d];
+        for (int k = 0; k < 8; k++) {
+          path8_costs[k].cost[j][i][d] = all_cost[j][i][d];
+        }
+      }
+    }
+  }
+
+  for (int j = 0; j < h; j++) {
+    for (int i = w - hk; i < w; i++) {
+      for (int d = 0; d < max_disparity_i; d++) {
+        sum_cost[j][i][d] = all_cost[j][i][d];
+        for (int k = 0; k < 8; k++) {
+          path8_costs[k].cost[j][i][d] = all_cost[j][i][d];
+        }
+      }
+    }
+  }
+  for (int j = h - hk; j < h; j++) {
+    for (int i = 0; i < w; i++) {
+      for (int d = 0; d < max_disparity_i; d++) {
+        sum_cost[j][i][d] = all_cost[j][i][d];
+        for (int k = 0; k < 8; k++) {
+          path8_costs[k].cost[j][i][d] = all_cost[j][i][d];
+        }
+      }
+    }
+  }
+  timer.End();
+  ugu::LOGI("SGM init: %.2f ms\n", timer.elapsed_msec());
+
+  timer.Start();
+  // Cost aggregation from upper left
+  for (int j = hk + 1; j < h - hk - 1; j++) {
+    for (int i = hk + 1; i < w - hk - 1; i++) {
+      //int d_range = std::min(max_disparity_i, i);
+      for (int d = 0; d <= max_disparity_i; d++) {
+        for (int k = 0; k < 4; k++) {
+          sum_cost[j][i][d] +=
+              AggregateCost(i, j, d, k, all_cost, &path8_costs, param.p1,
+                            param.p2, max_disparity_i);
+        }
+      }
+    }
+  }
+  // Cost aggregation from lower right
+  for (int j = h - hk - 1; j >= hk + 1; j--) {
+    for (int i = w - hk - 1; i >= hk + 1; i--) {
+      //int d_range = std::min(max_disparity_i, i);
+      for (int d = 0; d <= max_disparity_i; d++) {
+        for (int k = 4; k < 8; k++) {
+          sum_cost[j][i][d] +=
+              AggregateCost(i, j, d, k, all_cost, &path8_costs, param.p1,
+                            param.p2, max_disparity_i);
+        }
+      }
+    }
+  }
+  timer.End();
+  ugu::LOGI("Cost aggregation: %.2f ms\n", timer.elapsed_msec());
+
+  timer.Start();
+  // Winner-Takes-All
+  for (int j = hk; j < h - hk; j++) {
+    for (int i = hk; i < w - hk; i++) {
+      float& c = cost->at<float>(j, i);
+      float& disp = disparity->at<float>(j, i);
+      c = sum_cost[j][i][0];
+      disp = 0.0f;
+      for (int d = 1; d < max_disparity_i; d++) {
+        if (sum_cost[j][i][d] < c) {
+          c = sum_cost[j][i][d];
+          disp = static_cast<float>(d);
+        }
+      }
+    }
+  }
+
+  timer.End();
+  ugu::LOGI("Winner-Takes-All: %.2f ms\n", timer.elapsed_msec());
+
+  Disparity2Depth(*disparity, depth, param.base_param.baseline,
+                  param.base_param.fx, param.base_param.lcx,
+                  param.base_param.rcx, param.base_param.mind,
+                  param.base_param.maxd);
 
   return true;
 }

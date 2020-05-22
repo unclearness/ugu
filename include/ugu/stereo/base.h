@@ -138,6 +138,15 @@ struct PatchMatchStereoParam {
 
 // all_cost[j][i][d]: cost of disparity d at (i, j)
 using AllDisparityCost = std::vector<std::vector<std::vector<float>>>;
+void InitAllDisparityCost(AllDisparityCost* all_cost, int h, int w,
+                          int max_disparity_i, float init_val);
+struct Path8Cost {
+  int x, y;
+  AllDisparityCost cost;
+};
+using Path8Costs = std::array<Path8Cost, 8>;
+void InitPath8Costs(Path8Costs* cost, int h, int w,
+                          int max_disparity_i, float init_val);
 
 bool ValidateDisparity(int x, float d, int half_patch_size, int width,
                        bool is_right);
