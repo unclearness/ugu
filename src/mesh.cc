@@ -190,7 +190,7 @@ void Mesh::CalcStats() {
                                   std::numeric_limits<float>::lowest(),
                                   std::numeric_limits<float>::lowest());
 
-  if (vertex_indices_.empty()) {
+  if (vertices_.empty()) {
     return;
   }
 
