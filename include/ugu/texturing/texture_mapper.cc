@@ -500,6 +500,12 @@ struct Chart {
       }
     }
 
+    if (kf_id < 0) {
+      // Add stub patch for invalid chart
+      patch = ugu::Image3b::zeros(1, 1);
+      return true;
+    }
+
     local_tris_face.resize(faces.size());
 
 #if 0
