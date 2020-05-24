@@ -6,8 +6,10 @@
 #include "ugu/mesh.h"
 
 #include <fstream>
+#include <map>
 #include <random>
 #include <sstream>
+#include <unordered_set>
 
 #ifdef UGU_USE_TINYOBJLOADER
 #include "tiny_obj_loader.h"
@@ -993,6 +995,69 @@ int Mesh::RemoveUnreferencedVertices() {
   }
 
   return RemoveVertices(reference_table);
+}
+
+int Mesh::RemoveDuplicateFaces() {
+  std::map<std::pair<int, int>, int> edge2count;
+  std::unordered_set<int> to_remove_faceids;
+  for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
+    const auto& f = vertex_indices_[i];
+    auto e0 = std::make_pair(f[0], f[1]);
+    if (edge2count.find(e0) == edge2count.end()) {
+      edge2count.insert(std::make_pair(e0, i));
+    } else {
+      ugu::LOGD("edge %d -> %d exisits at %d. remove %d\n", f[0], f[1],
+                edge2count[e0], i);
+      to_remove_faceids.insert(i);
+      continue;
+    }
+
+    auto e1 = std::make_pair(f[1], f[2]);
+    if (edge2count.find(e1) == edge2count.end()) {
+      edge2count.insert(std::make_pair(e1, i));
+    } else {
+      ugu::LOGD("edge %d -> %d exisits at %d. remove %d\n", f[1], f[2],
+                edge2count[e1], i);
+      to_remove_faceids.insert(i);
+      continue;
+    }
+
+    auto e2 = std::make_pair(f[2], f[0]);
+    if (edge2count.find(e2) == edge2count.end()) {
+      edge2count.insert(std::make_pair(e2, i));
+    } else {
+      ugu::LOGD("edge %d -> %d exisits at %d. remove %d\n", f[2], f[0],
+                edge2count[e2], i);
+      to_remove_faceids.insert(i);
+      continue;
+    }
+  }
+
+  if (to_remove_faceids.empty()) {
+    return 0;
+  }
+
+  std::vector<Eigen::Vector3i> org_vertex_indices;
+  std::vector<Eigen::Vector3i> org_uv_indices;
+
+  bool keep_uv =
+      (vertex_indices_.size() == uv_indices_.size()) && uv_indices_.size() > 0;
+
+  CopyVec(vertex_indices_, &org_vertex_indices);
+  CopyVec(uv_indices_, &org_uv_indices);
+  vertex_indices_.clear();
+  uv_indices_.clear();
+
+  for (int i = 0; i < static_cast<int>(org_vertex_indices.size()); i++) {
+    if (to_remove_faceids.count(i) == 0) {
+      vertex_indices_.push_back(org_vertex_indices[i]);
+      if (keep_uv) {
+        uv_indices_.push_back(org_uv_indices[i]);
+      }
+    }
+  }
+
+  return static_cast<int>(to_remove_faceids.size());
 }
 
 bool Mesh::FlipFaces() {
