@@ -41,10 +41,35 @@ void TestMerge() {
   dst.WriteObj(data1_dir, "bunny_twin");
 }
 
+void TestRemove() {
+  std::string data1_dir = "../data/bunny/";
+  std::string in_obj_path1 = data1_dir + "bunny.obj";
+  ugu::Mesh bunny;
+  bunny.LoadObj(in_obj_path1, data1_dir);
+
+  std::vector<bool> valid_face_table;
+
+  Eigen::Vector3f direc(0.0, 0.0, 1.0f);
+  for (const auto& fn : bunny.face_normals()) {
+    // printf("(%f, %f, %f)\n", fn[0], fn[1], fn[2]);
+    if (direc.dot(fn) > 0.0) {
+      valid_face_table.push_back(true);
+    } else {
+      valid_face_table.push_back(false);
+    }
+  }
+
+  bunny.RemoveFaces(valid_face_table);
+
+  bunny.WriteObj(data1_dir, "bunny_removed_back");
+}
+
 int main() {
   TestIO();
 
   TestMerge();
+
+  TestRemove();
 
   return 0;
 }

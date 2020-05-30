@@ -118,6 +118,7 @@ class Mesh {
 
   int RemoveVertices(const std::vector<bool>& valid_vertex_table);
   int RemoveUnreferencedVertices();
+  int RemoveFaces(const std::vector<bool>& valid_face_table);
   int RemoveDuplicateFaces();
 
   bool FlipFaces();

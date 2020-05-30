@@ -997,6 +997,44 @@ int Mesh::RemoveUnreferencedVertices() {
   return RemoveVertices(reference_table);
 }
 
+int Mesh::RemoveFaces(const std::vector<bool>& valid_face_table) {
+  if (valid_face_table.size() != vertex_indices_.size()) {
+    LOGE("valid_face_table must be same size to vertex_indices");
+    return -1;
+  }
+
+  int num_removed = 0;
+  std::vector<Eigen::Vector3i> removed_vertex_indices;
+  std::vector<Eigen::Vector3i> removed_uv_indices;
+  std::vector<int> removed_material_ids;
+  bool remove_uv = vertex_indices_.size() == uv_indices_.size();
+  bool remove_material_id = vertex_indices_.size() == material_ids_.size();
+  for (int i = 0; i < static_cast<int>(valid_face_table.size()); i++) {
+    if (valid_face_table[i]) {
+      removed_vertex_indices.push_back(vertex_indices_[i]);
+      if (remove_uv) {
+        removed_uv_indices.push_back(uv_indices_[i]);
+      }
+      if (remove_material_id) {
+        removed_material_ids.push_back(material_ids_[i]);
+      }
+    } else {
+      num_removed++;
+    }
+  }
+
+  set_vertex_indices(removed_vertex_indices);
+  if (remove_uv) {
+    set_uv_indices(removed_uv_indices);
+  }
+
+  CalcNormal();
+
+  set_material_ids(removed_material_ids);
+
+  return num_removed;
+}
+
 int Mesh::RemoveDuplicateFaces() {
   std::map<std::pair<int, int>, int> edge2count;
   std::unordered_set<int> to_remove_faceids;
