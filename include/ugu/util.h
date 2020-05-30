@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include <string>
 #include <numeric>
+#include <string>
 
 #include "ugu/camera.h"
 #include "ugu/common.h"
@@ -27,26 +27,29 @@ bool Depth2PointCloud(const Image1f& depth, const Image3b& color,
 
 bool Depth2Mesh(const Image1f& depth, const Camera& camera, Mesh* mesh,
                 float max_connect_z_diff, int x_step = 1, int y_step = 1,
-                bool gl_coord = false);
+                bool gl_coord = false, ugu::Image3f* point_cloud = nullptr,
+                ugu::Image3f* normal = nullptr);
 
 bool Depth2Mesh(const Image1f& depth, const Image3b& color,
                 const Camera& camera, Mesh* mesh, float max_connect_z_diff,
                 int x_step = 1, int y_step = 1, bool gl_coord = false,
-                const std::string& material_name = "Depth2Mesh_mat");
+                const std::string& material_name = "Depth2Mesh_mat",
+                bool with_vertex_color = false,
+                ugu::Image3f* point_cloud = nullptr,
+                ugu::Image3f* normal = nullptr);
 
 void WriteFaceIdAsText(const Image1i& face_id, const std::string& path);
 
-
 inline void NormalizeWeights(const std::vector<float>& weights,
-                      std::vector<float>* normalized_weights) {
+                             std::vector<float>* normalized_weights) {
   assert(!weights.empty());
   normalized_weights->clear();
   std::copy(weights.begin(), weights.end(),
             std::back_inserter(*normalized_weights));
   // Add eps
   const float eps = 0.000001f;
-  std::for_each(normalized_weights->begin(),
-                              normalized_weights->end(), [&](float& x){x += eps;});
+  std::for_each(normalized_weights->begin(), normalized_weights->end(),
+                [&](float& x) { x += eps; });
   float sum = std::accumulate(normalized_weights->begin(),
                               normalized_weights->end(), 0.0f);
   if (sum > 0.000001) {
@@ -111,6 +114,5 @@ T WeightedMedian(const std::vector<T>& data,
 
   return data_weights[index].second;
 }
-
 
 }  // namespace ugu

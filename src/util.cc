@@ -97,9 +97,10 @@ bool Depth2PointCloudImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
 
 bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
                     const ugu::Camera& camera, ugu::Mesh* mesh,
-                    bool with_texture, float max_connect_z_diff, int x_step,
-                    int y_step, bool gl_coord,
-                    const std::string& material_name) {
+                    bool with_texture, bool with_vertex_color,
+                    float max_connect_z_diff, int x_step, int y_step,
+                    bool gl_coord, const std::string& material_name,
+                    ugu::Image3f* point_cloud, ugu::Image3f* normal) {
   if (max_connect_z_diff < 0) {
     ugu::LOGE("Depth2Mesh max_connect_z_diff must be positive %f\n",
               max_connect_z_diff);
@@ -143,6 +144,9 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
   std::vector<Eigen::Vector2f> uvs;
   std::vector<Eigen::Vector3f> vertices;
   std::vector<Eigen::Vector3i> vertex_indices;
+  std::vector<Eigen::Vector3f> vertex_colors;
+
+  std::vector<std::pair<int, int>> vid2xy;
 
   std::vector<int> added_table(depth.cols * depth.rows, -1);
   int vertex_id{0};
@@ -165,14 +169,35 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
 
       vertices.push_back(camera_p);
 
+      vid2xy.push_back(std::make_pair(x, y));
+
+      Eigen::Vector2f uv(
+          static_cast<float>(x + 0.5f) / static_cast<float>(depth.cols),
+          static_cast<float>(y + 0.5f) / static_cast<float>(depth.rows));
+
+      if (with_vertex_color) {
+        // nearest neighbor
+        // todo: bilinear
+        Eigen::Vector2i pixel_pos(
+            static_cast<int>(std::round(uv.x() * color.cols)),
+            static_cast<int>(std::round(uv.y() * color.rows)));
+
+        Eigen::Vector3f pixel_color;
+        const ugu::Vec3b& tmp_color =
+            color.at<ugu::Vec3b>(pixel_pos.y(), pixel_pos.x());
+        pixel_color.x() = tmp_color[0];
+        pixel_color.y() = tmp_color[1];
+        pixel_color.z() = tmp_color[2];
+
+        vertex_colors.push_back(pixel_color);
+      }
+
       if (with_texture) {
         // +0.5f comes from mapping 0~1 to -0.5~width(or height)+0.5
         // since uv 0 and 1 is pixel boundary at ends while pixel position is
         // the center of pixel
-        uvs.emplace_back(
-            static_cast<float>(x + 0.5f) / static_cast<float>(depth.cols),
-            1.0f -
-                static_cast<float>(y + 0.5f) / static_cast<float>(depth.rows));
+        uv.y() = 1.0f - uv.y();
+        uvs.emplace_back(uv);
       }
 
       added_table[y * camera.width() + x] = vertex_id;
@@ -222,6 +247,32 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
     mesh->set_materials(materials);
     std::vector<int> material_ids(vertex_indices.size(), 0);
     mesh->set_material_ids(material_ids);
+  }
+
+  if (with_vertex_color) {
+    mesh->set_vertex_colors(vertex_colors);
+  }
+
+  if (point_cloud != nullptr) {
+    ugu::Init(point_cloud, depth.cols, depth.rows, 0.0f);
+    for (int i = 0; i < static_cast<int>(vid2xy.size()); i++) {
+      const auto& xy = vid2xy[i];
+      auto& p = point_cloud->at<ugu::Vec3f>(xy.second, xy.first);
+      p[0] = mesh->vertices()[i][0];
+      p[1] = mesh->vertices()[i][1];
+      p[2] = mesh->vertices()[i][2];
+    }
+  }
+
+  if (normal != nullptr) {
+    ugu::Init(normal, depth.cols, depth.rows, 0.0f);
+    for (int i = 0; i < static_cast<int>(vid2xy.size()); i++) {
+      const auto& xy = vid2xy[i];
+      auto& n = normal->at<ugu::Vec3f>(xy.second, xy.first);
+      n[0] = mesh->normals()[i][0];
+      n[1] = mesh->normals()[i][1];
+      n[2] = mesh->normals()[i][2];
+    }
   }
 
   return true;
@@ -285,20 +336,22 @@ bool Depth2PointCloud(const Image1f& depth, const Image3b& color,
 }
 
 bool Depth2Mesh(const Image1f& depth, const Camera& camera, Mesh* mesh,
-                float max_connect_z_diff, int x_step, int y_step,
-                bool gl_coord) {
+                float max_connect_z_diff, int x_step, int y_step, bool gl_coord,
+                ugu::Image3f* point_cloud, ugu::Image3f* normal) {
   Image3b stub_color;
-  return Depth2MeshImpl(depth, stub_color, camera, mesh, false,
+  return Depth2MeshImpl(depth, stub_color, camera, mesh, false, false,
                         max_connect_z_diff, x_step, y_step, gl_coord,
-                        "illegal_material");
+                        "illegal_material", point_cloud, normal);
 }
 
 bool Depth2Mesh(const Image1f& depth, const Image3b& color,
                 const Camera& camera, Mesh* mesh, float max_connect_z_diff,
                 int x_step, int y_step, bool gl_coord,
-                const std::string& material_name) {
-  return Depth2MeshImpl(depth, color, camera, mesh, true, max_connect_z_diff,
-                        x_step, y_step, gl_coord, material_name);
+                const std::string& material_name, bool with_vertex_color,
+                ugu::Image3f* point_cloud, ugu::Image3f* normal) {
+  return Depth2MeshImpl(depth, color, camera, mesh, true, with_vertex_color,
+                        max_connect_z_diff, x_step, y_step, gl_coord,
+                        material_name, point_cloud, normal);
 }
 
 void WriteFaceIdAsText(const Image1i& face_id, const std::string& path) {

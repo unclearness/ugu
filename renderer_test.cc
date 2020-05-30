@@ -115,6 +115,14 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   std::vector<std::string> name_list;
   PreparePoseAndName(mesh, pose_list, name_list);
 
+  int x_step = 1;
+  int y_step = 1;
+  bool gl_coord = false;
+  std::string material_name = "Depth2Mesh_mat";
+  bool with_vertex_color = true;
+  ugu::Image3f mesh_point_cloud;
+  ugu::Image3f mesh_normal;
+
   for (size_t i = 0; i < pose_list.size(); i++) {
     Eigen::Affine3d& c2w = pose_list[i];
     std::string prefix = name_list[i];
@@ -135,8 +143,17 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
     FaceId2RandomColor(face_id, &vis_face_id);
     imwrite(out_dir + prefix + "_vis_face_id.png", vis_face_id);
     WriteFaceIdAsText(face_id, out_dir + prefix + "_face_id.txt");
-    Depth2Mesh(depth, color, *camera, &view_mesh, kMaxConnectZDiff);
-    Depth2PointCloud(depth, color, *camera, &view_point_cloud);
+
+    Depth2Mesh(depth, color, *camera, &view_mesh, kMaxConnectZDiff, x_step,
+               y_step, gl_coord, material_name, with_vertex_color,
+               &mesh_point_cloud, &mesh_normal);
+
+    Normal2Color(mesh_normal, &vis_normal);
+    imwrite(out_dir + prefix + "_vis_mesh_normal.png", vis_normal);
+
+    // Depth2PointCloud(depth, color, *camera, &view_point_cloud);
+    view_point_cloud = ugu::Mesh(view_mesh);
+    view_point_cloud.RemoveFaces();
     view_point_cloud.WritePly(out_dir + prefix + "_mesh.ply");
     view_mesh.WriteObj(out_dir, prefix + "_mesh");
     poses.push_back(camera->c2w());
@@ -145,10 +162,10 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   ugu::WriteTumFormat(poses, out_dir + "tumpose.txt");
 
   // For stereo test
-  //MeshStats stats = mesh->stats();
+  // MeshStats stats = mesh->stats();
   // translation offset is the largest edge length of bounding box * 1.5
-  //Eigen::Vector3f diff = stats.bb_max - stats.bb_min;
-  double baseline = 50.0f;//- diff.maxCoeff() / 5;
+  // Eigen::Vector3f diff = stats.bb_max - stats.bb_min;
+  double baseline = 50.0f;  //- diff.maxCoeff() / 5;
   for (size_t i = 0; i < pose_list.size(); i++) {
     Eigen::Affine3d c2w = pose_list[i];
     std::string prefix = name_list[i];

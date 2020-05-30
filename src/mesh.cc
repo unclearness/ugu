@@ -997,6 +997,12 @@ int Mesh::RemoveUnreferencedVertices() {
   return RemoveVertices(reference_table);
 }
 
+int Mesh::RemoveFaces() {
+  std::vector<bool> valid_face_table(vertex_indices_.size(), false);
+
+  return RemoveFaces(valid_face_table);
+}
+
 int Mesh::RemoveFaces(const std::vector<bool>& valid_face_table) {
   if (valid_face_table.size() != vertex_indices_.size()) {
     LOGE("valid_face_table must be same size to vertex_indices");
@@ -1005,6 +1011,7 @@ int Mesh::RemoveFaces(const std::vector<bool>& valid_face_table) {
 
   int num_removed = 0;
   std::vector<Eigen::Vector3i> removed_vertex_indices;
+  std::vector<Eigen::Vector3f> removed_face_normals;
   std::vector<Eigen::Vector3i> removed_uv_indices;
   std::vector<int> removed_material_ids;
   bool remove_uv = vertex_indices_.size() == uv_indices_.size();
@@ -1012,6 +1019,7 @@ int Mesh::RemoveFaces(const std::vector<bool>& valid_face_table) {
   for (int i = 0; i < static_cast<int>(valid_face_table.size()); i++) {
     if (valid_face_table[i]) {
       removed_vertex_indices.push_back(vertex_indices_[i]);
+      removed_face_normals.push_back(face_normals_[i]);
       if (remove_uv) {
         removed_uv_indices.push_back(uv_indices_[i]);
       }
@@ -1024,11 +1032,12 @@ int Mesh::RemoveFaces(const std::vector<bool>& valid_face_table) {
   }
 
   set_vertex_indices(removed_vertex_indices);
+  set_face_normals(removed_face_normals);
   if (remove_uv) {
     set_uv_indices(removed_uv_indices);
   }
 
-  CalcNormal();
+  // CalcNormal();
 
   set_material_ids(removed_material_ids);
 
