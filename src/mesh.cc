@@ -1162,10 +1162,29 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
     CopyVec(src1.materials(), &materials);
 
     CopyVec(src1.material_ids(), &material_ids);
+
+    // Is using original material_ids for src2 right?
     CopyVec(src2.material_ids(), &material_ids, false);
   } else {
     CopyVec(src1.materials(), &materials);
-    CopyVec(src2.materials(), &materials, false);
+
+    std::vector<ObjMaterial> src2_materials = src2.materials();
+    // Check if src2 has the same material name to src1
+    for (auto& mat2 : src2_materials) {
+      bool has_same_name = false;
+      for (const auto& mat : materials) {
+        if (mat2.name == mat.name) {
+          has_same_name = true;
+        }
+      }
+      // If the same material name was found,update to resolve name confilict
+      if (has_same_name) {
+        // TODO: rule for modified material name
+        mat2.name = mat2.name + "_u";  // 'u' represents 'updated'
+      }
+    }
+
+    CopyVec(src2_materials, &materials, false);
 
     CopyVec(src1.material_ids(), &material_ids);
     CopyVec(src2.material_ids(), &offset_material_ids2);

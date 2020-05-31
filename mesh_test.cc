@@ -27,7 +27,7 @@ void TestMerge() {
   bunny.LoadObj(in_obj_path1, data1_dir);
   bunny_moved = ugu::Mesh(bunny);
   bunny_moved.Translate(bunny.stats().bb_max);
-  bunny_moved.FlipFaces();
+  bunny_moved.FlipFaces();  // Flip face for moved bunny
 
   std::string data2_dir = "../data/buddha/";
   std::string in_obj_path2 = data2_dir + "buddha.obj";
@@ -39,6 +39,9 @@ void TestMerge() {
 
   ugu::MergeMeshes(bunny, bunny_moved, &dst, true);
   dst.WriteObj(data1_dir, "bunny_twin");
+
+  ugu::MergeMeshes(bunny, bunny_moved, &dst);
+  dst.WriteObj(data1_dir, "bunny_twin_2materials");
 }
 
 void TestRemove() {
@@ -51,7 +54,6 @@ void TestRemove() {
 
   Eigen::Vector3f direc(0.0, 0.0, 1.0f);
   for (const auto& fn : bunny.face_normals()) {
-    // printf("(%f, %f, %f)\n", fn[0], fn[1], fn[2]);
     if (direc.dot(fn) > 0.0) {
       valid_face_table.push_back(true);
     } else {
