@@ -1170,17 +1170,42 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
 
     std::vector<ObjMaterial> src2_materials = src2.materials();
     // Check if src2 has the same material name to src1
-    for (auto& mat2 : src2_materials) {
+    for (size_t i = 0; i < src2_materials.size(); i++) {
+      auto& mat2 = src2_materials[i];
       bool has_same_name = false;
       for (const auto& mat : materials) {
         if (mat2.name == mat.name) {
           has_same_name = true;
         }
       }
-      // If the same material name was found,update to resolve name confilict
+      // If the same material name was found, update to resolve name confilict
       if (has_same_name) {
         // TODO: rule for modified material name
-        mat2.name = mat2.name + "_u";  // 'u' represents 'updated'
+        int new_name_postfix = 0;
+        std::string new_name = mat2.name + "_0";
+        while (true) {
+          bool is_conflict = false;
+          for (size_t j = 0; j < src2_materials.size(); j++) {
+            if (new_name == src2_materials[j].name) {
+              is_conflict = true;
+              break;
+            }
+          }
+          for (size_t j = 0; j < materials.size(); j++) {
+            if (new_name == materials[j].name) {
+              is_conflict = true;
+              break;
+            }
+          }
+
+          if (!is_conflict) {
+            mat2.name = new_name;
+            break;
+          }
+
+          new_name_postfix++;
+          new_name = mat2.name + "_" + std::to_string(new_name_postfix);
+        }
       }
     }
 
