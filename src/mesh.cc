@@ -904,10 +904,11 @@ int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
 
   int num_removed{0};
   std::vector<int> valid_table(vertices_.size(), -1);
-  std::vector<Eigen::Vector3f> valid_vertices;
+  std::vector<Eigen::Vector3f> valid_vertices, valid_vertex_colors;
   std::vector<Eigen::Vector2f> valid_uv;
   std::vector<Eigen::Vector3i> valid_indices;
   bool with_uv = !uv_.empty() && !uv_indices_.empty();
+  bool with_vertex_color = !vertex_colors_.empty();
   int valid_count = 0;
   for (size_t i = 0; i < vertices_.size(); i++) {
     if (valid_vertex_table[i]) {
@@ -915,6 +916,9 @@ int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
       valid_vertices.push_back(vertices_[i]);
       if (with_uv) {
         valid_uv.push_back(uv_[i]);
+      }
+      if (with_vertex_color) {
+        valid_vertex_colors.push_back(vertex_colors_[i]);
       }
       valid_count++;
     } else {
@@ -948,6 +952,9 @@ int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
   if (with_uv) {
     set_uv(valid_uv);
     set_uv_indices(valid_indices);
+  }
+  if (with_vertex_color) {
+    set_vertex_colors(valid_vertex_colors);
   }
   CalcNormal();
 
@@ -1120,7 +1127,7 @@ bool Mesh::FlipFaces() {
 
 bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
                  bool use_src1_material) {
-  std::vector<Eigen::Vector3f> vertices;
+  std::vector<Eigen::Vector3f> vertices, vertex_colors;
   std::vector<Eigen::Vector2f> uv;
   std::vector<int> material_ids, offset_material_ids2;
   std::vector<ugu::ObjMaterial> materials;
@@ -1132,6 +1139,9 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
 
   CopyVec(src1.vertices(), &vertices);
   CopyVec(src2.vertices(), &vertices, false);
+
+  CopyVec(src1.vertex_colors(), &vertex_colors);
+  CopyVec(src2.vertex_colors(), &vertex_colors, false);
 
   CopyVec(src1.uv(), &uv);
   CopyVec(src2.uv(), &uv, false);
@@ -1220,6 +1230,7 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
   }
 
   merged->set_vertices(vertices);
+  merged->set_vertex_colors(vertex_colors);
   merged->set_uv(uv);
   merged->set_material_ids(material_ids);
   merged->set_materials(materials);
