@@ -325,6 +325,194 @@ void Color2Gray(const Image3b& color, Image1b* gray) {
 #endif
 }
 
+const float InvalidSdf::kVal = std::numeric_limits<float>::lowest();
+
+void DistanceTransformL1(const Image1b& mask, Image1f* dist) {
+  return DistanceTransformL1(mask, Eigen::Vector2i(0, 0),
+                             Eigen::Vector2i(mask.cols - 1, mask.rows - 1),
+                             dist);
+}
+
+void DistanceTransformL1(const Image1b& mask, const Eigen::Vector2i& roi_min,
+                         const Eigen::Vector2i& roi_max, Image1f* dist) {
+  *dist = Image1f::zeros(mask.rows, mask.cols);
+
+  // init inifinite inside mask
+  for (int y = roi_min.y(); y <= roi_max.y(); y++) {
+    for (int x = roi_min.x(); x <= roi_max.x(); x++) {
+      if (mask.at<unsigned char>(y, x) != 255) {
+        continue;
+      }
+      dist->at<float>(y, x) = std::numeric_limits<float>::max();
+    }
+  }
+
+  // forward path
+  for (int y = roi_min.y() + 1; y <= roi_max.y(); y++) {
+    float up = dist->at<float>(y - 1, roi_min.x());
+    if (up < std::numeric_limits<float>::max()) {
+      dist->at<float>(y, roi_min.x()) =
+          std::min(up + 1.0f, dist->at<float>(y, roi_min.x()));
+    }
+  }
+  for (int x = roi_min.x() + 1; x <= roi_max.x(); x++) {
+    float left = dist->at<float>(roi_min.y(), x - 1);
+    if (left < std::numeric_limits<float>::max()) {
+      dist->at<float>(roi_min.y(), x) =
+          std::min(left + 1.0f, dist->at<float>(roi_min.y(), x));
+    }
+  }
+  for (int y = roi_min.y() + 1; y <= roi_max.y(); y++) {
+    for (int x = roi_min.x() + 1; x <= roi_max.x(); x++) {
+      float up = dist->at<float>(y - 1, x);
+      float left = dist->at<float>(y, x - 1);
+      float min_dist = std::min(up, left);
+      if (min_dist < std::numeric_limits<float>::max()) {
+        dist->at<float>(y, x) =
+            std::min(min_dist + 1.0f, dist->at<float>(y, x));
+      }
+    }
+  }
+
+  // backward path
+  for (int y = roi_max.y() - 1; roi_min.y() <= y; y--) {
+    float down = dist->at<float>(y + 1, roi_max.x());
+    if (down < std::numeric_limits<float>::max()) {
+      dist->at<float>(y, roi_max.x()) =
+          std::min(down + 1.0f, dist->at<float>(y, roi_max.x()));
+    }
+  }
+  for (int x = roi_max.x() - 1; roi_min.x() <= x; x--) {
+    float right = dist->at<float>(roi_max.y(), x + 1);
+    if (right < std::numeric_limits<float>::max()) {
+      dist->at<float>(roi_max.y(), x) =
+          std::min(right + 1.0f, dist->at<float>(roi_max.y(), x));
+    }
+  }
+  for (int y = roi_max.y() - 1; roi_min.y() <= y; y--) {
+    for (int x = roi_max.x() - 1; roi_min.x() <= x; x--) {
+      float down = dist->at<float>(y + 1, x);
+      float right = dist->at<float>(y, x + 1);
+      float min_dist = std::min(down, right);
+      if (min_dist < std::numeric_limits<float>::max()) {
+        dist->at<float>(y, x) =
+            std::min(min_dist + 1.0f, dist->at<float>(y, x));
+      }
+    }
+  }
+}
+
+void MakeSignedDistanceField(const Image1b& mask, Image1f* dist,
+                             bool minmax_normalize, bool use_truncation,
+                             float truncation_band) {
+  return MakeSignedDistanceField(mask, Eigen::Vector2i(0, 0),
+                                 Eigen::Vector2i(mask.cols - 1, mask.rows - 1),
+                                 dist, minmax_normalize, use_truncation,
+                                 truncation_band);
+}
+
+void MakeSignedDistanceField(const Image1b& mask,
+                             const Eigen::Vector2i& roi_min,
+                             const Eigen::Vector2i& roi_max, Image1f* dist,
+                             bool minmax_normalize, bool use_truncation,
+                             float truncation_band) {
+  Image1f* negative_dist = dist;
+  DistanceTransformL1(mask, roi_min, roi_max, negative_dist);
+  for (int y = roi_min.y(); y <= roi_max.y(); y++) {
+    for (int x = roi_min.x(); x <= roi_max.x(); x++) {
+      if (negative_dist->at<float>(y, x) > 0) {
+        negative_dist->at<float>(y, x) *= -1;
+      }
+    }
+  }
+
+  Image1b inv_mask = Image1b::zeros(mask.rows, mask.cols);
+  mask.copyTo(inv_mask);
+  for (int y = roi_min.y(); y <= roi_max.y(); y++) {
+    for (int x = roi_min.x(); x <= roi_max.x(); x++) {
+      auto& i = inv_mask.at<unsigned char>(y, x);
+      if (i == 255) {
+        i = 0;
+      } else {
+        i = 255;
+      }
+    }
+  }
+
+  Image1f positive_dist;
+  DistanceTransformL1(inv_mask, roi_min, roi_max, &positive_dist);
+  for (int y = roi_min.y(); y <= roi_max.y(); y++) {
+    for (int x = roi_min.x(); x <= roi_max.x(); x++) {
+      if (inv_mask.at<unsigned char>(y, x) == 255) {
+        dist->at<float>(y, x) = positive_dist.at<float>(y, x);
+      }
+    }
+  }
+
+  if (minmax_normalize) {
+    // Outside of roi is set to 0, so does not affect min/max
+    double max_dist, min_dist;
+    ugu::minMaxLoc(*dist, &min_dist, &max_dist);
+
+    float abs_max =
+        static_cast<float>(std::max(std::abs(max_dist), std::abs(min_dist)));
+
+    if (abs_max > std::numeric_limits<float>::min()) {
+      float norm_factor = 1.0f / abs_max;
+
+      for (int y = roi_min.y(); y <= roi_max.y(); y++) {
+        for (int x = roi_min.x(); x <= roi_max.x(); x++) {
+          dist->at<float>(y, x) *= norm_factor;
+        }
+      }
+    }
+  }
+
+  // truncation process same to KinectFusion
+  if (use_truncation) {
+    for (int y = roi_min.y(); y <= roi_max.y(); y++) {
+      for (int x = roi_min.x(); x <= roi_max.x(); x++) {
+        float& d = dist->at<float>(y, x);
+        if (-truncation_band >= d) {
+          d = InvalidSdf::kVal;
+        } else {
+          d = std::min(1.0f, d / truncation_band);
+        }
+      }
+    }
+  }
+}
+
+void SignedDistance2Color(const Image1f& sdf, Image3b* vis_sdf,
+                          float min_negative_d, float max_positive_d) {
+  assert(min_negative_d < 0);
+  assert(0 < max_positive_d);
+  assert(vis_sdf != nullptr);
+
+  *vis_sdf = Image3b::zeros(sdf.rows, sdf.cols);
+
+  for (int y = 0; y < vis_sdf->rows; y++) {
+    for (int x = 0; x < vis_sdf->cols; x++) {
+      const float& d = sdf.at<float>(y, x);
+      auto& c = vis_sdf->at<Vec3b>(y, x);
+      if (d > 0) {
+        float norm_inv_dist = (max_positive_d - d) / max_positive_d;
+        norm_inv_dist = std::min(std::max(norm_inv_dist, 0.0f), 1.0f);
+        c[0] = static_cast<uint8_t>(255);
+        c[1] = static_cast<uint8_t>(255 * norm_inv_dist);
+        c[2] = static_cast<uint8_t>(255 * norm_inv_dist);
+
+      } else {
+        float norm_inv_dist = (d - min_negative_d) / (-min_negative_d);
+        norm_inv_dist = std::min(std::max(norm_inv_dist, 0.0f), 1.0f);
+        c[0] = static_cast<uint8_t>(255 * norm_inv_dist);
+        c[1] = static_cast<uint8_t>(255 * norm_inv_dist);
+        c[2] = static_cast<uint8_t>(255);
+      }
+    }
+  }
+}
+
 void Conv(const Image1b& src, Image1f* dst, float* filter, int kernel_size) {
   const int hk = kernel_size / 2;
 
@@ -336,7 +524,7 @@ void Conv(const Image1b& src, Image1f* dst, float* filter, int kernel_size) {
       float& dst_val = dst->at<float>(y, x);
       for (int yy = -hk; yy <= hk; yy++) {
         for (int xx = -hk; xx <= hk; xx++) {
-          dst_val += filter[(yy+hk) * kernel_size + (xx+hk)] *
+          dst_val += filter[(yy + hk) * kernel_size + (xx + hk)] *
                      src.at<unsigned char>(y + yy, x + xx);
         }
       }

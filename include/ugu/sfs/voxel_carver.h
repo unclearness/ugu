@@ -36,10 +36,6 @@ enum class UpdateOutsideImage {
               // silhouette is not protruding over the current image edge
 };
 
-struct InvalidSdf {
-  static const float kVal;
-};
-
 struct VoxelUpdateOption {
   VoxelUpdate voxel_update{VoxelUpdate::kMax};
   SdfInterpolation sdf_interp{SdfInterpolation::kBilinear};
@@ -112,15 +108,5 @@ class VoxelCarver {
   void ExtractVoxel(Mesh* mesh, bool inside_empty = false);
   void ExtractIsoSurface(Mesh* mesh, double iso_level = 0.0);
 };
-
-void DistanceTransformL1(const Image1b& mask, const Eigen::Vector2i& roi_min,
-                         const Eigen::Vector2i& roi_max, Image1f* dist);
-void MakeSignedDistanceField(const Image1b& mask,
-                             const Eigen::Vector2i& roi_min,
-                             const Eigen::Vector2i& roi_max, Image1f* dist,
-                             bool minmax_normalize, bool use_truncation,
-                             float truncation_band);
-void SignedDistance2Color(const Image1f& sdf, Image3b* vis_sdf,
-                          float min_negative_d, float max_positive_d);
 
 }  // namespace ugu

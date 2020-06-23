@@ -7,7 +7,68 @@
 
 #include "ugu/stereo/base.h"
 #include "ugu/stereo/patchmatch_stereo_impl.h"
-//#include "ugu/stereo/sgm_impl.h"
+namespace {
+
+// all_cost[j][i][d]: cost of disparity d at (i, j)
+using AllDisparityCost = std::vector<std::vector<std::vector<float>>>;
+struct Path8Cost {
+  int x, y;
+  AllDisparityCost cost;
+};
+using Path8Costs = std::array<Path8Cost, 8>;
+
+void InitAllDisparityCost(AllDisparityCost* all_cost, int h, int w,
+                          int max_disparity_i, float init_val) {
+  all_cost->clear();
+  all_cost->resize(h);
+  for (auto& row : *all_cost) {
+    row.resize(w);
+    for (auto& p : row) {
+      p.resize(max_disparity_i + 1, init_val);
+    }
+  }
+}
+
+void InitPath8Costs(Path8Costs* costs, int h, int w, int max_disparity_i,
+                    float init_val) {
+  for (auto& c : *costs) {
+    InitAllDisparityCost(&c.cost, h, w, max_disparity_i, init_val);
+  }
+
+  /*
+   012
+   3+4
+   567
+  */
+
+  // From upper left
+  (*costs)[0].x = -1;
+  (*costs)[0].y = -1;
+
+  (*costs)[1].x = 0;
+  (*costs)[1].y = -1;
+
+  (*costs)[2].x = 1;
+  (*costs)[2].y = -1;
+
+  (*costs)[3].x = -1;
+  (*costs)[3].y = 0;
+
+  // From lower right
+  (*costs)[4].x = 1;
+  (*costs)[4].y = 0;
+
+  (*costs)[5].x = -1;
+  (*costs)[5].y = 1;
+
+  (*costs)[6].x = 0;
+  (*costs)[6].y = 1;
+
+  (*costs)[7].x = 1;
+  (*costs)[7].y = 1;
+}
+
+}  // namespace
 
 namespace ugu {
 
@@ -239,57 +300,6 @@ bool ComputeStereoBruteForceCensusImpl(
                   param.rcx, param.mind, param.maxd);
 
   return true;
-}
-
-void InitAllDisparityCost(AllDisparityCost* all_cost, int h, int w,
-                          int max_disparity_i, float init_val) {
-  all_cost->clear();
-  all_cost->resize(h);
-  for (auto& row : *all_cost) {
-    row.resize(w);
-    for (auto& p : row) {
-      p.resize(max_disparity_i + 1, init_val);
-    }
-  }
-}
-
-void InitPath8Costs(Path8Costs* costs, int h, int w, int max_disparity_i,
-                    float init_val) {
-  for (auto& c : *costs) {
-    InitAllDisparityCost(&c.cost, h, w, max_disparity_i, init_val);
-  }
-
-  /*
-   012
-   3+4
-   567
-  */
-
-  // From upper left
-  (*costs)[0].x = -1;
-  (*costs)[0].y = -1;
-
-  (*costs)[1].x = 0;
-  (*costs)[1].y = -1;
-
-  (*costs)[2].x = 1;
-  (*costs)[2].y = -1;
-
-  (*costs)[3].x = -1;
-  (*costs)[3].y = 0;
-
-  // From lower right
-  (*costs)[4].x = 1;
-  (*costs)[4].y = 0;
-
-  (*costs)[5].x = -1;
-  (*costs)[5].y = 1;
-
-  (*costs)[6].x = 0;
-  (*costs)[6].y = 1;
-
-  (*costs)[7].x = 1;
-  (*costs)[7].y = 1;
 }
 
 template <typename T>
@@ -541,8 +551,8 @@ bool ComputeStereoSgmImpl(const Image<T>& left, const Image<T>& right,
   // Cost aggregation from upper left
   for (int j = hk + 1; j < h - hk - 1; j++) {
     for (int i = hk + 1; i < w - hk - 1; i++) {
-      // int d_range = std::min(max_disparity_i, i);
-      for (int d = 0; d <= max_disparity_i; d++) {
+      int d_range = std::min(max_disparity_i, i);
+      for (int d = 0; d <= d_range; d++) {
         for (int k = 0; k < 4; k++) {
           sum_cost[j][i][d] +=
               AggregateCost(i, j, d, k, all_cost, &path8_costs, param.p1,
@@ -554,8 +564,8 @@ bool ComputeStereoSgmImpl(const Image<T>& left, const Image<T>& right,
   // Cost aggregation from lower right
   for (int j = h - hk - 1; j >= hk + 1; j--) {
     for (int i = w - hk - 1; i >= hk + 1; i--) {
-      // int d_range = std::min(max_disparity_i, i);
-      for (int d = 0; d <= max_disparity_i; d++) {
+      int d_range = std::min(max_disparity_i, i);
+      for (int d = 0; d <= d_range; d++) {
         for (int k = 4; k < 8; k++) {
           sum_cost[j][i][d] +=
               AggregateCost(i, j, d, k, all_cost, &path8_costs, param.p1,

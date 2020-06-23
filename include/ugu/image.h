@@ -558,8 +558,7 @@ double BilinearInterpolation(float x, float y, int channel,
           image.at<T>(pos_min[1], pos_min[0])[channel] +
       local_u * (1.0f - local_v) *
           image.at<T>(pos_max[1], pos_min[0])[channel] +
-      (1.0 - local_u) * local_v *
-          image.at<T>(pos_min[1], pos_max[0])[channel] +
+      (1.0 - local_u) * local_v * image.at<T>(pos_min[1], pos_max[0])[channel] +
       local_u * local_v * image.at<T>(pos_max[1], pos_max[0])[channel];
 
   return color;
@@ -578,6 +577,24 @@ void Conv(const Image1b& src, Image1f* dst, float* filter, int kernel_size);
 void SobelX(const Image1b& gray, Image1f* gradx, bool scharr = false);
 void SobelY(const Image1b& gray, Image1f* grady, bool scharr = false);
 void Laplacian(const Image1b& gray, Image1f* laplacian);
+
+struct InvalidSdf {
+  static const float kVal;
+};
+
+void DistanceTransformL1(const Image1b& mask, Image1f* dist);
+void DistanceTransformL1(const Image1b& mask, const Eigen::Vector2i& roi_min,
+                         const Eigen::Vector2i& roi_max, Image1f* dist);
+void MakeSignedDistanceField(const Image1b& mask, Image1f* dist,
+                             bool minmax_normalize, bool use_truncation,
+                             float truncation_band);
+void MakeSignedDistanceField(const Image1b& mask,
+                             const Eigen::Vector2i& roi_min,
+                             const Eigen::Vector2i& roi_max, Image1f* dist,
+                             bool minmax_normalize, bool use_truncation,
+                             float truncation_band);
+void SignedDistance2Color(const Image1f& sdf, Image3b* vis_sdf,
+                          float min_negative_d, float max_positive_d);
 
 #ifdef UGU_USE_TINYCOLORMAP
 void Depth2Color(

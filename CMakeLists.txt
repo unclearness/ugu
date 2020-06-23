@@ -251,6 +251,13 @@ if (NOT hasParent)
     ${Ugu_LIBS}
     )
 
+  add_executable(ugu_image_test
+    test_image.cc)
+    target_include_directories(ugu_image_test PRIVATE ${Ugu_INCLUDE_DIRS})
+    target_link_libraries(ugu_image_test
+    ${Ugu_LIBS}
+  )
+
   add_executable(ugu_renderer_test
     renderer_test.cc)
   target_include_directories(ugu_renderer_test PRIVATE ${Ugu_INCLUDE_DIRS})
@@ -307,8 +314,8 @@ endif()
 
 if (NOT hasParent)
   # unzip test data
-  add_custom_target( Ugu_UNZip ALL)
-  add_custom_command(TARGET Ugu_UNZip PRE_BUILD
+  add_custom_target( Ugu_UNZip_bunny ALL)
+  add_custom_command(TARGET Ugu_UNZip_bunny PRE_BUILD
     COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/bunny.zip
@@ -328,8 +335,8 @@ endif()
 
 if (NOT hasParent)
   # unzip test data
-  add_custom_target( Ugu_UNZip ALL)
-  add_custom_command(TARGET Ugu_UNZip PRE_BUILD
+  add_custom_target( Ugu_UNZip_buddha ALL)
+  add_custom_command(TARGET Ugu_UNZip_buddha PRE_BUILD
     COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/data/buddha.zip
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/buddha
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/buddha.zip
