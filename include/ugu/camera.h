@@ -68,6 +68,7 @@ class Camera {
 // Widely used in computer vision community as perspective camera model
 // Valid only if FoV is much less than 180 deg.
 class PinholeCamera : public Camera {
+ protected:
   int width_;
   int height_;
 
@@ -144,6 +145,40 @@ class PinholeCamera : public Camera {
   void ray_c(int x, int y, Eigen::Vector3f* dir) const override;
   void ray_w(int x, int y, Eigen::Vector3f* dir) const override;
 };
+
+// PinholeCamera with support of OpenCV style distortion/undistortion
+class OpenCvCamera : public PinholeCamera {
+ private:
+  float k1_, k2_, p1_, p2_, k3_, k4_, k5_, k6_;
+
+ public:
+  void distortion_coeffs(float* k1, float* k2, float* p1, float* p2,
+                         float* k3 = nullptr, float* k4 = nullptr,
+                         float* k5 = nullptr, float* k6 = nullptr) const;
+
+  void set_distortion_coeffs(float k1, float k2, float p1, float p2,
+                             float k3 = 0.0f, float k4 = 0.0f, float k5 = 0.0f,
+                             float k6 = 0.0f);
+
+  // To project 3D points to distorted image coordinate
+  void ProjectWithDistortion(const Eigen::Vector3f& camera_p,
+                             Eigen::Vector3f* image_p) const;
+  void ProjectWithDistortion(const Eigen::Vector3f& camera_p,
+                             Eigen::Vector2f* image_p) const;
+  void ProjectWithDistortion(const Eigen::Vector3f& camera_p,
+                             Eigen::Vector2f* image_p, float* d) const;
+
+  // To recover 3D points in camera coordinate from distorted depth image
+  void UnprojectWithUndistortion(const Eigen::Vector3f& image_p,
+                                 Eigen::Vector3f* camera_p) const;
+  void UnprojectWithUndistortion(const Eigen::Vector2f& image_p, float d,
+                                 Eigen::Vector3f* camera_p) const;
+};
+
+void UndistortPixelOpencv(float* u, float* v, float fx, float fy, float cx,
+                          float cy, float k1, float k2, float p1, float p2,
+                          float k3 = 0.0f, float k4 = 0.0f, float k5 = 0.0f,
+                          float k6 = 0.0f);
 
 // Orthographic/orthogonal projection camera with no perspective
 // Image coordinate is translated camera coordinate
@@ -450,6 +485,109 @@ inline void PinholeCamera::InitRayTable() {
             &ray_w_table_[y * width_ + x]);
     }
   }
+}
+
+// https://docs.opencv.org/4.3.0/d9/d0c/group__calib3d.html
+inline void UndistortPixelOpencv(float* u, float* v, float fx, float fy,
+                                 float cx, float cy, float k1, float k2,
+                                 float p1, float p2, float k3, float k4,
+                                 float k5, float k6) {
+  float u1 = (*u - cx) / fx;
+  float v1 = (*v - cy) / fy;
+  float u2 = u1 * u1;
+  float v2 = v1 * v1;
+  float r2 = u2 + v2;
+
+  // https://github.com/egonSchiele/OpenCV/blob/master/modules/imgproc/src/undistort.cpp#L133
+  float _2uv = 2 * u1 * v1;
+  float kr = (1 + ((k3 * r2 + k2) * r2 + k1) * r2) /
+             (1 + ((k6 * r2 + k5) * r2 + k4) * r2);
+  *u = fx * (u1 * kr + p1 * _2uv + p2 * (r2 + 2 * u2)) + cx;
+  *v = fy * (v1 * kr + p1 * (r2 + 2 * v2) + p2 * _2uv) + cy;
+}
+
+inline void OpenCvCamera::distortion_coeffs(float* k1, float* k2, float* p1,
+                                            float* p2, float* k3, float* k4,
+                                            float* k5, float* k6) const {
+  *k1 = k1_;
+  *k2 = k2_;
+  *p1 = p1_;
+  *p2 = p2_;
+
+  if (k3 != nullptr) {
+    *k3 = k3_;
+  }
+  if (k4 != nullptr) {
+    *k4 = k4_;
+  }
+  if (k5 != nullptr) {
+    *k5 = k5_;
+  }
+  if (k6 != nullptr) {
+    *k6 = k6_;
+  }
+}
+
+inline void OpenCvCamera::set_distortion_coeffs(float k1, float k2, float p1,
+                                                float p2, float k3, float k4,
+                                                float k5, float k6) {
+  k1_ = k1;
+  k2_ = k2;
+  p1_ = p1;
+  p2_ = p2;
+
+  k3_ = k3;
+  k4_ = k4;
+  k5_ = k5;
+  k6_ = k6;
+}
+
+inline void OpenCvCamera::ProjectWithDistortion(
+    const Eigen::Vector3f& camera_p, Eigen::Vector3f* image_p) const {
+  (void)camera_p;
+  (void)image_p;
+  LOGE("HAVE NOT IMPLEMENTED\n");
+}
+
+inline void OpenCvCamera::ProjectWithDistortion(
+    const Eigen::Vector3f& camera_p, Eigen::Vector2f* image_p) const {
+  (void)camera_p;
+  (void)image_p;
+  LOGE("HAVE NOT IMPLEMENTED\n");
+}
+
+inline void OpenCvCamera::ProjectWithDistortion(const Eigen::Vector3f& camera_p,
+                                                Eigen::Vector2f* image_p,
+                                                float* d) const {
+  (void)camera_p;
+  (void)image_p;
+  (void)d;
+  LOGE("HAVE NOT IMPLEMENTED\n");
+}
+
+// To recover 3D points in camera coordinate from distorted depth image
+inline void OpenCvCamera::UnprojectWithUndistortion(
+    const Eigen::Vector3f& image_p, Eigen::Vector3f* camera_p) const {
+  Eigen::Vector3f undistorted_image_p = image_p;
+
+  UndistortPixelOpencv(&undistorted_image_p.x(), &undistorted_image_p.y(),
+                       focal_length_.x(), focal_length_.y(),
+                       principal_point_.x(), principal_point_.y(), k1_, k2_,
+                       p1_, p2_, k3_, k4_, k5_, k6_);
+
+  Unproject(undistorted_image_p, camera_p);
+}
+
+inline void OpenCvCamera::UnprojectWithUndistortion(
+    const Eigen::Vector2f& image_p, float d, Eigen::Vector3f* camera_p) const {
+  Eigen::Vector2f undistorted_image_p = image_p;
+
+  UndistortPixelOpencv(&undistorted_image_p.x(), &undistorted_image_p.y(),
+                       focal_length_.x(), focal_length_.y(),
+                       principal_point_.x(), principal_point_.y(), k1_, k2_,
+                       p1_, p2_, k3_, k4_, k5_, k6_);
+
+  Unproject(undistorted_image_p, d, camera_p);
 }
 
 inline OrthoCamera::OrthoCamera() {
