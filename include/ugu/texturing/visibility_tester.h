@@ -30,14 +30,6 @@ enum class ViewSelectionCriteria {
   kMaxArea = 6
 };
 
-
-// Interpolation method in texture uv space
-// Meaningful only if DiffuseColor::kTexture is specified otherwise ignored
-enum class ColorInterpolation {
-  kNn = 0,       // Nearest Neigbor
-  kBilinear = 1  // Bilinear interpolation
-};
-
 struct VisibilityTesterOption {
   float backface_culling_angle_rad_th{ugu::radians(90.0f)};
   bool use_mask{true};

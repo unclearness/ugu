@@ -37,15 +37,9 @@ enum class DiffuseShading {
          // https://en.wikipedia.org/wiki/Oren%E2%80%93Nayar_reflectance_model
 };
 
-// Interpolation method in texture uv space
-// Meaningful only if DiffuseColor::kTexture is specified otherwise ignored
-enum class ColorInterpolation {
-  kNn = 0,       // Nearest Neigbor
-  kBilinear = 1  // Bilinear interpolation
-};
-
 struct RendererOption {
   DiffuseColor diffuse_color{DiffuseColor::kNone};
+  // Meaningful only if DiffuseColor::kTexture is specified otherwise ignored
   ColorInterpolation interp{ColorInterpolation::kBilinear};
   ShadingNormal shading_normal{ShadingNormal::kVertex};
   DiffuseShading diffuse_shading{DiffuseShading::kNone};

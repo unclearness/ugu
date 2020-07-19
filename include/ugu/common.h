@@ -15,7 +15,14 @@
 
 namespace ugu {
 
+// TODO: definition in header may be invalid.
 static const double pi = 3.14159265358979323846;
+
+// Interpolation method in texture uv space
+enum class ColorInterpolation {
+  kNn = 0,       // Nearest Neigbor
+  kBilinear = 1  // Bilinear interpolation
+};
 
 // borrow from glm
 // radians
