@@ -225,10 +225,10 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
           /** Perspective-Correct Interpolation **/
 #endif
 
-          float& d = depth->at<float>(y, x);
+          float& d = depth_->at<float>(y, x);
           if (d < std::numeric_limits<float>::min() || pixel_sample.z() < d) {
             d = pixel_sample.z();
-            face_id->at<int>(y, x) = i;
+            face_id_->at<int>(y, x) = i;
             Vec3f& weight = weight_image.at<Vec3f>(y, x);
             weight[0] = w0;
             weight[1] = w1;
