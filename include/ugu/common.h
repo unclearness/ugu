@@ -78,4 +78,53 @@ std::string zfill(const T& val, int num = 5) {
   return sout.str();
 }
 
+// https://docs.opencv.org/4.3.0/d9/d0c/group__calib3d.html
+inline void DistortPixelOpencv(float* u, float* v, float fx, float fy, float cx,
+                               float cy, float k1, float k2, float p1, float p2,
+                               float k3 = 0.0f, float k4 = 0.0f,
+                               float k5 = 0.0f, float k6 = 0.0f) {
+  double u1 = (*u - cx) / fx;
+  double v1 = (*v - cy) / fy;
+  double u2 = u1 * u1;
+  double v2 = v1 * v1;
+  double r2 = u2 + v2;
+
+  // https://github.com/egonSchiele/OpenCV/blob/master/modules/imgproc/src/undistort.cpp#L133
+  double _2uv = 2 * u1 * v1;
+  double kr = (1 + ((k3 * r2 + k2) * r2 + k1) * r2) /
+              (1 + ((k6 * r2 + k5) * r2 + k4) * r2);
+  *u = static_cast<float>(fx * (u1 * kr + p1 * _2uv + p2 * (r2 + 2 * u2)) + cx);
+  *v = static_cast<float>(fy * (v1 * kr + p1 * (r2 + 2 * v2) + p2 * _2uv) + cy);
+}
+
+// https://docs.opencv.org/4.3.0/d9/d0c/group__calib3d.html
+inline void UndistortPixelOpencv(float* u, float* v, float fx, float fy,
+                                 float cx, float cy, float k1, float k2,
+                                 float p1, float p2, float k3 = 0.0f,
+                                 float k4 = 0.0f, float k5 = 0.0f,
+                                 float k6 = 0.0f) {
+  // https://github.com/egonSchiele/OpenCV/blob/master/modules/imgproc/src/undistort.cpp#L345
+  // https://github.com/opencv/opencv/blob/master/modules/calib3d/src/undistort.dispatch.cpp#L385
+  const double x0 = (*u - cx) / fx;
+  const double y0 = (*v - cy) / fy;
+  double x = x0;
+  double y = y0;
+  // Compensate distortion iteratively
+  // 5 is from OpenCV code.
+  // I don't know theoritical rationale why 5 is enough...
+  const int max_iter = 5;
+  for (int j = 0; j < max_iter; j++) {
+    double r2 = x * x + y * y;
+    double icdist = (1 + ((k6 * r2 + k5) * r2 + k4) * r2) /
+                    (1 + ((k3 * r2 + k2) * r2 + k1) * r2);
+    double deltaX = 2 * p1 * x * y + p2 * (r2 + 2 * x * x);
+    double deltaY = p1 * (r2 + 2 * y * y) + 2 * p2 * x * y;
+    x = (x0 - deltaX) * icdist;
+    y = (y0 - deltaY) * icdist;
+  }
+
+  *u = static_cast<float>(x * fx + cx);
+  *v = static_cast<float>(y * fy + cy);
+}
+
 }  // namespace ugu

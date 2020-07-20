@@ -564,6 +564,34 @@ double BilinearInterpolation(float x, float y, int channel,
   return color;
 }
 
+template <typename T>
+void UndistortImageOpencv(const ugu::Image<T>& src, ugu::Image<T>* dst,
+                          float fx, float fy, float cx, float cy, float k1,
+                          float k2, float p1, float p2, float k3 = 0.0f,
+                          float k4 = 0.0f, float k5 = 0.0f, float k6 = 0.0f) {
+  if (dst->rows != src.rows || dst->cols != src.cols) {
+    *dst = ugu::Image<T>::zeros(src.rows, src.cols);
+  }
+  for (int y = 0; y < src.rows; y++) {
+    for (int x = 0; x < src.cols; x++) {
+      float xf = static_cast<float>(x);
+      float yf = static_cast<float>(y);
+
+      // TODO: denser and other interpolation methods.
+      UndistortPixelOpencv(&xf, &yf, fx, fy, cx, cy, k1, k2, p1, p2, k3, k4, k5,
+                           k6);
+      int nn_x = static_cast<int>(std::round(xf));
+      int nn_y = static_cast<int>(std::round(yf));
+
+      if (nn_x < 0 || src.cols <= nn_x || nn_y < 0 || src.rows <= nn_y) {
+        continue;
+      }
+
+      dst->template at<T>(nn_y, nn_x) = src.template at<T>(y, x);
+    }
+  }
+}
+
 void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d = 200.0f,
                 float max_d = 1500.0f);
 
