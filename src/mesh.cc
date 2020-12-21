@@ -1186,6 +1186,44 @@ int Mesh::RemoveDuplicateFaces() {
   return static_cast<int>(to_remove_faceids.size());
 }
 
+bool Mesh::SplitMultipleUvVertices() {
+  if (vertices_.size() == uv_.size()) {
+    LOGI("No need to split\n");
+    // return false;
+  }
+  if (vertex_indices_.size() != uv_indices_.size() ||
+      vertex_indices_.size() != normal_indices_.size()) {
+    LOGE("#indices is wrong\n");
+    return false;
+  }
+
+  this->CalcNormal();
+  std::vector<Eigen::Vector3f> vertices, normals;
+  std::vector<Eigen::Vector2f> uv;
+  std::vector<Eigen::Vector3i> indices;
+
+  auto fnum = static_cast<int>(vertex_indices_.size());
+  for (int i = 0; i < fnum; i++) {
+    const auto& face = vertex_indices_[i];
+    const auto& uvface = uv_indices_[i];
+    for (int j = 0; j < 3; j++) {
+      vertices.push_back(vertices_[face[j]]);
+      normals.push_back(normals_[face[j]]);
+      uv.push_back(uv_[uvface[j]]);
+    }
+    indices.push_back({i * 3, i * 3 + 1, i * 3 + 2});
+  }
+  set_vertices(vertices);
+  set_normals(normals);
+  set_uv(uv);
+
+  set_vertex_indices(indices);
+  set_normal_indices(indices);
+  set_uv_indices(indices);
+
+  return true;
+}
+
 bool Mesh::FlipFaces() {
   auto flip = [](Eigen::Vector3i& i) { std::swap(i[1], i[2]); };
   std::for_each(vertex_indices_.begin(), vertex_indices_.end(), flip);

@@ -125,6 +125,8 @@ class Mesh {
   int RemoveFaces(const std::vector<bool>& valid_face_table);
   int RemoveDuplicateFaces();
 
+  bool SplitMultipleUvVertices();
+
   bool FlipFaces();
 };
 
