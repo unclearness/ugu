@@ -210,7 +210,7 @@ bool WriteGltfJsonToFile(const Model& model, const std::string& path) {
   return true;
 }
 
-std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
+std::vector<std::int8_t> MakeGltfBinAndUpdateModel(
     const std::vector<Eigen::Vector3f>& vertices,
     const Eigen::Vector3f& vert_max, const Eigen::Vector3f& vert_min,
     const std::vector<Eigen::Vector3f>& normals,
@@ -230,7 +230,7 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   vert_acc.min = {vert_min[0], vert_min[1], vert_min[2]};
   vert_acc.type = "VEC3";
   size_t vert_size = vertices.size() * sizeof(float) * 3;
-  std::vector<std::uint8_t> vert_bytes(vert_size);
+  std::vector<std::int8_t> vert_bytes(vert_size);
   std::memcpy(vert_bytes.data(), vertices.data(), vert_size);
   auto& vert_bview = model.bufferViews[0];
   vert_bview.buffer = 0;
@@ -244,7 +244,7 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   nor_acc.count = static_cast<int>(normals.size());
   nor_acc.type = "VEC3";
   size_t nor_size = normals.size() * sizeof(float) * 3;
-  std::vector<std::uint8_t> nor_bytes(nor_size);
+  std::vector<std::int8_t> nor_bytes(nor_size);
   std::memcpy(nor_bytes.data(), normals.data(), nor_size);
   auto& nor_bview = model.bufferViews[1];
   nor_bview.buffer = 0;
@@ -258,7 +258,7 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   uv_acc.count = static_cast<int>(uvs.size());
   uv_acc.type = "VEC2";
   size_t uv_size = uvs.size() * sizeof(float) * 2;
-  std::vector<std::uint8_t> uv_bytes(uv_size);
+  std::vector<std::int8_t> uv_bytes(uv_size);
   std::memcpy(uv_bytes.data(), uvs.data(), uv_size);
   auto& uv_bview = model.bufferViews[2];
   uv_bview.buffer = 0;
@@ -272,7 +272,7 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   index_acc.count = static_cast<int>(indices.size() * 3);
   index_acc.type = "SCALAR";
   size_t index_size = indices.size() * sizeof(int) * 3;
-  std::vector<std::uint8_t> index_bytes(index_size);
+  std::vector<std::int8_t> index_bytes(index_size);
   std::memcpy(index_bytes.data(), indices.data(), index_size);
   auto& index_bview = model.bufferViews[3];
   index_bview.buffer = 0;
@@ -284,7 +284,7 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   model.buffers[0].byteLength = total_size;
   model.buffers[0].uri = bin_name;
 
-  std::vector<std::uint8_t> bytes;
+  std::vector<std::int8_t> bytes;
   bytes.reserve(total_size);
   bytes.insert(bytes.end(), vert_bytes.begin(), vert_bytes.end());
   bytes.insert(bytes.end(), nor_bytes.begin(), nor_bytes.end());
@@ -294,12 +294,17 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   return bytes;
 }
 
-std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
-                                                    const std::string& bin_name,
-                                                    Model& model) {
+std::vector<std::int8_t> MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
+                                                   const std::string& bin_name,
+                                                   Model& model) {
+  // Flip v
+  auto gltf_uvs = mesh.uv();
+  for (auto& uv : gltf_uvs) {
+    uv[1] = 1.f - uv[1];
+  }
   return MakeGltfBinAndUpdateModel(
       mesh.vertices(), mesh.stats().bb_max, mesh.stats().bb_min, mesh.normals(),
-      mesh.uv(), mesh.vertex_indices(), bin_name, model);
+      gltf_uvs, mesh.vertex_indices(), bin_name, model);
 }
 
 }  // namespace gltf

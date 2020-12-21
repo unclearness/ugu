@@ -1025,8 +1025,10 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
   gltf::Model model;
   // Make .bin and update model info
   this->CalcStats();  // ensure min/max
+  model.meshes.resize(1);
+  model.meshes[0].name = ExtractPathWithoutExt(gltf_basename);
   std::string bin_name = gltf_basename + ".bin";
-  std::vector<std::uint8_t> bin =
+  std::vector<std::int8_t> bin =
       MakeGltfBinAndUpdateModel(*this, bin_name, model);
 
   // Write .bin
@@ -1043,6 +1045,10 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
 
   // Update materials and textures of the model
   model.materials.resize(this->materials_.size());  // todo: update pbr params
+  for (size_t i = 0; i < model.materials.size(); i++) {
+    model.materials[i].name = this->materials_[i].name;
+  }
+
   model.images.clear();
   for (auto& mat : this->materials_) {
     if (mat.diffuse_texname.empty()) {
