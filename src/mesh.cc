@@ -15,7 +15,168 @@
 #include "tiny_obj_loader.h"
 #endif
 
+#ifdef UGU_USE_JSON
+#include "nlohmann/json.hpp"
+#endif
+
+//#define DTRACE(var) cout << #var << "=" << var << endl;
+
+namespace gltf {
+
+template <typename T>
+nlohmann::json itr2arr(T itr) {
+  nlohmann::json j;
+}
+
+
+#if 0
+				struct GltfJsonField {
+  virtual nlohmann::json ToJson() const = 0;
+};
+#endif  // 0
+
+
+struct Asset {
+  std::string generator = "unknown";
+  std::string version = "0.0";
+
+  //nlohmann::json ToJson() const {
+  //  return nlohmann::json{{"generator", generator}, {"version", version}};
+ // }
+};
+void to_json(nlohmann::json& j, const Asset& obj) {
+  j = nlohmann::json{{"generator", obj.generator}, {"version", obj.version}};
+}
+
+struct Scene {
+  std::string name = "Scene";
+  std::vector<int> nodes = {0};
+  //nlohmann::json ToJson() const {
+  //  return nlohmann::json{{"name", name}, {"nodes", nodes}};
+  //}
+};
+void to_json(nlohmann::json& j, const Scene& obj) {
+  j = nlohmann::json{{"name", obj.name}, {"nodes", obj.nodes}};
+}
+
+struct Node {
+  int mesh = 0;
+  std::string name = "unknown";
+  // std::array<float, 4> rotation;
+};
+
+struct TextureInfo {
+  int index = 0;
+  int texCoord = 0;
+};
+
+struct PbrMetallicRoughness {
+  TextureInfo baseColorTexture;
+  // float metallicFactor = 0.f;
+  // float roughnessFactor = 0.9057191014289856f;
+};
+
+struct Material {
+  bool doubleSided = true;
+  std::array<float, 3> emissiveFactor = {0, 0, 0};
+  std::string name = "material_000";
+  PbrMetallicRoughness pbrMetallicRoughness;
+};
+
+// struct Attribute {
+//};
+
+using AttributeIndexPair = std::pair<std::string, int>;
+
+struct Primitive {
+  std::vector<AttributeIndexPair> attributes = {
+      {"POSITION", 0}, {"NORMAL", 1}, {"TEXCOORD_0", 2}};
+  int indices = 3;
+  int material = 0;
+};
+
+struct Mesh {
+  std::string name = "unknown";
+  std::vector<Primitive> primitives;
+};
+
+struct Texture {
+  int source = 0;
+};
+
+struct Image {
+  std::string mineType = "image/jpeg";
+  std::string name = "untitled";
+  std::string uri = "untitled.jpg";
+};
+
+struct Accessor {
+  int bufferView = 0;
+  int componetType = 5126;
+  int count = -1;
+  std::string type;
+
+  bool write_minmax = false;
+  Eigen::Vector3f max;
+  Eigen::Vector3f min;
+};
+
+struct BufferView {
+  int buffer = 0;
+  int byteLength = 0;
+  int byteOffset = 0;
+};
+
+struct Buffer {
+  int byteLength = 0;
+  std::string uri = "untitled.bin";
+};
+
+struct Model {
+  Asset asset;
+  std::vector<int> scene = {0};
+  std::vector<Scene> scenes = {Scene()};
+  std::vector<Node> nodes = {Node()};
+  std::vector<Material> materials = {Material()};
+  std::vector<Mesh> meshes;
+  std::vector<Texture> textures;
+  std::vector<Image> images;
+  std::vector<Accessor> accessors;
+  std::vector<BufferView> bufferViews;
+  std::vector<Buffer> buffers;
+
+  nlohmann::json ToJson() const {
+    nlohmann::json j;
+
+    j["scene"] = scene[0];
+    j["scenes"] = scenes;
+
+    return j;
+  }
+};
+void to_json(nlohmann::json& j, const Model& obj) {
+  j = nlohmann::json{{"asset", obj.asset}, {"scene", obj.scene}, {"scenes", obj.scenes}};
+}
+
+nlohmann::json MakeGltfJson(const Model& model) {
+  //nlohmann::json j;
+  return nlohmann::json(model);
+}
+
+std::string WriteGltfJsonToString(const Model& model) {
+  return MakeGltfJson(model).dump();
+}
+
+bool WriteGltfJsonToFile(const Model& model, const std::string& path) {
+  std::ofstream o(path);
+  o << std::setw(4) << MakeGltfJson(model) << std::endl;
+  return true;
+}
+
+}  // namespace gltf
+
 namespace {
+
 template <typename T>
 void CopyVec(const std::vector<T>& src, std::vector<T>* dst,
              bool clear_dst = true) {
@@ -110,6 +271,22 @@ inline bool stream_read_string(std::istream& f,
   f.read(&result[0], result.length());
   return true;
 }
+
+bool WriteGltfJson(const std::string& gltf_path, const ugu::Mesh& mesh) {
+  std::stringstream ss;
+
+  // Write header
+  ss << "{\n";
+  ss << "\"asset\" : {";
+  ss << "}\n";
+
+  // Write footer
+
+  ss.flush();
+
+  return true;
+}
+
 }  // namespace
 
 namespace ugu {
@@ -992,6 +1169,21 @@ int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
 
   return num_removed;
 }
+
+bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
+                             const std::string& gltf_basename) {
+  // Write .gltf (json)
+  gltf::Model model;
+  gltf::WriteGltfJsonToFile(model, gltf_dir + gltf_basename + ".gltf");
+
+  // Write texture
+
+  // Write .bin
+
+  return true;
+}
+
+bool Mesh::WriteGlb(const std::string& glb_path) { return false; }
 
 int Mesh::RemoveUnreferencedVertices() {
   std::vector<bool> reference_table(vertices_.size(), false);
