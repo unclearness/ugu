@@ -199,6 +199,7 @@ if(UGU_STATIC_LIBRARY)
 
     src/camera.cc
     src/mesh.cc
+    src/gltf.h
     src/image.cc
     src/log.cc
     src/util.cc
