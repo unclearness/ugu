@@ -49,6 +49,14 @@ inline std::string ExtractPathWithoutExt(const std::string& fn) {
   return fn.substr(0, pos);
 }
 
+inline std::string ExtractPathExt(const std::string& fn) {
+  std::string::size_type pos;
+  if ((pos = fn.find_last_of(".")) == std::string::npos) {
+    return "";
+  }
+  return fn.substr(pos + 1, fn.size());
+}
+
 inline std::string ReplaceExtention(const std::string& path,
                                     const std::string& ext) {
   return ExtractPathWithoutExt(path) + ext;
@@ -1013,15 +1021,46 @@ int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
 
 bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
                              const std::string& gltf_basename) {
-  // Write .gltf (json)
+#ifdef UGU_USE_JSON
   gltf::Model model;
-  gltf::WriteGltfJsonToFile(model, gltf_dir + gltf_basename + ".gltf");
-
-  // Write texture
+  // Make .bin and update model info
+  this->CalcStats();  // ensure min/max
+  std::string bin_name = gltf_basename + ".bin";
+  std::vector<std::uint8_t> bin =
+      MakeGltfBinAndUpdateModel(*this, bin_name, model);
 
   // Write .bin
+  std::ofstream bin_out(gltf_dir + bin_name,
+                        std::ios::out | std::ios::binary | std::ios::trunc);
+  bin_out.write(reinterpret_cast<char*>(bin.data()), bin.size());
+
+  // Write texture
+  // Update path
+  for (auto& mat : this->materials_) {
+    mat.diffuse_texpath = gltf_dir + mat.diffuse_texname;
+  }
+  WriteTexture(this->materials());
+
+  // Update materials and textures of the model
+  model.materials.resize(this->materials_.size());  // todo: update pbr params
+  model.images.clear();
+  for (auto& mat : this->materials_) {
+    if (mat.diffuse_texname.empty()) {
+      continue;
+    }
+    gltf::Image image;
+    image.uri = mat.diffuse_texname;
+    image.name = ExtractPathWithoutExt(mat.diffuse_texname);
+    model.images.push_back(image);
+  }
+
+  // Write .gltf (json)
+  gltf::WriteGltfJsonToFile(model, gltf_dir + gltf_basename + ".gltf");
 
   return true;
+#endif
+
+  return false;
 }
 
 bool Mesh::WriteGlb(const std::string& glb_path) { return false; }
