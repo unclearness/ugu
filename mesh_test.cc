@@ -13,6 +13,11 @@ void TestIO() {
 
   src.LoadObj(in_obj_path, data_dir);
 
+  src.SplitMultipleUvVertices();
+  src.WriteGltfSeparate(data_dir, "bunny");
+
+  src.WriteGlb(data_dir, "bunny.glb");
+
   dst = ugu::Mesh(src);
 
   dst.FlipFaces();

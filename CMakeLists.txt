@@ -73,7 +73,10 @@ if(NOT DEFINED NANORT_INSTALL_DIR)
   set_with_parent(NANORT_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/nanort" "nanort installed directory")
 endif()
 message("NANORT_INSTALL_DIR: ${NANORT_INSTALL_DIR}") 
-
+if(NOT DEFINED JSON_INSTALL_DIR)
+  set_with_parent(JSON_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/single_include" "nanort installed directory")
+endif()
+message("JSON_INSTALL_DIR: ${JSON_INSTALL_DIR}") 
 # switch for optional libraries
 option(UGU_USE_STB "Use stb to enable image i/o" ON)
 message("UGU_USE_STB: ${UGU_USE_STB}")
@@ -155,6 +158,13 @@ if(UGU_USE_NANORT)
   add_definitions(-DUGU_USE_NANORT)
 endif()
 
+option(UGU_USE_JSON "Use nlohmann/json for json" ON)
+message("UGU_USE_JSON: ${UGU_USE_JSON}")
+if(UGU_USE_JSON)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${JSON_INSTALL_DIR})
+  add_definitions(-DUGU_USE_JSON)
+endif()
+
 option(UGU_USE_OPENMP "Use OpenMP to enable parallelization" ON)
 message("UGU_USE_OPENMP: ${UGU_USE_OPENMP}")
 if(UGU_USE_OPENMP)
@@ -189,6 +199,7 @@ if(UGU_STATIC_LIBRARY)
 
     src/camera.cc
     src/mesh.cc
+    src/gltf.h
     src/image.cc
     src/log.cc
     src/util.cc

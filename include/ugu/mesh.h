@@ -115,12 +115,17 @@ class Mesh {
   bool WriteObj(const std::string& obj_dir, const std::string& obj_basename,
                 const std::string& mtl_basename = "", bool write_obj = true,
                 bool write_mtl = true, bool write_texture = true);
+  bool WriteGltfSeparate(const std::string& gltf_dir,
+                         const std::string& gltf_basename);
+  bool WriteGlb(const std::string& glb_dir, const std::string& glb_name);
 
   int RemoveVertices(const std::vector<bool>& valid_vertex_table);
   int RemoveUnreferencedVertices();
   int RemoveFaces();
   int RemoveFaces(const std::vector<bool>& valid_face_table);
   int RemoveDuplicateFaces();
+
+  bool SplitMultipleUvVertices();
 
   bool FlipFaces();
 };

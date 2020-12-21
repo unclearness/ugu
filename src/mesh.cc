@@ -4,6 +4,7 @@
  */
 
 #include "ugu/mesh.h"
+#include "gltf.h"
 
 #include <fstream>
 #include <map>
@@ -16,6 +17,7 @@
 #endif
 
 namespace {
+
 template <typename T>
 void CopyVec(const std::vector<T>& src, std::vector<T>* dst,
              bool clear_dst = true) {
@@ -45,6 +47,14 @@ inline std::string ExtractPathWithoutExt(const std::string& fn) {
   }
 
   return fn.substr(0, pos);
+}
+
+inline std::string ExtractPathExt(const std::string& fn) {
+  std::string::size_type pos;
+  if ((pos = fn.find_last_of(".")) == std::string::npos) {
+    return "";
+  }
+  return fn.substr(pos + 1, fn.size());
 }
 
 inline std::string ReplaceExtention(const std::string& path,
@@ -110,6 +120,22 @@ inline bool stream_read_string(std::istream& f,
   f.read(&result[0], result.length());
   return true;
 }
+
+bool WriteGltfJson(const std::string& gltf_path, const ugu::Mesh& mesh) {
+  std::stringstream ss;
+
+  // Write header
+  ss << "{\n";
+  ss << "\"asset\" : {";
+  ss << "}\n";
+
+  // Write footer
+
+  ss.flush();
+
+  return true;
+}
+
 }  // namespace
 
 namespace ugu {
@@ -993,6 +1019,143 @@ int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
   return num_removed;
 }
 
+bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
+                             const std::string& gltf_basename) {
+#ifdef UGU_USE_JSON
+  gltf::Model model;
+  // Make .bin and update model info
+  this->CalcStats();  // ensure min/max
+  model.meshes.resize(1);
+  model.meshes[0].name = ExtractPathWithoutExt(gltf_basename);
+  std::string bin_name = gltf_basename + ".bin";
+  std::vector<std::uint8_t> bin =
+      MakeGltfBinAndUpdateModel(*this, bin_name, false, model);
+
+  // Write .bin
+  std::ofstream bin_out(gltf_dir + bin_name,
+                        std::ios::out | std::ios::binary | std::ios::trunc);
+  bin_out.write(reinterpret_cast<char*>(bin.data()), bin.size());
+
+  // Write texture
+  // Update path
+  for (auto& mat : this->materials_) {
+    mat.diffuse_texpath = gltf_dir + mat.diffuse_texname;
+  }
+  WriteTexture(this->materials());
+
+  // Update materials and textures of the model
+  model.materials.resize(this->materials_.size());  // todo: update pbr params
+  for (size_t i = 0; i < model.materials.size(); i++) {
+    model.materials[i].name = this->materials_[i].name;
+  }
+
+  model.images.clear();
+  for (auto& mat : this->materials_) {
+    if (mat.diffuse_texname.empty()) {
+      continue;
+    }
+    gltf::Image image;
+    image.uri = mat.diffuse_texname;
+    image.name = ExtractPathWithoutExt(mat.diffuse_texname);
+    model.images.push_back(image);
+  }
+
+  // Write .gltf (json)
+  gltf::WriteGltfJsonToFile(model, gltf_dir + gltf_basename + ".gltf");
+
+  return true;
+#endif
+
+  return false;
+}
+
+bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
+#ifdef UGU_USE_JSON
+  gltf::Model model;
+  // Make .bin and update model info
+  this->CalcStats();  // ensure min/max
+  model.meshes.resize(1);
+  model.meshes[0].name = ExtractPathWithoutExt(glb_name);
+
+  // Update materials and textures of the model
+  model.materials.resize(this->materials_.size());  // todo: update pbr params
+  for (size_t i = 0; i < model.materials.size(); i++) {
+    model.materials[i].name = this->materials_[i].name;
+  }
+  model.images.clear();
+  for (auto& mat : this->materials_) {
+    if (mat.diffuse_texname.empty()) {
+      continue;
+    }
+    gltf::Image image;
+    image.is_glb = true;
+    std::string ext = ExtractPathExt(mat.diffuse_texpath);
+    if (ext == "jpg" || ext == "jpeg") {
+      image.mimeType = "image/jpeg";
+    } else if (ext == "png") {
+      image.mimeType = "image/png";
+    } else {
+      LOGE("ext %s is not supported\n", ext.c_str());
+      continue;
+    }
+
+    image.name = ExtractPathWithoutExt(mat.diffuse_texname);
+    ugu::Image3b img = imread<ugu::Image3b>(mat.diffuse_texpath, -1);
+    image.w = img.cols;
+    image.h = img.rows;
+
+    std::ifstream ifs(mat.diffuse_texpath, std::ios::in | std::ios::binary);
+    // get size
+    ifs.seekg(0, std::ios::end);
+    long long int size = ifs.tellg();
+    ifs.seekg(0);
+    // read binary
+    image.data.resize(size);
+    ifs.read(reinterpret_cast<char*>(image.data.data()), size);
+
+    model.images.push_back(image);
+  }
+
+  std::string bin_name = glb_name + ".bin";
+  std::vector<std::uint8_t> bin =
+      MakeGltfBinAndUpdateModel(*this, bin_name, true, model);
+
+  gltf::Chunk bin_chunk{0x004E4942, bin};
+  std::vector<std::uint8_t> bin_bin = gltf::ChunkToBin(bin_chunk);
+
+  // Make json
+  std::string json_string = gltf::WriteGltfJsonToString(model);
+
+  std::vector<std::uint8_t> json_bytes(json_string.size());
+  std::memcpy(json_bytes.data(), json_string.c_str(), json_string.size());
+  gltf::Chunk json_chunk{0x4E4F534A, json_bytes};
+  std::vector<std::uint8_t> json_bin = gltf::ChunkToBin(json_chunk);
+
+  std::uint32_t magic = 0x46546C67;  //  ASCII string glTF
+  std::uint32_t version = 2;
+  int header_size = 12;
+  std::uint32_t length = static_cast<std::uint32_t>(
+      header_size + json_bin.size() + bin_bin.size());
+  std::vector<std::uint8_t> header(12);
+  std::memcpy(header.data(), &magic, 4);
+  std::memcpy(header.data() + 4, &version, 4);
+  std::memcpy(header.data() + 8, &length, 4);
+
+  std::vector<std::uint8_t> combined(length);
+  std::memcpy(combined.data(), header.data(), header_size);
+  std::memcpy(combined.data() + header_size, json_bin.data(), json_bin.size());
+  std::memcpy(combined.data() + header_size + json_bin.size(), bin_bin.data(),
+              bin_bin.size());
+
+  std::ofstream glb_out(glb_dir + glb_name,
+                        std::ios::out | std::ios::binary | std::ios::trunc);
+  glb_out.write(reinterpret_cast<char*>(combined.data()), length);
+
+  return true;
+#endif
+  return false;
+}
+
 int Mesh::RemoveUnreferencedVertices() {
   std::vector<bool> reference_table(vertices_.size(), false);
   for (const auto& f : vertex_indices_) {
@@ -1112,6 +1275,44 @@ int Mesh::RemoveDuplicateFaces() {
   }
 
   return static_cast<int>(to_remove_faceids.size());
+}
+
+bool Mesh::SplitMultipleUvVertices() {
+  if (vertices_.size() == uv_.size()) {
+    LOGI("No need to split\n");
+    // return false;
+  }
+  if (vertex_indices_.size() != uv_indices_.size() ||
+      vertex_indices_.size() != normal_indices_.size()) {
+    LOGE("#indices is wrong\n");
+    return false;
+  }
+
+  this->CalcNormal();
+  std::vector<Eigen::Vector3f> vertices, normals;
+  std::vector<Eigen::Vector2f> uv;
+  std::vector<Eigen::Vector3i> indices;
+
+  auto fnum = static_cast<int>(vertex_indices_.size());
+  for (int i = 0; i < fnum; i++) {
+    const auto& face = vertex_indices_[i];
+    const auto& uvface = uv_indices_[i];
+    for (int j = 0; j < 3; j++) {
+      vertices.push_back(vertices_[face[j]]);
+      normals.push_back(normals_[face[j]]);
+      uv.push_back(uv_[uvface[j]]);
+    }
+    indices.push_back({i * 3, i * 3 + 1, i * 3 + 2});
+  }
+  set_vertices(vertices);
+  set_normals(normals);
+  set_uv(uv);
+
+  set_vertex_indices(indices);
+  set_normal_indices(indices);
+  set_uv_indices(indices);
+
+  return true;
 }
 
 bool Mesh::FlipFaces() {
