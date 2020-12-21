@@ -121,21 +121,6 @@ inline bool stream_read_string(std::istream& f,
   return true;
 }
 
-bool WriteGltfJson(const std::string& gltf_path, const ugu::Mesh& mesh) {
-  std::stringstream ss;
-
-  // Write header
-  ss << "{\n";
-  ss << "\"asset\" : {";
-  ss << "}\n";
-
-  // Write footer
-
-  ss.flush();
-
-  return true;
-}
-
 }  // namespace
 
 namespace ugu {
@@ -1100,16 +1085,13 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
     }
 
     image.name = ExtractPathWithoutExt(mat.diffuse_texname);
-    ugu::Image3b img = imread<ugu::Image3b>(mat.diffuse_texpath, -1);
-    image.w = img.cols;
-    image.h = img.rows;
-
+    // Read jpeg or png data
     std::ifstream ifs(mat.diffuse_texpath, std::ios::in | std::ios::binary);
-    // get size
+    // Get size
     ifs.seekg(0, std::ios::end);
     long long int size = ifs.tellg();
     ifs.seekg(0);
-    // read binary
+    // Read binary
     image.data.resize(size);
     ifs.read(reinterpret_cast<char*>(image.data.data()), size);
 
@@ -1120,7 +1102,7 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
   std::vector<std::uint8_t> bin =
       MakeGltfBinAndUpdateModel(*this, bin_name, true, model);
 
-  gltf::Chunk bin_chunk{0x004E4942, bin};
+  gltf::Chunk bin_chunk{0x004E4942, bin};  // 0x004E4942 -> "BIN" in ASCII
   std::vector<std::uint8_t> bin_bin = gltf::ChunkToBin(bin_chunk);
 
   // Make json
@@ -1128,15 +1110,16 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
 
   std::vector<std::uint8_t> json_bytes(json_string.size());
   std::memcpy(json_bytes.data(), json_string.c_str(), json_string.size());
-  gltf::Chunk json_chunk{0x4E4F534A, json_bytes};
+  gltf::Chunk json_chunk{0x4E4F534A,
+                         json_bytes};  // 0x4E4F534A	-> "JSON" in ASCII
   std::vector<std::uint8_t> json_bin = gltf::ChunkToBin(json_chunk);
 
-  std::uint32_t magic = 0x46546C67;  //  ASCII string glTF
+  std::uint32_t magic = 0x46546C67;  //  0x46546C67 -> "glTF"in ASCII
   std::uint32_t version = 2;
   int header_size = 12;
   std::uint32_t length = static_cast<std::uint32_t>(
       header_size + json_bin.size() + bin_bin.size());
-  std::vector<std::uint8_t> header(12);
+  std::vector<std::uint8_t> header(header_size);
   std::memcpy(header.data(), &magic, 4);
   std::memcpy(header.data() + 4, &version, 4);
   std::memcpy(header.data() + 8, &length, 4);

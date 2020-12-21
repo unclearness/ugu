@@ -14,63 +14,6 @@
 namespace ugu {
 namespace gltf {
 
-// https://stackoverflow.com/a/34571089/5155484
-// typedef unsigned char uchar;
-static const std::string b =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";  //=
-static std::string base64_encode_str(const std::string& in) {
-  std::string out;
-
-  int val = 0, valb = -6;
-  for (std::uint8_t c : in) {
-    val = (val << 8) + c;
-    valb += 8;
-    while (valb >= 0) {
-      out.push_back(b[(val >> valb) & 0x3F]);
-      valb -= 6;
-    }
-  }
-  if (valb > -6) out.push_back(b[((val << 8) >> (valb + 8)) & 0x3F]);
-  while (out.size() % 4) out.push_back('=');
-  return out;
-}
-
-static std::vector<std::uint8_t> base64_encode(const std::string& in) {
-  std::vector<std::uint8_t> out;
-
-  int val = 0, valb = -6;
-  for (std::uint8_t c : in) {
-    val = (val << 8) + c;
-    valb += 8;
-    while (valb >= 0) {
-      out.push_back(b[(val >> valb) & 0x3F]);
-      valb -= 6;
-    }
-  }
-  if (valb > -6) out.push_back(b[((val << 8) >> (valb + 8)) & 0x3F]);
-  while (out.size() % 4) out.push_back('=');
-  return out;
-}
-
-static std::string base64_decode(const std::string& in) {
-  std::string out;
-
-  std::vector<int> T(256, -1);
-  for (int i = 0; i < 64; i++) T[b[i]] = i;
-
-  int val = 0, valb = -8;
-  for (std::uint8_t c : in) {
-    if (T[c] == -1) break;
-    val = (val << 6) + T[c];
-    valb += 6;
-    if (valb >= 0) {
-      out.push_back(char((val >> valb) & 0xFF));
-      valb -= 8;
-    }
-  }
-  return out;
-}
-
 using namespace nlohmann;
 
 struct Asset {
@@ -90,7 +33,7 @@ void to_json(json& j, const Scene& obj) {
 }
 
 struct Node {
-  int mesh = 0;
+  std::uint32_t mesh = 0;
   std::string name = "unknown";
   // std::array<float, 4> rotation;
 };
@@ -99,8 +42,8 @@ void to_json(json& j, const Node& obj) {
 }
 
 struct TextureInfo {
-  int index = 0;
-  int texCoord = 0;
+  std::uint32_t index = 0;
+  std::uint32_t texCoord = 0;
 };
 void to_json(json& j, const TextureInfo& obj) {
   j = json{{"index", obj.index}, {"texCoord", obj.texCoord}};
@@ -139,10 +82,10 @@ void to_json(json& j, const Material& obj) {
 #endif  // 0
 
 struct Primitive {
-  std::unordered_map<std::string, int> attributes = {
+  std::unordered_map<std::string, std::uint32_t> attributes = {
       {"POSITION", 0}, {"NORMAL", 1}, {"TEXCOORD_0", 2}};
-  int indices = 3;
-  int material = 0;
+  std::uint32_t indices = 3;
+  std::uint32_t material = 0;
 };
 void to_json(json& j, const Primitive& obj) {
   j = json{{"attributes", obj.attributes},
@@ -159,7 +102,7 @@ void to_json(json& j, const Mesh& obj) {
 }
 
 struct Texture {
-  int source = 0;
+  std::uint32_t source = 0;
 };
 void to_json(json& j, const Texture& obj) { j = json{{"source", obj.source}}; }
 
@@ -168,10 +111,9 @@ struct Image {
   std::string uri = "untitled.jpg";
 
   bool is_glb = false;
-  int bufferView = 0;
+  std::uint32_t bufferView = 0;
   std::string mimeType = "image/jpeg";
   std::vector<std::uint8_t> data;
-  int w, h;
 };
 void to_json(json& j, const Image& obj) {
   if (obj.is_glb) {
@@ -182,9 +124,9 @@ void to_json(json& j, const Image& obj) {
 }
 
 struct Accessor {
-  int bufferView = 0;
-  int componentType = 5126;
-  int count = -1;
+  std::uint32_t bufferView = 0;
+  std::uint32_t componentType = 5126;
+  std::uint32_t count = 1;
   std::string type;
 
   bool write_minmax = false;
@@ -221,9 +163,9 @@ std::vector<Accessor> GenDefaultAccessors() {
 }
 
 struct BufferView {
-  int buffer = 0;
-  int byteLength = 0;
-  int byteOffset = 0;
+  std::uint32_t buffer = 0;
+  std::uint32_t byteLength = 1;
+  std::uint32_t byteOffset = 0;
 };
 void to_json(json& j, const BufferView& obj) {
   j = json{{"buffer", obj.buffer},
@@ -232,7 +174,7 @@ void to_json(json& j, const BufferView& obj) {
 }
 
 struct Buffer {
-  int byteLength = 0;
+  std::uint32_t byteLength = 1;
   bool is_glb = false;
   std::string uri = "untitled.bin";
 };
@@ -339,8 +281,8 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   std::memcpy(vert_bytes.data(), vertices.data(), vert_size);
   auto& vert_bview = model.bufferViews[0];
   vert_bview.buffer = 0;
-  vert_bview.byteLength = vert_size;
-  vert_bview.byteOffset = total_size;
+  vert_bview.byteLength = static_cast<std::uint32_t>(vert_size);
+  vert_bview.byteOffset = static_cast<std::uint32_t>(total_size);
   total_size += vert_size;
 
   auto& nor_acc = model.accessors[1];
@@ -353,8 +295,8 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   std::memcpy(nor_bytes.data(), normals.data(), nor_size);
   auto& nor_bview = model.bufferViews[1];
   nor_bview.buffer = 0;
-  nor_bview.byteLength = nor_size;
-  nor_bview.byteOffset = total_size;
+  nor_bview.byteLength = static_cast<std::uint32_t>(nor_size);
+  nor_bview.byteOffset = static_cast<std::uint32_t>(total_size);
   total_size += nor_size;
 
   auto& uv_acc = model.accessors[2];
@@ -367,8 +309,8 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   std::memcpy(uv_bytes.data(), uvs.data(), uv_size);
   auto& uv_bview = model.bufferViews[2];
   uv_bview.buffer = 0;
-  uv_bview.byteLength = uv_size;
-  uv_bview.byteOffset = total_size;
+  uv_bview.byteLength = static_cast<std::uint32_t>(uv_size);
+  uv_bview.byteOffset = static_cast<std::uint32_t>(total_size);
   total_size += uv_size;
 
   auto& index_acc = model.accessors[3];
@@ -381,8 +323,8 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   std::memcpy(index_bytes.data(), indices.data(), index_size);
   auto& index_bview = model.bufferViews[3];
   index_bview.buffer = 0;
-  index_bview.byteLength = index_size;
-  index_bview.byteOffset = total_size;
+  index_bview.byteLength = static_cast<std::uint32_t>(index_size);
+  index_bview.byteOffset = static_cast<std::uint32_t>(total_size);
   total_size += index_size;
 
   std::vector<std::vector<std::uint8_t>> bytes_list = {vert_bytes, nor_bytes,
@@ -403,7 +345,7 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
       BufferView bv;
       bv.buffer = 0;
       bv.byteLength = static_cast<int>(image.data.size());
-      bv.byteOffset = total_size;
+      bv.byteOffset = static_cast<std::uint32_t>(total_size);
       total_size += bv.byteLength;
       model.bufferViews.push_back(bv);
 
@@ -417,7 +359,7 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
     model.buffers[0].uri = bin_name;
   }
 
-  model.buffers[0].byteLength = total_size;
+  model.buffers[0].byteLength = static_cast<std::uint32_t>(total_size);
 
   std::vector<std::uint8_t> combined_bytes;
   combined_bytes.reserve(total_size);
