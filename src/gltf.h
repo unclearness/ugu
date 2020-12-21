@@ -14,6 +14,63 @@
 namespace ugu {
 namespace gltf {
 
+// https://stackoverflow.com/a/34571089/5155484
+// typedef unsigned char uchar;
+static const std::string b =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";  //=
+static std::string base64_encode_str(const std::string& in) {
+  std::string out;
+
+  int val = 0, valb = -6;
+  for (std::uint8_t c : in) {
+    val = (val << 8) + c;
+    valb += 8;
+    while (valb >= 0) {
+      out.push_back(b[(val >> valb) & 0x3F]);
+      valb -= 6;
+    }
+  }
+  if (valb > -6) out.push_back(b[((val << 8) >> (valb + 8)) & 0x3F]);
+  while (out.size() % 4) out.push_back('=');
+  return out;
+}
+
+static std::vector<std::uint8_t> base64_encode(const std::string& in) {
+  std::vector<std::uint8_t> out;
+
+  int val = 0, valb = -6;
+  for (std::uint8_t c : in) {
+    val = (val << 8) + c;
+    valb += 8;
+    while (valb >= 0) {
+      out.push_back(b[(val >> valb) & 0x3F]);
+      valb -= 6;
+    }
+  }
+  if (valb > -6) out.push_back(b[((val << 8) >> (valb + 8)) & 0x3F]);
+  while (out.size() % 4) out.push_back('=');
+  return out;
+}
+
+static std::string base64_decode(const std::string& in) {
+  std::string out;
+
+  std::vector<int> T(256, -1);
+  for (int i = 0; i < 64; i++) T[b[i]] = i;
+
+  int val = 0, valb = -8;
+  for (std::uint8_t c : in) {
+    if (T[c] == -1) break;
+    val = (val << 6) + T[c];
+    valb += 6;
+    if (valb >= 0) {
+      out.push_back(char((val >> valb) & 0xFF));
+      valb -= 8;
+    }
+  }
+  return out;
+}
+
 using namespace nlohmann;
 
 struct Asset {
@@ -107,14 +164,21 @@ struct Texture {
 void to_json(json& j, const Texture& obj) { j = json{{"source", obj.source}}; }
 
 struct Image {
-  // std::string mineType = "image/jpeg";
   std::string name = "untitled";
   std::string uri = "untitled.jpg";
+
+  bool is_glb = false;
+  int bufferView = 0;
+  std::string mimeType = "image/jpeg";
+  std::vector<std::uint8_t> data;
+  int w, h;
 };
 void to_json(json& j, const Image& obj) {
-  j = json{//{"mineType", obj.mineType},
-           {"name", obj.name},
-           {"uri", obj.uri}};
+  if (obj.is_glb) {
+    j = json{{"bufferView", obj.bufferView}, {"mimeType", obj.mimeType}};
+  } else {
+    j = json{{"name", obj.name}, {"uri", obj.uri}};
+  }
 }
 
 struct Accessor {
@@ -169,10 +233,15 @@ void to_json(json& j, const BufferView& obj) {
 
 struct Buffer {
   int byteLength = 0;
+  bool is_glb = false;
   std::string uri = "untitled.bin";
 };
 void to_json(json& j, const Buffer& obj) {
-  j = json{{"byteLength", obj.byteLength}, {"uri", obj.uri}};
+  if (obj.is_glb) {
+    j = json{{"byteLength", obj.byteLength}};
+  } else {
+    j = json{{"byteLength", obj.byteLength}, {"uri", obj.uri}};
+  }
 }
 
 struct Model {
@@ -198,10 +267,47 @@ void to_json(json& j, const Model& obj) {
            {"buffers", obj.buffers}};
 }
 
+struct Chunk {
+  // std::uint32_t length;
+  std::uint32_t type;
+  std::vector<std::uint8_t> data;
+};
+
+std::vector<std::uint8_t> ChunkToBin(const Chunk& chunk) {
+  size_t chunk_size = 4 + 4 + chunk.data.size();
+  int padding_num = 0;
+  if (chunk_size % 4 != 0) {
+    padding_num = 4 - (chunk_size % 4);
+  }
+  // chunk_size += padding_num;
+  std::vector<std::uint8_t> combined(chunk_size);
+  std::uint32_t length = static_cast<std::uint32_t>(chunk.data.size());
+  std::memcpy(combined.data(), &length, 4);
+  std::memcpy(combined.data() + 4, &chunk.type, 4);
+  std::memcpy(combined.data() + 8, chunk.data.data(), length);
+
+  std::uint8_t padchar = 255;  // invalid
+  if (chunk.type == 0x4E4F534A) {
+    // json case
+    padchar = ' ';
+  } else if (chunk.type == 0x004E4942) {
+    // bin case
+    padchar = 0;
+  }
+
+  for (int i = 0; i < padding_num; i++) {
+    combined.push_back(padchar);
+  }
+
+  printf("%d %d\n", chunk_size, combined.size());
+
+  return combined;
+};
+
 json MakeGltfJson(const Model& model) { return json(model); }
 
 std::string WriteGltfJsonToString(const Model& model) {
-  return MakeGltfJson(model).dump();
+  return MakeGltfJson(model).dump(-1, ' ', true);
 }
 
 bool WriteGltfJsonToFile(const Model& model, const std::string& path) {
@@ -210,13 +316,13 @@ bool WriteGltfJsonToFile(const Model& model, const std::string& path) {
   return true;
 }
 
-std::vector<std::int8_t> MakeGltfBinAndUpdateModel(
+std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
     const std::vector<Eigen::Vector3f>& vertices,
     const Eigen::Vector3f& vert_max, const Eigen::Vector3f& vert_min,
     const std::vector<Eigen::Vector3f>& normals,
     const std::vector<Eigen::Vector2f>& uvs,
     const std::vector<Eigen::Vector3i>& indices, const std::string& bin_name,
-    Model& model) {
+    bool is_glb, Model& model) {
   size_t total_size = 0;
   model.accessors.resize(4);
   model.bufferViews.resize(4);
@@ -230,7 +336,7 @@ std::vector<std::int8_t> MakeGltfBinAndUpdateModel(
   vert_acc.min = {vert_min[0], vert_min[1], vert_min[2]};
   vert_acc.type = "VEC3";
   size_t vert_size = vertices.size() * sizeof(float) * 3;
-  std::vector<std::int8_t> vert_bytes(vert_size);
+  std::vector<std::uint8_t> vert_bytes(vert_size);
   std::memcpy(vert_bytes.data(), vertices.data(), vert_size);
   auto& vert_bview = model.bufferViews[0];
   vert_bview.buffer = 0;
@@ -244,7 +350,7 @@ std::vector<std::int8_t> MakeGltfBinAndUpdateModel(
   nor_acc.count = static_cast<int>(normals.size());
   nor_acc.type = "VEC3";
   size_t nor_size = normals.size() * sizeof(float) * 3;
-  std::vector<std::int8_t> nor_bytes(nor_size);
+  std::vector<std::uint8_t> nor_bytes(nor_size);
   std::memcpy(nor_bytes.data(), normals.data(), nor_size);
   auto& nor_bview = model.bufferViews[1];
   nor_bview.buffer = 0;
@@ -258,7 +364,7 @@ std::vector<std::int8_t> MakeGltfBinAndUpdateModel(
   uv_acc.count = static_cast<int>(uvs.size());
   uv_acc.type = "VEC2";
   size_t uv_size = uvs.size() * sizeof(float) * 2;
-  std::vector<std::int8_t> uv_bytes(uv_size);
+  std::vector<std::uint8_t> uv_bytes(uv_size);
   std::memcpy(uv_bytes.data(), uvs.data(), uv_size);
   auto& uv_bview = model.bufferViews[2];
   uv_bview.buffer = 0;
@@ -272,7 +378,7 @@ std::vector<std::int8_t> MakeGltfBinAndUpdateModel(
   index_acc.count = static_cast<int>(indices.size() * 3);
   index_acc.type = "SCALAR";
   size_t index_size = indices.size() * sizeof(int) * 3;
-  std::vector<std::int8_t> index_bytes(index_size);
+  std::vector<std::uint8_t> index_bytes(index_size);
   std::memcpy(index_bytes.data(), indices.data(), index_size);
   auto& index_bview = model.bufferViews[3];
   index_bview.buffer = 0;
@@ -280,23 +386,56 @@ std::vector<std::int8_t> MakeGltfBinAndUpdateModel(
   index_bview.byteOffset = total_size;
   total_size += index_size;
 
+  std::vector<std::vector<std::uint8_t>> bytes_list = {vert_bytes, nor_bytes,
+                                                       uv_bytes, index_bytes};
+
   model.buffers.resize(1);
+
+  if (is_glb) {
+    model.buffers[0].is_glb = true;
+
+    int num_bv = 4;
+    for (auto& image : model.images) {
+      image.is_glb = true;
+      image.bufferView = num_bv;
+      Accessor accessor;
+      accessor.bufferView = num_bv;
+      accessor.componentType = 5121;  // unsigned byte
+      accessor.count = image.h * image.w * 3;
+      accessor.type = "VEC3";
+      model.accessors.push_back(accessor);
+
+      BufferView bv;
+      bv.buffer = 0;
+      bv.byteLength = static_cast<int>(image.data.size());
+      bv.byteOffset = total_size;
+      total_size += bv.byteLength;
+      model.bufferViews.push_back(bv);
+
+      bytes_list.push_back(image.data);
+
+      num_bv++;
+    }
+
+  } else {
+    model.buffers[0].is_glb = false;
+    model.buffers[0].uri = bin_name;
+  }
+
   model.buffers[0].byteLength = total_size;
-  model.buffers[0].uri = bin_name;
 
-  std::vector<std::int8_t> bytes;
-  bytes.reserve(total_size);
-  bytes.insert(bytes.end(), vert_bytes.begin(), vert_bytes.end());
-  bytes.insert(bytes.end(), nor_bytes.begin(), nor_bytes.end());
-  bytes.insert(bytes.end(), uv_bytes.begin(), uv_bytes.end());
-  bytes.insert(bytes.end(), index_bytes.begin(), index_bytes.end());
+  std::vector<std::uint8_t> combined_bytes;
+  combined_bytes.reserve(total_size);
+  for (auto& bytes : bytes_list) {
+    combined_bytes.insert(combined_bytes.end(), bytes.begin(), bytes.end());
+  }
 
-  return bytes;
+  return combined_bytes;
 }
 
-std::vector<std::int8_t> MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
-                                                   const std::string& bin_name,
-                                                   Model& model) {
+std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
+                                                    const std::string& bin_name,
+                                                    bool is_glb, Model& model) {
   // Flip v
   auto gltf_uvs = mesh.uv();
   for (auto& uv : gltf_uvs) {
@@ -304,7 +443,7 @@ std::vector<std::int8_t> MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
   }
   return MakeGltfBinAndUpdateModel(
       mesh.vertices(), mesh.stats().bb_max, mesh.stats().bb_min, mesh.normals(),
-      gltf_uvs, mesh.vertex_indices(), bin_name, model);
+      gltf_uvs, mesh.vertex_indices(), bin_name, is_glb, model);
 }
 
 }  // namespace gltf
