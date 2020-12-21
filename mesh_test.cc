@@ -16,6 +16,8 @@ void TestIO() {
   src.SplitMultipleUvVertices();
   src.WriteGltfSeparate(data_dir, "bunny");
 
+  src.WriteGlb(data_dir, "bunny.glb");
+
   dst = ugu::Mesh(src);
 
   dst.FlipFaces();

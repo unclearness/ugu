@@ -279,9 +279,10 @@ std::vector<std::uint8_t> ChunkToBin(const Chunk& chunk) {
   if (chunk_size % 4 != 0) {
     padding_num = 4 - (chunk_size % 4);
   }
-  // chunk_size += padding_num;
   std::vector<std::uint8_t> combined(chunk_size);
-  std::uint32_t length = static_cast<std::uint32_t>(chunk.data.size());
+  // IMPORTANT: add padding_num
+  std::uint32_t length =
+      static_cast<std::uint32_t>(chunk.data.size() + padding_num);
   std::memcpy(combined.data(), &length, 4);
   std::memcpy(combined.data() + 4, &chunk.type, 4);
   std::memcpy(combined.data() + 8, chunk.data.data(), length);
@@ -289,17 +290,15 @@ std::vector<std::uint8_t> ChunkToBin(const Chunk& chunk) {
   std::uint8_t padchar = 255;  // invalid
   if (chunk.type == 0x4E4F534A) {
     // json case
-    padchar = ' ';
+    padchar = 0x20;  //' ';
   } else if (chunk.type == 0x004E4942) {
     // bin case
-    padchar = 0;
+    padchar = 0x00;
   }
 
   for (int i = 0; i < padding_num; i++) {
     combined.push_back(padchar);
   }
-
-  printf("%d %d\n", chunk_size, combined.size());
 
   return combined;
 };
@@ -398,13 +397,9 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
     for (auto& image : model.images) {
       image.is_glb = true;
       image.bufferView = num_bv;
-      Accessor accessor;
-      accessor.bufferView = num_bv;
-      accessor.componentType = 5121;  // unsigned byte
-      accessor.count = image.h * image.w * 3;
-      accessor.type = "VEC3";
-      model.accessors.push_back(accessor);
 
+      // Does not need accessor for image
+      // BufferView and mimeType are enough for decoding
       BufferView bv;
       bv.buffer = 0;
       bv.byteLength = static_cast<int>(image.data.size());

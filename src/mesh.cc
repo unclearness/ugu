@@ -1125,9 +1125,7 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
 
   // Make json
   std::string json_string = gltf::WriteGltfJsonToString(model);
-  printf("%s\n", json_string.c_str());
-  // Base64 encode
-  // std::vector<std::uint8_t> json_bytes = gltf::base64_encode(json_string);
+
   std::vector<std::uint8_t> json_bytes(json_string.size());
   std::memcpy(json_bytes.data(), json_string.c_str(), json_string.size());
   gltf::Chunk json_chunk{0x4E4F534A, json_bytes};
