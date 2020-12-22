@@ -42,6 +42,15 @@ struct ObjMaterial {
   std::string ToString() const;
 };
 
+struct Blendshape {
+  float max = 1.f;
+  float min = 0.f;
+  float weight = 0.f;
+  std::string name;
+  std::vector<Eigen::Vector3f> vertices;
+  std::vector<Eigen::Vector3f> normals;
+};
+
 class Mesh {
   std::vector<Eigen::Vector3f> vertices_;
   std::vector<Eigen::Vector3f> vertex_colors_;   // optional, RGB order
@@ -63,6 +72,8 @@ class Mesh {
   // face_indices_per_material_[i]: the vector of material i's face indices.
   std::vector<std::vector<int>> face_indices_per_material_;
   MeshStats stats_;
+
+  std::vector<Blendshape> blendshapes_;
 
  public:
   Mesh();
@@ -94,6 +105,7 @@ class Mesh {
   const std::vector<int>& material_ids() const;
   const std::vector<ObjMaterial>& materials() const;
   const std::vector<std::vector<int>>& face_indices_per_material() const;
+  const std::vector<Blendshape>& blendshapes() const;
 
   bool set_vertices(const std::vector<Eigen::Vector3f>& vertices);
   bool set_vertex_colors(const std::vector<Eigen::Vector3f>& vertex_colors);
@@ -107,6 +119,7 @@ class Mesh {
   bool set_materials(const std::vector<ObjMaterial>& materials);
   bool set_face_indices_per_material(
       const std::vector<std::vector<int>>& face_indices_per_material);
+  bool set_blendshapes(const std::vector<Blendshape>& blendshapes);
 
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);
   bool LoadPly(const std::string& ply_path);

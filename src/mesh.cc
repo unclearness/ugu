@@ -195,6 +195,10 @@ const std::vector<std::vector<int>>& Mesh::face_indices_per_material() const {
   return face_indices_per_material_;
 }
 
+const std::vector<Blendshape>& Mesh::blendshapes() const {
+  return blendshapes_;
+};
+
 void Mesh::CalcStats() {
   stats_.bb_min = Eigen::Vector3f(std::numeric_limits<float>::max(),
                                   std::numeric_limits<float>::max(),
@@ -445,6 +449,11 @@ bool Mesh::set_face_indices_per_material(
   for (size_t k = 0; k < face_indices_per_material.size(); k++) {
     CopyVec(face_indices_per_material[k], &face_indices_per_material_[k]);
   }
+  return true;
+}
+
+bool Mesh::set_blendshapes(const std::vector<Blendshape>& blendshapes) {
+  CopyVec(blendshapes, &blendshapes_);
   return true;
 }
 
@@ -1012,6 +1021,19 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
   this->CalcStats();  // ensure min/max
   model.meshes.resize(1);
   model.meshes[0].name = ExtractPathWithoutExt(gltf_basename);
+
+  // Prepare blendshapes
+  model.meshes[0].with_blendshapes = !this->blendshapes_.empty();
+  for (auto& p : model.meshes[0].primitives) {
+    p.with_blendshapes = model.meshes[0].with_blendshapes;
+  }
+  for (const auto& b : this->blendshapes_) {
+    model.meshes[0].blendshape_names.push_back(b.name);
+    model.meshes[0].blendshape_weights.push_back(b.weight);
+  }
+  model.meshes[0].primitives[0].blendshape_num =
+      static_cast<std::uint32_t>(this->blendshapes_.size());
+
   std::string bin_name = gltf_basename + ".bin";
   std::vector<std::uint8_t> bin =
       MakeGltfBinAndUpdateModel(*this, bin_name, false, model);
@@ -1061,6 +1083,18 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
   this->CalcStats();  // ensure min/max
   model.meshes.resize(1);
   model.meshes[0].name = ExtractPathWithoutExt(glb_name);
+
+  // Prepare blendshapes
+  model.meshes[0].with_blendshapes = !this->blendshapes_.empty();
+  for (auto& p : model.meshes[0].primitives) {
+    p.with_blendshapes = model.meshes[0].with_blendshapes;
+  }
+  for (const auto& b : this->blendshapes_) {
+    model.meshes[0].blendshape_names.push_back(b.name);
+    model.meshes[0].blendshape_weights.push_back(b.weight);
+  }
+  model.meshes[0].primitives[0].blendshape_num =
+      static_cast<std::uint32_t>(this->blendshapes_.size());
 
   // Update materials and textures of the model
   model.materials.resize(this->materials_.size());  // todo: update pbr params
