@@ -86,19 +86,46 @@ struct Primitive {
       {"POSITION", 0}, {"NORMAL", 1}, {"TEXCOORD_0", 2}};
   std::uint32_t indices = 3;
   std::uint32_t material = 0;
+
+  bool with_blendshapes = false;
+  int blendshape_num = 0;
 };
 void to_json(json& j, const Primitive& obj) {
   j = json{{"attributes", obj.attributes},
            {"indices", obj.indices},
            {"material", obj.material}};
+
+  if (obj.with_blendshapes) {
+    std::vector<std::unordered_map<std::string, std::uint32_t>> targets;
+    int offset = 4;
+    for (int i = 0; i < obj.blendshape_num; i++) {
+      std::unordered_map<std::string, std::uint32_t> target = {
+          {"POSITION", offset + i * 2}, {"NORMAL", offset + i * 2 + 1}};
+      targets.push_back(target);
+    }
+    j["targets"] = targets;
+  }
+
 }
 
 struct Mesh {
   std::string name = "unknown";
   std::vector<Primitive> primitives = {Primitive()};
+  
+  bool with_blendshapes = false;
+  std::vector<std::string> blendshape_names;
+  std::vector<float> blendshape_weights;
+
 };
 void to_json(json& j, const Mesh& obj) {
   j = json{{"name", obj.name}, {"primitives", obj.primitives}};
+
+  if (obj.with_blendshapes) {
+    json targetNames = json{{"targetNames", obj.blendshape_names}};
+    j["extras"] = targetNames;
+    j["weights"] = obj.blendshape_weights;
+  }
+
 }
 
 struct Texture {
@@ -210,7 +237,6 @@ void to_json(json& j, const Model& obj) {
 }
 
 struct Chunk {
-  // std::uint32_t length;
   std::uint32_t type;
   std::vector<std::uint8_t> data;
 };
