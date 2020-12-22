@@ -16,6 +16,32 @@ namespace gltf {
 
 using namespace nlohmann;
 
+void GetVertexMinMax(const std::vector<Eigen::Vector3f>& vertices,
+                     Eigen::Vector3f& v_min, Eigen::Vector3f& v_max) {
+  v_min = Eigen::Vector3f(std::numeric_limits<float>::max(),
+                          std::numeric_limits<float>::max(),
+                          std::numeric_limits<float>::max());
+  v_max = Eigen::Vector3f(std::numeric_limits<float>::lowest(),
+                          std::numeric_limits<float>::lowest(),
+                          std::numeric_limits<float>::lowest());
+
+  if (vertices.empty()) {
+    return;
+  }
+
+  for (const auto& v : vertices) {
+    for (int i = 0; i < 3; i++) {
+      if (v[i] < v_min[i]) {
+        v_min[i] = v[i];
+      }
+
+      if (v_max[i] < v[i]) {
+        v_max[i] = v[i];
+      }
+    }
+  }
+}
+
 struct Asset {
   std::string generator = "unknown";
   std::string version = "2.0";
@@ -73,14 +99,6 @@ void to_json(json& j, const Material& obj) {
            {"pbrMetallicRoughness", obj.pbrMetallicRoughness}};
 }
 
-// using AttributeIndexPair = std::pair<std::string, int>;
-
-#if 0
-				struct PrimitiveAttribute {
-  int
-};
-#endif  // 0
-
 struct Primitive {
   std::unordered_map<std::string, std::uint32_t> attributes = {
       {"POSITION", 0}, {"NORMAL", 1}, {"TEXCOORD_0", 2}};
@@ -105,17 +123,15 @@ void to_json(json& j, const Primitive& obj) {
     }
     j["targets"] = targets;
   }
-
 }
 
 struct Mesh {
   std::string name = "unknown";
   std::vector<Primitive> primitives = {Primitive()};
-  
+
   bool with_blendshapes = false;
   std::vector<std::string> blendshape_names;
   std::vector<float> blendshape_weights;
-
 };
 void to_json(json& j, const Mesh& obj) {
   j = json{{"name", obj.name}, {"primitives", obj.primitives}};
@@ -125,7 +141,6 @@ void to_json(json& j, const Mesh& obj) {
     j["extras"] = targetNames;
     j["weights"] = obj.blendshape_weights;
   }
-
 }
 
 struct Texture {
@@ -289,7 +304,10 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
     const std::vector<Eigen::Vector3f>& normals,
     const std::vector<Eigen::Vector2f>& uvs,
     const std::vector<Eigen::Vector3i>& indices, const std::string& bin_name,
-    bool is_glb, Model& model) {
+    bool is_glb,
+    const std::vector<std::vector<Eigen::Vector3f>>& blendshape_vertices,
+    const std::vector<std::vector<Eigen::Vector3f>>& blendshape_normals,
+    Model& model) {
   size_t total_size = 0;
   model.accessors.resize(4);
   model.bufferViews.resize(4);
@@ -358,10 +376,10 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
 
   model.buffers.resize(1);
 
+  int num_bv = 4;
   if (is_glb) {
     model.buffers[0].is_glb = true;
 
-    int num_bv = 4;
     for (auto& image : model.images) {
       image.is_glb = true;
       image.bufferView = num_bv;
@@ -385,6 +403,58 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
     model.buffers[0].uri = bin_name;
   }
 
+  if (!blendshape_vertices.empty() &&
+      blendshape_vertices.size() == blendshape_normals.size()) {
+    for (size_t i = 0; i < blendshape_vertices.size(); i++) {
+      const auto& v = blendshape_vertices[i];
+      const auto& n = blendshape_normals[i];
+
+      Accessor p_acc, n_acc;
+      p_acc.componentType = 5126;
+      p_acc.count = static_cast<std::uint32_t>(v.size());
+      p_acc.type = "VEC3";
+      p_acc.bufferView = num_bv;
+      num_bv++;
+      p_acc.write_minmax = true;
+      Eigen::Vector3f v_min, v_max;
+      GetVertexMinMax(v, v_min, v_max);
+      for (int k = 0; k < 3; k++) {
+        p_acc.min[k] = v_min[k];
+        p_acc.max[k] = v_max[k];
+      }
+
+      n_acc.componentType = 5126;
+      n_acc.count = static_cast<std::uint32_t>(n.size());
+      n_acc.type = "VEC3";
+      n_acc.bufferView = num_bv;
+      num_bv++;
+
+      model.accessors.push_back(p_acc);
+      model.accessors.push_back(n_acc);
+
+      BufferView v_bv, n_bv;
+      v_bv.buffer = 0;
+      size_t v_size = v.size() * sizeof(float) * 3;
+      std::vector<std::uint8_t> v_bytes(v_size);
+      std::memcpy(v_bytes.data(), v.data(), v_size);
+      v_bv.byteLength = static_cast<std::uint32_t>(v_size);
+      v_bv.byteOffset = static_cast<std::uint32_t>(total_size);
+      total_size += v_bv.byteLength;
+      model.bufferViews.push_back(v_bv);
+      bytes_list.push_back(v_bytes);
+
+      n_bv.buffer = 0;
+      size_t n_size = n.size() * sizeof(float) * 3;
+      std::vector<std::uint8_t> n_bytes(n_size);
+      std::memcpy(n_bytes.data(), n.data(), n_size);
+      n_bv.byteLength = static_cast<std::uint32_t>(n_size);
+      n_bv.byteOffset = static_cast<std::uint32_t>(total_size);
+      total_size += n_bv.byteLength;
+      model.bufferViews.push_back(n_bv);
+      bytes_list.push_back(n_bytes);
+    }
+  }
+
   model.buffers[0].byteLength = static_cast<std::uint32_t>(total_size);
 
   std::vector<std::uint8_t> combined_bytes;
@@ -404,9 +474,18 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
   for (auto& uv : gltf_uvs) {
     uv[1] = 1.f - uv[1];
   }
+
+  std::vector<std::vector<Eigen::Vector3f>> blendshape_vertices,
+      blendshape_normals;
+  for (const auto& b : mesh.blendshapes()) {
+    blendshape_vertices.push_back(b.vertices);
+    blendshape_normals.push_back(b.normals);
+  }
+
   return MakeGltfBinAndUpdateModel(
       mesh.vertices(), mesh.stats().bb_max, mesh.stats().bb_min, mesh.normals(),
-      gltf_uvs, mesh.vertex_indices(), bin_name, is_glb, model);
+      gltf_uvs, mesh.vertex_indices(), bin_name, is_glb, blendshape_vertices,
+      blendshape_normals, model);
 }
 
 }  // namespace gltf
