@@ -377,31 +377,6 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   model.buffers.resize(1);
 
   int num_bv = 4;
-  if (is_glb) {
-    model.buffers[0].is_glb = true;
-
-    for (auto& image : model.images) {
-      image.is_glb = true;
-      image.bufferView = num_bv;
-
-      // Does not need accessor for image
-      // BufferView and mimeType are enough for decoding
-      BufferView bv;
-      bv.buffer = 0;
-      bv.byteLength = static_cast<int>(image.data.size());
-      bv.byteOffset = static_cast<std::uint32_t>(total_size);
-      total_size += bv.byteLength;
-      model.bufferViews.push_back(bv);
-
-      bytes_list.push_back(image.data);
-
-      num_bv++;
-    }
-
-  } else {
-    model.buffers[0].is_glb = false;
-    model.buffers[0].uri = bin_name;
-  }
 
   if (!blendshape_vertices.empty() &&
       blendshape_vertices.size() == blendshape_normals.size()) {
@@ -453,6 +428,36 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
       model.bufferViews.push_back(n_bv);
       bytes_list.push_back(n_bytes);
     }
+  }
+
+  if (is_glb) {
+    model.buffers[0].is_glb = true;
+
+    for (auto& image : model.images) {
+      image.is_glb = true;
+      image.bufferView = num_bv;
+
+      // Does not need accessor for image
+      // BufferView and mimeType are enough for decoding
+      BufferView bv;
+      bv.buffer = 0;
+      // Image data should be last of buffer
+      // Otherwise you may get ""ACCESSOR_TOTAL_OFFSET_ALIGNMENT" Accessor's
+      // total byteOffset XXXX isn't a multiple of componentType length 4." for
+      // other (e.g. vertices) bufferViews
+      bv.byteLength = static_cast<int>(image.data.size());
+      bv.byteOffset = static_cast<std::uint32_t>(total_size);
+      total_size += bv.byteLength;
+      model.bufferViews.push_back(bv);
+
+      bytes_list.push_back(image.data);
+
+      num_bv++;
+    }
+
+  } else {
+    model.buffers[0].is_glb = false;
+    model.buffers[0].uri = bin_name;
   }
 
   model.buffers[0].byteLength = static_cast<std::uint32_t>(total_size);

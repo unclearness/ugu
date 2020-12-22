@@ -1022,7 +1022,6 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
   model.meshes.resize(1);
   model.meshes[0].name = ExtractPathWithoutExt(gltf_basename);
 
-
   // Prepare blendshapes
   model.meshes[0].with_blendshapes = !this->blendshapes_.empty();
   for (auto& p : model.meshes[0].primitives) {
@@ -1084,6 +1083,18 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
   this->CalcStats();  // ensure min/max
   model.meshes.resize(1);
   model.meshes[0].name = ExtractPathWithoutExt(glb_name);
+
+  // Prepare blendshapes
+  model.meshes[0].with_blendshapes = !this->blendshapes_.empty();
+  for (auto& p : model.meshes[0].primitives) {
+    p.with_blendshapes = model.meshes[0].with_blendshapes;
+  }
+  for (const auto& b : this->blendshapes_) {
+    model.meshes[0].blendshape_names.push_back(b.name);
+    model.meshes[0].blendshape_weights.push_back(b.weight);
+  }
+  model.meshes[0].primitives[0].blendshape_num =
+      static_cast<std::uint32_t>(this->blendshapes_.size());
 
   // Update materials and textures of the model
   model.materials.resize(this->materials_.size());  // todo: update pbr params
