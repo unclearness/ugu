@@ -515,10 +515,12 @@ T BilinearInterpolation(float x, float y, const ugu::Image<T>& image) {
   for (int i = 0; i < image.channels(); i++) {
     float colorf =
         (1.0f - local_u) * (1.0f - local_v) *
-            image.at<T>(pos_min[1], pos_min[0])[i] +
-        local_u * (1.0f - local_v) * image.at<T>(pos_max[1], pos_min[0])[i] +
-        (1.0f - local_u) * local_v * image.at<T>(pos_min[1], pos_max[0])[i] +
-        local_u * local_v * image.at<T>(pos_max[1], pos_max[0])[i];
+            image.template at<T>(pos_min[1], pos_min[0])[i] +
+        local_u * (1.0f - local_v) *
+            image.template at<T>(pos_max[1], pos_min[0])[i] +
+        (1.0f - local_u) * local_v *
+            image.template at<T>(pos_min[1], pos_max[0])[i] +
+        local_u * local_v * image.template at<T>(pos_max[1], pos_max[0])[i];
     color[i] = static_cast<typename T::value_type>(colorf);
   }
 
@@ -555,11 +557,12 @@ double BilinearInterpolation(float x, float y, int channel,
   // bilinear interpolation
   double color =
       (1.0 - local_u) * (1.0 - local_v) *
-          image.at<T>(pos_min[1], pos_min[0])[channel] +
+          image.template at<T>(pos_min[1], pos_min[0])[channel] +
       local_u * (1.0f - local_v) *
-          image.at<T>(pos_max[1], pos_min[0])[channel] +
-      (1.0 - local_u) * local_v * image.at<T>(pos_min[1], pos_max[0])[channel] +
-      local_u * local_v * image.at<T>(pos_max[1], pos_max[0])[channel];
+          image.template at<T>(pos_max[1], pos_min[0])[channel] +
+      (1.0 - local_u) * local_v *
+          image.template at<T>(pos_min[1], pos_max[0])[channel] +
+      local_u * local_v * image.template at<T>(pos_max[1], pos_max[0])[channel];
 
   return color;
 }
