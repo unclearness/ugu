@@ -212,7 +212,7 @@ class Image {
     }
 
     if (bpp != channels_) {
-      delete in_pixels_tmp;
+      stbi_image_free(in_pixels_tmp);
       LOGE("desired channel %d, actual %d\n", channels_, bpp);
       return false;
     }
@@ -220,7 +220,7 @@ class Image {
     Init(width, height);
 
     std::memcpy(data_->data(), in_pixels_tmp, sizeof(T) * width_ * height_);
-    delete in_pixels_tmp;
+    stbi_image_free(in_pixels_tmp);
 
     return true;
   }
