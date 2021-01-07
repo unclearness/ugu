@@ -2,6 +2,7 @@
  * Copyright (C) 2019, unclearness
  * All rights reserved.
  */
+#ifdef UGU_USE_NANORT
 
 #include <algorithm>
 #include <deque>
@@ -1009,3 +1010,5 @@ bool TextureMapping(const std::vector<std::shared_ptr<Keyframe>>& keyframes,
 }
 
 }  // namespace ugu
+
+#endif

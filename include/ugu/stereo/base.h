@@ -20,8 +20,28 @@ enum class HoleFilling { NONE = 0, NN = 1 };
 enum class FilterForFilled { NONE = 0, MEDIAN = 1 };
 
 template <typename T, typename TT>
-TT Sad(const ugu::Image<T>& a, const ugu::Image<T>& b, int minx, int maxx,
-       int miny, int maxy, int offsetx, int offsety) {
+TT Sad(const ugu::Image<
+           typename std::enable_if<std::is_arithmetic<T>::value, T>::type>& a,
+       const ugu::Image<
+           typename std::enable_if<std::is_arithmetic<T>::value, T>::type>& b,
+       int minx, int maxx, int miny, int maxy, int offsetx, int offsety) {
+  TT cost = TT(0);
+  for (int jj = miny; jj <= maxy; jj++) {
+    for (int ii = minx; ii <= maxx; ii++) {
+      const T& a_val = a.at<T>(jj, ii);
+      const T& b_val = b.at<T>(jj + offsety, ii + offsetx);
+      cost += static_cast<TT>(std::abs(a_val - b_val));
+    }
+  }
+  return cost;
+}
+
+template <typename T, typename TT>
+TT Sad(const ugu::Image<
+           typename std::enable_if<!std::is_arithmetic<T>::value, T>::type>& a,
+       const ugu::Image<
+           typename std::enable_if<!std::is_arithmetic<T>::value, T>::type>& b,
+       int minx, int maxx, int miny, int maxy, int offsetx, int offsety) {
   TT cost = TT(0);
   for (int jj = miny; jj <= maxy; jj++) {
     for (int ii = minx; ii <= maxx; ii++) {
@@ -36,8 +56,29 @@ TT Sad(const ugu::Image<T>& a, const ugu::Image<T>& b, int minx, int maxx,
 }
 
 template <typename T, typename TT>
-TT Ssd(const ugu::Image<T>& a, const ugu::Image<T>& b, int minx, int maxx,
-       int miny, int maxy, int offsetx, int offsety) {
+TT Ssd(const ugu::Image<
+           typename std::enable_if<std::is_arithmetic<T>::value, T>::type>& a,
+       const ugu::Image<
+           typename std::enable_if<std::is_arithmetic<T>::value, T>::type>& b,
+       int minx, int maxx, int miny, int maxy, int offsetx, int offsety) {
+  TT cost = TT(0);
+  for (int jj = miny; jj <= maxy; jj++) {
+    for (int ii = minx; ii <= maxx; ii++) {
+      const T& a_val = a.at<T>(jj, ii);
+      const T& b_val = b.at<T>(jj + offsety, ii + offsetx);
+
+      cost += static_cast<TT>((a_val - b_val) * (a_val - b_val));
+    }
+  }
+  return cost;
+}
+
+template <typename T, typename TT>
+TT Ssd(const ugu::Image<
+           typename std::enable_if<!std::is_arithmetic<T>::value, T>::type>& a,
+       const ugu::Image<
+           typename std::enable_if<!std::is_arithmetic<T>::value, T>::type>& b,
+       int minx, int maxx, int miny, int maxy, int offsetx, int offsety) {
   TT cost = TT(0);
   for (int jj = miny; jj <= maxy; jj++) {
     for (int ii = minx; ii <= maxx; ii++) {

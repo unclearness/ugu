@@ -53,12 +53,13 @@ using Image1i = cv::Mat1i;
 using Image1f = cv::Mat1f;
 using Image3f = cv::Mat3f;
 
-using Vec1v = unsigned char;
+using Vec1b = unsigned char;
 using Vec1f = float;
 using Vec1i = int;
 using Vec1w = std::uint16_t;
 using Vec3f = cv::Vec3f;
 using Vec3b = cv::Vec3b;
+using Vec3d = cv::Vec3d;
 
 using Point = cv::Point;
 

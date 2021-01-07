@@ -4,6 +4,7 @@
  */
 
 #include "visibility_tester.h"
+#ifdef UGU_USE_NANORT
 
 #include <cassert>
 #include <iterator>
@@ -700,3 +701,5 @@ bool VisibilityTester::Test(std::vector<std::shared_ptr<Keyframe>> keyframes,
 }
 
 }  // namespace ugu
+
+#endif

@@ -2,6 +2,7 @@
  * Copyright (C) 2019, unclearness
  * All rights reserved.
  */
+#ifdef UGU_USE_NANORT
 
 #include "vertex_colorizer.h"
 
@@ -44,3 +45,5 @@ bool VertexColorizer::Colorize(const VisibilityInfo& info, Mesh* mesh,
 }
 
 }  // namespace ugu
+
+#endif

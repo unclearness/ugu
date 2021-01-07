@@ -30,6 +30,10 @@
 #endif
 #endif
 
+#ifdef UGU_USE_OPENCV
+#include "opencv2/imgproc.hpp"
+#endif
+
 namespace {
 
 template <typename T>
