@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "ugu/camera.h"
+#include "ugu/image.h"
 #include "ugu/mesh.h"
 
 #include "nanort.h"

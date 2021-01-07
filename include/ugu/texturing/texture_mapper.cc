@@ -277,7 +277,7 @@ bool RasterizeTriangle(const std::array<Eigen::Vector2f, 3>& src_tri,
       Eigen::Vector2f src_pos =
           w0 * src_tri[0] + w1 * src_tri[1] + w2 * src_tri[2];
       target->at<ugu::Vec3b>(y, x) =
-          BilinearInterpolation(src_pos.x(), src_pos.y(), src);
+          ugu::BilinearInterpolation(src_pos.x(), src_pos.y(), src);
 
       if (mask != nullptr) {
         mask->at<unsigned char>(y, x) = 255;
