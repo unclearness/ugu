@@ -178,6 +178,7 @@ class OpenCvCamera : public PinholeCamera {
 // PinholeCamera with line projection
 class LinePinholeCamera : public PinholeCamera {
  public:
+  using PinholeCamera::Project;
   void Project(const Line3d& camera_l, Line2d* image_l) const;
 };
 
@@ -217,11 +218,11 @@ class OrthoCamera : public Camera {
   void set_size(int width, int height) override;
   void set_c2w(const Eigen::Affine3d& c2w) override;
 
-  void Project(const Eigen::Vector3f& camera_p,
+  virtual void Project(const Eigen::Vector3f& camera_p,
                Eigen::Vector3f* image_p) const override;
-  void Project(const Eigen::Vector3f& camera_p,
+  virtual void Project(const Eigen::Vector3f& camera_p,
                Eigen::Vector2f* image_p) const override;
-  void Project(const Eigen::Vector3f& camera_p, Eigen::Vector2f* image_p,
+  virtual void Project(const Eigen::Vector3f& camera_p, Eigen::Vector2f* image_p,
                float* d) const override;
   void Unproject(const Eigen::Vector3f& image_p,
                  Eigen::Vector3f* camera_p) const override;
@@ -244,6 +245,8 @@ bool LoadTumFormat(const std::string& path,
                    std::vector<Eigen::Affine3d>* poses);
 bool LoadTumFormat(const std::string& path,
                    std::vector<std::pair<int, Eigen::Affine3d>>* poses);
+
+std::tuple<Eigen::Vector3f, std::vector<double>> FindLineCrossingPoint(const std::vector<Line3d>& lines);
 
 inline PinholeCamera::PinholeCamera()
     : principal_point_(-1, -1), focal_length_(-1, -1) {
@@ -571,6 +574,7 @@ inline void OpenCvCamera::Unproject(const Eigen::Vector2f& image_p, float d,
   PinholeCamera::Unproject(undistorted_image_p, d, camera_p);
 }
 
+
 inline void LinePinholeCamera::Project(const Line3d& camera_l,
                                        Line2d* image_l) const {
   // ToDo: Use Plucker line coordinates
@@ -584,11 +588,11 @@ inline void LinePinholeCamera::Project(const Line3d& camera_l,
  
   // Project the 2 points to 2D
   Eigen::Vector2f p0_2d, p1_2d;
-  PinholeCamera::Project(p0_3d, &p0_2d);
-  PinholeCamera::Project(p1_3d, &p1_2d);
+  Project(p0_3d, &p0_2d);
+  Project(p1_3d, &p1_2d);
 
   // Calc 2d line equation
-  image_l->Set(p0_2d, p1_2d);
+  image_l->Set(p0_2d.cast<double>(), p1_2d.cast<double>());
 }
 
 

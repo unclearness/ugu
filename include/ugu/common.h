@@ -27,10 +27,16 @@ enum class ColorInterpolation {
 struct Line3d {
   // p = dt + a
   Eigen::Vector3d a, d;
-  const Eigen::Vector3d Sample(float t) const;
+
+  void Set(const Eigen::Vector3d& p0, const Eigen::Vector3d& p1);
+  const Eigen::Vector3d Sample(double t) const;
   const Line3d operator*(const Eigen::Affine3d& T) const;
 };
-inline const Eigen::Vector3d Line3d::Sample(float t) const { return d * t + a; }
+inline void Line3d::Set(const Eigen::Vector3d& p0, const Eigen::Vector3d& p1) {
+  d = (p1 - p0).normalized();
+  a = p0;
+}
+inline const Eigen::Vector3d Line3d::Sample(double t) const { return d * t + a; }
 inline const Line3d Line3d::operator*(const Eigen::Affine3d& T) const {
   Line3d rfs = *this;
   // apply rotation to direction
@@ -50,8 +56,9 @@ struct Line2d {
   void Set(const Eigen::Vector2d& p0, const Eigen::Vector2d& p1);
   void Set(double x0, double y0, double x1, double y1);
 };
-inline void Line2d::Set(const Eigen::Vector2d& p0, const Eigen::Vector2d& p1) {
-  Set(p0.x(), p0.y(), p1.x(), p1.y());
+inline void Line2d::Set(const Eigen::Vector2d& p_a,
+                        const Eigen::Vector2d& p_b) {
+  Set(p_a.x(), p_a.y(), p_b.x(), p_b.y());
 }
 inline void Line2d::Set(double x0, double y0, double x1, double y1) {
   p0.x() = x0;
