@@ -175,6 +175,11 @@ class OpenCvCamera : public PinholeCamera {
                  Eigen::Vector3f* camera_p) const override;
 };
 
+// PinholeCamera with line projection
+class LinePinholeCamera : public PinholeCamera {
+ public:
+  void Project(const Line3d& camera_l, Line2d* image_l) const;
+};
 
 // Orthographic/orthogonal projection camera with no perspective
 // Image coordinate is translated camera coordinate
@@ -565,6 +570,27 @@ inline void OpenCvCamera::Unproject(const Eigen::Vector2f& image_p, float d,
 
   PinholeCamera::Unproject(undistorted_image_p, d, camera_p);
 }
+
+inline void LinePinholeCamera::Project(const Line3d& camera_l,
+                                       Line2d* image_l) const {
+  // ToDo: Use Plucker line coordinates
+
+  // Get a line parameter large enough 
+  float sample_t = static_cast<float>(std::max(width_, height_));
+
+  // Sample 2 points on 3D
+  Eigen::Vector3f p0_3d = camera_l.Sample(-sample_t).cast<float>();
+  Eigen::Vector3f p1_3d = camera_l.Sample(sample_t).cast<float>();
+ 
+  // Project the 2 points to 2D
+  Eigen::Vector2f p0_2d, p1_2d;
+  PinholeCamera::Project(p0_3d, &p0_2d);
+  PinholeCamera::Project(p1_3d, &p1_2d);
+
+  // Calc 2d line equation
+  image_l->Set(p0_2d, p1_2d);
+}
+
 
 inline OrthoCamera::OrthoCamera() {
   set_size_no_raytable_update(-1, -1);

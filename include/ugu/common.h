@@ -24,6 +24,52 @@ enum class ColorInterpolation {
   kBilinear = 1  // Bilinear interpolation
 };
 
+struct Line3d {
+  // p = dt + a
+  Eigen::Vector3d a, d;
+  const Eigen::Vector3d Sample(float t) const;
+  const Line3d operator*(const Eigen::Affine3d& T) const;
+};
+inline const Eigen::Vector3d Line3d::Sample(float t) const { return d * t + a; }
+inline const Line3d Line3d::operator*(const Eigen::Affine3d& T) const {
+  Line3d rfs = *this;
+  // apply rotation to direction
+  rfs.d = T.rotation() * this->d;
+
+  // apply translation to position
+  rfs.a = T.translation() + this->a;
+
+  return rfs;
+}
+
+struct Line2d {
+  // y = dx + a
+  double a, d;
+
+  Eigen::Vector2d p0, p1;
+  void Set(const Eigen::Vector2d& p0, const Eigen::Vector2d& p1);
+  void Set(double x0, double y0, double x1, double y1);
+};
+inline void Line2d::Set(const Eigen::Vector2d& p0, const Eigen::Vector2d& p1) {
+  Set(p0.x(), p0.y(), p1.x(), p1.y());
+}
+inline void Line2d::Set(double x0, double y0, double x1, double y1) {
+  p0.x() = x0;
+  p0.y() = y0;
+  p1.x() = x1;
+  p1.y() = y1;
+
+  auto denom = x1 - x0;
+
+  constexpr double EPS = 0.0000000001;
+  if (std::abs(denom) < EPS) {
+    d = 999999999;
+  } else {
+    d = (y1 - y0) / denom;
+  }
+  a = y0 - d * x0;
+}
+
 // borrow from glm
 // radians
 template <typename genType>
