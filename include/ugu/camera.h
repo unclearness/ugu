@@ -218,11 +218,11 @@ class OrthoCamera : public Camera {
   void set_size(int width, int height) override;
   void set_c2w(const Eigen::Affine3d& c2w) override;
 
-  virtual void Project(const Eigen::Vector3f& camera_p,
+  void Project(const Eigen::Vector3f& camera_p,
                Eigen::Vector3f* image_p) const override;
-  virtual void Project(const Eigen::Vector3f& camera_p,
+  void Project(const Eigen::Vector3f& camera_p,
                Eigen::Vector2f* image_p) const override;
-  virtual void Project(const Eigen::Vector3f& camera_p, Eigen::Vector2f* image_p,
+  void Project(const Eigen::Vector3f& camera_p, Eigen::Vector2f* image_p,
                float* d) const override;
   void Unproject(const Eigen::Vector3f& image_p,
                  Eigen::Vector3f* camera_p) const override;
@@ -246,7 +246,8 @@ bool LoadTumFormat(const std::string& path,
 bool LoadTumFormat(const std::string& path,
                    std::vector<std::pair<int, Eigen::Affine3d>>* poses);
 
-std::tuple<Eigen::Vector3f, std::vector<double>> FindLineCrossingPoint(const std::vector<Line3d>& lines);
+std::tuple<Eigen::Vector3f, std::vector<double>> FindLineCrossingPoint(
+    const std::vector<Line3d>& lines);
 
 inline PinholeCamera::PinholeCamera()
     : principal_point_(-1, -1), focal_length_(-1, -1) {
@@ -574,18 +575,17 @@ inline void OpenCvCamera::Unproject(const Eigen::Vector2f& image_p, float d,
   PinholeCamera::Unproject(undistorted_image_p, d, camera_p);
 }
 
-
 inline void LinePinholeCamera::Project(const Line3d& camera_l,
                                        Line2d* image_l) const {
   // ToDo: Use Plucker line coordinates
 
-  // Get a line parameter large enough 
+  // Get a line parameter large enough
   float sample_t = static_cast<float>(std::max(width_, height_));
 
   // Sample 2 points on 3D
   Eigen::Vector3f p0_3d = camera_l.Sample(-sample_t).cast<float>();
   Eigen::Vector3f p1_3d = camera_l.Sample(sample_t).cast<float>();
- 
+
   // Project the 2 points to 2D
   Eigen::Vector2f p0_2d, p1_2d;
   Project(p0_3d, &p0_2d);
@@ -594,7 +594,6 @@ inline void LinePinholeCamera::Project(const Line3d& camera_l,
   // Calc 2d line equation
   image_l->Set(p0_2d.cast<double>(), p1_2d.cast<double>());
 }
-
 
 inline OrthoCamera::OrthoCamera() {
   set_size_no_raytable_update(-1, -1);

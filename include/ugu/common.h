@@ -30,13 +30,14 @@ struct Line3d {
 
   void Set(const Eigen::Vector3d& p0, const Eigen::Vector3d& p1);
   const Eigen::Vector3d Sample(double t) const;
-  const Line3d operator*(const Eigen::Affine3d& T) const;
+  //const Line3d operator*(const Eigen::Affine3d& T) const;
 };
 inline void Line3d::Set(const Eigen::Vector3d& p0, const Eigen::Vector3d& p1) {
   d = (p1 - p0).normalized();
   a = p0;
 }
 inline const Eigen::Vector3d Line3d::Sample(double t) const { return d * t + a; }
+#if 0
 inline const Line3d Line3d::operator*(const Eigen::Affine3d& T) const {
   Line3d rfs = *this;
   // apply rotation to direction
@@ -47,15 +48,32 @@ inline const Line3d Line3d::operator*(const Eigen::Affine3d& T) const {
 
   return rfs;
 }
+#endif  // 0
+
+
+inline const Line3d operator*(const Eigen::Affine3d& l, const Line3d& r) {
+  auto out = Line3d();
+  // apply rotation to direction
+  out.d = l.rotation() * r.d;
+
+  // apply translation to position
+  out.a = l.translation() + r.a;
+  return out;
+}
+
 
 struct Line2d {
   // y = dx + a
   double a, d;
 
   Eigen::Vector2d p0, p1;
+  double GetX(double y) const;
+  double GetY(double x) const;
   void Set(const Eigen::Vector2d& p0, const Eigen::Vector2d& p1);
   void Set(double x0, double y0, double x1, double y1);
 };
+inline double Line2d::GetX(double y) const { return (y - a) / d; }
+inline double Line2d::GetY(double x) const { return d * x + a; }
 inline void Line2d::Set(const Eigen::Vector2d& p_a,
                         const Eigen::Vector2d& p_b) {
   Set(p_a.x(), p_a.y(), p_b.x(), p_b.y());
