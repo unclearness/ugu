@@ -30,6 +30,8 @@ struct Line3d {
 
   void Set(const Eigen::Vector3d& p0, const Eigen::Vector3d& p1);
   const Eigen::Vector3d Sample(double t) const;
+  double Dist(const Line3d& l, double* t, Eigen::Vector3d* p0, double* l_t,
+              Eigen::Vector3d* p1) const;
 };
 inline void Line3d::Set(const Eigen::Vector3d& p0, const Eigen::Vector3d& p1) {
   d = (p1 - p0).normalized();
@@ -37,6 +39,27 @@ inline void Line3d::Set(const Eigen::Vector3d& p0, const Eigen::Vector3d& p1) {
 }
 inline const Eigen::Vector3d Line3d::Sample(double t) const {
   return d * t + a;
+}
+inline double Line3d::Dist(const Line3d& l, double* t, Eigen::Vector3d* p0,
+                           double* l_t, Eigen::Vector3d* p1) const {
+  // http://obelisk2.hatenablog.com/entry/20101228/1293521247
+  auto& AB = l.a - this->a;
+  auto ABm = AB.dot(this->d);
+  auto ABn = AB.dot(l.d);
+  auto mn = l.d.dot(this->d);
+
+  if (mn < std::numeric_limits<double>::epsilon()) {
+    *t = 0;
+    *l_t = 0;
+  } else {
+    *t = (ABm - ABn * mn) / (1.0 - mn * mn);
+    *l_t = (ABm * mn - ABn) / (1.0 - mn * mn);
+  }
+
+  *p0 = this->Sample(*t);
+  *p1 = l.Sample(*l_t);
+
+  return (*p0 - *p1).norm();
 }
 
 inline const Line3d operator*(const Eigen::Affine3d& l, const Line3d& r) {
