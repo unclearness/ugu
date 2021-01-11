@@ -87,7 +87,10 @@ bool WriteTexture(const std::vector<ugu::ObjMaterial>& materials) {
   bool ret{true};
   for (size_t i = 0; i < materials.size(); i++) {
     const ugu::ObjMaterial& material = materials[i];
-    bool ret_write = imwrite(material.diffuse_texpath, material.diffuse_tex);
+    bool ret_write = false;
+    if (!material.diffuse_tex.empty()) {
+      ret_write = imwrite(material.diffuse_texpath, material.diffuse_tex);
+    }
     if (ret) {
       ret = ret_write;
     }
