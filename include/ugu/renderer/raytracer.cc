@@ -201,6 +201,10 @@ bool Raytracer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
   const Eigen::Matrix3f w2c_R = camera_->w2c().rotation().cast<float>();
   const Eigen::Vector3f w2c_t = camera_->w2c().translation().cast<float>();
 
+  // Ensure InitRayTable
+  Eigen::Vector3f ray_tmp;
+  camera_->ray_w(0, 0, &ray_tmp);
+
   Timer<> timer;
   timer.Start();
 #if defined(_OPENMP) && defined(UGU_USE_OPENMP)
