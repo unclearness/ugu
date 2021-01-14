@@ -13,6 +13,11 @@
 #include "Eigen/Geometry"
 #include "ugu/log.h"
 
+#define UGU_FLOATING_POINT_ONLY_TEMPLATE                              \
+  template <typename T,                                               \
+            typename std::enable_if<std::is_floating_point<T>::value, \
+                                    std::nullptr_t>::type = nullptr>
+
 namespace ugu {
 
 // TODO: definition in header may be invalid.
@@ -23,87 +28,6 @@ enum class ColorInterpolation {
   kNn = 0,       // Nearest Neigbor
   kBilinear = 1  // Bilinear interpolation
 };
-
-struct Line3d {
-  // p = dt + a
-  Eigen::Vector3d a, d;
-
-  void Set(const Eigen::Vector3d& p0, const Eigen::Vector3d& p1);
-  const Eigen::Vector3d Sample(double t) const;
-  double Dist(const Line3d& l, double* t, Eigen::Vector3d* p0, double* l_t,
-              Eigen::Vector3d* p1) const;
-};
-inline void Line3d::Set(const Eigen::Vector3d& p0, const Eigen::Vector3d& p1) {
-  d = (p1 - p0).normalized();
-  a = p0;
-}
-inline const Eigen::Vector3d Line3d::Sample(double t) const {
-  return d * t + a;
-}
-inline double Line3d::Dist(const Line3d& l, double* t, Eigen::Vector3d* p0,
-                           double* l_t, Eigen::Vector3d* p1) const {
-  // http://obelisk2.hatenablog.com/entry/20101228/1293521247
-  auto& AB = l.a - this->a;
-  auto ABm = AB.dot(this->d);
-  auto ABn = AB.dot(l.d);
-  auto mn = l.d.dot(this->d);
-
-  if (mn < std::numeric_limits<double>::epsilon()) {
-    *t = 0;
-    *l_t = 0;
-  } else {
-    *t = (ABm - ABn * mn) / (1.0 - mn * mn);
-    *l_t = (ABm * mn - ABn) / (1.0 - mn * mn);
-  }
-
-  *p0 = this->Sample(*t);
-  *p1 = l.Sample(*l_t);
-
-  return (*p0 - *p1).norm();
-}
-
-inline const Line3d operator*(const Eigen::Affine3d& l, const Line3d& r) {
-  auto out = Line3d();
-  // apply rotation to direction
-  out.d = l.rotation() * r.d;
-
-  // apply translation to position
-  out.a = l.translation() + r.a;
-  return out;
-}
-
-struct Line2d {
-  // y = dx + a
-  double a, d;
-
-  Eigen::Vector2d p0, p1;
-  double GetX(double y) const;
-  double GetY(double x) const;
-  void Set(const Eigen::Vector2d& p0, const Eigen::Vector2d& p1);
-  void Set(double x0, double y0, double x1, double y1);
-};
-inline double Line2d::GetX(double y) const { return (y - a) / d; }
-inline double Line2d::GetY(double x) const { return d * x + a; }
-inline void Line2d::Set(const Eigen::Vector2d& p_a,
-                        const Eigen::Vector2d& p_b) {
-  Set(p_a.x(), p_a.y(), p_b.x(), p_b.y());
-}
-inline void Line2d::Set(double x0, double y0, double x1, double y1) {
-  p0.x() = x0;
-  p0.y() = y0;
-  p1.x() = x1;
-  p1.y() = y1;
-
-  auto denom = x1 - x0;
-
-  constexpr double EPS = 0.0000000001;
-  if (std::abs(denom) < EPS) {
-    d = 999999999;
-  } else {
-    d = (y1 - y0) / denom;
-  }
-  a = y0 - d * x0;
-}
 
 // borrow from glm
 // radians

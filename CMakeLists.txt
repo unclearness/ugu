@@ -193,6 +193,7 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/mesh.h
     include/ugu/face_adjacency.h
     include/ugu/image.h
+    include/ugu/line.h
     include/ugu/log.h
     include/ugu/util.h
     include/ugu/timer.h
