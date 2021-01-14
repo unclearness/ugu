@@ -146,7 +146,7 @@ std::tuple<bool, Eigen::Matrix<T, 3, 1>> FindExactLineCrossingPoint(
   // double l1_t = b0 * inv10 + b1 * inv11;
   // auto p1 = l1.Sample(l1_t);
 
-  point = l0.Sample(l0_t);
+  point = l0.Sample(T(l0_t));
 
   return {true, point};
 }
@@ -191,14 +191,14 @@ FindBestLineCrossingPointLeastSquares(const std::vector<Line3<T>>& lines) {
   Eigen::VectorXd ans =
       lhs.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(rhs);
 
-  p.x() = ans.cast<float>()[lines.size()];
-  p.y() = ans.cast<float>()[lines.size() + 1];
-  p.z() = ans.cast<float>()[lines.size() + 2];
+  p.x() = ans.cast<T>()[lines.size()];
+  p.y() = ans.cast<T>()[lines.size() + 1];
+  p.z() = ans.cast<T>()[lines.size() + 2];
 
   for (auto i = 0; i < lines.size(); i++) {
-    auto a = (p.cast<double>() - lines[i].a);
+    auto a = (p.cast<T>() - lines[i].a);
     auto perpendiculer = lines[i].a + a.dot(lines[i].d) * lines[i].d;
-    auto error = (p.cast<double>() - perpendiculer).norm();
+    auto error = (p.cast<T>() - perpendiculer).norm();
 
     errors.push_back(error);
   }
