@@ -120,11 +120,43 @@ inline void LinePinholeCamera::Project(const Line3d& camera_l,
   image_l->Set(p0_2d.cast<double>(), p1_2d.cast<double>());
 }
 
-inline std::tuple<Eigen::Vector3f, std::vector<double>> FindLineCrossingPoint(
-    const std::vector<Line3d>& lines) {
+UGU_FLOATING_POINT_ONLY_TEMPLATE
+std::tuple<bool, Eigen::Matrix<T, 3, 1>> FindExactLineCrossingPoint(
+    const Line3<T>& l0, const Line3<T>& l1, T det_th = T(0.0000000001)) {
+  Eigen::Matrix<T, 3, 1> point;
+
+  double det = l0.d.x() * (-l1.d.y()) - (-l1.d.x() * l0.d.y());
+  if (std::abs(det) < det_th) {
+    // If det is zero, do not have the exact crossing point
+    return {false, point};
+  }
+
+  double inv_det = 1.0 / det;
+  double inv00 = -l1.d.y() * inv_det;
+  double inv01 = l1.d.x() * inv_det;
+
+  double b0 = l1.a.x() - l0.a.x();
+  double b1 = l1.a.y() - l0.a.y();
+
+  double l0_t = b0 * inv00 + b1 * inv01;
+
+  // no need to calculate below.
+  // double inv10 = -l0.d.y() * inv_det;
+  // double inv11 = l0.d.x() * inv_det;
+  // double l1_t = b0 * inv10 + b1 * inv11;
+  // auto p1 = l1.Sample(l1_t);
+
+  point = l0.Sample(l0_t);
+
+  return {true, point};
+}
+
+UGU_FLOATING_POINT_ONLY_TEMPLATE
+std::tuple<Eigen::Matrix<T, 3, 1>, std::vector<T>>
+FindBestLineCrossingPointLeastSquares(const std::vector<Line3<T>>& lines) {
   // http://tercel-sakuragaoka.blogspot.com/2012/01/vs.html
-  std::vector<double> errors;
-  Eigen::Vector3f p;
+  std::vector<T> errors;
+  Eigen::Matrix<T, 3, 1> p;
 
   Eigen::MatrixXd lhs = lines.size() * Eigen::MatrixXd::Identity(
                                            lines.size() + 3, lines.size() + 3);
