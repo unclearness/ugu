@@ -30,7 +30,7 @@ struct Line3 {
     auto ABn = AB.dot(l.d);
     auto mn = l.d.dot(this->d);
 
-    if (mn < std::numeric_limits<T>::epsilon()) {
+    if (std::abs(mn - 1.0) < std::numeric_limits<T>::epsilon()) {
       *t = 0;
       *l_t = 0;
     } else {
