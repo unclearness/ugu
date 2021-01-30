@@ -23,7 +23,7 @@ struct MeshStats {
 
 // partial copy of tinyobj::material_t
 struct ObjMaterial {
-  std::string name;
+  std::string name = "default_mat";
 
   // same to bunny.mtl
   std::array<float, 3> ambient{0.117647f, 0.117647f, 0.117647f};   // Ka

@@ -866,7 +866,10 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
     bool write_normal_indices = !normal_indices_.empty();
 #if 1
     for (size_t k = 0; k < face_indices_per_material_.size(); k++) {
-      ofs << "usemtl " << materials_[k].name << "\n";
+      auto mat_name = materials_[k].name;
+      if (!mat_name.empty()) {
+        ofs << "usemtl " << materials_[k].name << "\n";
+      }
       for (size_t i = 0; i < face_indices_per_material_[k].size(); i++) {
         int f_idx = face_indices_per_material_[k][i];
         ofs << "f";
