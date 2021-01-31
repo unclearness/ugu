@@ -87,7 +87,10 @@ bool WriteTexture(const std::vector<ugu::ObjMaterial>& materials) {
   bool ret{true};
   for (size_t i = 0; i < materials.size(); i++) {
     const ugu::ObjMaterial& material = materials[i];
-    bool ret_write = imwrite(material.diffuse_texpath, material.diffuse_tex);
+    bool ret_write = false;
+    if (!material.diffuse_tex.empty()) {
+      ret_write = imwrite(material.diffuse_texpath, material.diffuse_tex);
+    }
     if (ret) {
       ret = ret_write;
     }
@@ -582,38 +585,50 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
 
   CalcStats();
 
-  materials_.resize(materials.size());
-  for (size_t i = 0; i < materials.size(); i++) {
-    materials_[i].name = materials[i].name;
-    std::copy(std::begin(materials[i].ambient), std::end(materials[i].ambient),
-              materials_[i].ambient.begin());
-    std::copy(std::begin(materials[i].diffuse), std::end(materials[i].diffuse),
-              materials_[i].diffuse.begin());
-    std::copy(std::begin(materials[i].specular),
-              std::end(materials[i].specular), materials_[i].specular.begin());
-    materials_[i].shininess = materials[i].shininess;
-    materials_[i].dissolve = materials[i].dissolve;
-    materials_[i].illum = materials[i].illum;
+  if (materials.empty()) {
+    materials_.resize(1);
+    materials_[0] = ObjMaterial();
+    material_ids_.assign(face_num, 0);
 
-    materials_[i].diffuse_texname = materials[i].diffuse_texname;
-    materials_[i].diffuse_texpath = mtl_dir + materials_[i].diffuse_texname;
-    std::ifstream ifs(materials_[i].diffuse_texpath);
-    if (ifs.is_open()) {
+    LOGW(
+        "Default material was added because material did not find on input "
+        "obj\n");
+
+  } else {
+    materials_.resize(materials.size());
+    for (size_t i = 0; i < materials.size(); i++) {
+      materials_[i].name = materials[i].name;
+      std::copy(std::begin(materials[i].ambient),
+                std::end(materials[i].ambient), materials_[i].ambient.begin());
+      std::copy(std::begin(materials[i].diffuse),
+                std::end(materials[i].diffuse), materials_[i].diffuse.begin());
+      std::copy(std::begin(materials[i].specular),
+                std::end(materials[i].specular),
+                materials_[i].specular.begin());
+      materials_[i].shininess = materials[i].shininess;
+      materials_[i].dissolve = materials[i].dissolve;
+      materials_[i].illum = materials[i].illum;
+
+      materials_[i].diffuse_texname = materials[i].diffuse_texname;
+      materials_[i].diffuse_texpath = mtl_dir + materials_[i].diffuse_texname;
+      std::ifstream ifs(materials_[i].diffuse_texpath);
+      if (ifs.is_open()) {
 #if defined(UGU_USE_STB) || defined(UGU_USE_OPENCV)
-      // todo: force convert to Image3b
-      materials_[i].diffuse_tex =
-          imread<Image3b>(materials_[i].diffuse_texpath);
-      ret = !materials_[i].diffuse_tex.empty();
+        // todo: force convert to Image3b
+        materials_[i].diffuse_tex =
+            imread<Image3b>(materials_[i].diffuse_texpath);
+        ret = !materials_[i].diffuse_tex.empty();
 #else
-      LOGW("define UGU_USE_STB to load diffuse texture.\n");
+        LOGW("define UGU_USE_STB to load diffuse texture.\n");
 #endif
-    } else {
-      LOGW("diffuse texture doesn't exist %s\n",
-           materials_[i].diffuse_texpath.c_str());
+      } else {
+        LOGW("diffuse texture doesn't exist %s\n",
+             materials_[i].diffuse_texpath.c_str());
+      }
     }
   }
 
-  face_indices_per_material_.resize(materials.size());
+  face_indices_per_material_.resize(materials_.size());
   for (int i = 0; i < static_cast<int>(material_ids_.size()); i++) {
     face_indices_per_material_[material_ids_[i]].push_back(i);
   }
@@ -851,7 +866,10 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
     bool write_normal_indices = !normal_indices_.empty();
 #if 1
     for (size_t k = 0; k < face_indices_per_material_.size(); k++) {
-      ofs << "usemtl " << materials_[k].name << "\n";
+      auto mat_name = materials_[k].name;
+      if (!mat_name.empty()) {
+        ofs << "usemtl " << materials_[k].name << "\n";
+      }
       for (size_t i = 0; i < face_indices_per_material_[k].size(); i++) {
         int f_idx = face_indices_per_material_[k][i];
         ofs << "f";
@@ -895,13 +913,15 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
 
   // update texture path
   for (auto& material : materials_) {
-    if (material.diffuse_texname.empty()) {
+    if (material.diffuse_texname.empty() && !material.diffuse_tex.empty()) {
       // default name
       material.diffuse_texname = obj_basename + ".png";
     }
 
     // update path
-    material.diffuse_texpath = obj_dir + "/" + material.diffuse_texname;
+    if (!material.diffuse_texname.empty()) {
+      material.diffuse_texpath = obj_dir + "/" + material.diffuse_texname;
+    }
   }
 
   // write mtl

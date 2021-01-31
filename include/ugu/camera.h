@@ -85,16 +85,13 @@ class PinholeCamera : public Camera {
   Eigen::Vector2f principal_point_;
   Eigen::Vector2f focal_length_;
 
-  std::vector<Eigen::Vector3f> org_ray_c_table_;
-  std::vector<Eigen::Vector3f> org_ray_w_table_;
-  std::vector<Eigen::Vector3f> ray_c_table_;
-  std::vector<Eigen::Vector3f> ray_w_table_;
+  mutable std::vector<Eigen::Vector3f> org_ray_c_table_;
+  mutable std::vector<Eigen::Vector3f> org_ray_w_table_;
+  mutable std::vector<Eigen::Vector3f> ray_c_table_;
+  mutable std::vector<Eigen::Vector3f> ray_w_table_;
 
-  void InitRayTable();
-
-  void set_size_no_raytable_update(int width, int height);
-  void set_c2w_no_raytable_update(const Eigen::Affine3d& c2w);
-  void set_fov_y_no_raytable_update(float fov_y_deg);
+  mutable bool need_init_ray_table_ = true;
+  void InitRayTable() const;
 
  public:
   PinholeCamera();
@@ -175,7 +172,6 @@ class OpenCvCamera : public PinholeCamera {
                  Eigen::Vector3f* camera_p) const override;
 };
 
-
 // Orthographic/orthogonal projection camera with no perspective
 // Image coordinate is translated camera coordinate
 // Different from pinhole camera in particular x and y coordinate in image
@@ -242,8 +238,8 @@ bool LoadTumFormat(const std::string& path,
 
 inline PinholeCamera::PinholeCamera()
     : principal_point_(-1, -1), focal_length_(-1, -1) {
-  set_size_no_raytable_update(-1, -1);
-  set_c2w_no_raytable_update(Eigen::Affine3d::Identity());
+  set_size(-1, -1);
+  set_c2w(Eigen::Affine3d::Identity());
 }
 
 inline PinholeCamera::~PinholeCamera() {}
@@ -257,31 +253,31 @@ inline const Eigen::Affine3d& PinholeCamera::c2w() const { return c2w_; }
 inline const Eigen::Affine3d& PinholeCamera::w2c() const { return w2c_; }
 
 inline PinholeCamera::PinholeCamera(int width, int height, float fov_y_deg) {
-  set_size_no_raytable_update(width, height);
+  set_size(width, height);
 
   principal_point_[0] = width_ * 0.5f - 0.5f;
   principal_point_[1] = height_ * 0.5f - 0.5f;
 
-  set_fov_y_no_raytable_update(fov_y_deg);
+  set_fov_y(fov_y_deg);
 
-  set_c2w_no_raytable_update(Eigen::Affine3d::Identity());
+  set_c2w(Eigen::Affine3d::Identity());
 
-  InitRayTable();
+  need_init_ray_table_ = true;
 }
 
 inline PinholeCamera::PinholeCamera(int width, int height,
                                     const Eigen::Affine3d& c2w,
                                     float fov_y_deg) {
-  set_size_no_raytable_update(width, height);
+  set_size(width, height);
 
-  set_c2w_no_raytable_update(c2w);
+  set_c2w(c2w);
 
   principal_point_[0] = width_ * 0.5f - 0.5f;
   principal_point_[1] = height_ * 0.5f - 0.5f;
 
-  set_fov_y_no_raytable_update(fov_y_deg);
+  set_fov_y(fov_y_deg);
 
-  InitRayTable();
+  need_init_ray_table_ = true;
 }
 
 inline PinholeCamera::PinholeCamera(int width, int height,
@@ -289,18 +285,18 @@ inline PinholeCamera::PinholeCamera(int width, int height,
                                     const Eigen::Vector2f& principal_point,
                                     const Eigen::Vector2f& focal_length)
     : principal_point_(principal_point), focal_length_(focal_length) {
-  set_size_no_raytable_update(width, height);
-  set_c2w_no_raytable_update(c2w);
-  InitRayTable();
+  set_size(width, height);
+  set_c2w(c2w);
+  need_init_ray_table_ = true;
 }
 
-inline void PinholeCamera::set_size_no_raytable_update(int width, int height) {
+inline void PinholeCamera::set_size(int width, int height) {
   width_ = width;
   height_ = height;
+  need_init_ray_table_ = true;
 }
 
-inline void PinholeCamera::set_c2w_no_raytable_update(
-    const Eigen::Affine3d& c2w) {
+inline void PinholeCamera::set_c2w(const Eigen::Affine3d& c2w) {
   c2w_ = c2w;
   w2c_ = c2w_.inverse();
 
@@ -312,25 +308,8 @@ inline void PinholeCamera::set_c2w_no_raytable_update(
 
   w2c_R_f_ = w2c_.matrix().block<3, 3>(0, 0).cast<float>();
   w2c_t_f_ = w2c_.matrix().block<3, 1>(0, 3).cast<float>();
-}
 
-inline void PinholeCamera::set_fov_y_no_raytable_update(float fov_y_deg) {
-  focal_length_[1] =
-      height_ * 0.5f /
-      static_cast<float>(std::tan(radians<float>(fov_y_deg) * 0.5));
-  focal_length_[0] = focal_length_[1];
-}
-
-inline void PinholeCamera::set_size(int width, int height) {
-  set_size_no_raytable_update(width, height);
-
-  InitRayTable();
-}
-
-inline void PinholeCamera::set_c2w(const Eigen::Affine3d& c2w) {
-  set_c2w_no_raytable_update(c2w);
-
-  InitRayTable();
+  need_init_ray_table_ = true;
 }
 
 inline float PinholeCamera::fov_x() const {
@@ -352,13 +331,13 @@ inline const Eigen::Vector2f& PinholeCamera::focal_length() const {
 inline void PinholeCamera::set_principal_point(
     const Eigen::Vector2f& principal_point) {
   principal_point_ = principal_point;
-  InitRayTable();
+  need_init_ray_table_ = true;
 }
 
 inline void PinholeCamera::set_focal_length(
     const Eigen::Vector2f& focal_length) {
   focal_length_ = focal_length;
-  InitRayTable();
+  need_init_ray_table_ = true;
 }
 
 inline void PinholeCamera::set_fov_x(float fov_x_deg) {
@@ -367,15 +346,19 @@ inline void PinholeCamera::set_fov_x(float fov_x_deg) {
       width_ * 0.5f /
       static_cast<float>(std::tan(radians<float>(fov_x_deg) * 0.5));
   focal_length_[1] = focal_length_[0];
-  InitRayTable();
+
+  need_init_ray_table_ = true;
 }
 
 inline void PinholeCamera::set_fov_y(float fov_y_deg) {
   // same focal length per pixel for x and y
 
-  set_fov_y_no_raytable_update(fov_y_deg);
+  focal_length_[1] =
+      height_ * 0.5f /
+      static_cast<float>(std::tan(radians<float>(fov_y_deg) * 0.5));
+  focal_length_[0] = focal_length_[1];
 
-  InitRayTable();
+  need_init_ray_table_ = true;
 }
 
 inline void PinholeCamera::Project(const Eigen::Vector3f& camera_p,
@@ -449,20 +432,36 @@ inline void PinholeCamera::ray_w(float x, float y, Eigen::Vector3f* dir) const {
 }
 
 inline void PinholeCamera::org_ray_c(int x, int y, Eigen::Vector3f* org) const {
+  if (need_init_ray_table_) {
+    InitRayTable();
+    need_init_ray_table_ = false;
+  }
   *org = org_ray_c_table_[y * width_ + x];
 }
 inline void PinholeCamera::org_ray_w(int x, int y, Eigen::Vector3f* org) const {
+  if (need_init_ray_table_) {
+    InitRayTable();
+    need_init_ray_table_ = false;
+  }
   *org = org_ray_w_table_[y * width_ + x];
 }
 
 inline void PinholeCamera::ray_c(int x, int y, Eigen::Vector3f* dir) const {
+  if (need_init_ray_table_) {
+    InitRayTable();
+    need_init_ray_table_ = false;
+  }
   *dir = ray_c_table_[y * width_ + x];
 }
 inline void PinholeCamera::ray_w(int x, int y, Eigen::Vector3f* dir) const {
+  if (need_init_ray_table_) {
+    InitRayTable();
+    need_init_ray_table_ = false;
+  }
   *dir = ray_w_table_[y * width_ + x];
 }
 
-inline void PinholeCamera::InitRayTable() {
+inline void PinholeCamera::InitRayTable() const {
   org_ray_c_table_.resize(width_ * height_);
   org_ray_w_table_.resize(width_ * height_);
   ray_c_table_.resize(width_ * height_);

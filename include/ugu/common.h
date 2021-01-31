@@ -13,6 +13,11 @@
 #include "Eigen/Geometry"
 #include "ugu/log.h"
 
+#define UGU_FLOATING_POINT_ONLY_TEMPLATE                              \
+  template <typename T,                                               \
+            typename std::enable_if<std::is_floating_point<T>::value, \
+                                    std::nullptr_t>::type = nullptr>
+
 namespace ugu {
 
 // TODO: definition in header may be invalid.
@@ -29,7 +34,7 @@ enum class ColorInterpolation {
 template <typename genType>
 genType radians(genType degrees) {
   // "'radians' only accept floating-point input"
-  assert(std::numeric_limits<genType>::is_iec559);
+  static_assert(std::numeric_limits<genType>::is_iec559);
 
   return degrees * static_cast<genType>(0.01745329251994329576923690768489);
 }
@@ -38,7 +43,7 @@ genType radians(genType degrees) {
 template <typename genType>
 genType degrees(genType radians) {
   // "'degrees' only accept floating-point input"
-  assert(std::numeric_limits<genType>::is_iec559);
+  static_assert(std::numeric_limits<genType>::is_iec559);
 
   return radians * static_cast<genType>(57.295779513082320876798154814105);
 }

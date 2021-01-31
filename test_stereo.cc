@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
   left_c = ugu::imread<ugu::Image3b>(data_dir + "00000_color.png");
   right_c = ugu::imread<ugu::Image3b>(data_dir + "r_00000_color.png");
 
-#if 1
+#if 0
   data_dir = "../data/scenes2005/Art/";
   left_c = ugu::imread<ugu::Image3b>(data_dir + "view1.png");
   right_c = ugu::imread<ugu::Image3b>(data_dir + "view5.png");
