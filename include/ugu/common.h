@@ -53,7 +53,7 @@ template <typename T>
 void c2w(const Eigen::Matrix<T, 3, 1>& position,
          const Eigen::Matrix<T, 3, 1>& target, const Eigen::Matrix<T, 3, 1>& up,
          Eigen::Matrix<T, 3, 3>* R) {
-  assert(std::numeric_limits<T>::is_iec559);
+  static_assert(std::numeric_limits<T>::is_iec559);
 
   R->col(2) = (target - position).normalized();
   R->col(0) = R->col(2).cross(up).normalized();
@@ -65,7 +65,7 @@ void c2w(const Eigen::Matrix<genType, 3, 1>& position,
          const Eigen::Matrix<genType, 3, 1>& target,
          const Eigen::Matrix<genType, 3, 1>& up,
          Eigen::Matrix<genType, 4, 4>* T) {
-  assert(std::numeric_limits<genType>::is_iec559);
+  static_assert(std::numeric_limits<genType>::is_iec559);
 
   *T = Eigen::Matrix<genType, 4, 4>::Identity();
 
