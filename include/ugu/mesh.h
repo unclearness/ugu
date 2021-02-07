@@ -145,6 +145,8 @@ class Mesh {
 
 bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
                  bool use_src1_material = false);
+bool MergeMeshes(const std::vector<std::shared_ptr<Mesh>>& src_meshes,
+                 Mesh* merged);
 
 // make cube with 24 vertices
 std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,

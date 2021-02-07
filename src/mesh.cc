@@ -1481,6 +1481,29 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
   return true;
 }
 
+bool MergeMeshes(const std::vector<std::shared_ptr<Mesh>>& src_meshes,
+                 Mesh* merged) {
+  if (src_meshes.empty()) {
+    return false;
+  }
+
+  if (src_meshes.size() == 1) {
+    *merged = *src_meshes[0];
+    return true;
+  }
+
+  Mesh tmp0, tmp2;
+  tmp0 = *src_meshes[0];
+  for (size_t i = 1; i < src_meshes.size(); i++) {
+    const auto& src = src_meshes[i];
+    ugu::MergeMeshes(tmp0, *src, &tmp2);
+    tmp0 = Mesh(tmp2);
+  }
+  *merged = tmp0;
+
+  return true;
+}
+
 std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
                                const Eigen::Matrix3f& R,
                                const Eigen::Vector3f& t) {
