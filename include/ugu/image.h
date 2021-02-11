@@ -5,10 +5,9 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <cstring>
-
-#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -17,6 +16,7 @@
 
 #if defined(UGU_USE_STB) && !defined(UGU_USE_OPENCV)
 #include "stb_image.h"
+#include "stb_image_resize.h"
 #include "stb_image_write.h"
 #endif
 
@@ -69,6 +69,12 @@ template <typename T>
 inline bool imwrite(const std::string& filename, const T& img,
                     const std::vector<int>& params = std::vector<int>()) {
   return cv::imwrite(filename, img, params);
+}
+
+void resize(cv::InputArray src, cv::OutputArray dst, cv::Size dsize,
+            double fx = 0, double fy = 0,
+            int interpolation = cv::InterpolationFlags::INTER_LINEAR) {
+  cv::resize(src, dst, disze, fx, fy, interpolation);
 }
 
 template <typename T>
@@ -361,6 +367,33 @@ enum ImreadModes {
   IMREAD_IGNORE_ORIENTATION = 128,
 };
 
+enum InterpolationFlags {
+  INTER_NEAREST = 0,
+  INTER_LINEAR = 1,
+  INTER_CUBIC = 2,
+  INTER_AREA = 3,
+  INTER_LANCZOS4 = 4,
+  INTER_LINEAR_EXACT = 5,
+  INTER_NEAREST_EXACT = 6,
+  INTER_MAX = 7,
+  WARP_FILL_OUTLIERS = 8,
+  WARP_INVERSE_MAP = 16
+};
+
+template <typename T>
+struct Size_ {
+  T height = T(-1);
+  T width = T(-1);
+  Size_() {}
+  Size_(T height_, T width_) {
+    width = width_;
+    height = height_;
+  }
+  T area() const { return height * width; }
+};
+
+using Size = Size_<int>;
+
 template <typename T>
 inline void Init(Image<T>* image, int width, int height) {
   if (image->cols != width || image->rows != height) {
@@ -647,5 +680,36 @@ void BoxFilter(const Image3f& src, Image3f* dst, int kernel);
 void Erode(const Image1b& src, Image1b* dst, int kernel);
 void Dilate(const Image1b& src, Image1b* dst, int kernel);
 void Diff(const Image1b& src1, const Image1b& src2, Image1b* dst);
+
+template <typename T>
+void resize(const ugu::Image<T>& src, ugu::Image<T>& dst, Size dsize,
+            double fx = 0.0, double fy = 0.0,
+            int interpolation = InterpolationFlags::INTER_LINEAR) {
+  (void)interpolation;
+
+  int w = src.cols;
+  int h = src.rows;
+  int n = src.channels();
+
+  int out_w, out_h;
+  if (dsize.height <= 0 || dsize.width <= 0) {
+    out_w = static_cast<int>(w * fx);
+    out_h = static_cast<int>(h * fy);
+  } else {
+    out_w = dsize.width;
+    out_h = dsize.height;
+  }
+
+  if (w <= 0 || h <= 0 || out_w <= 0 || out_h <= 0) {
+    LOGE("Wrong size\n");
+    return;
+  }
+
+  dst = Image<T>::zeros(out_h, out_w);
+
+  stbir_resize_uint8(src.data, w, h, 0, dst.data, out_w, out_h, 0, n);
+
+  return;
+}
 
 }  // namespace ugu
