@@ -98,7 +98,7 @@ if(UGU_USE_STB)
   endif()
 endif()
 
-option(UGU_USE_OPENCV "Use OpenCV as Image class" OFF)
+option(UGU_USE_OPENCV "Use OpenCV as Image class" ON)
 message("UGU_USE_OPENCV: ${UGU_USE_OPENCV}")
 if(UGU_USE_OPENCV)
   find_package(OpenCV REQUIRED)
@@ -234,6 +234,9 @@ if(UGU_STATIC_LIBRARY)
 
     include/ugu/stereo/base.h
     include/ugu/stereo/base.cc
+
+    include/ugu/synthesis/bdsim.h
+    include/ugu/synthesis/bdsim.cc
 
     # implementations of header-only library
     ${UGU_STB_IMPLEMENTATION_CC}
