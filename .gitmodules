@@ -19,3 +19,6 @@
 [submodule "third_party/json"]
 	path = third_party/json
 	url = https://github.com/nlohmann/json.git
+[submodule "third_party/nanopm"]
+	path = third_party/nanopm
+	url = https://github.com/unclearness/nanopm.git

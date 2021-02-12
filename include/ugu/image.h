@@ -51,12 +51,14 @@ using Image3b = cv::Mat3b;
 using Image1w = cv::Mat1w;
 using Image1i = cv::Mat1i;
 using Image1f = cv::Mat1f;
+using Image2f = cv::Mat2f;
 using Image3f = cv::Mat3f;
 
 using Vec1b = unsigned char;
 using Vec1f = float;
 using Vec1i = int;
 using Vec1w = std::uint16_t;
+using Vec2f = cv::Vec2f;
 using Vec3f = cv::Vec3f;
 using Vec3b = cv::Vec3b;
 using Vec3d = cv::Vec3d;
@@ -64,6 +66,9 @@ using Vec3d = cv::Vec3d;
 using Point = cv::Point;
 
 using ImreadModes = cv::ImreadModes;
+using InterpolationFlags = cv::InterpolationFlags;
+
+using Size = cv::Size;
 
 template <typename T>
 inline bool imwrite(const std::string& filename, const T& img,
@@ -74,7 +79,7 @@ inline bool imwrite(const std::string& filename, const T& img,
 void resize(cv::InputArray src, cv::OutputArray dst, cv::Size dsize,
             double fx = 0, double fy = 0,
             int interpolation = cv::InterpolationFlags::INTER_LINEAR) {
-  cv::resize(src, dst, disze, fx, fy, interpolation);
+  cv::resize(src, dst, dsize, fx, fy, interpolation);
 }
 
 template <typename T>
@@ -163,6 +168,7 @@ class Image {
 
  public:
   Image() : data_(new std::vector<T>) {}
+  Image(const Image<T>& src) = default;
   ~Image() {}
   int channels() const { return channels_; }
 
@@ -337,7 +343,9 @@ class Image {
 
   void copyTo(Image<T>& dst) const {  // NOLINT
     if (dst.cols != cols || dst.rows != rows) {
-      dst = Image<T>::zeros(rows, cols);
+      // dst = Image<T>::zeros(rows, cols);
+      dst.data_ = std::make_shared<std::vector<T> >();
+      dst.Init(cols, rows);
     }
     std::memcpy(dst.data_->data(), data_->data(), sizeof(T) * rows * cols);
   }
