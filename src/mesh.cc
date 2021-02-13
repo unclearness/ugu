@@ -286,6 +286,10 @@ void Mesh::Clear() {
 }
 
 void Mesh::CalcNormal() {
+  if (vertex_indices_.empty()) {
+    return;
+  }
+
   CalcFaceNormal();
 
   normals_.clear();
@@ -1365,7 +1369,7 @@ bool Mesh::FlipFaces() {
 
 bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
                  bool use_src1_material) {
-  std::vector<Eigen::Vector3f> vertices, vertex_colors;
+  std::vector<Eigen::Vector3f> vertices, vertex_colors, vertex_normals;
   std::vector<Eigen::Vector2f> uv;
   std::vector<int> material_ids, offset_material_ids2;
   std::vector<ugu::ObjMaterial> materials;
@@ -1380,6 +1384,9 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
 
   CopyVec(src1.vertex_colors(), &vertex_colors);
   CopyVec(src2.vertex_colors(), &vertex_colors, false);
+
+  CopyVec(src1.normals(), &vertex_normals);
+  CopyVec(src2.normals(), &vertex_normals, false);
 
   CopyVec(src1.uv(), &uv);
   CopyVec(src2.uv(), &uv, false);
@@ -1469,6 +1476,7 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
 
   merged->set_vertices(vertices);
   merged->set_vertex_colors(vertex_colors);
+  merged->set_normals(vertex_normals);
   merged->set_uv(uv);
   merged->set_material_ids(material_ids);
   merged->set_materials(materials);
