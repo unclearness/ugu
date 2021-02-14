@@ -43,8 +43,8 @@ int main(int argc, char* argv[]) {
 #endif
 
   ugu::Image1b left, right;
-  Color2Gray(left_c, &left);
-  Color2Gray(right_c, &right);
+  ugu::Color2Gray(left_c, &left);
+  ugu::Color2Gray(right_c, &right);
 
   ugu::Image1f disparity, cost, depth;
 
@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) {
     timer.End();
     ugu::LOGI("ComputeStereoBruteForceCensus: %f ms\n", timer.elapsed_msec());
 
-    Depth2Gray(depth, &vis_depth);
+    ugu::Depth2Gray(depth, &vis_depth);
     ugu::imwrite(data_dir + "naivecensus_vis_depth.png", vis_depth);
 
     ugu::Mesh view_mesh, view_point_cloud;
@@ -94,7 +94,7 @@ int main(int argc, char* argv[]) {
     timer.End();
     ugu::LOGI("ComputeStereoSgm: %f ms\n", timer.elapsed_msec());
 
-    Depth2Gray(depth, &vis_depth);
+    ugu::Depth2Gray(depth, &vis_depth);
     ugu::imwrite(data_dir + "sgm_vis_depth.png", vis_depth);
 
     ugu::Mesh view_mesh, view_point_cloud;
@@ -116,7 +116,7 @@ int main(int argc, char* argv[]) {
     timer.End();
     ugu::LOGI("ComputeStereoBruteForce: %f ms\n", timer.elapsed_msec());
 
-    Depth2Gray(depth, &vis_depth);
+    ugu::Depth2Gray(depth, &vis_depth);
     ugu::imwrite(data_dir + "naivesad_vis_depth.png", vis_depth);
 
     ugu::Mesh view_mesh, view_point_cloud;
@@ -138,7 +138,7 @@ int main(int argc, char* argv[]) {
                                &rcost, &depth, pmparam);
   timer.End();
   ugu::LOGI("ComputePatchMatchStereo: %f ms\n", timer.elapsed_msec());
-  Depth2Gray(depth, &vis_depth);
+  ugu::Depth2Gray(depth, &vis_depth);
   ugu::imwrite(data_dir + "pmstereo_vis_depth.png", vis_depth);
 
   {

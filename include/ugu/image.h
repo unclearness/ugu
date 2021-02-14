@@ -37,6 +37,7 @@
 
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgcodecs.hpp"
+#include "opencv2/imgproc.hpp"
 #endif
 
 namespace ugu {
@@ -76,7 +77,7 @@ inline bool imwrite(const std::string& filename, const T& img,
   return cv::imwrite(filename, img, params);
 }
 
-void resize(cv::InputArray src, cv::OutputArray dst, cv::Size dsize,
+inline void resize(cv::InputArray src, cv::OutputArray dst, cv::Size dsize,
             double fx = 0, double fy = 0,
             int interpolation = cv::InterpolationFlags::INTER_LINEAR) {
   cv::resize(src, dst, dsize, fx, fy, interpolation);
@@ -524,6 +525,37 @@ void minMaxLoc(const Image<T>& src, double* minVal, double* maxVal = nullptr,
   }
 }
 
+template <typename T>
+void resize(const ugu::Image<T>& src, ugu::Image<T>& dst, Size dsize,
+            double fx = 0.0, double fy = 0.0,
+            int interpolation = InterpolationFlags::INTER_LINEAR) {
+  (void)interpolation;
+
+  int w = src.cols;
+  int h = src.rows;
+  int n = src.channels();
+
+  int out_w, out_h;
+  if (dsize.height <= 0 || dsize.width <= 0) {
+    out_w = static_cast<int>(w * fx);
+    out_h = static_cast<int>(h * fy);
+  } else {
+    out_w = dsize.width;
+    out_h = dsize.height;
+  }
+
+  if (w <= 0 || h <= 0 || out_w <= 0 || out_h <= 0) {
+    LOGE("Wrong size\n");
+    return;
+  }
+
+  dst = Image<T>::zeros(out_h, out_w);
+
+  stbir_resize_uint8(src.data, w, h, 0, dst.data, out_w, out_h, 0, n);
+
+  return;
+}
+
 #endif
 
 template <typename T>
@@ -689,35 +721,9 @@ void Erode(const Image1b& src, Image1b* dst, int kernel);
 void Dilate(const Image1b& src, Image1b* dst, int kernel);
 void Diff(const Image1b& src1, const Image1b& src2, Image1b* dst);
 
-template <typename T>
-void resize(const ugu::Image<T>& src, ugu::Image<T>& dst, Size dsize,
-            double fx = 0.0, double fy = 0.0,
-            int interpolation = InterpolationFlags::INTER_LINEAR) {
-  (void)interpolation;
-
-  int w = src.cols;
-  int h = src.rows;
-  int n = src.channels();
-
-  int out_w, out_h;
-  if (dsize.height <= 0 || dsize.width <= 0) {
-    out_w = static_cast<int>(w * fx);
-    out_h = static_cast<int>(h * fy);
-  } else {
-    out_w = dsize.width;
-    out_h = dsize.height;
-  }
-
-  if (w <= 0 || h <= 0 || out_w <= 0 || out_h <= 0) {
-    LOGE("Wrong size\n");
-    return;
-  }
-
-  dst = Image<T>::zeros(out_h, out_w);
-
-  stbir_resize_uint8(src.data, w, h, 0, dst.data, out_w, out_h, 0, n);
-
-  return;
+inline float NormL2(const Vec3b& src) {
+  return static_cast<float>(
+      std::sqrt(src[0] * src[0] + src[1] * src[1] + src[2] * src[2]));
 }
 
 }  // namespace ugu
