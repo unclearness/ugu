@@ -36,9 +36,9 @@ namespace {
 
 // using http://www.easyrgb.com/index.php?X=MATH&H=01#text1
 void rgb2lab(float R, float G, float B, float& l_s, float& a_s, float& b_s) {
-  float var_R = R / 255.0;
-  float var_G = G / 255.0;
-  float var_B = B / 255.0;
+  double var_R = R / 255.0;
+  double var_G = G / 255.0;
+  double var_B = B / 255.0;
 
   if (var_R > 0.04045)
     var_R = pow(((var_R + 0.055) / 1.055), 2.4);
@@ -58,13 +58,13 @@ void rgb2lab(float R, float G, float B, float& l_s, float& a_s, float& b_s) {
   var_B = var_B * 100.;
 
   // Observer. = 2‹, Illuminant = D65
-  float X = var_R * 0.4124 + var_G * 0.3576 + var_B * 0.1805;
-  float Y = var_R * 0.2126 + var_G * 0.7152 + var_B * 0.0722;
-  float Z = var_R * 0.0193 + var_G * 0.1192 + var_B * 0.9505;
+  double X = var_R * 0.4124 + var_G * 0.3576 + var_B * 0.1805;
+  double Y = var_R * 0.2126 + var_G * 0.7152 + var_B * 0.0722;
+  double Z = var_R * 0.0193 + var_G * 0.1192 + var_B * 0.9505;
 
-  float var_X = X / 95.047;  // ref_X =  95.047   Observer= 2‹, Illuminant= D65
-  float var_Y = Y / 100.000;  // ref_Y = 100.000
-  float var_Z = Z / 108.883;  // ref_Z = 108.883
+  double var_X = X / 95.047;  // ref_X =  95.047   Observer= 2‹, Illuminant= D65
+  double var_Y = Y / 100.000;  // ref_Y = 100.000
+  double var_Z = Z / 108.883;  // ref_Z = 108.883
 
   if (var_X > 0.008856)
     var_X = pow(var_X, (1. / 3.));
@@ -79,9 +79,9 @@ void rgb2lab(float R, float G, float B, float& l_s, float& a_s, float& b_s) {
   else
     var_Z = (7.787 * var_Z) + (16. / 116.);
 
-  l_s = (116. * var_Y) - 16.;
-  a_s = 500. * (var_X - var_Y);
-  b_s = 200. * (var_Y - var_Z);
+  l_s = static_cast<float>((116. * var_Y) - 16.);
+  a_s = static_cast<float>(500. * (var_X - var_Y));
+  b_s = static_cast<float>(200. * (var_Y - var_Z));
 }
 
 void rgb2lab(unsigned char R, unsigned char G, unsigned char B,
@@ -100,9 +100,9 @@ void rgb2lab(unsigned char R, unsigned char G, unsigned char B,
 
 // http://www.easyrgb.com/index.php?X=MATH&H=01#text1
 void lab2rgb(float l_s, float a_s, float b_s, float& R, float& G, float& B) {
-  float var_Y = (l_s + 16.) / 116.;
-  float var_X = a_s / 500. + var_Y;
-  float var_Z = var_Y - b_s / 200.;
+  double var_Y = (l_s + 16.) / 116.;
+  double var_X = a_s / 500. + var_Y;
+  double var_Z = var_Y - b_s / 200.;
 
   if (pow(var_Y, 3) > 0.008856)
     var_Y = pow(var_Y, 3);
@@ -117,19 +117,19 @@ void lab2rgb(float l_s, float a_s, float b_s, float& R, float& G, float& B) {
   else
     var_Z = (var_Z - 16. / 116.) / 7.787;
 
-  float X = 95.047 * var_X;   // ref_X =  95.047     Observer= 2‹, Illuminant=
-                              // D65
-  float Y = 100.000 * var_Y;  // ref_Y = 100.000
-  float Z = 108.883 * var_Z;  // ref_Z = 108.883
+  double X = 95.047 * var_X;   // ref_X =  95.047     Observer= 2‹, Illuminant=
+                               // D65
+  double Y = 100.000 * var_Y;  // ref_Y = 100.000
+  double Z = 108.883 * var_Z;  // ref_Z = 108.883
 
   var_X =
       X / 100.;  // X from 0 to  95.047      (Observer = 2‹, Illuminant = D65)
   var_Y = Y / 100.;  // Y from 0 to 100.000
   var_Z = Z / 100.;  // Z from 0 to 108.883
 
-  float var_R = var_X * 3.2406 + var_Y * -1.5372 + var_Z * -0.4986;
-  float var_G = var_X * -0.9689 + var_Y * 1.8758 + var_Z * 0.0415;
-  float var_B = var_X * 0.0557 + var_Y * -0.2040 + var_Z * 1.0570;
+  double var_R = var_X * 3.2406 + var_Y * -1.5372 + var_Z * -0.4986;
+  double var_G = var_X * -0.9689 + var_Y * 1.8758 + var_Z * 0.0415;
+  double var_B = var_X * 0.0557 + var_Y * -0.2040 + var_Z * 1.0570;
 
   if (var_R > 0.0031308)
     var_R = 1.055 * pow(var_R, (1 / 2.4)) - 0.055;
@@ -144,9 +144,9 @@ void lab2rgb(float l_s, float a_s, float b_s, float& R, float& G, float& B) {
   else
     var_B = 12.92 * var_B;
 
-  R = var_R * 255.;
-  G = var_G * 255.;
-  B = var_B * 255.;
+  R = static_cast<float>(var_R * 255.);
+  G = static_cast<float>(var_G * 255.);
+  B = static_cast<float>(var_B * 255.);
 }
 
 void lab2rgb(unsigned char l_s, unsigned char a_s, unsigned char b_s,
@@ -267,7 +267,7 @@ struct BidirectionalInfo {
   double completeness_total = 0.0;
   double coherence_total = 0.0;
   void DebugDump(const std::string& debug_dir) {
-    LOGI("completeness_toal %f\n", completeness_total);
+    LOGI("completeness_total %f\n", completeness_total);
     LOGI("coherence_total %f\n", coherence_total);
     if (!debug_dir.empty()) {
       // todo save images
@@ -554,10 +554,10 @@ double CalcCoherence(const Image3b& S, const Image3b& T,
           t2s_info.pixels[{q_x, q_y}].push_back(pix);
 
           const auto& q = T.at<ugu::Vec3b>(q_y, q_x);
-          ugu::Vec3b diff_color;
-          diff_color[0] = pix[0] - q[0];
-          diff_color[1] = pix[1] - q[1];
-          diff_color[2] = pix[2] - q[2];
+          ugu::Vec3f diff_color;
+          diff_color[0] = static_cast<float>(pix[0]) - static_cast<float>(q[0]);
+          diff_color[1] = static_cast<float>(pix[1]) - static_cast<float>(q[1]);
+          diff_color[2] = static_cast<float>(pix[2]) - static_cast<float>(q[2]);
 
           auto error = NormL2Squared(diff_color);
           coherence.at<float>(q_y, q_x) += error;
@@ -606,10 +606,10 @@ double CalcCompleteness(const Image3b& S, const Image3b& T,
           s2t_info.pixels[{q_x, q_y}].push_back(pix);
 
           const auto& q = T.at<ugu::Vec3b>(q_y, q_x);
-          ugu::Vec3b diff_color;
-          diff_color[0] = pix[0] - q[0];
-          diff_color[1] = pix[1] - q[1];
-          diff_color[2] = pix[2] - q[2];
+          ugu::Vec3f diff_color;
+          diff_color[0] = static_cast<float>(pix[0]) - static_cast<float>(q[0]);
+          diff_color[1] = static_cast<float>(pix[1]) - static_cast<float>(q[1]);
+          diff_color[2] = static_cast<float>(pix[2]) - static_cast<float>(q[2]);
           auto error = NormL2Squared(diff_color);
           completeness.at<float>(q_y, q_x) += error;
           completeness_total += error;

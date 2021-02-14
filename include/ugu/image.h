@@ -723,12 +723,14 @@ void Erode(const Image1b& src, Image1b* dst, int kernel);
 void Dilate(const Image1b& src, Image1b* dst, int kernel);
 void Diff(const Image1b& src1, const Image1b& src2, Image1b* dst);
 
-inline float NormL2(const Vec3b& src) {
+template <typename T>
+float NormL2(const T& src) {
   return static_cast<float>(
       std::sqrt(src[0] * src[0] + src[1] * src[1] + src[2] * src[2]));
 }
 
-inline float NormL2Squared(const Vec3b& src) {
+template<typename T>
+float NormL2Squared(const T& src) {
   return static_cast<float>(src[0] * src[0] + src[1] * src[1] +
                             src[2] * src[2]);
 }
