@@ -726,4 +726,9 @@ inline float NormL2(const Vec3b& src) {
       std::sqrt(src[0] * src[0] + src[1] * src[1] + src[2] * src[2]));
 }
 
+inline float NormL2Squared(const Vec3b& src) {
+  return static_cast<float>(src[0] * src[0] + src[1] * src[1] +
+                            src[2] * src[2]);
+}
+
 }  // namespace ugu

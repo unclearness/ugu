@@ -23,9 +23,8 @@ struct BdsimParams {
   float rescale_ratio = 0.05f;
   Size target_size;
 
-  bool verbose;
-  std::string debug_dir;
-
+  bool verbose = false;
+  std::string debug_dir = "./";
 };
 
 bool Synthesize(const Image3b& src, Image3b& dst, const BdsimParams& params);
