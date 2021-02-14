@@ -5,9 +5,8 @@
 
 #include "bdsim.h"
 
-#include <numeric>
 #include <map>
-
+#include <numeric>
 
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgproc.hpp"
@@ -232,7 +231,7 @@ void DetermineCurrentSize(int src_w, int src_h, int cur_scale,
 
 namespace ugu {
 
-struct NnfInfo {
+struct DirectionalInfo {
   // Size depends on direction
   Image2f nnf;
   Image1f dist;
@@ -249,11 +248,26 @@ struct NnfInfo {
     }
   }
 
-  void ClearNNfAndDist() {nnf = Image2f();
+  void ClearNNfAndDist() {
+    nnf = Image2f();
     dist = Image1f();
-
   };
+};
 
+struct BidirectionalInfo {
+  DirectionalInfo s2t;
+  DirectionalInfo t2s;
+  Image1f completeness;
+  Image1f coherence;
+  double completeness_total;
+  double coherence_total;
+  void DebugDump(const std::string& debug_dir) {
+    LOGI("completeness_toal %f\n", completeness_total);
+    LOGI("coherence_total %f\n", coherence_total);
+    if (!debug_dir.empty()) {
+      // todo save images
+    }
+  }
 };
 
 inline bool SSD(const Image3b& A, int A_x, int A_y, const Image3b& B, int B_x,
@@ -415,10 +429,12 @@ bool ComputeNnfBruteForce(const ugu::Image3b& A, const ugu::Image3b& B,
 bool ComputeNnfPatchMatch(const ugu::Image3b& A, const ugu::Image3b& B,
                           ugu::Image2f& nnf, ugu::Image1f& distance,
                           const BdsimParams& params,
-                          const ugu::Image2f& nnf_init) {
+                          const ugu::Image2f& nnf_init, int scale, int iter,
+                          const std::string& prefix) {
   nanopm::Option option;
   option.patch_size = params.patch_size;
-  //option.debug_dir = "./";
+  // option.debug_dir = "./";
+  option.verbose = false;
   if (nnf_init.empty()) {
     option.init_type = nanopm::InitType::RANDOM;
   } else {
@@ -460,12 +476,32 @@ bool ComputeNnfPatchMatch(const ugu::Image3b& A, const ugu::Image3b& B,
   std::memcpy(distance.data, distance_.data,
               sizeof(float) * 1 * distance_.rows * distance_.cols);
 
+  if (params.verbose && !params.debug_dir.empty()) {
+    nanopm::Image3b vis_nnf, vis_distance;
+    nanopm::ColorizeNnf(nnf, vis_nnf);
+    nanopm::imwrite(params.debug_dir + "/" + prefix + "_nnf_" +
+                        std::to_string(scale) + "_" + std::to_string(iter) +
+                        ".jpg",
+                    vis_nnf);
+    float mean, stddev;
+    float max_d = 17000.0f;
+    float min_d = 50.0f;
+    nanopm::ColorizeDistance(distance, vis_distance, max_d, min_d, mean,
+                             stddev);
+    printf("distance mean %f, stddev %f\n", mean, stddev);
+    nanopm::imwrite(params.debug_dir + "/" + prefix + "_distance_" +
+                        std::to_string(scale) + "_" + std::to_string(iter) +
+                        ".jpg",
+                    vis_distance);
+  }
+
   return true;
 }
 #endif
 
-bool ComputeNnf(const Image3b& S, const Image3b& T, NnfInfo& s2t_info,
-                NnfInfo& t2s_info, const BdsimParams& params) {
+bool ComputeNnf(const Image3b& S, const Image3b& T, DirectionalInfo& s2t_info,
+                DirectionalInfo& t2s_info, const BdsimParams& params, int scale,
+                int iter) {
   if (params.patch_search_method == BdsimPatchSearchMethod::BRUTE_FORCE) {
     ComputeNnfBruteForce(S, T, s2t_info.nnf, s2t_info.dist, params);
     ComputeNnfBruteForce(T, S, t2s_info.nnf, t2s_info.dist, params);
@@ -473,9 +509,9 @@ bool ComputeNnf(const Image3b& S, const Image3b& T, NnfInfo& s2t_info,
              BdsimPatchSearchMethod::PATCH_MATCH) {
 #ifdef UGU_HAS_NANOPM
     ComputeNnfPatchMatch(S, T, s2t_info.nnf, s2t_info.dist, params,
-                         s2t_info.nnf);
+                         s2t_info.nnf, scale, iter, "s2t");
     ComputeNnfPatchMatch(T, S, t2s_info.nnf, t2s_info.dist, params,
-                         t2s_info.nnf);
+                         t2s_info.nnf, scale, iter, "t2s");
 #else
     LOGW(
         "BdsimPatchSearchMethod::PATCH_MATCH was specified but we cannot use "
@@ -488,80 +524,100 @@ bool ComputeNnf(const Image3b& S, const Image3b& T, NnfInfo& s2t_info,
 }
 
 double CalcCoherence(const Image3b& S, const Image3b& T,
-                     const BdsimParams& params, NnfInfo& t2s_info) {
-  double coherece = 0.0;
+                     const BdsimParams& params, DirectionalInfo& t2s_info,
+                     Image1f& coherence) {
+  double coherece_total = 0.0;
   t2s_info.InitPixels(T.rows, T.cols);
-  for (int j = 0; j < t2s_info.nnf.rows - 2*params.patch_size; j++) {
-    for (int i = 0; i < t2s_info.nnf.cols - 2*params.patch_size; i++) {
-      // pixels[{{i, j}, std::vector<ugu::Vec3b>()});
 
-      double dist_in_patch = 0.0;
+  for (int j = 0; j < t2s_info.nnf.rows - params.patch_size; j++) {
+    for (int i = 0; i < t2s_info.nnf.cols - params.patch_size; i++) {
       for (int jj = 0; jj < params.patch_size; jj++) {
         for (int ii = 0; ii < params.patch_size; ii++) {
-          int y = j + jj;
-          int x = i + ii;
-          const auto& nn_xy = t2s_info.nnf.at<ugu::Vec2f>(y, x);
-          int nn_x = static_cast<int>(std::round(nn_xy[0]));
-          int nn_y = static_cast<int>(std::round(nn_xy[1]));
-          const auto& pix = S.at<ugu::Vec3b>(nn_y + y, nn_x + x);
-          t2s_info.pixels[{x, y}].push_back(pix);
+          int q_y = j + jj;
+          int q_x = i + ii;
+          const auto& q_nn_xy = t2s_info.nnf.at<ugu::Vec2f>(j, i);
+          int q_nn_x = static_cast<int>(std::round(q_nn_xy[0]));
+          int q_nn_y = static_cast<int>(std::round(q_nn_xy[1]));
+          const auto& pix = S.at<ugu::Vec3b>(q_nn_y + q_y, q_nn_x + q_x);
+          t2s_info.pixels[{q_x, q_y}].push_back(pix);
 
-          auto diff_color = pix - T.at<ugu::Vec3b>(y, x);
-          dist_in_patch += NormL2(diff_color);
+          auto diff_color = pix - T.at<ugu::Vec3b>(q_y, q_x);
+          auto error = NormL2Squared(diff_color);
+          coherence.at<float>(q_y, q_x) += error;
+          coherece_total += error;
         }
       }
-
-      // const auto& d = t2s_info.dist.at<float>(j, i);
-      coherece += dist_in_patch;
     }
   }
   int Nt = (t2s_info.nnf.rows - params.patch_size) *
            (t2s_info.nnf.cols - params.patch_size);
-  coherece /= Nt;
+  double inv_Nt = 1.0 / Nt;
+  for (int j = 0; j < t2s_info.nnf.rows - params.patch_size; j++) {
+    for (int i = 0; i < t2s_info.nnf.cols - params.patch_size; i++) {
+      coherence.at<float>(j, i) *= inv_Nt;
+    }
+  }
 
-  return coherece;
+  coherece_total *= inv_Nt;
+
+  return coherece_total;
 }
 
 double CalcCompleteness(const Image3b& S, const Image3b& T,
-                        const BdsimParams& params, NnfInfo& s2t_info) {
-  double completeness = 0.0;
+                        const BdsimParams& params, DirectionalInfo& s2t_info,
+                        Image1f& completeness) {
+  double completeness_total = 0.0;
   s2t_info.InitPixels(T.rows, T.cols);
-  for (int j = 0; j < s2t_info.nnf.rows - 2*params.patch_size; j++) {
-    for (int i = 0; i < s2t_info.nnf.cols - 2*params.patch_size; i++) {
-      // pixels[{{i, j}, std::vector<ugu::Vec3b>()});
-
+  for (int j = 0; j < s2t_info.nnf.rows - params.patch_size; j++) {
+    for (int i = 0; i < s2t_info.nnf.cols - params.patch_size; i++) {
       for (int jj = 0; jj < params.patch_size; jj++) {
         for (int ii = 0; ii < params.patch_size; ii++) {
-          int y = j + jj;
-          int x = i + ii;
-          const auto& nn_xy = s2t_info.nnf.at<ugu::Vec2f>(y, x);
-          int nn_x = static_cast<int>(std::round(nn_xy[0]));
-          int nn_y = static_cast<int>(std::round(nn_xy[1]));
-          const auto& pix = S.at<ugu::Vec3b>(y, x);
-          s2t_info.pixels[{nn_x + x, nn_y + y}].push_back(pix);
+          int p_y = j + jj;
+          int p_x = i + ii;
+          const auto& p_nn_xy = s2t_info.nnf.at<ugu::Vec2f>(j, i);
+          int p_nn_x = static_cast<int>(std::round(p_nn_xy[0]));
+          int p_nn_y = static_cast<int>(std::round(p_nn_xy[1]));
+          const auto& pix = S.at<ugu::Vec3b>(p_y, p_x);
+          int q_x = p_nn_x + p_x;
+          int q_y = p_nn_y + p_y;
+          s2t_info.pixels[{q_x, q_y}].push_back(pix);
+
+          auto diff_color = pix - T.at<ugu::Vec3b>(q_y, q_x);
+          auto error = NormL2Squared(diff_color);
+          completeness.at<float>(q_y, q_x) += error;
+          completeness_total += error;
         }
       }
-
-      const auto& d = s2t_info.dist.at<float>(j, i);
-      completeness += d;
     }
   }
   int Ns = (s2t_info.nnf.rows - params.patch_size) *
            (s2t_info.nnf.cols - params.patch_size);
-  completeness /= Ns;
+  double inv_Ns = 1.0 / Ns;
 
-  return completeness;
+  for (int j = 0; j < T.rows - params.patch_size; j++) {
+    for (int i = 0; i < T.cols - params.patch_size; i++) {
+      completeness.at<float>(j, i) *= inv_Ns;
+    }
+  }
+
+  completeness_total *= inv_Ns;
+
+  return completeness_total;
 }
 
 bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
-                           NnfInfo& s2t_info, NnfInfo& t2s_info) {
+                           DirectionalInfo& s2t_info,
+                           DirectionalInfo& t2s_info) {
   int Nt = (t2s_info.nnf.rows - params.patch_size) *
            (t2s_info.nnf.cols - params.patch_size);
   double inv_Nt = 1.0 / static_cast<double>(Nt);
   int Ns = (s2t_info.nnf.rows - params.patch_size) *
            (s2t_info.nnf.cols - params.patch_size);
   double inv_Ns = 1.0 / static_cast<double>(Ns);
-#pragma omp parallel for
+
+  T.setTo(0);
+
+  //#pragma omp parallel for
   for (int j = 0; j < T.rows - params.patch_size; j++) {
     for (int i = 0; i < T.cols - params.patch_size; i++) {
       auto& updated_p = T.at<Vec3b>(j, i);
@@ -571,6 +627,8 @@ bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
 
       const auto& coherence_data = t2s_info.pixels[{i, j}];
       auto m = coherence_data.size();
+
+      // LOGI("m %d,  n %d\n", m, n);
 
       double denom =
           static_cast<double>(n) * inv_Ns + static_cast<double>(m) * inv_Nt;
@@ -609,7 +667,9 @@ bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
 
       Vec3d updated_p_d(0, 0, 0);
       for (int c = 0; c < 3; c++) {
-        updated_p[c] = (comp_contrib[c] + cohere_contrib[c]) * inv_denom;
+        updated_p[c] = static_cast<unsigned char>(std::min(
+            std::max(0.0, (comp_contrib[c] + cohere_contrib[c]) * inv_denom),
+            255.0));
       }
     }
   }
@@ -618,15 +678,22 @@ bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
 }
 
 bool Update(const Image3b& S, Image3b& T, const BdsimParams& params,
-            NnfInfo& s2t_info, NnfInfo& t2s_info) {
+            BidirectionalInfo& bidir_info, int scale, int iter) {
+  DirectionalInfo& s2t_info = bidir_info.s2t;
+  DirectionalInfo& t2s_info = bidir_info.t2s;
+
   // Make nnf
-  ComputeNnf(S, T, s2t_info, t2s_info, params);
+  ComputeNnf(S, T, s2t_info, t2s_info, params, scale, iter);
 
   // Calc coherence
-  double coherece = CalcCoherence(S, T, params, t2s_info);
+  bidir_info.coherence = Image1f::zeros(T.rows, T.cols);
+  bidir_info.coherence_total =
+      CalcCoherence(S, T, params, t2s_info, bidir_info.coherence);
 
   // Calc completeness
-  double completeness = CalcCompleteness(S, T, params, s2t_info);
+  bidir_info.completeness = Image1f::zeros(T.rows, T.cols);
+  bidir_info.completeness_total =
+      CalcCompleteness(S, T, params, s2t_info, bidir_info.completeness);
 
   // Generate new image
   GenerateUpdatedTarget(T, params, s2t_info, t2s_info);
@@ -666,7 +733,7 @@ bool Synthesize(const Image3b& src, Image3b& dst, const BdsimParams& params) {
   lab.copyTo(T_lab_prev);
 
   int scale_level = 1;
-  NnfInfo s2t_info, t2s_info;
+  BidirectionalInfo bidir_info;
   while (true) {
     // Resize image
     int cur_w, cur_h;
@@ -674,11 +741,27 @@ bool Synthesize(const Image3b& src, Image3b& dst, const BdsimParams& params) {
     ugu::resize(T_lab_prev, T_lab, Size(cur_w, cur_h));
 
     // Clear nnf at each scale
-    s2t_info.ClearNNfAndDist();
-    t2s_info.ClearNNfAndDist();
+    bidir_info.s2t.ClearNNfAndDist();
+    bidir_info.t2s.ClearNNfAndDist();
+
+    if (params.verbose) {
+      LOGI("\nscale %d (%d, %d)\n", scale_level, cur_w, cur_h);
+    }
 
     for (int iter = 0; iter < params.iteration_in_scale; iter++) {
-      Update(S_lab, T_lab, params, s2t_info, t2s_info);
+      Update(S_lab, T_lab, params, bidir_info, scale_level, iter);
+      if (params.verbose) {
+        LOGI("%d th update\n", iter);
+        bidir_info.DebugDump(params.debug_dir);
+#ifdef UGU_USE_OPENCV
+        dst = LabToBgr(T_lab);
+#else
+        dst = LabToRgb(T_lab);
+#endif
+        ugu::imwrite("out_" + std::to_string(scale_level) + "_" +
+                         std::to_string(iter) + ".png",
+                     dst);
+      }
     }
 
     if (cur_w == target_size.width && cur_h == target_size.height) {

@@ -300,6 +300,15 @@ if (NOT hasParent)
   target_link_libraries(ugu_stereo_test
   ${Ugu_LIBS}
   )
+
+  add_executable(ugu_synthesis_test
+  test_synthesis.cc)
+  target_include_directories(ugu_synthesis_test PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(ugu_synthesis_test
+  ${Ugu_LIBS}
+  )
+
+
 endif()
 
 if (WIN32)
