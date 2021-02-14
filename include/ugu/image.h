@@ -78,8 +78,8 @@ inline bool imwrite(const std::string& filename, const T& img,
 }
 
 inline void resize(cv::InputArray src, cv::OutputArray dst, cv::Size dsize,
-            double fx = 0, double fy = 0,
-            int interpolation = cv::InterpolationFlags::INTER_LINEAR) {
+                   double fx = 0, double fy = 0,
+                   int interpolation = cv::InterpolationFlags::INTER_LINEAR) {
   cv::resize(src, dst, dsize, fx, fy, interpolation);
 }
 
@@ -124,6 +124,7 @@ using Vec1f = Vec_<float, 1>;
 using Vec1i = Vec_<int, 1>;
 using Vec1w = Vec_<std::uint16_t, 1>;
 using Vec1b = Vec_<unsigned char, 1>;
+using Vec2f = Vec_<float, 2>;
 using Vec3b = Vec_<unsigned char, 3>;
 using Vec3f = Vec_<float, 3>;
 using Vec3d = Vec_<double, 3>;
@@ -358,6 +359,7 @@ using Image1w = Image<Vec1w>;  // For depth image with 16 bit (unsigned
                                // short) mm-scale format
 using Image1i = Image<Vec1i>;  // For face visibility. face id is within int32_t
 using Image1f = Image<Vec1f>;  // For depth image with any scale
+using Image2f = Image<Vec2f>;
 using Image3f = Image<Vec3f>;  // For normal or point cloud. XYZ order.
 
 enum ImreadModes {
@@ -394,7 +396,7 @@ struct Size_ {
   T height = T(-1);
   T width = T(-1);
   Size_() {}
-  Size_(T height_, T width_) {
+  Size_(T width_, T height_) {
     width = width_;
     height = height_;
   }

@@ -7,6 +7,7 @@
 
 #include <map>
 #include <numeric>
+#include <valarray>
 
 #include "ugu/timer.h"
 
@@ -19,6 +20,11 @@
 //#warning "nanopm.h" is found
 #define UGU_HAS_NANOPM
 #define NANOPM_USE_OPENMP
+
+#ifdef UGU_USE_STB
+#define NANOPM_USE_STB
+#endif
+
 #include "../third_party/nanopm/nanopm.h"
 #else
 //#warning "nanopm.h" not is found
@@ -26,12 +32,13 @@
 
 namespace {
 
-// https://qiita.com/hachisukansw/items/09caabe6bec46a2a0858
-std::array<int, 3> RgbToLab(unsigned char r_, unsigned char g_,
-                            unsigned char b_) {
-  float var_R = r_ / 255.0;
-  float var_G = g_ / 255.0;
-  float var_B = b_ / 255.0;
+// https://stackoverflow.com/questions/7880264/convert-lab-color-to-rgb
+
+// using http://www.easyrgb.com/index.php?X=MATH&H=01#text1
+void rgb2lab(float R, float G, float B, float& l_s, float& a_s, float& b_s) {
+  float var_R = R / 255.0;
+  float var_G = G / 255.0;
+  float var_B = B / 255.0;
 
   if (var_R > 0.04045)
     var_R = pow(((var_R + 0.055) / 1.055), 2.4);
@@ -72,75 +79,113 @@ std::array<int, 3> RgbToLab(unsigned char r_, unsigned char g_,
   else
     var_Z = (7.787 * var_Z) + (16. / 116.);
 
-  float l_s, a_s, b_s;
   l_s = (116. * var_Y) - 16.;
   a_s = 500. * (var_X - var_Y);
   b_s = 200. * (var_Y - var_Z);
+}
 
-  int L, a, b;
-  L = l_s;  // * 255;
-  a = a_s;  // * 255;
-  b = b_s;  // * 255;
+void rgb2lab(unsigned char R, unsigned char G, unsigned char B,
+             unsigned char& l_s, unsigned char& a_s, unsigned char& b_s) {
+  float l_, a_, b_;
+  rgb2lab(R, G, B, l_, a_, b_);
 
-#if 0
-				  double x, y, z;
-  {
-    // https://en.wikipedia.org/wiki/SRGB#The_reverse_transformation
-    double r = r_ / 255.0;
-    double g = g_ / 255.0;
-    double b = b_ / 255.0;
+  l_ = std::clamp(l_, 0.f, 100.f);
+  a_ = std::clamp(a_, -127.f, 127.f);  //  std::max(std::min(100.f, l_), 0.f);
+  b_ = std::clamp(b_, -127.f, 127.f);
 
-    r = r > 0.04045 ? std::pow(((r + 0.055) / 1.055), 2.4) : (r / 12.92);
-    g = g > 0.04045 ? std::pow(((g + 0.055) / 1.055), 2.4) : (g / 12.92);
-    b = b > 0.04045 ? std::pow(((b + 0.055) / 1.055), 2.4) : (b / 12.92);
+  l_s = static_cast<unsigned char>(std::round(l_ / 100.f * 255));
+  a_s = static_cast<unsigned char>(std::round((a_ + 127.f) / 254.f * 255));
+  b_s = static_cast<unsigned char>(std::round((b_ + 127.f) / 254.f * 255));
+}
 
-    x = (r * 0.4124) + (g * 0.3576) + (b * 0.1805);
-    y = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
-    z = (r * 0.0193) + (g * 0.1192) + (b * 0.9505);
-  }
+// http://www.easyrgb.com/index.php?X=MATH&H=01#text1
+void lab2rgb(float l_s, float a_s, float b_s, float& R, float& G, float& B) {
+  float var_Y = (l_s + 16.) / 116.;
+  float var_X = a_s / 500. + var_Y;
+  float var_Z = var_Y - b_s / 200.;
 
-  // https://en.wikipedia.org/wiki/Lab_color_space#CIELAB-CIEXYZ_conversions
-  unsigned char L, a, b;
+  if (pow(var_Y, 3) > 0.008856)
+    var_Y = pow(var_Y, 3);
+  else
+    var_Y = (var_Y - 16. / 116.) / 7.787;
+  if (pow(var_X, 3) > 0.008856)
+    var_X = pow(var_X, 3);
+  else
+    var_X = (var_X - 16. / 116.) / 7.787;
+  if (pow(var_Z, 3) > 0.008856)
+    var_Z = pow(var_Z, 3);
+  else
+    var_Z = (var_Z - 16. / 116.) / 7.787;
 
-  x *= 100;
-  y *= 100;
-  z *= 100;
+  float X = 95.047 * var_X;   // ref_X =  95.047     Observer= 2‹, Illuminant=
+                              // D65
+  float Y = 100.000 * var_Y;  // ref_Y = 100.000
+  float Z = 108.883 * var_Z;  // ref_Z = 108.883
 
-  x /= 95.047;
-  y /= 100;
-  z /= 108.883;
+  var_X =
+      X / 100.;  // X from 0 to  95.047      (Observer = 2‹, Illuminant = D65)
+  var_Y = Y / 100.;  // Y from 0 to 100.000
+  var_Z = Z / 100.;  // Z from 0 to 108.883
 
-  x = x > 0.008856 ? std::pow(x, 1.0 / 3.0) : (7.787 * x) + (4.0 / 29.0);
-  y = y > 0.008856 ? std::pow(y, 1.0 / 3.0) : (7.787 * y) + (4.0 / 29.0);
-  z = z > 0.008856 ? std::pow(z, 1.0 / 3.0) : (7.787 * z) + (4.0 / 29.0);
+  float var_R = var_X * 3.2406 + var_Y * -1.5372 + var_Z * -0.4986;
+  float var_G = var_X * -0.9689 + var_Y * 1.8758 + var_Z * 0.0415;
+  float var_B = var_X * 0.0557 + var_Y * -0.2040 + var_Z * 1.0570;
 
-  L = (116 * y) - 16;
-  a = 500 * (x - y);
-  b = 200 * (y - z);
+  if (var_R > 0.0031308)
+    var_R = 1.055 * pow(var_R, (1 / 2.4)) - 0.055;
+  else
+    var_R = 12.92 * var_R;
+  if (var_G > 0.0031308)
+    var_G = 1.055 * pow(var_G, (1 / 2.4)) - 0.055;
+  else
+    var_G = 12.92 * var_G;
+  if (var_B > 0.0031308)
+    var_B = 1.055 * pow(var_B, (1 / 2.4)) - 0.055;
+  else
+    var_B = 12.92 * var_B;
 
-#endif  // 0
+  R = var_R * 255.;
+  G = var_G * 255.;
+  B = var_B * 255.;
+}
 
-  return {L, a, b};
+void lab2rgb(unsigned char l_s, unsigned char a_s, unsigned char b_s,
+             unsigned char& R, unsigned char& G, unsigned char& B) {
+  float R_, G_, B_;
+
+  float l_ = l_s / 255.f * 100.f;
+  float a_ = a_s / 255.f * 254.f - 127.f;
+  float b_ = b_s / 255.f * 254.f - 127.f;
+
+  lab2rgb(l_, a_, b_, R_, G_, B_);
+
+  R = static_cast<unsigned char>(std::round(R_));
+  G = static_cast<unsigned char>(std::round(G_));
+  B = static_cast<unsigned char>(std::round(B_));
 }
 
 ugu::Image3b RgbToLab(const ugu::Image3b& src) {
-#ifdef UGU_USE_OPENCV
-
-  cv::Mat3b lab;
-  cv::cvtColor(src, lab, cv::COLOR_BGR2Lab);
-
-  return lab;
-
-#else
   ugu::Image3b lab = ugu::Image3b::zeros(src.rows, src.cols);
   for (int h = 0; h < src.rows; h++) {
     for (int w = 0; w < src.cols; w++) {
       const auto& rgb = src.at<ugu::Vec3b>(h, w);
-      // lab.at<ugu::Vec3b>(h, w) = RgbToLab(rgb[0], rgb[1], rgb[2]);
+      auto& lab_val = lab.at<ugu::Vec3b>(h, w);
+      rgb2lab(rgb[0], rgb[1], rgb[2], lab_val[0], lab_val[1], lab_val[2]);
     }
   }
   return lab;
-#endif
+}
+
+ugu::Image3b LabToRgb(const ugu::Image3b& src) {
+  ugu::Image3b rgb = ugu::Image3b::zeros(src.rows, src.cols);
+  for (int h = 0; h < src.rows; h++) {
+    for (int w = 0; w < src.cols; w++) {
+      auto& rgb_val = rgb.at<ugu::Vec3b>(h, w);
+      const auto& lab = src.at<ugu::Vec3b>(h, w);
+      lab2rgb(lab[0], lab[1], lab[2], rgb_val[0], rgb_val[1], rgb_val[2]);
+    }
+  }
+  return rgb;
 }
 
 #ifdef UGU_USE_OPENCV
@@ -157,48 +202,6 @@ ugu::Image3b LabToBgr(const ugu::Image3b& lab) {
 }
 
 #endif
-
-// https://stackoverflow.com/questions/7880264/convert-lab-color-to-rgb
-void Lab2Rgb(int L, int a, int b, unsigned char& R, unsigned char& G,
-             unsigned char& B) {
-  float X, Y, Z, fX, fY, fZ;
-  int RR, GG, BB;
-
-  fY = pow((L + 16.0) / 116.0, 3.0);
-  if (fY < 0.008856) fY = L / 903.3;
-  Y = fY;
-
-  if (fY > 0.008856)
-    fY = powf(fY, 1.0 / 3.0);
-  else
-    fY = 7.787 * fY + 16.0 / 116.0;
-
-  fX = a / 500.0 + fY;
-  if (fX > 0.206893)
-    X = powf(fX, 3.0);
-  else
-    X = (fX - 16.0 / 116.0) / 7.787;
-
-  fZ = fY - b / 200.0;
-  if (fZ > 0.206893)
-    Z = powf(fZ, 3.0);
-  else
-    Z = (fZ - 16.0 / 116.0) / 7.787;
-
-  X *= (0.950456 * 255);
-  Y *= 255;
-  Z *= (1.088754 * 255);
-
-  RR = (int)(3.240479 * X - 1.537150 * Y - 0.498535 * Z + 0.5);
-  GG = (int)(-0.969256 * X + 1.875992 * Y + 0.041556 * Z + 0.5);
-  BB = (int)(0.055648 * X - 0.204043 * Y + 1.057311 * Z + 0.5);
-
-  R = (unsigned char)(RR < 0 ? 0 : RR > 255 ? 255 : RR);
-  G = (unsigned char)(GG < 0 ? 0 : GG > 255 ? 255 : GG);
-  B = (unsigned char)(BB < 0 ? 0 : BB > 255 ? 255 : BB);
-
-  // printf("Lab=(%f,%f,%f) ==> RGB(%f,%f,%f)\n",L,a,b,*R,*G,*B);
-}
 
 void DetermineCurrentSize(int src_w, int src_h, int cur_scale,
                           const ugu::BdsimParams& params, int& cur_w,
@@ -350,7 +353,7 @@ bool ComputeNnfBruteForceOwnImpl(const ugu::Image3b& A, const ugu::Image3b& B,
   distance = Image1f::zeros(A.rows, A.cols);
   distance.setTo(std::numeric_limits<float>::max());
 #ifdef UGU_USE_OPENMP
- 
+
 #endif
   for (int j = 0; j < nnf.rows - params.patch_size; j++) {
     if (params.verbose && j % 10 == 0) {
@@ -408,7 +411,7 @@ bool ComputeNnfBruteForceOpencvImpl(const ugu::Image3b& A,
 
       distance.at<float>(j, i) = static_cast<float>(minVal);
       ugu::Vec2f& current_nn = nnf.at<ugu::Vec2f>(j, i);
-      current_nn[0] =static_cast<float>( minLoc.x);
+      current_nn[0] = static_cast<float>(minLoc.x);
       current_nn[1] = static_cast<float>(minLoc.y);
     }
   }
@@ -480,7 +483,7 @@ bool ComputeNnfPatchMatch(const ugu::Image3b& A, const ugu::Image3b& B,
 
   if (params.verbose && !params.debug_dir.empty()) {
     nanopm::Image3b vis_nnf, vis_distance;
-    nanopm::ColorizeNnf(nnf, vis_nnf);
+    nanopm::ColorizeNnf(nnf_, vis_nnf);
     nanopm::imwrite(params.debug_dir + "/" + prefix + "_nnf_" +
                         std::to_string(scale) + "_" + std::to_string(iter) +
                         ".jpg",
@@ -488,7 +491,7 @@ bool ComputeNnfPatchMatch(const ugu::Image3b& A, const ugu::Image3b& B,
     float mean, stddev;
     float max_d = 17000.0f;
     float min_d = 50.0f;
-    nanopm::ColorizeDistance(distance, vis_distance, max_d, min_d, mean,
+    nanopm::ColorizeDistance(distance_, vis_distance, max_d, min_d, mean,
                              stddev);
     printf("distance mean %f, stddev %f\n", mean, stddev);
     nanopm::imwrite(params.debug_dir + "/" + prefix + "_distance_" +
@@ -543,13 +546,19 @@ double CalcCoherence(const Image3b& S, const Image3b& T,
         for (int ii = 0; ii < params.patch_size; ii++) {
           int q_y = j + jj;
           int q_x = i + ii;
-          const auto& q_nn_xy = t2s_info.nnf.at<ugu::Vec2f>(j, i); // nnf value is same for pixels in (i, j) patch
+          const auto& q_nn_xy = t2s_info.nnf.at<ugu::Vec2f>(
+              j, i);  // nnf value is same for pixels in (i, j) patch
           int q_nn_x = static_cast<int>(std::round(q_nn_xy[0]));
           int q_nn_y = static_cast<int>(std::round(q_nn_xy[1]));
           const auto& pix = S.at<ugu::Vec3b>(q_nn_y + q_y, q_nn_x + q_x);
           t2s_info.pixels[{q_x, q_y}].push_back(pix);
 
-          auto diff_color = pix - T.at<ugu::Vec3b>(q_y, q_x);
+          const auto& q = T.at<ugu::Vec3b>(q_y, q_x);
+          ugu::Vec3b diff_color;
+          diff_color[0] = pix[0] - q[0];
+          diff_color[1] = pix[1] - q[1];
+          diff_color[2] = pix[2] - q[2];
+
           auto error = NormL2Squared(diff_color);
           coherence.at<float>(q_y, q_x) += error;
           coherece_total += error;
@@ -587,7 +596,8 @@ double CalcCompleteness(const Image3b& S, const Image3b& T,
         for (int ii = 0; ii < params.patch_size; ii++) {
           int p_y = j + jj;
           int p_x = i + ii;
-          const auto& p_nn_xy = s2t_info.nnf.at<ugu::Vec2f>(j, i); // nnf value is same for pixels in (i, j) patch
+          const auto& p_nn_xy = s2t_info.nnf.at<ugu::Vec2f>(
+              j, i);  // nnf value is same for pixels in (i, j) patch
           int p_nn_x = static_cast<int>(std::round(p_nn_xy[0]));
           int p_nn_y = static_cast<int>(std::round(p_nn_xy[1]));
           const auto& pix = S.at<ugu::Vec3b>(p_y, p_x);
@@ -595,7 +605,11 @@ double CalcCompleteness(const Image3b& S, const Image3b& T,
           int q_y = p_nn_y + p_y;
           s2t_info.pixels[{q_x, q_y}].push_back(pix);
 
-          auto diff_color = pix - T.at<ugu::Vec3b>(q_y, q_x);
+          const auto& q = T.at<ugu::Vec3b>(q_y, q_x);
+          ugu::Vec3b diff_color;
+          diff_color[0] = pix[0] - q[0];
+          diff_color[1] = pix[1] - q[1];
+          diff_color[2] = pix[2] - q[2];
           auto error = NormL2Squared(diff_color);
           completeness.at<float>(q_y, q_x) += error;
           completeness_total += error;
@@ -609,7 +623,8 @@ double CalcCompleteness(const Image3b& S, const Image3b& T,
 #pragma omp parallel for
   for (int j = 0; j < T.rows - params.patch_size; j++) {
     for (int i = 0; i < T.cols - params.patch_size; i++) {
-      completeness.at<float>(j, i) =   static_cast<float>(inv_Ns *  completeness.at<float>(j, i));
+      completeness.at<float>(j, i) =
+          static_cast<float>(inv_Ns * completeness.at<float>(j, i));
     }
   }
 
@@ -659,7 +674,7 @@ bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
 
       double inv_denom = 1.0 / denom;
 
-      Vec3d comp_contrib(0, 0, 0);
+      Vec3d comp_contrib{0, 0, 0};
       std::for_each(completeness_data.begin(), completeness_data.end(),
                     [&](const ugu::Vec3b& p) {
                       comp_contrib[0] += static_cast<double>(p[0]);
@@ -670,7 +685,7 @@ bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
       comp_contrib[1] *= inv_Ns;
       comp_contrib[2] *= inv_Ns;
 
-      Vec3d cohere_contrib(0, 0, 0);
+      Vec3d cohere_contrib{0, 0, 0};
       std::for_each(coherence_data.begin(), coherence_data.end(),
                     [&](const ugu::Vec3b& p) {
                       cohere_contrib[0] += static_cast<double>(p[0]);
@@ -681,7 +696,7 @@ bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
       cohere_contrib[1] *= inv_Nt;
       cohere_contrib[2] *= inv_Nt;
 
-      Vec3d updated_p_d(0, 0, 0);
+      Vec3d updated_p_d{0, 0, 0};
       for (int c = 0; c < 3; c++) {
         updated_p[c] = static_cast<unsigned char>(std::min(
             std::max(0.0, (comp_contrib[c] + cohere_contrib[c]) * inv_denom),

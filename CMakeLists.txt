@@ -98,7 +98,7 @@ if(UGU_USE_STB)
   endif()
 endif()
 
-option(UGU_USE_OPENCV "Use OpenCV as Image class" ON)
+option(UGU_USE_OPENCV "Use OpenCV as Image class" OFF)
 message("UGU_USE_OPENCV: ${UGU_USE_OPENCV}")
 if(UGU_USE_OPENCV)
   find_package(OpenCV REQUIRED)
