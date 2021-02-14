@@ -649,8 +649,8 @@ bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
   T.setTo(0);
 
 #pragma omp parallel for
-  for (int j = 0; j < T.rows - params.patch_size; j++) {
-    for (int i = 0; i < T.cols - params.patch_size; i++) {
+  for (int j = 0; j < T.rows; j++) {
+    for (int i = 0; i < T.cols; i++) {
       auto& updated_p = T.at<Vec3b>(j, i);
 
       const auto& completeness_data = s2t_info.pixels[{i, j}];
