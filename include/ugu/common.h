@@ -118,12 +118,14 @@ inline void UndistortPixelOpencv(float* u, float* v, float fx, float fy,
   // 5 is from OpenCV code.
   // I don't know theoritical rationale why 5 is enough...
   const int max_iter = 5;
+  double p1d = p1;
+  double p2d = p2;
   for (int j = 0; j < max_iter; j++) {
     double r2 = x * x + y * y;
-    double icdist = (1 + ((k6 * r2 + k5) * r2 + k4) * r2) /
-                    (1 + ((k3 * r2 + k2) * r2 + k1) * r2);
-    double deltaX = 2 * p1 * x * y + p2 * (r2 + 2 * x * x);
-    double deltaY = p1 * (r2 + 2 * y * y) + 2 * p2 * x * y;
+    double icdist = (1.0 + ((k6 * r2 + k5) * r2 + k4) * r2) /
+                    (1.0 + ((k3 * r2 + k2) * r2 + k1) * r2);
+    double deltaX = 2.0 * p1d * x * y + p2d * (r2 + 2 * x * x);
+    double deltaY = p1d * (r2 + 2.0 * y * y) + 2.0 * p2d * x * y;
     x = (x0 - deltaX) * icdist;
     y = (y0 - deltaY) * icdist;
   }

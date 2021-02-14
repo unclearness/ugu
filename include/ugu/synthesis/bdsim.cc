@@ -8,6 +8,8 @@
 #include <map>
 #include <numeric>
 
+#include "ugu/timer.h"
+
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgproc.hpp"
 #define NANOPM_USE_OPENCV 1
@@ -208,10 +210,10 @@ void DetermineCurrentSize(int src_w, int src_h, int cur_scale,
   cur_w = src_w;
   if (src_w < target_size.width) {
     // Width becomes bigger
-    w_scale = pow((1.0f + params.rescale_ratio), cur_scale);
+    w_scale = static_cast<float>(pow((1.0f + params.rescale_ratio), cur_scale));
     cur_w = std::min(static_cast<int>(src_w * w_scale), target_size.width);
   } else {
-    w_scale = pow((1.0f - params.rescale_ratio), cur_scale);
+    w_scale = static_cast<float>(pow((1.0f - params.rescale_ratio), cur_scale));
     cur_w = std::max(static_cast<int>(src_w * w_scale), target_size.width);
   }
   // Height
@@ -219,10 +221,10 @@ void DetermineCurrentSize(int src_w, int src_h, int cur_scale,
   cur_h = src_h;
   if (src_h < target_size.height) {
     // Height becomes bigger
-    h_scale = pow((1.0f + params.rescale_ratio), cur_scale);
+    h_scale = static_cast<float>(pow((1.0f + params.rescale_ratio), cur_scale));
     cur_h = std::min(static_cast<int>(src_h * h_scale), target_size.height);
   } else {
-    h_scale = pow((1.0f - params.rescale_ratio), cur_scale);
+    h_scale = static_cast<float>(pow((1.0f - params.rescale_ratio), cur_scale));
     cur_h = std::max(static_cast<int>(src_h * h_scale), target_size.height);
   }
 }
@@ -259,8 +261,8 @@ struct BidirectionalInfo {
   DirectionalInfo t2s;
   Image1f completeness;
   Image1f coherence;
-  double completeness_total;
-  double coherence_total;
+  double completeness_total = 0.0;
+  double coherence_total = 0.0;
   void DebugDump(const std::string& debug_dir) {
     LOGI("completeness_toal %f\n", completeness_total);
     LOGI("coherence_total %f\n", coherence_total);
@@ -348,7 +350,7 @@ bool ComputeNnfBruteForceOwnImpl(const ugu::Image3b& A, const ugu::Image3b& B,
   distance = Image1f::zeros(A.rows, A.cols);
   distance.setTo(std::numeric_limits<float>::max());
 #ifdef UGU_USE_OPENMP
-#pragma omp parallel for
+ 
 #endif
   for (int j = 0; j < nnf.rows - params.patch_size; j++) {
     if (params.verbose && j % 10 == 0) {
@@ -406,8 +408,8 @@ bool ComputeNnfBruteForceOpencvImpl(const ugu::Image3b& A,
 
       distance.at<float>(j, i) = static_cast<float>(minVal);
       ugu::Vec2f& current_nn = nnf.at<ugu::Vec2f>(j, i);
-      current_nn[0] = minLoc.x;
-      current_nn[1] = minLoc.y;
+      current_nn[0] =static_cast<float>( minLoc.x);
+      current_nn[1] = static_cast<float>(minLoc.y);
     }
   }
 
@@ -502,6 +504,8 @@ bool ComputeNnfPatchMatch(const ugu::Image3b& A, const ugu::Image3b& B,
 bool ComputeNnf(const Image3b& S, const Image3b& T, DirectionalInfo& s2t_info,
                 DirectionalInfo& t2s_info, const BdsimParams& params, int scale,
                 int iter) {
+  ugu::Timer timer;
+  timer.Start();
   if (params.patch_search_method == BdsimPatchSearchMethod::BRUTE_FORCE) {
     ComputeNnfBruteForce(S, T, s2t_info.nnf, s2t_info.dist, params);
     ComputeNnfBruteForce(T, S, t2s_info.nnf, t2s_info.dist, params);
@@ -520,12 +524,16 @@ bool ComputeNnf(const Image3b& S, const Image3b& T, DirectionalInfo& s2t_info,
     ComputeNnfBruteForce(T, S, t2s_info.nnf, t2s_info.dist, params);
 #endif
   }
+  timer.End();
+  ugu::LOGI("ComputeNnf: %f ms\n", timer.elapsed_msec());
   return true;
 }
 
 double CalcCoherence(const Image3b& S, const Image3b& T,
                      const BdsimParams& params, DirectionalInfo& t2s_info,
                      Image1f& coherence) {
+  ugu::Timer timer;
+  timer.Start();
   double coherece_total = 0.0;
   t2s_info.InitPixels(T.rows, T.cols);
 
@@ -535,7 +543,7 @@ double CalcCoherence(const Image3b& S, const Image3b& T,
         for (int ii = 0; ii < params.patch_size; ii++) {
           int q_y = j + jj;
           int q_x = i + ii;
-          const auto& q_nn_xy = t2s_info.nnf.at<ugu::Vec2f>(j, i);
+          const auto& q_nn_xy = t2s_info.nnf.at<ugu::Vec2f>(j, i); // nnf value is same for pixels in (i, j) patch
           int q_nn_x = static_cast<int>(std::round(q_nn_xy[0]));
           int q_nn_y = static_cast<int>(std::round(q_nn_xy[1]));
           const auto& pix = S.at<ugu::Vec3b>(q_nn_y + q_y, q_nn_x + q_x);
@@ -552,20 +560,25 @@ double CalcCoherence(const Image3b& S, const Image3b& T,
   int Nt = (t2s_info.nnf.rows - params.patch_size) *
            (t2s_info.nnf.cols - params.patch_size);
   double inv_Nt = 1.0 / Nt;
+#pragma omp parallel for
   for (int j = 0; j < t2s_info.nnf.rows - params.patch_size; j++) {
     for (int i = 0; i < t2s_info.nnf.cols - params.patch_size; i++) {
-      coherence.at<float>(j, i) *= inv_Nt;
+      coherence.at<float>(j, i) =
+          static_cast<float>(inv_Nt * coherence.at<float>(j, i));
     }
   }
 
   coherece_total *= inv_Nt;
-
+  timer.End();
+  ugu::LOGI("CalcCoherence: %f ms\n", timer.elapsed_msec());
   return coherece_total;
 }
 
 double CalcCompleteness(const Image3b& S, const Image3b& T,
                         const BdsimParams& params, DirectionalInfo& s2t_info,
                         Image1f& completeness) {
+  ugu::Timer timer;
+  timer.Start();
   double completeness_total = 0.0;
   s2t_info.InitPixels(T.rows, T.cols);
   for (int j = 0; j < s2t_info.nnf.rows - params.patch_size; j++) {
@@ -574,7 +587,7 @@ double CalcCompleteness(const Image3b& S, const Image3b& T,
         for (int ii = 0; ii < params.patch_size; ii++) {
           int p_y = j + jj;
           int p_x = i + ii;
-          const auto& p_nn_xy = s2t_info.nnf.at<ugu::Vec2f>(j, i);
+          const auto& p_nn_xy = s2t_info.nnf.at<ugu::Vec2f>(j, i); // nnf value is same for pixels in (i, j) patch
           int p_nn_x = static_cast<int>(std::round(p_nn_xy[0]));
           int p_nn_y = static_cast<int>(std::round(p_nn_xy[1]));
           const auto& pix = S.at<ugu::Vec3b>(p_y, p_x);
@@ -593,21 +606,24 @@ double CalcCompleteness(const Image3b& S, const Image3b& T,
   int Ns = (s2t_info.nnf.rows - params.patch_size) *
            (s2t_info.nnf.cols - params.patch_size);
   double inv_Ns = 1.0 / Ns;
-
+#pragma omp parallel for
   for (int j = 0; j < T.rows - params.patch_size; j++) {
     for (int i = 0; i < T.cols - params.patch_size; i++) {
-      completeness.at<float>(j, i) *= inv_Ns;
+      completeness.at<float>(j, i) =   static_cast<float>(inv_Ns *  completeness.at<float>(j, i));
     }
   }
 
   completeness_total *= inv_Ns;
-
+  timer.End();
+  ugu::LOGI("CalcCompleteness: %f ms\n", timer.elapsed_msec());
   return completeness_total;
 }
 
 bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
                            DirectionalInfo& s2t_info,
                            DirectionalInfo& t2s_info) {
+  ugu::Timer timer;
+  timer.Start();
   int Nt = (t2s_info.nnf.rows - params.patch_size) *
            (t2s_info.nnf.cols - params.patch_size);
   double inv_Nt = 1.0 / static_cast<double>(Nt);
@@ -617,7 +633,7 @@ bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
 
   T.setTo(0);
 
-  //#pragma omp parallel for
+#pragma omp parallel for
   for (int j = 0; j < T.rows - params.patch_size; j++) {
     for (int i = 0; i < T.cols - params.patch_size; i++) {
       auto& updated_p = T.at<Vec3b>(j, i);
@@ -673,7 +689,8 @@ bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
       }
     }
   }
-
+  timer.End();
+  ugu::LOGI("GenerateUpdatedTarget: %f ms\n", timer.elapsed_msec());
   return true;
 }
 
