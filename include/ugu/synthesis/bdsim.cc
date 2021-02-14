@@ -5,16 +5,22 @@
 
 #include "bdsim.h"
 
-#if __has_include("../third_party/nanopm/nanopm.h")
-//#warning "nanopm.h" is found
-#define UGU_HAS_NANOPM
-#include "../third_party/nanopm/nanopm.h"
-#else
-//#warning "nanopm.h" not is found
-#endif
+#include <numeric>
+#include <map>
+
 
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgproc.hpp"
+#define NANOPM_USE_OPENCV 1
+#endif
+
+#if __has_include("../third_party/nanopm/nanopm.h")
+//#warning "nanopm.h" is found
+#define UGU_HAS_NANOPM
+#define NANOPM_USE_OPENMP
+#include "../third_party/nanopm/nanopm.h"
+#else
+//#warning "nanopm.h" not is found
 #endif
 
 namespace {
@@ -227,9 +233,27 @@ void DetermineCurrentSize(int src_w, int src_h, int cur_scale,
 namespace ugu {
 
 struct NnfInfo {
+  // Size depends on direction
   Image2f nnf;
   Image1f dist;
-  std::unordered_map<std::pair<int, int>, std::vector<ugu::Vec3b>> pixels;
+
+  // Size is always same to T
+  std::map<std::pair<int, int>, std::vector<ugu::Vec3b>> pixels;
+
+  void InitPixels(int h, int w) {
+    pixels.clear();
+    for (int j = 0; j < h; j++) {
+      for (int i = 0; i < w; i++) {
+        pixels.insert({{i, j}, std::vector<ugu::Vec3b>()});
+      }
+    }
+  }
+
+  void ClearNNfAndDist() {nnf = Image2f();
+    dist = Image1f();
+
+  };
+
 };
 
 inline bool SSD(const Image3b& A, int A_x, int A_y, const Image3b& B, int B_x,
@@ -394,6 +418,7 @@ bool ComputeNnfPatchMatch(const ugu::Image3b& A, const ugu::Image3b& B,
                           const ugu::Image2f& nnf_init) {
   nanopm::Option option;
   option.patch_size = params.patch_size;
+  //option.debug_dir = "./";
   if (nnf_init.empty()) {
     option.init_type = nanopm::InitType::RANDOM;
   } else {
@@ -401,10 +426,10 @@ bool ComputeNnfPatchMatch(const ugu::Image3b& A, const ugu::Image3b& B,
 
     ugu::Image2f nnf_init_resized;
     // Resize to current size
-    if (nnf_init_resized.rows != A.rows || nnf_init_resized.cols != A.cols) {
-      ugu::resize(nnf_init, nnf_init_resized, ugu::Size(A.rows, A.cols));
+    if (nnf_init.rows != A.rows || nnf_init.cols != A.cols) {
+      ugu::resize(nnf_init, nnf_init_resized, ugu::Size(A.cols, A.rows));
     } else {
-      nnf_init_resized = nnf_init;
+      nnf_init.copyTo(nnf_init_resized);
     }
 
     option.initial =
@@ -462,16 +487,149 @@ bool ComputeNnf(const Image3b& S, const Image3b& T, NnfInfo& s2t_info,
   return true;
 }
 
-bool Update(const Image3b& S, const Image3b& T, const BdsimParams& params,
+double CalcCoherence(const Image3b& S, const Image3b& T,
+                     const BdsimParams& params, NnfInfo& t2s_info) {
+  double coherece = 0.0;
+  t2s_info.InitPixels(T.rows, T.cols);
+  for (int j = 0; j < t2s_info.nnf.rows - 2*params.patch_size; j++) {
+    for (int i = 0; i < t2s_info.nnf.cols - 2*params.patch_size; i++) {
+      // pixels[{{i, j}, std::vector<ugu::Vec3b>()});
+
+      double dist_in_patch = 0.0;
+      for (int jj = 0; jj < params.patch_size; jj++) {
+        for (int ii = 0; ii < params.patch_size; ii++) {
+          int y = j + jj;
+          int x = i + ii;
+          const auto& nn_xy = t2s_info.nnf.at<ugu::Vec2f>(y, x);
+          int nn_x = static_cast<int>(std::round(nn_xy[0]));
+          int nn_y = static_cast<int>(std::round(nn_xy[1]));
+          const auto& pix = S.at<ugu::Vec3b>(nn_y + y, nn_x + x);
+          t2s_info.pixels[{x, y}].push_back(pix);
+
+          auto diff_color = pix - T.at<ugu::Vec3b>(y, x);
+          dist_in_patch += NormL2(diff_color);
+        }
+      }
+
+      // const auto& d = t2s_info.dist.at<float>(j, i);
+      coherece += dist_in_patch;
+    }
+  }
+  int Nt = (t2s_info.nnf.rows - params.patch_size) *
+           (t2s_info.nnf.cols - params.patch_size);
+  coherece /= Nt;
+
+  return coherece;
+}
+
+double CalcCompleteness(const Image3b& S, const Image3b& T,
+                        const BdsimParams& params, NnfInfo& s2t_info) {
+  double completeness = 0.0;
+  s2t_info.InitPixels(T.rows, T.cols);
+  for (int j = 0; j < s2t_info.nnf.rows - 2*params.patch_size; j++) {
+    for (int i = 0; i < s2t_info.nnf.cols - 2*params.patch_size; i++) {
+      // pixels[{{i, j}, std::vector<ugu::Vec3b>()});
+
+      for (int jj = 0; jj < params.patch_size; jj++) {
+        for (int ii = 0; ii < params.patch_size; ii++) {
+          int y = j + jj;
+          int x = i + ii;
+          const auto& nn_xy = s2t_info.nnf.at<ugu::Vec2f>(y, x);
+          int nn_x = static_cast<int>(std::round(nn_xy[0]));
+          int nn_y = static_cast<int>(std::round(nn_xy[1]));
+          const auto& pix = S.at<ugu::Vec3b>(y, x);
+          s2t_info.pixels[{nn_x + x, nn_y + y}].push_back(pix);
+        }
+      }
+
+      const auto& d = s2t_info.dist.at<float>(j, i);
+      completeness += d;
+    }
+  }
+  int Ns = (s2t_info.nnf.rows - params.patch_size) *
+           (s2t_info.nnf.cols - params.patch_size);
+  completeness /= Ns;
+
+  return completeness;
+}
+
+bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
+                           NnfInfo& s2t_info, NnfInfo& t2s_info) {
+  int Nt = (t2s_info.nnf.rows - params.patch_size) *
+           (t2s_info.nnf.cols - params.patch_size);
+  double inv_Nt = 1.0 / static_cast<double>(Nt);
+  int Ns = (s2t_info.nnf.rows - params.patch_size) *
+           (s2t_info.nnf.cols - params.patch_size);
+  double inv_Ns = 1.0 / static_cast<double>(Ns);
+#pragma omp parallel for
+  for (int j = 0; j < T.rows - params.patch_size; j++) {
+    for (int i = 0; i < T.cols - params.patch_size; i++) {
+      auto& updated_p = T.at<Vec3b>(j, i);
+
+      const auto& completeness_data = s2t_info.pixels[{i, j}];
+      auto n = completeness_data.size();
+
+      const auto& coherence_data = t2s_info.pixels[{i, j}];
+      auto m = coherence_data.size();
+
+      double denom =
+          static_cast<double>(n) * inv_Ns + static_cast<double>(m) * inv_Nt;
+
+      if (denom < std::numeric_limits<double>::epsilon()) {
+        // Handle no correspondence case
+        updated_p[0] = 0;
+        updated_p[1] = 0;
+        updated_p[2] = 0;
+        continue;
+      }
+
+      double inv_denom = 1.0 / denom;
+
+      Vec3d comp_contrib(0, 0, 0);
+      std::for_each(completeness_data.begin(), completeness_data.end(),
+                    [&](const ugu::Vec3b& p) {
+                      comp_contrib[0] += static_cast<double>(p[0]);
+                      comp_contrib[1] += static_cast<double>(p[1]);
+                      comp_contrib[2] += static_cast<double>(p[2]);
+                    });
+      comp_contrib[0] *= inv_Ns;
+      comp_contrib[1] *= inv_Ns;
+      comp_contrib[2] *= inv_Ns;
+
+      Vec3d cohere_contrib(0, 0, 0);
+      std::for_each(coherence_data.begin(), coherence_data.end(),
+                    [&](const ugu::Vec3b& p) {
+                      cohere_contrib[0] += static_cast<double>(p[0]);
+                      cohere_contrib[1] += static_cast<double>(p[1]);
+                      cohere_contrib[2] += static_cast<double>(p[2]);
+                    });
+      cohere_contrib[0] *= inv_Nt;
+      cohere_contrib[1] *= inv_Nt;
+      cohere_contrib[2] *= inv_Nt;
+
+      Vec3d updated_p_d(0, 0, 0);
+      for (int c = 0; c < 3; c++) {
+        updated_p[c] = (comp_contrib[c] + cohere_contrib[c]) * inv_denom;
+      }
+    }
+  }
+
+  return true;
+}
+
+bool Update(const Image3b& S, Image3b& T, const BdsimParams& params,
             NnfInfo& s2t_info, NnfInfo& t2s_info) {
   // Make nnf
   ComputeNnf(S, T, s2t_info, t2s_info, params);
 
   // Calc coherence
+  double coherece = CalcCoherence(S, T, params, t2s_info);
 
   // Calc completeness
+  double completeness = CalcCompleteness(S, T, params, s2t_info);
 
-  // Generate image
+  // Generate new image
+  GenerateUpdatedTarget(T, params, s2t_info, t2s_info);
 
   return true;
 }
@@ -515,6 +673,10 @@ bool Synthesize(const Image3b& src, Image3b& dst, const BdsimParams& params) {
     DetermineCurrentSize(src.cols, src.rows, scale_level, params, cur_w, cur_h);
     ugu::resize(T_lab_prev, T_lab, Size(cur_w, cur_h));
 
+    // Clear nnf at each scale
+    s2t_info.ClearNNfAndDist();
+    t2s_info.ClearNNfAndDist();
+
     for (int iter = 0; iter < params.iteration_in_scale; iter++) {
       Update(S_lab, T_lab, params, s2t_info, t2s_info);
     }
@@ -527,6 +689,12 @@ bool Synthesize(const Image3b& src, Image3b& dst, const BdsimParams& params) {
 
     T_lab.copyTo(T_lab_prev);
   }
+
+#ifdef UGU_USE_OPENCV
+  dst = LabToBgr(T_lab);
+#else
+  dst = LabToRgb(T_lab);
+#endif
 
   return true;
 }
