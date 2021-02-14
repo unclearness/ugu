@@ -106,9 +106,13 @@ T Hamming(T n1, T n2) {
 }
 
 struct StereoParam {
-  float fx, fy;
-  float lcx, lcy, rcx, rcy;
-  float baseline;
+  float fx = -1.0f;
+  float fy = -1.0f;
+  float lcx = -1.0f;
+  float lcy = -1.0f;
+  float rcx = -1.0f;
+  float rcy = -1.0f;
+  float baseline = -1.0f;
 
   float mind = 0.0f;
   float maxd = 10000.0f;
