@@ -235,6 +235,9 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/stereo/base.h
     include/ugu/stereo/base.cc
 
+    include/ugu/synthesis/bdsim.h
+    include/ugu/synthesis/bdsim.cc
+
     # implementations of header-only library
     ${UGU_STB_IMPLEMENTATION_CC}
     ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
@@ -297,6 +300,15 @@ if (NOT hasParent)
   target_link_libraries(ugu_stereo_test
   ${Ugu_LIBS}
   )
+
+  add_executable(ugu_synthesis_test
+  test_synthesis.cc)
+  target_include_directories(ugu_synthesis_test PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(ugu_synthesis_test
+  ${Ugu_LIBS}
+  )
+
+
 endif()
 
 if (WIN32)

@@ -5,10 +5,9 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <cstring>
-
-#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -17,6 +16,7 @@
 
 #if defined(UGU_USE_STB) && !defined(UGU_USE_OPENCV)
 #include "stb_image.h"
+#include "stb_image_resize.h"
 #include "stb_image_write.h"
 #endif
 
@@ -37,6 +37,7 @@
 
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgcodecs.hpp"
+#include "opencv2/imgproc.hpp"
 #endif
 
 namespace ugu {
@@ -51,12 +52,14 @@ using Image3b = cv::Mat3b;
 using Image1w = cv::Mat1w;
 using Image1i = cv::Mat1i;
 using Image1f = cv::Mat1f;
+using Image2f = cv::Mat2f;
 using Image3f = cv::Mat3f;
 
 using Vec1b = unsigned char;
 using Vec1f = float;
 using Vec1i = int;
 using Vec1w = std::uint16_t;
+using Vec2f = cv::Vec2f;
 using Vec3f = cv::Vec3f;
 using Vec3b = cv::Vec3b;
 using Vec3d = cv::Vec3d;
@@ -64,11 +67,20 @@ using Vec3d = cv::Vec3d;
 using Point = cv::Point;
 
 using ImreadModes = cv::ImreadModes;
+using InterpolationFlags = cv::InterpolationFlags;
+
+using Size = cv::Size;
 
 template <typename T>
 inline bool imwrite(const std::string& filename, const T& img,
                     const std::vector<int>& params = std::vector<int>()) {
   return cv::imwrite(filename, img, params);
+}
+
+inline void resize(cv::InputArray src, cv::OutputArray dst, cv::Size dsize,
+                   double fx = 0, double fy = 0,
+                   int interpolation = cv::InterpolationFlags::INTER_LINEAR) {
+  cv::resize(src, dst, dsize, fx, fy, interpolation);
 }
 
 template <typename T>
@@ -112,6 +124,7 @@ using Vec1f = Vec_<float, 1>;
 using Vec1i = Vec_<int, 1>;
 using Vec1w = Vec_<std::uint16_t, 1>;
 using Vec1b = Vec_<unsigned char, 1>;
+using Vec2f = Vec_<float, 2>;
 using Vec3b = Vec_<unsigned char, 3>;
 using Vec3f = Vec_<float, 3>;
 using Vec3d = Vec_<double, 3>;
@@ -157,6 +170,7 @@ class Image {
 
  public:
   Image() : data_(new std::vector<T>) {}
+  Image(const Image<T>& src) = default;
   ~Image() {}
   int channels() const { return channels_; }
 
@@ -331,7 +345,9 @@ class Image {
 
   void copyTo(Image<T>& dst) const {  // NOLINT
     if (dst.cols != cols || dst.rows != rows) {
-      dst = Image<T>::zeros(rows, cols);
+      // dst = Image<T>::zeros(rows, cols);
+      dst.data_ = std::make_shared<std::vector<T> >();
+      dst.Init(cols, rows);
     }
     std::memcpy(dst.data_->data(), data_->data(), sizeof(T) * rows * cols);
   }
@@ -343,6 +359,7 @@ using Image1w = Image<Vec1w>;  // For depth image with 16 bit (unsigned
                                // short) mm-scale format
 using Image1i = Image<Vec1i>;  // For face visibility. face id is within int32_t
 using Image1f = Image<Vec1f>;  // For depth image with any scale
+using Image2f = Image<Vec2f>;
 using Image3f = Image<Vec3f>;  // For normal or point cloud. XYZ order.
 
 enum ImreadModes {
@@ -360,6 +377,33 @@ enum ImreadModes {
   IMREAD_REDUCED_COLOR_8 = 65,
   IMREAD_IGNORE_ORIENTATION = 128,
 };
+
+enum InterpolationFlags {
+  INTER_NEAREST = 0,
+  INTER_LINEAR = 1,
+  INTER_CUBIC = 2,
+  INTER_AREA = 3,
+  INTER_LANCZOS4 = 4,
+  INTER_LINEAR_EXACT = 5,
+  INTER_NEAREST_EXACT = 6,
+  INTER_MAX = 7,
+  WARP_FILL_OUTLIERS = 8,
+  WARP_INVERSE_MAP = 16
+};
+
+template <typename T>
+struct Size_ {
+  T height = T(-1);
+  T width = T(-1);
+  Size_() {}
+  Size_(T width_, T height_) {
+    width = width_;
+    height = height_;
+  }
+  T area() const { return height * width; }
+};
+
+using Size = Size_<int>;
 
 template <typename T>
 inline void Init(Image<T>* image, int width, int height) {
@@ -481,6 +525,37 @@ void minMaxLoc(const Image<T>& src, double* minVal, double* maxVal = nullptr,
   if (maxLoc != nullptr) {
     *maxLoc = maxLoc_;
   }
+}
+
+template <typename T>
+void resize(const ugu::Image<T>& src, ugu::Image<T>& dst, Size dsize,
+            double fx = 0.0, double fy = 0.0,
+            int interpolation = InterpolationFlags::INTER_LINEAR) {
+  (void)interpolation;
+
+  int w = src.cols;
+  int h = src.rows;
+  int n = src.channels();
+
+  int out_w, out_h;
+  if (dsize.height <= 0 || dsize.width <= 0) {
+    out_w = static_cast<int>(w * fx);
+    out_h = static_cast<int>(h * fy);
+  } else {
+    out_w = dsize.width;
+    out_h = dsize.height;
+  }
+
+  if (w <= 0 || h <= 0 || out_w <= 0 || out_h <= 0) {
+    LOGE("Wrong size\n");
+    return;
+  }
+
+  dst = Image<T>::zeros(out_h, out_w);
+
+  stbir_resize_uint8(src.data, w, h, 0, dst.data, out_w, out_h, 0, n);
+
+  return;
 }
 
 #endif
@@ -647,5 +722,17 @@ void BoxFilter(const Image3f& src, Image3f* dst, int kernel);
 void Erode(const Image1b& src, Image1b* dst, int kernel);
 void Dilate(const Image1b& src, Image1b* dst, int kernel);
 void Diff(const Image1b& src1, const Image1b& src2, Image1b* dst);
+
+template <typename T>
+float NormL2(const T& src) {
+  return static_cast<float>(
+      std::sqrt(src[0] * src[0] + src[1] * src[1] + src[2] * src[2]));
+}
+
+template<typename T>
+float NormL2Squared(const T& src) {
+  return static_cast<float>(src[0] * src[0] + src[1] * src[1] +
+                            src[2] * src[2]);
+}
 
 }  // namespace ugu
