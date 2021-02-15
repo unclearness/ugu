@@ -1,4 +1,5 @@
 #include <stdio.h>
+
 #include <fstream>
 
 #include "ugu/camera.h"
@@ -17,8 +18,8 @@ int main(int argc, char* argv[]) {
   // borrow KinectV1 intrinsics of Freiburg 1 RGB
   // https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
   float r = 0.5f;  // scale to smaller size from VGA
-  int width = static_cast<int>(640 * r);
-  int height = static_cast<int>(480 * r);
+  // int width = static_cast<int>(640 * r);
+  // int height = static_cast<int>(480 * r);
   Eigen::Vector2f principal_point(318.6f * r, 255.3f * r);
   Eigen::Vector2f focal_length(517.3f * r, 516.5f * r);
 
