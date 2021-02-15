@@ -54,6 +54,11 @@
 - Original code: https://github.com/unclearness/vacancy
 
 
+## Patch-based image synthesis
+- Reference: Simakov, Denis, et al. "Summarizing visual data using bidirectional similarity." 2008 IEEE Conference on Computer Vision and Pattern Recognition. IEEE, 2008.
+
+<img src="https://raw.githubusercontent.com/wiki/unclearness/ugu/images/bdsim_knit.gif" width="320">
+
 # Dependencies
 ## Mandatory
 - Eigen
