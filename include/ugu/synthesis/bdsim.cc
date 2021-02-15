@@ -1,6 +1,13 @@
 /*
  * Copyright (C) 2021, unclearness
  * All rights reserved.
+ *
+ * Implementation of the following paper
+ *
+ * Simakov, Denis, et al. "Summarizing visual data using bidirectional
+ * similarity." 2008 IEEE Conference on Computer Vision and Pattern Recognition.
+ * IEEE, 2008.
+ *
  */
 
 #include "bdsim.h"
@@ -26,9 +33,6 @@
 #endif
 
 #include "../third_party/nanopm/nanopm.h"
-#else
-//#warning "nanopm.h" not is found
-#endif
 
 namespace {
 
@@ -423,6 +427,7 @@ bool ComputeNnfBruteForceOpencvImpl(const ugu::Image3b& A,
 bool ComputeNnfBruteForce(const ugu::Image3b& A, const ugu::Image3b& B,
                           ugu::Image2f& nnf, ugu::Image1f& distance,
                           const BdsimParams& params) {
+  LOGW("ComputeNnfBruteForce is not tested\n");
 #ifdef UGU_USE_OPENCV
   return ComputeNnfBruteForceOpencvImpl(A, B, nnf, distance, params);
 #else
@@ -542,14 +547,14 @@ double CalcCoherence(const Image3b& S, const Image3b& T,
 
   for (int j = 0; j < t2s_info.nnf.rows - params.patch_size; j++) {
     for (int i = 0; i < t2s_info.nnf.cols - params.patch_size; i++) {
+      const auto& q_nn_xy = t2s_info.nnf.at<ugu::Vec2f>(
+          j, i);  // nnf value is same for pixels in (i, j) patch
+      int q_nn_x = static_cast<int>(std::round(q_nn_xy[0]));
+      int q_nn_y = static_cast<int>(std::round(q_nn_xy[1]));
       for (int jj = 0; jj < params.patch_size; jj++) {
         for (int ii = 0; ii < params.patch_size; ii++) {
           int q_y = j + jj;
           int q_x = i + ii;
-          const auto& q_nn_xy = t2s_info.nnf.at<ugu::Vec2f>(
-              j, i);  // nnf value is same for pixels in (i, j) patch
-          int q_nn_x = static_cast<int>(std::round(q_nn_xy[0]));
-          int q_nn_y = static_cast<int>(std::round(q_nn_xy[1]));
           const auto& pix = S.at<ugu::Vec3b>(q_nn_y + q_y, q_nn_x + q_x);
           t2s_info.pixels[{q_x, q_y}].push_back(pix);
 
@@ -570,8 +575,8 @@ double CalcCoherence(const Image3b& S, const Image3b& T,
            (t2s_info.nnf.cols - params.patch_size);
   double inv_Nt = 1.0 / Nt;
 #pragma omp parallel for
-  for (int j = 0; j < t2s_info.nnf.rows - params.patch_size; j++) {
-    for (int i = 0; i < t2s_info.nnf.cols - params.patch_size; i++) {
+  for (int j = 0; j < t2s_info.nnf.rows; j++) {
+    for (int i = 0; i < t2s_info.nnf.cols; i++) {
       coherence.at<float>(j, i) =
           static_cast<float>(inv_Nt * coherence.at<float>(j, i));
     }
@@ -592,14 +597,14 @@ double CalcCompleteness(const Image3b& S, const Image3b& T,
   s2t_info.InitPixels(T.rows, T.cols);
   for (int j = 0; j < s2t_info.nnf.rows - params.patch_size; j++) {
     for (int i = 0; i < s2t_info.nnf.cols - params.patch_size; i++) {
+      const auto& p_nn_xy = s2t_info.nnf.at<ugu::Vec2f>(
+          j, i);  // nnf value is same for pixels in (i, j) patch
+      int p_nn_x = static_cast<int>(std::round(p_nn_xy[0]));
+      int p_nn_y = static_cast<int>(std::round(p_nn_xy[1]));
       for (int jj = 0; jj < params.patch_size; jj++) {
         for (int ii = 0; ii < params.patch_size; ii++) {
           int p_y = j + jj;
           int p_x = i + ii;
-          const auto& p_nn_xy = s2t_info.nnf.at<ugu::Vec2f>(
-              j, i);  // nnf value is same for pixels in (i, j) patch
-          int p_nn_x = static_cast<int>(std::round(p_nn_xy[0]));
-          int p_nn_y = static_cast<int>(std::round(p_nn_xy[1]));
           const auto& pix = S.at<ugu::Vec3b>(p_y, p_x);
           int q_x = p_nn_x + p_x;
           int q_y = p_nn_y + p_y;
@@ -621,8 +626,8 @@ double CalcCompleteness(const Image3b& S, const Image3b& T,
            (s2t_info.nnf.cols - params.patch_size);
   double inv_Ns = 1.0 / Ns;
 #pragma omp parallel for
-  for (int j = 0; j < T.rows - params.patch_size; j++) {
-    for (int i = 0; i < T.cols - params.patch_size; i++) {
+  for (int j = 0; j < T.rows; j++) {
+    for (int i = 0; i < T.cols; i++) {
       completeness.at<float>(j, i) =
           static_cast<float>(inv_Ns * completeness.at<float>(j, i));
     }
@@ -785,14 +790,20 @@ bool Synthesize(const Image3b& src, Image3b& dst, const BdsimParams& params) {
       if (params.verbose) {
         LOGI("%d th update\n", iter);
         bidir_info.DebugDump(params.debug_dir);
+        if (!params.debug_dir.empty())
 #ifdef UGU_USE_OPENCV
-        dst = LabToBgr(T_lab);
+          dst = LabToBgr(T_lab);
 #else
-        dst = LabToRgb(T_lab);
+          dst = LabToRgb(T_lab);
 #endif
-        ugu::imwrite("out_" + std::to_string(scale_level) + "_" +
-                         std::to_string(iter) + ".png",
+        ugu::imwrite(params.debug_dir + "/out_" + std::to_string(scale_level) +
+                         "_" + std::to_string(iter) + ".png",
                      dst);
+        if (iter == params.iteration_in_scale - 1) {
+          ugu::imwrite(params.debug_dir + "/out_" + std::to_string(dst.cols) +
+                           "-" + std::to_string(dst.rows) + ".png",
+                       dst);
+        }
       }
     }
 
@@ -815,3 +826,5 @@ bool Synthesize(const Image3b& src, Image3b& dst, const BdsimParams& params) {
 }
 
 }  // namespace ugu
+
+#endif

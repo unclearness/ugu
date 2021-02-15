@@ -4,7 +4,9 @@
  */
 
 #include <stdio.h>
+
 #include <fstream>
+#include <iostream>
 
 #include "ugu/image.h"
 #include "ugu/synthesis/bdsim.h"
@@ -20,10 +22,12 @@ int main(int argc, char* argv[]) {
   ugu::Image3b dst;
 
   ugu::BdsimParams params;
+  params.patch_size = 11;
   params.verbose = true;
-  params.iteration_in_scale = 10;
-  params.target_size.height = src.rows * 2;
-  params.target_size.width = src.cols * 2;
+  params.debug_dir = "./";
+  params.target_size.height = static_cast<int>(src.rows * 0.4);
+  params.target_size.width = static_cast<int>(src.cols * 0.4);
+  ;
   ugu::Synthesize(src, dst, params);
 
   ugu::imwrite("out.png", dst);
