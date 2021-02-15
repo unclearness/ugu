@@ -77,9 +77,10 @@ inline bool imwrite(const std::string& filename, const T& img,
   return cv::imwrite(filename, img, params);
 }
 
-inline void resize(cv::InputArray src, cv::OutputArray dst, cv::Size dsize,
-                   double fx = 0, double fy = 0,
-                   int interpolation = cv::InterpolationFlags::INTER_LINEAR) {
+template <typename T>
+void resize(const ugu::Image<T>& src, ugu::Image<T>& dst, Size dsize,
+            double fx = 0, double fy = 0,
+            int interpolation = InterpolationFlags::INTER_LINEAR) {
   cv::resize(src, dst, dsize, fx, fy, interpolation);
 }
 
@@ -531,6 +532,7 @@ template <typename T>
 void resize(const ugu::Image<T>& src, ugu::Image<T>& dst, Size dsize,
             double fx = 0.0, double fy = 0.0,
             int interpolation = InterpolationFlags::INTER_LINEAR) {
+#ifdef UGU_USE_STB
   (void)interpolation;
 
   int w = src.cols;
@@ -556,6 +558,16 @@ void resize(const ugu::Image<T>& src, ugu::Image<T>& dst, Size dsize,
   stbir_resize_uint8(src.data, w, h, 0, dst.data, out_w, out_h, 0, n);
 
   return;
+#else
+  (void)src;
+  (void)dst;
+  (void)dsize;
+  (void)fx;
+  (void)fy;
+  (void)interpolation;
+  LOGE("can't resize image with this configuration\n");
+  return;
+#endif
 }
 
 #endif
@@ -729,7 +741,7 @@ float NormL2(const T& src) {
       std::sqrt(src[0] * src[0] + src[1] * src[1] + src[2] * src[2]));
 }
 
-template<typename T>
+template <typename T>
 float NormL2Squared(const T& src) {
   return static_cast<float>(src[0] * src[0] + src[1] * src[1] +
                             src[2] * src[2]);
