@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#if __has_include("../third_party/nanopm/nanopm.h")
 #include <stdio.h>
 
 #include <fstream>
@@ -27,10 +28,17 @@ int main(int argc, char* argv[]) {
   params.debug_dir = "./";
   params.target_size.height = static_cast<int>(src.rows * 0.4);
   params.target_size.width = static_cast<int>(src.cols * 0.4);
-  ;
+
   ugu::Synthesize(src, dst, params);
 
   ugu::imwrite("out.png", dst);
 
   return 0;
 }
+#else
+int main(int argc, char* argv[]) {
+  (void)argc;
+  (void)argv;
+  return 0;
+}
+#endif
