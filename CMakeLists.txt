@@ -238,6 +238,9 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/synthesis/bdsim.h
     include/ugu/synthesis/bdsim.cc
 
+    include/ugu/inflation/inflation.h
+    include/ugu/inflation/inflation.cc
+
     # implementations of header-only library
     ${UGU_STB_IMPLEMENTATION_CC}
     ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
