@@ -7,7 +7,7 @@
 
 #include "ugu/inflation/inflation.h"
 
-#include <iostream>
+#include <unordered_map>
 
 #include "Eigen/Sparse"
 
@@ -15,17 +15,18 @@ namespace {
 
 bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
                     bool inverse) {
-  constexpr double f = -4.0;
+  constexpr double f = -4.0;  // from reference
 
   height = ugu::Image1f::zeros(mask.rows, mask.cols);
 
   auto get_idx = [&](int x, int y) { return y * mask.rows + x; };
 
-  std::map<int, int> idx_map;
+  // Map from image index to parameter index
+  std::unordered_map<int, int> idx_map;
   {
     int idx = 0;
-    for (unsigned int y = 0; y < mask.rows; ++y) {
-      for (unsigned int x = 0; x < mask.cols; ++x) {
+    for (int y = 0; y < mask.rows; ++y) {
+      for (int x = 0; x < mask.cols; ++x) {
         if (mask.at<unsigned char>(y, x) != 0) {
           idx_map[get_idx(x, y)] = idx;
           ++idx;
@@ -55,7 +56,7 @@ bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
           if (mask.at<unsigned char>(j + 1, i) != 0) {
             triplets.push_back({cur_row, idx_map[get_idx(i, j + 1)], 1.0});
           }
-          cur_row++;
+          cur_row++;  // Go to the next equation
         }
       }
     }
@@ -65,33 +66,34 @@ bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
   A.setFromTriplets(triplets.begin(), triplets.end());
   // TODO: Is this solver the best?
   Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> solver;
+  // Prepare linear system
   solver.compute(A);
 
   Eigen::VectorXd b(num_param);
   b.setZero();
   {
     unsigned int cur_row = 0;
-    for (unsigned int j = 1; j < mask.rows - 1; j++) {
-      for (unsigned int i = 1; i < mask.cols - 1; i++) {
+    for (int j = 1; j < mask.rows - 1; j++) {
+      for (int i = 1; i < mask.cols - 1; i++) {
         if (mask.at<unsigned char>(j, i) != 0) {
-          b[cur_row] = f;
+          b[cur_row] = f;  // Set condition
 
-          ++cur_row;
+          cur_row++;
         }
       }
     }
   }
 
-  Eigen::VectorXd solution = solver.solve(b);
+  // Solve linear system
+  Eigen::VectorXd x = solver.solve(b);
 
   float max_h = -1.0f;
-
-  for (unsigned int j = 1; j < mask.rows - 1; j++) {
-    for (unsigned int i = 1; i < mask.cols - 1; i++) {
+  for (int j = 1; j < mask.rows - 1; j++) {
+    for (int i = 1; i < mask.cols - 1; i++) {
       if (mask.at<unsigned char>(j, i) != 0) {
         auto idx = idx_map[get_idx(i, j)];
         auto& h = height.at<float>(j, i);
-        h = static_cast<float>(std::sqrt(solution[idx]));
+        h = static_cast<float>(std::sqrt(x[idx]));
         if (h > max_h) {
           max_h = h;
         }
@@ -99,14 +101,15 @@ bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
     }
   }
 
+  // Inverse if specified
   if (inverse) {
     max_h += 0.00001f;
-    for (unsigned int j = 1; j < mask.rows - 1; j++) {
-      for (unsigned int i = 1; i < mask.cols - 1; i++) {
+    for (int j = 1; j < mask.rows - 1; j++) {
+      for (int i = 1; i < mask.cols - 1; i++) {
         if (mask.at<unsigned char>(j, i) != 0) {
           auto idx = idx_map[get_idx(i, j)];
           auto& h = height.at<float>(j, i);
-          h = max_h - static_cast<float>(std::sqrt(solution[idx]));
+          h = max_h - static_cast<float>(std::sqrt(x[idx]));
         }
       }
     }
