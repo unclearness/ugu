@@ -14,7 +14,7 @@ enum class InflationMethod {
 };
 
 
-bool Inflation(const Image1b& mask, Image1f& height, InflationMethod method = InflationMethod::BARAN);
+bool Inflation(const Image1b& mask, Image1f& height, bool inverse = false, InflationMethod method = InflationMethod::BARAN);
 
 
 }  // namespace ugu

@@ -205,6 +205,10 @@ class OrthoCamera : public Camera {
   OrthoCamera(int width, int height);
   OrthoCamera(int width, int height, const Eigen::Affine3d& c2w);
 
+  int width() const override;
+  int height() const override;
+  const Eigen::Affine3d& c2w() const override;
+  const Eigen::Affine3d& w2c() const override;
   void set_size(int width, int height) override;
   void set_c2w(const Eigen::Affine3d& c2w) override;
 
@@ -604,6 +608,15 @@ inline void OrthoCamera::set_c2w_no_raytable_update(
   w2c_R_f_ = w2c_.matrix().block<3, 3>(0, 0).cast<float>();
   w2c_t_f_ = w2c_.matrix().block<3, 1>(0, 3).cast<float>();
 }
+
+inline int OrthoCamera::width() const { return width_; }
+
+inline int OrthoCamera::height() const { return height_; }
+
+inline const Eigen::Affine3d& OrthoCamera::c2w() const { return c2w_; }
+
+inline const Eigen::Affine3d& OrthoCamera::w2c() const { return w2c_; }
+
 inline void OrthoCamera::set_size(int width, int height) {
   set_size_no_raytable_update(width, height);
 
