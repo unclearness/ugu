@@ -34,5 +34,9 @@ int main(int argc, char* argv[]) {
   ugu::Inflation(mask, height, mesh, params);
   mesh.WriteObj(data_dir, "00000_height_single");
 
+  params.generate_back = true;
+  ugu::Inflation(mask, height, mesh, params);
+  mesh.WriteObj(data_dir, "00000_height_double");
+
   return 0;
 }

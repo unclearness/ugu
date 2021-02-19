@@ -158,15 +158,41 @@ bool Inflation(const Image1b& mask, Image1f& height, Mesh& mesh,
     ugu::Depth2Mesh(height, *camera, &mesh, 999999.9f);
   }
 
+  mesh.CalcStats();
+  MeshStats stats = mesh.stats();
+
   if (params_.centering) {
-    mesh.CalcStats();
-    MeshStats stats = mesh.stats();
     mesh.Translate(-stats.center);
   }
 
   if (!params_.generate_back) {
     return true;
   }
+
+  // Find boundary loops to connect
+  auto [boundary_edges_list, boundary_vertex_ids_list] =
+      ugu::FindBoundaryLoops(mesh);
+
+  ugu::Mesh front = ugu::Mesh(mesh);
+  ugu::Mesh back = ugu::Mesh(mesh);
+
+  // Invert back vertex position
+  stats = mesh.stats();
+  auto back_vertices = back.vertices();
+  auto z_diff = stats.bb_max.z() - stats.bb_min.z();
+  auto inv_z_diff = 1.0f / z_diff;
+  for (auto& v : back_vertices) {
+    auto nz = (v.z() - stats.bb_min.z()) * inv_z_diff;
+    v.z() = (1.0f - nz) * z_diff + stats.bb_max.z();
+  }
+  back.set_vertices(back_vertices);
+
+  // Flip faces of the back mesh
+  back.FlipFaces();
+
+  bool use_same_material =
+      (params_.back_texture == InflationBackTexture::MIRRORED);
+  ugu::MergeMeshes(front, back, &mesh, use_same_material);
 
   return true;
 }
