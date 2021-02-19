@@ -10,6 +10,8 @@
 #include <unordered_map>
 
 #include "Eigen/Sparse"
+#include "ugu/camera.h"
+#include "ugu/util.h"
 
 namespace {
 
@@ -122,13 +124,51 @@ bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
 
 namespace ugu {
 
-bool Inflation(const Image1b& mask, Image1f& height, bool inverse,
-               InflationMethod method) {
-  if (method == InflationMethod::BARAN) {
-    return InflationBaran(mask, height, inverse);
+bool Inflation(const Image1b& mask, Image1f& height,
+               const InflationParams& params) {
+  if (params.method == InflationMethod::BARAN) {
+    return InflationBaran(mask, height, params.inverse);
   }
 
   return false;
+}
+
+bool Inflation(const Image1b& mask, Image1f& height, Mesh& mesh,
+               const InflationParams& params) {
+  InflationParams params_ = params;
+  params_.inverse = true;
+
+  bool ret = Inflation(mask, height, params_);
+  if (!ret) {
+    return false;
+  }
+
+  // Make mesh with ortho camera
+  std::shared_ptr<ugu::OrthoCamera> camera =
+      std::make_shared<ugu::OrthoCamera>();
+  camera->set_size(mask.cols, mask.rows);
+  camera->set_c2w(Eigen::Affine3d::Identity());
+
+  bool with_texture = params_.texture != nullptr;
+
+  mesh.Clear();
+  if (with_texture) {
+    ugu::Depth2Mesh(height, *params_.texture, *camera, &mesh, 999999.9f);
+  } else {
+    ugu::Depth2Mesh(height, *camera, &mesh, 999999.9f);
+  }
+
+  if (params_.centering) {
+    mesh.CalcStats();
+    MeshStats stats = mesh.stats();
+    mesh.Translate(-stats.center);
+  }
+
+  if (!params_.generate_back) {
+    return true;
+  }
+
+  return true;
 }
 
 }  // namespace ugu

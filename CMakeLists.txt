@@ -318,6 +318,12 @@ if (NOT hasParent)
   ${Ugu_LIBS}
   )
 
+  add_executable(ugu_inflation_test
+  test_inflation.cc)
+  target_include_directories(ugu_inflation_test PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(ugu_inflation_test
+  ${Ugu_LIBS}
+  )
 
 endif()
 
