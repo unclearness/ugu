@@ -148,6 +148,10 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
 bool MergeMeshes(const std::vector<std::shared_ptr<Mesh>>& src_meshes,
                  Mesh* merged);
 
+std::tuple<std::vector<std::vector<std::pair<int, int>>>,
+           std::vector<std::vector<int>>>
+FindBoundaryLoops(const Mesh& mesh);
+
 // make cube with 24 vertices
 std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
                                const Eigen::Matrix3f& R,

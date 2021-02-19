@@ -311,6 +311,13 @@ if (NOT hasParent)
   ${Ugu_LIBS}
   )
 
+  add_executable(ugu_adjacency_test
+  test_adjacency.cc)
+  target_include_directories(ugu_adjacency_test PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(ugu_adjacency_test
+  ${Ugu_LIBS}
+  )
+
 
 endif()
 

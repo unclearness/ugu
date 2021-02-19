@@ -4,13 +4,15 @@
  */
 
 #include "ugu/mesh.h"
-#include "gltf.h"
 
 #include <fstream>
 #include <map>
 #include <random>
 #include <sstream>
 #include <unordered_set>
+
+#include "gltf.h"
+#include "ugu/face_adjacency.h"
 
 #ifdef UGU_USE_TINYOBJLOADER
 #include "tiny_obj_loader.h"
@@ -1510,6 +1512,86 @@ bool MergeMeshes(const std::vector<std::shared_ptr<Mesh>>& src_meshes,
   *merged = tmp0;
 
   return true;
+}
+
+std::tuple<std::vector<std::vector<std::pair<int, int>>>,
+           std::vector<std::vector<int>>>
+FindBoundaryLoops(const Mesh& mesh) {
+  std::vector<std::vector<std::pair<int, int>>> boundary_edges_list;
+  std::vector<std::vector<int>> boundary_vertex_ids_list;
+
+  ugu::FaceAdjacency face_adjacency;
+  face_adjacency.Init(mesh.vertices().size(), mesh.vertex_indices());
+
+  auto [boundary_edges, boundary_vertex_ids] =
+      face_adjacency.GetBoundaryEdges();
+
+  if (boundary_edges.empty()) {
+    return {boundary_edges_list, boundary_vertex_ids_list};
+  }
+
+  auto cur_edge = boundary_edges[0];
+  boundary_edges.erase(boundary_edges.begin());
+
+  std::vector<std::pair<int, int>> cur_edges;
+  cur_edges.push_back(cur_edge);
+
+  while (true) {
+    // The same loop
+    // Find connecting vertex
+    bool found_connected = false;
+    size_t connected_index = -1;
+    for (auto i = 0; i < boundary_edges.size(); i++) {
+      const auto& e = boundary_edges[i];
+      if (cur_edge.second == e.first) {
+        found_connected = true;
+        connected_index = i;
+        cur_edge = e;
+        cur_edges.push_back(cur_edge);
+        break;
+      }
+    }
+
+    if (found_connected) {
+      boundary_edges.erase(boundary_edges.begin() + connected_index);
+    } else {
+      // May be the end of loop
+      bool loop_closed = false;
+      for (auto i = 0; i < cur_edges.size(); i++) {
+        const auto& e = cur_edges[i];
+        if (cur_edge.second == e.first) {
+          loop_closed = true;
+          break;
+        }
+      }
+      if (!loop_closed) {
+        ugu::LOGE("FindBoundaryLoops failed. Maybe non-manifold mesh?");
+        boundary_edges_list.clear();
+        boundary_vertex_ids_list.clear();
+        return {boundary_edges_list, boundary_vertex_ids_list};
+      }
+
+      boundary_edges_list.push_back(cur_edges);
+      std::vector<int> cur_boundary;
+      for (const auto& e : cur_edges) {
+        cur_boundary.push_back(e.first);
+      }
+      boundary_vertex_ids_list.push_back(cur_boundary);
+
+      cur_edges.clear();
+
+      // Go to another loop
+      if (boundary_edges.empty()) {
+        break;
+      }
+
+      cur_edge = boundary_edges[0];
+      boundary_edges.erase(boundary_edges.begin());
+      cur_edges.push_back(cur_edge);
+    }
+  }
+
+  return {boundary_edges_list, boundary_vertex_ids_list};
 }
 
 std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
