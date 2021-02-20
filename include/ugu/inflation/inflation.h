@@ -15,14 +15,9 @@ enum class InflationMethod {
          // http://alecjacobson.com/weblog/media/notes-on-inflating-curves-2009-baran.pdf
 };
 
-
-enum class InflationBackTextureType {
-  MIRRORED,
-  INPAINT
-};
+enum class InflationBackTextureType { MIRRORED, INPAINT };
 
 struct InflationParams {
-
   // Common
   InflationMethod method = InflationMethod::BARAN;
   bool inverse = false;
@@ -30,14 +25,17 @@ struct InflationParams {
   // For mesh
   Image3b* texture = nullptr;
   bool generate_back = false;
-  InflationBackTextureType back_texture_type = InflationBackTextureType::MIRRORED;
+  InflationBackTextureType back_texture_type =
+      InflationBackTextureType::MIRRORED;
   bool centering = true;
 
+  // For InflationBackTextureType::INPAINT
+  int inpaint_kernel_size = 5;
 };
 
-bool Inflation(const Image1b& mask, Image1f& height, const InflationParams& params = InflationParams());
+bool Inflation(const Image1b& mask, Image1f& height,
+               const InflationParams& params = InflationParams());
 bool Inflation(const Image1b& mask, Image1f& height, Mesh& mesh,
                const InflationParams& params = InflationParams());
-
 
 }  // namespace ugu
