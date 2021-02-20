@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (C) 2021, unclearness
  * All rights reserved.
  */
@@ -18,26 +18,30 @@ namespace {
 
 bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
                     bool inverse) {
-  constexpr double f = -4.0;  // from reference
+  // '''
+  // We have observed that solving the Poisson equation ∇2h(x, y) = −4,
+  // subject to h(∂Ω) = 0 and setting z = √ h produces very nice results(Figure
+  // 1) and is relatively fast and easy to compute.
+  // '''
 
   height = ugu::Image1f::zeros(mask.rows, mask.cols);
 
   auto get_idx = [&](int x, int y) { return y * mask.rows + x; };
 
   // Map from image index to parameter index
-  std::unordered_map<int, int> idx_map;
+  std::unordered_map<int, int> img2prm_idx;
   {
-    int idx = 0;
+    int prm_idx = 0;
     for (int y = 0; y < mask.rows; ++y) {
       for (int x = 0; x < mask.cols; ++x) {
         if (mask.at<unsigned char>(y, x) != 0) {
-          idx_map[get_idx(x, y)] = idx;
-          ++idx;
+          img2prm_idx[get_idx(x, y)] = prm_idx;
+          ++prm_idx;
         }
       }
     }
   }
-  const unsigned int num_param = (unsigned int)idx_map.size();
+  const unsigned int num_param = (unsigned int)img2prm_idx.size();
 
   std::vector<Eigen::Triplet<double>> triplets;
   {
@@ -46,18 +50,22 @@ bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
     for (int j = 1; j < mask.rows - 1; j++) {
       for (int i = 1; i < mask.cols - 1; i++) {
         if (mask.at<unsigned char>(j, i) != 0) {
-          triplets.push_back({cur_row, idx_map[get_idx(i, j)], -4.0});
+          triplets.push_back({cur_row, img2prm_idx[get_idx(i, j)], -4.0});
+
+          // Skip if a neighbor is not on mask (not an unknown parameter to
+          // estimate). This means setting 0 for the neighbor as known boundary
+          // condition. So that this skipping formualtes h(∂Ω) = 0
           if (mask.at<unsigned char>(j, i - 1) != 0) {
-            triplets.push_back({cur_row, idx_map[get_idx(i - 1, j)], 1.0});
+            triplets.push_back({cur_row, img2prm_idx[get_idx(i - 1, j)], 1.0});
           }
           if (mask.at<unsigned char>(j, i + 1) != 0) {
-            triplets.push_back({cur_row, idx_map[get_idx(i + 1, j)], 1.0});
+            triplets.push_back({cur_row, img2prm_idx[get_idx(i + 1, j)], 1.0});
           }
           if (mask.at<unsigned char>(j - 1, i) != 0) {
-            triplets.push_back({cur_row, idx_map[get_idx(i, j - 1)], 1.0});
+            triplets.push_back({cur_row, img2prm_idx[get_idx(i, j - 1)], 1.0});
           }
           if (mask.at<unsigned char>(j + 1, i) != 0) {
-            triplets.push_back({cur_row, idx_map[get_idx(i, j + 1)], 1.0});
+            triplets.push_back({cur_row, img2prm_idx[get_idx(i, j + 1)], 1.0});
           }
           cur_row++;  // Go to the next equation
         }
@@ -74,13 +82,14 @@ bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
 
   Eigen::VectorXd b(num_param);
   b.setZero();
+
+  constexpr double rhs = -4.0;  //  ∇2h(x, y) = −4
   {
-    unsigned int cur_row = 0;
+    int cur_row = 0;
     for (int j = 1; j < mask.rows - 1; j++) {
       for (int i = 1; i < mask.cols - 1; i++) {
         if (mask.at<unsigned char>(j, i) != 0) {
-          b[cur_row] = f;  // Set condition
-
+          b[cur_row] = rhs;  // Set condition
           cur_row++;
         }
       }
@@ -94,9 +103,9 @@ bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
   for (int j = 1; j < mask.rows - 1; j++) {
     for (int i = 1; i < mask.cols - 1; i++) {
       if (mask.at<unsigned char>(j, i) != 0) {
-        auto idx = idx_map[get_idx(i, j)];
+        auto idx = img2prm_idx[get_idx(i, j)];
         auto& h = height.at<float>(j, i);
-        h = static_cast<float>(std::sqrt(x[idx]));
+        h = static_cast<float>(std::sqrt(x[idx]));  // setting z = √ h
         if (h > max_h) {
           max_h = h;
         }
@@ -110,7 +119,7 @@ bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
     for (int j = 1; j < mask.rows - 1; j++) {
       for (int i = 1; i < mask.cols - 1; i++) {
         if (mask.at<unsigned char>(j, i) != 0) {
-          auto idx = idx_map[get_idx(i, j)];
+          auto idx = img2prm_idx[get_idx(i, j)];
           auto& h = height.at<float>(j, i);
           h = max_h - static_cast<float>(std::sqrt(x[idx]));
         }
