@@ -16,8 +16,7 @@ enum class InflationMethod {
 };
 
 
-enum class InflationBackTexture {
-  NONE,
+enum class InflationBackTextureType {
   MIRRORED,
   INPAINT
 };
@@ -31,7 +30,7 @@ struct InflationParams {
   // For mesh
   Image3b* texture = nullptr;
   bool generate_back = false;
-  InflationBackTexture back_texture = InflationBackTexture::MIRRORED;
+  InflationBackTextureType back_texture_type = InflationBackTextureType::MIRRORED;
   bool centering = true;
 
 };

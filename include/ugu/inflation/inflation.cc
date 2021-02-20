@@ -190,9 +190,48 @@ bool Inflation(const Image1b& mask, Image1f& height, Mesh& mesh,
   // Flip faces of the back mesh
   back.FlipFaces();
 
+  // Merge front and back meshes
   bool use_same_material =
-      (params_.back_texture == InflationBackTexture::MIRRORED);
+      (params_.back_texture_type == InflationBackTextureType::MIRRORED);
   ugu::MergeMeshes(front, back, &mesh, use_same_material);
+
+  // Make inpainted texture
+  if (params_.back_texture_type == InflationBackTextureType::INPAINT) {
+  }
+
+  // Generate side faces to make watertight surface
+  std::vector<Eigen::Vector3i> side_faces;
+  const auto f2b_voffset = front.vertices().size();
+  for (const auto& boundary_edges : boundary_edges_list) {
+    for (auto i = 0; i < boundary_edges.size(); i++) {
+      const auto& front_edge = boundary_edges[i];
+      const auto back_edge = std::make_pair<int, int>(
+          front_edge.first + f2b_voffset, front_edge.second + f2b_voffset);
+      Eigen::Vector3i f0 = {back_edge.first, front_edge.first,
+                            front_edge.second};
+      Eigen::Vector3i f1 = {back_edge.first, front_edge.second,
+                            back_edge.second};
+      side_faces.emplace_back(f0);
+      side_faces.emplace_back(f1);
+    }
+  }
+
+  // Add side faces to merged mesh
+  std::vector<Eigen::Vector3i> vertex_indices_with_side = mesh.vertex_indices();
+  std::copy(side_faces.begin(), side_faces.end(),
+            std::back_inserter(vertex_indices_with_side));
+  mesh.set_vertex_indices(vertex_indices_with_side);
+  mesh.set_uv_indices(vertex_indices_with_side);
+  mesh.set_normal_indices(vertex_indices_with_side);
+  mesh.CalcNormal();
+
+  // Update material_ids for side faces
+  std::vector<int> material_ids_with_side = mesh.material_ids();
+  std::vector<int> side_material_ids(side_faces.size(),
+                                     0);  // side material id is 0, front's one
+  std::copy(side_material_ids.begin(), side_material_ids.end(),
+            std::back_inserter(material_ids_with_side));
+  mesh.set_material_ids(material_ids_with_side);
 
   return true;
 }

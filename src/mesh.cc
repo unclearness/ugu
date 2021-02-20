@@ -1556,6 +1556,7 @@ FindBoundaryLoops(const Mesh& mesh) {
       boundary_edges.erase(boundary_edges.begin() + connected_index);
     } else {
       // May be the end of loop
+#if 0
       bool loop_closed = false;
       for (auto i = 0; i < cur_edges.size(); i++) {
         const auto& e = cur_edges[i];
@@ -1564,6 +1565,9 @@ FindBoundaryLoops(const Mesh& mesh) {
           break;
         }
       }
+#endif  // 0
+      bool loop_closed = (cur_edge.second == cur_edges[0].first);
+
       if (!loop_closed) {
         ugu::LOGE("FindBoundaryLoops failed. Maybe non-manifold mesh?");
         boundary_edges_list.clear();
@@ -1572,10 +1576,13 @@ FindBoundaryLoops(const Mesh& mesh) {
       }
 
       boundary_edges_list.push_back(cur_edges);
+
       std::vector<int> cur_boundary;
       for (const auto& e : cur_edges) {
         cur_boundary.push_back(e.first);
       }
+      assert(3 <= cur_edges.size());
+      assert(3 <= cur_boundary.size());
       boundary_vertex_ids_list.push_back(cur_boundary);
 
       cur_edges.clear();
