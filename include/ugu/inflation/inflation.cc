@@ -7,6 +7,7 @@
 
 #include "ugu/inflation/inflation.h"
 
+#include <set>
 #include <unordered_map>
 
 #include "Eigen/Sparse"
@@ -193,11 +194,111 @@ bool Inflation(const Image1b& mask, Image1f& height, Mesh& mesh,
   // Merge front and back meshes
   bool use_same_material =
       (params_.back_texture_type == InflationBackTextureType::MIRRORED);
-  ugu::MergeMeshes(front, back, &mesh, use_same_material);
+  // Make inpainted texture for back
+  if (with_texture &&
+      params_.back_texture_type == InflationBackTextureType::INPAINT) {
+    // Mask boundary pixels are original ones
+    ugu::Image1b eroded = ugu::Image1b::zeros(mask.rows, mask.cols);
+    ugu::Erode(mask, &eroded, 5);
+    ugu::Image1b org_pix_mask = ugu::Image1b::zeros(mask.rows, mask.cols);
+    ugu::Diff(mask, eroded, &org_pix_mask);  // Make diff with eroded to
+                                             // identify mask boundary pixels;
 
-  // Make inpainted texture
-  if (params_.back_texture_type == InflationBackTextureType::INPAINT) {
+    // ugu::imwrite("hoge.png", org_pix_mask);
+    // printf("%d\n", mesh.materials().size());
+    auto inpainted_mat = back.materials()[0];
+    inpainted_mat.diffuse_tex = ugu::Image3b::zeros(
+        mask.rows, mask.cols);  // Inpainted texture is same size to mask
+    auto& inpainted_tex = inpainted_mat.diffuse_tex;
+    inpainted_mat.diffuse_texname = inpainted_mat.name + "_inpainted.png";
+
+    // auto get_idx = [&](int x, int y) { return y * mask.rows + x; };
+
+    ugu::Image3b resized_org_tex = *params_.texture;
+    if (resized_org_tex.rows != mask.rows ||
+        resized_org_tex.cols != mask.cols) {
+      ugu::resize(*params_.texture, resized_org_tex,
+                  Size(mask.cols, mask.rows));
+    }
+
+    // Initialize not_visited pixels within inside mask and not on org_pix_mask
+    std::set<std::pair<int, int>> not_visited;
+    ugu::Image1b not_visited_mask = ugu::Image1b::zeros(mask.rows, mask.cols);
+    for (int j = 1; j < mask.rows - 1; j++) {
+      for (int i = 1; i < mask.cols - 1; i++) {
+        if (mask.at<unsigned char>(j, i) != 0 &&
+            org_pix_mask.at<unsigned char>(j, i) == 0) {
+          not_visited.insert({i, j});
+          not_visited_mask.at<unsigned char>(j, i) = 255;
+        }
+
+        if (org_pix_mask.at<unsigned char>(j, i) != 0) {
+          // Copy from original texture
+          inpainted_tex.at<Vec3b>(j, i) = resized_org_tex.at<Vec3b>(j, i);
+        }
+      }
+    }
+
+    auto inpaint_process = [&](int i, int j) {
+      auto& m = not_visited_mask.at<unsigned char>(j, i);
+      if (m != 0) {
+        // Check at least one inpainted pixel
+        std::vector<Vec3b> sources;
+        for (int jj = -1; jj <= 1; jj++) {
+          for (int ii = -1; ii <= 1; ii++) {
+            if (ii == 0 && jj == 0) {
+              continue;
+            }
+            if (not_visited_mask.at<unsigned char>(j + jj, i + ii) == 0) {
+              sources.push_back(inpainted_tex.at<Vec3b>(j + jj, i + ii));
+            }
+          }
+        }
+        if (sources.empty()) {
+          return;
+        }
+
+        // Make inpainted color
+        auto& inpainted_pix = inpainted_tex.at<Vec3b>(j, i);
+        for (int c = 0; c < 3; c++) {
+          double ave_color = 0.0;
+          for (const auto& s : sources) {
+            ave_color += s[c];
+          }
+          ave_color /= sources.size();
+          inpainted_pix[c] = static_cast<unsigned char>(ave_color);
+        }
+
+        // Update not_visited flags
+        m = 0;
+        not_visited.erase({i, j});
+      }
+      return;
+    };
+
+    int iter = 0;
+    while (!not_visited.empty()) {
+      // Update with two directions alternately to avoid artifact
+      if (iter % 2 == 0) {
+        for (int j = 1; j < mask.rows - 1; j++) {
+          for (int i = 1; i < mask.cols - 1; i++) {
+            inpaint_process(i, j);
+          }
+        }
+      } else {
+        for (int j = mask.rows - 2; j > 0; j--) {
+          for (int i = mask.cols - 2; i > 0; i--) {
+            inpaint_process(i, j);
+          }
+        }
+      }
+      iter++;
+    }
+
+    back.set_materials({inpainted_mat});
   }
+
+  ugu::MergeMeshes(front, back, &mesh, use_same_material);
 
   // Generate side faces to make watertight surface
   std::vector<Eigen::Vector3i> side_faces;

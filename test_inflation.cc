@@ -35,6 +35,7 @@ int main(int argc, char* argv[]) {
   mesh.WriteObj(data_dir, "00000_height_single");
 
   params.generate_back = true;
+  // params.back_texture_type = ugu::InflationBackTextureType::INPAINT;
   ugu::Inflation(mask, height, mesh, params);
   mesh.WriteObj(data_dir, "00000_height_double");
 
