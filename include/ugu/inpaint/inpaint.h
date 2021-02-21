@@ -14,8 +14,8 @@ namespace ugu {
 // Compared to Distance Transfrom, FMM is slower but more accurate and more
 // smooth. Telea, Alexandru. "An image inpainting technique based on the fast
 // marching method." Journal of graphics tools 9.1 (2004): 23-34.
-void FastMarchingMethod(const Image1b& mask, Image1f* dist,
-                        const float illegal_val = 0.f);
+void FastMarchingMethod(const Image1b& mask, Image1f& dist,
+                         float illegal_val = 0.f, float terminate_dist = -1.f);
 
 enum class InpaintMethod { NAIVE, TELEA };
 

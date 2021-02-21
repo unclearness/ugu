@@ -599,6 +599,18 @@ void Diff(const Image1b& src1, const Image1b& src2, Image1b* dst) {
          dst->data);
 }
 
+void Not(const Image1b& src, Image1b* dst) {
+  if (src.rows != dst->rows || src.cols != dst->cols) {
+    *dst = Image1b::zeros(src.rows, src.cols);
+  }
+  for (int y = 0; y < src.rows; y++) {
+    for (int x = 0; x < src.cols; x++) {
+      const auto& s = src.at<unsigned char>(y, x);
+      dst->at<unsigned char>(y, x) = ~s;
+    }
+  }
+}
+
 #ifdef UGU_USE_TINYCOLORMAP
 void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
                  float max_d, tinycolormap::ColormapType type) {

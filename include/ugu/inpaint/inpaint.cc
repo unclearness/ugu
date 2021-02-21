@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (C) 2021, unclearness
  * All rights reserved.
  *
@@ -117,72 +117,106 @@ void InpaintNaive(const ugu::Image1b& mask, ugu::Image3b& color,
   }
 }
 
-}  // namespace
+constexpr unsigned char UNKNOWN = 0;
+constexpr unsigned char BAND = 1;
+constexpr unsigned char KNOWN = 2;
+// constexpr unsigned char INSIDE = 3; // Used for inpainting with
+// modification
 
-namespace ugu {
+struct BandPix {
+  float T = std::numeric_limits<float>::max();  // distanceto - boundary
+  int x = 0;
+  int y = 0;
+  BandPix(){};
+  ~BandPix(){};
+  BandPix(float T_, int x_, int y_) {
+    T = T_;
+    x = x_;
+    y = y_;
+  }
+};
 
-void FastMarchingMethod(const Image1b& mask, Image1f* dist,
-                        const float illegal_val) {
-  // Reference of FMM for inpainting
-  // OpenCV implementation:
-  // https://github.com/opencv/opencv/blob/master/modules/photo/src/inpaint.cpp
-  // Author's implementation:
-  // https://github.com/erich666/jgt-code/blob/master/Volume_09/Number_1/Telea2004/AFMM_Inpainting/fmm.cpp
-  // A python implementation: https://github.com/olvb/pyheal
+auto band_pix_compare = [](const BandPix& l, const BandPix& r) { return l.T > r.T; };
+using InpaintHeap = std::priority_queue<BandPix, std::vector<BandPix>, decltype(band_pix_compare)>;
 
-  constexpr unsigned char UNKNOWN = 0;
-  constexpr unsigned char BAND = 1;
-  constexpr unsigned char KNOWN = 2;
-  // constexpr unsigned char INSIDE = 3; // Used for inpainting with
-  // modification
-
-  Image1b flags = Image1b::zeros(mask.rows, mask.cols);
-
-  if (mask.cols != dist->cols || mask.rows != dist->rows) {
-    *dist = Image1f::zeros(mask.rows, mask.cols);
-  } else {
-    dist->setTo(0.f);
+float SolveEikonal(int i1, int j1, int i2, int j2, const ugu::Image1b& flags,
+                   const ugu::Image1f& dist) {
+  if (flags.cols - 1 < i1 || flags.cols - 1 < i2 || flags.rows - 1 < j1 ||
+      flags.rows - 1 < j2) {
+    return std::numeric_limits<float>::max();
   }
 
-  struct FrontPix {
-    float T = std::numeric_limits<float>::max();  // distanceto - boundary
-    int x = 0;
-    int y = 0;
-    FrontPix(){};
-    ~FrontPix(){};
-    FrontPix(float T_, int x_, int y_) {
-      T = T_;
-      x = x_;
-      y = y_;
+  if (flags.at<unsigned char>(j1, i1) != UNKNOWN &&
+      flags.at<unsigned char>(j2, i2) != UNKNOWN) {
+    const auto& d1 = dist.at<float>(j1, i1);
+    const auto& d2 = dist.at<float>(j2, i2);
+    const auto d_diff = std::abs(d1 - d2);
+
+    if (d_diff >= 1.f) {
+      return 1.f + std::min(d1, d2);
     }
-  };
 
-  auto compare = [](const FrontPix& l, const FrontPix& r) { return l.T > r.T; };
-  std::priority_queue<FrontPix, std::vector<FrontPix>, decltype(compare)>
-      narrow_band{compare};
+    float d = 2.f - d_diff * d_diff;
+    if (d > 0.f) {
+      float r = std::sqrt(d);
+      float s = (d1 + d2 - r) * 0.5f;
+      if (d1 <= s && d2 <= s) {
+        return s;
+      }
+      s += r;
+      if (d1 <= s && d2 <= s) {
+        return s;
+      }
+      // Failure case
+      return std::numeric_limits<float>::max();
+    }
+  }
 
+  if (flags.at<unsigned char>(j1, i1) != UNKNOWN) {
+    return 1.f + dist.at<float>(j1, i1);
+  }
+
+  if (flags.at<unsigned char>(j2, i2) != UNKNOWN) {
+    return 1.f + dist.at<float>(j2, i2);
+  }
+
+  return std::numeric_limits<float>::max();
+};
+
+std::vector<std::pair<int, int>> GenNeighbors4(int i, int j,
+                                               const ugu::Image1b& mask) {
+  std::vector<std::pair<int, int>> neighbors_4;
+  if (0 < i) {
+    neighbors_4.push_back({i - 1, j});
+  }
+  if (i < mask.cols - 1) {
+    neighbors_4.push_back({i + 1, j});
+  }
+  if (0 < j) {
+    neighbors_4.push_back({i, j - 1});
+  }
+  if (j < mask.rows - 1) {
+    neighbors_4.push_back({i, j + 1});
+  }
+
+  return neighbors_4;
+}
+
+void FmmInitCommon(const ugu::Image1b& mask, ugu::Image1b& flags,
+                   ugu::Image1f& dist, InpaintHeap& narrow_band) {
   // Initialization
   for (int j = 0; j < mask.rows; j++) {
     for (int i = 0; i < mask.cols; i++) {
       if (mask.at<unsigned char>(j, i) == 0) {
-        flags.at<unsigned char>(j, i) = KNOWN;  // outside of mask is known as 0
+        if (flags.at<unsigned char>(j, i) == UNKNOWN) {
+          flags.at<unsigned char>(j, i) =
+              KNOWN;  // outside of mask is known as 0
+        }
         continue;
       }
 
       // Check 4-neightbors if it contancts non-zero pixel
-      std::vector<std::pair<int, int>> neighbors_4;
-      if (0 < i) {
-        neighbors_4.push_back({i - 1, j});
-      }
-      if (i < mask.cols - 1) {
-        neighbors_4.push_back({i + 1, j});
-      }
-      if (0 < j) {
-        neighbors_4.push_back({i, j - 1});
-      }
-      if (j < mask.rows - 1) {
-        neighbors_4.push_back({i, j + 1});
-      }
+      std::vector<std::pair<int, int>> neighbors_4 = GenNeighbors4(i, j, mask);
       for (auto& neighbor : neighbors_4) {
         auto [x, y] = neighbor;
 
@@ -192,56 +226,176 @@ void FastMarchingMethod(const Image1b& mask, Image1f* dist,
         }
 
         if (mask.at<unsigned char>(y, x) == 0) {
-          narrow_band.push(FrontPix(0.f, x, y));
-          dist->at<float>(y, x) = 0.f;
+          narrow_band.push(BandPix(0.f, x, y));
+          dist.at<float>(y, x) = 0.f;
           f = BAND;
         }
       }
     }
   }
+}
 
-  auto solve_eikonal = [&](int i1, int j1, int i2, int j2) -> float {
-    if (flags.cols - 1 < i1 || flags.cols - 1 < i2 || flags.rows - 1 < j1 ||
-        flags.rows - 1 < j2) {
-      return std::numeric_limits<float>::max();
-    }
+void InpaintTeleaPixel(int i, int j, const ugu::Image1b& mask,
+                       ugu::Image3b& color, const ugu::Image1b& flags,
+                       const ugu::Image1f& dist, int inpaint_range) {
+  ugu::Vec2f grad_T{0.f, 0.f};
+  if (0 <= i - 1 && flags.at<unsigned char>(j, i - 1) == KNOWN &&
+      i + 1 < flags.cols && flags.at<unsigned char>(j, i + 1) == KNOWN) {
+    grad_T[0] = (dist.at<float>(j, i + 1) - dist.at<float>(j, i - 1)) * 0.5f;
+  } else if (i + 1 < flags.cols && flags.at<unsigned char>(j, i + 1) == KNOWN) {
+    grad_T[0] = dist.at<float>(j, i + 1) - dist.at<float>(j, i);
+  } else if (0 <= i - 1 && flags.at<unsigned char>(j, i - 1) == KNOWN) {
+    grad_T[0] = dist.at<float>(j, i) - dist.at<float>(j, i - 1);
+  }
 
-    if (flags.at<unsigned char>(j1, i1) != UNKNOWN &&
-        flags.at<unsigned char>(j2, i2) != UNKNOWN) {
-      const auto& d1 = dist->at<float>(j1, i1);
-      const auto& d2 = dist->at<float>(j2, i2);
-      const auto d_diff = std::abs(d1 - d2);
+  if (0 <= j - 1 && flags.at<unsigned char>(j - 1, i) == KNOWN &&
+      j + 1 < flags.rows && flags.at<unsigned char>(j + 1, i) == KNOWN) {
+    grad_T[1] = (dist.at<float>(j + 1, i) - dist.at<float>(j - 1, i)) * 0.5f;
+  } else if (j + 1 < flags.rows && flags.at<unsigned char>(j + 1, i) == KNOWN) {
+    grad_T[1] = dist.at<float>(j + 1, i) - dist.at<float>(j, i);
+  } else if (0 <= j - 1 && flags.at<unsigned char>(j - 1, i) == KNOWN) {
+    grad_T[1] = dist.at<float>(j, i) - dist.at<float>(j - 1, i);
+  }
 
-      if (d_diff >= 1.f) {
-        return 1.f + std::min(d1, d2);
-      }
+  float grad_T_norm = std::sqrt(grad_T[0] * grad_T[0] + grad_T[1] * grad_T[1]);
+  if (0.000001f < grad_T_norm) {
+    grad_T[0] /= grad_T_norm;
+    grad_T[1] /= grad_T_norm;
+  }
 
-      float d = 2.f - d_diff * d_diff;
-      if (d > 0.f) {
-        float r = std::sqrt(d);
-        float s = (d1 + d2 - r) * 0.5f;
-        if (d1 <= s && d2 <= s) {
-          return s;
+  int min_x = std::max(0, i - inpaint_range);
+  int max_x = std::min(color.cols - 1, i + inpaint_range);
+  int min_y = std::max(0, j - inpaint_range);
+  int max_y = std::min(color.rows - 1, j + inpaint_range);
+
+  float inpaint_range_sq = inpaint_range * inpaint_range;
+
+  constexpr double eps = 1.0e-20f;
+  constexpr double d0_sq = 1.0;
+  constexpr double T0 = 1.0;
+
+  for (int c = 0; c < 3; c++) {
+    double Jx = 0, Jy = 0;
+    double Ia = 0;
+    double w_sum = eps;
+    for (int jj = min_y; jj <= max_y; jj++) {
+      for (int ii = min_x; ii <= max_x; ii++) {
+        if (flags.at<unsigned char>(jj, ii) != KNOWN) {
+          continue;
         }
-        s += r;
-        if (d1 <= s && d2 <= s) {
-          return s;
+        float actual_r_sq = (jj - j) * (jj - j) + (ii - i) * (ii - i);
+        if (inpaint_range_sq < actual_r_sq) {
+          continue;
         }
-        // Failure case
-        return std::numeric_limits<float>::max();
+
+        ugu::Vec2f vec{0.f, 0.f};
+        vec[0] = (i - ii);
+        vec[1] = (j - jj);
+
+        double pix_dist_sq = vec[0] * vec[0] + vec[1] * vec[1];
+        double pix_dist = std::sqrt(pix_dist_sq);
+
+        // The directional component  (dot product of relative pixel position
+        // vector and normal direction)
+        double direc_w = vec[0] * grad_T[0] + vec[1] * grad_T[1];
+        direc_w /= (pix_dist + eps);
+
+        direc_w = std::abs(direc_w) < eps ? eps : direc_w;
+
+        // The geometric distance component (pixel position difference)
+        double distance_w = d0_sq / (pix_dist_sq + eps);
+
+        // The level set distance component (marched distance difference)
+        double levelset_w =
+            T0 /
+            (1.0 + std::abs(dist.at<float>(j, i) - dist.at<float>(jj, ii)));
+
+        double weight = std::abs(direc_w * distance_w * levelset_w);
+
+        ugu::Vec2f grad_I{0.f, 0.f};
+        if (0 <= ii - 1 && flags.at<unsigned char>(jj, ii - 1) == KNOWN &&
+            ii + 1 < flags.cols &&
+            flags.at<unsigned char>(jj, ii + 1) == KNOWN) {
+          grad_I[0] = (color.at<ugu::Vec3b>(jj, ii + 1)[c] -
+                       color.at<ugu::Vec3b>(jj, ii - 1)[c]) *
+                      0.5f;
+        } else if (ii + 1 < flags.cols &&
+                   flags.at<unsigned char>(jj, ii + 1) == KNOWN) {
+          grad_I[0] = color.at<ugu::Vec3b>(jj, ii + 1)[c] -
+                      color.at<ugu::Vec3b>(jj, ii)[c];
+        } else if (0 <= ii - 1 &&
+                   flags.at<unsigned char>(jj, ii - 1) == KNOWN) {
+          grad_I[0] = color.at<ugu::Vec3b>(jj, ii)[c] -
+                      color.at<ugu::Vec3b>(jj, ii - 1)[c];
+        }
+
+        if (0 <= jj - 1 && flags.at<unsigned char>(jj - 1, ii) == KNOWN &&
+            jj + 1 < flags.rows &&
+            flags.at<unsigned char>(jj + 1, ii) == KNOWN) {
+          grad_I[1] = (color.at<ugu::Vec3b>(jj + 1, ii)[c] -
+                       color.at<ugu::Vec3b>(jj - 1, ii)[c]) *
+                      0.5f;
+        } else if (jj + 1 < flags.rows &&
+                   flags.at<unsigned char>(jj + 1, ii) == KNOWN) {
+          grad_I[1] = color.at<ugu::Vec3b>(jj + 1, ii)[c] -
+                      color.at<ugu::Vec3b>(jj, ii)[c];
+        } else if (0 <= jj - 1 &&
+                   flags.at<unsigned char>(jj - 1, ii) == KNOWN) {
+          grad_I[1] = color.at<ugu::Vec3b>(jj, ii)[c] -
+                      color.at<ugu::Vec3b>(jj - 1, ii)[c];
+        }
+
+        Ia += weight * color.at<ugu::Vec3b>(jj, ii)[c];
+        Jx -= weight * (grad_I[0] * vec[0]);
+        Jy -= weight * (grad_I[1] * vec[1]);
+        w_sum += weight;
       }
     }
 
-    if (flags.at<unsigned char>(j1, i1) != UNKNOWN) {
-      return 1.f + dist->at<float>(j1, i1);
-    }
+    double weighted_val =
+        ((Ia / w_sum + (Jx + Jy) / (std::sqrt(Jx * Jx + Jy * Jy) + eps) + 0.5));
+    color.at<ugu::Vec3b>(j, i)[c] =
+        static_cast<unsigned char>(std::clamp(weighted_val, 0.0, 255.0));
+  }
+}
 
-    if (flags.at<unsigned char>(j2, i2) != UNKNOWN) {
-      return 1.f + dist->at<float>(j2, i2);
-    }
+void InpaintTelea(const ugu::Image1b& mask, ugu::Image3b& color,
+                  float inpaint_radius) {
+  inpaint_radius = std::max(inpaint_radius, 1.f);
 
-    return std::numeric_limits<float>::max();
-  };
+  ugu::Image1b flags = ugu::Image1b::zeros(mask.rows, mask.cols);
+  ugu::Image1f dist = ugu::Image1f::zeros(mask.rows, mask.cols);
+
+  InpaintHeap narrow_band{band_pix_compare};
+
+  // Initialization
+  FmmInitCommon(mask, flags, dist, narrow_band);
+
+  // Make inverted mask
+  ugu::Image1b inv_mask;
+  ugu::Not(mask, &inv_mask);
+  // "
+  // We first run the FMM outside the initial inpainting boundary ∂Ω and obtain
+  // the distance field Tout.Since we use only those points closer to ∂Ω than ε,
+  // we run the FMM outside ∂Ω only until we reach T > ε.This restricts the FMM
+  // computations to a band of thickness ε around ∂Ω, thus speeding up the
+  // process.
+  // "
+  ugu::Image1f out_dist;
+  ugu::FastMarchingMethod(inv_mask, out_dist, 0.0f, 2 * inpaint_radius);
+  for (int j = 0; j < mask.rows; j++) {
+    for (int i = 0; i < mask.cols; i++) {
+      const auto& out_d = out_dist.at<float>(j, i);
+      if (out_d > 0.f) {
+        dist.at<float>(j, i) = -out_d;
+        flags.at<unsigned char>(j, i) = KNOWN;
+      }
+    }
+  }
+
+  constexpr float illegal_val = std::numeric_limits<float>::max();
+
+  int inpaint_range = static_cast<int>(std::round(inpaint_radius));
 
   while (!narrow_band.empty()) {
     const auto head = narrow_band.top();
@@ -250,19 +404,7 @@ void FastMarchingMethod(const Image1b& mask, Image1f* dist,
 
     int i = head.x;
     int j = head.y;
-    std::vector<std::pair<int, int>> neighbors_4;
-    if (0 < i) {
-      neighbors_4.push_back({i - 1, j});
-    }
-    if (i < mask.cols - 1) {
-      neighbors_4.push_back({i + 1, j});
-    }
-    if (0 < j) {
-      neighbors_4.push_back({i, j - 1});
-    }
-    if (j < mask.rows - 1) {
-      neighbors_4.push_back({i, j + 1});
-    }
+    std::vector<std::pair<int, int>> neighbors_4 = GenNeighbors4(i, j, mask);
     for (auto& neighbor : neighbors_4) {
       auto [x, y] = neighbor;
 
@@ -271,17 +413,89 @@ void FastMarchingMethod(const Image1b& mask, Image1f* dist,
         continue;
       }
 
-      auto& d = dist->at<float>(y, x);
-      d = std::min({solve_eikonal(x - 1, y, x, y - 1),
-                    solve_eikonal(x + 1, y, x, y - 1),
-                    solve_eikonal(x - 1, y, x, y + 1),
-                    solve_eikonal(x + 1, y, x, y + 1)});
+      auto& d = dist.at<float>(y, x);
+      d = std::min({SolveEikonal(x - 1, y, x, y - 1, flags, dist),
+                    SolveEikonal(x + 1, y, x, y - 1, flags, dist),
+                    SolveEikonal(x - 1, y, x, y + 1, flags, dist),
+                    SolveEikonal(x + 1, y, x, y + 1, flags, dist)});
       if (std::numeric_limits<float>::max() * 0.1f < d) {
         d = illegal_val;
       }
 
+      // Inpaint process
+      InpaintTeleaPixel(x, y, mask, color, flags, dist, inpaint_range);
+
+
       f = BAND;
-      narrow_band.push(FrontPix(d, x, y));
+      narrow_band.push(BandPix(d, x, y));
+    }
+
+  }
+
+
+
+}
+
+}  // namespace
+
+namespace ugu {
+
+void FastMarchingMethod(const Image1b& mask, Image1f& dist, float illegal_val,
+                        float terminate_dist) {
+  // Reference of FMM for inpainting
+  // OpenCV implementation:
+  // https://github.com/opencv/opencv/blob/master/modules/photo/src/inpaint.cpp
+  // Author's implementation:
+  // https://github.com/erich666/jgt-code/blob/master/Volume_09/Number_1/Telea2004/AFMM_Inpainting/fmm.cpp
+  // A python implementation: https://github.com/olvb/pyheal
+
+  Image1b flags = Image1b::zeros(mask.rows, mask.cols);
+
+  if (mask.cols != dist.cols || mask.rows != dist.rows) {
+    dist = Image1f::zeros(mask.rows, mask.cols);
+  } else {
+    dist.setTo(0.f);
+  }
+
+  InpaintHeap narrow_band{band_pix_compare};
+
+  // Initialization
+  FmmInitCommon(mask, flags, dist, narrow_band);
+
+  float lastest_dist = 0.f;
+  while (!narrow_band.empty()) {
+    const auto head = narrow_band.top();
+    narrow_band.pop();
+    flags.at<unsigned char>(head.y, head.x) = KNOWN;
+
+    int i = head.x;
+    int j = head.y;
+    std::vector<std::pair<int, int>> neighbors_4 = GenNeighbors4(i, j, mask);
+    for (auto& neighbor : neighbors_4) {
+      auto [x, y] = neighbor;
+
+      auto& f = flags.at<unsigned char>(y, x);
+      if (f != UNKNOWN) {
+        continue;
+      }
+
+      auto& d = dist.at<float>(y, x);
+      d = std::min({SolveEikonal(x - 1, y, x, y - 1, flags, dist),
+                    SolveEikonal(x + 1, y, x, y - 1, flags, dist),
+                    SolveEikonal(x - 1, y, x, y + 1, flags, dist),
+                    SolveEikonal(x + 1, y, x, y + 1, flags, dist)});
+      if (std::numeric_limits<float>::max() * 0.1f < d) {
+        d = illegal_val;
+      } else {
+        lastest_dist = std::max(d, lastest_dist);
+      }
+
+      f = BAND;
+      narrow_band.push(BandPix(d, x, y));
+    }
+
+    if (terminate_dist > 0.f && terminate_dist <= lastest_dist) {
+      break;
     }
   }
 }
@@ -291,6 +505,7 @@ void Inpaint(const Image1b& mask, Image3b& color, float inpaint_radius,
   if (method == InpaintMethod::NAIVE) {
     return InpaintNaive(mask, color, static_cast<int>(inpaint_radius));
   } else if (method == InpaintMethod::TELEA) {
+    return InpaintTelea(mask, color, inpaint_radius);
   }
 }
 

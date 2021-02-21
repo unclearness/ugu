@@ -734,6 +734,7 @@ void BoxFilter(const Image3f& src, Image3f* dst, int kernel);
 void Erode(const Image1b& src, Image1b* dst, int kernel);
 void Dilate(const Image1b& src, Image1b* dst, int kernel);
 void Diff(const Image1b& src1, const Image1b& src2, Image1b* dst);
+void Not(const Image1b& src, Image1b* dst);
 
 template <typename T>
 float NormL2(const T& src) {
