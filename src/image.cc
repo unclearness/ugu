@@ -518,7 +518,15 @@ void SignedDistance2Color(const Image1f& sdf, Image3b* vis_sdf,
   }
 }
 
-void FastMarchingMethod(const Image1b& mask, Image1f* dist) {
+void FastMarchingMethod(const Image1b& mask, Image1f* dist,
+                        const float illegal_val) {
+  // Reference of FMM for inpainting
+  // OpenCV implementation:
+  // https://github.com/opencv/opencv/blob/master/modules/photo/src/inpaint.cpp
+  // Author's implementation:
+  // https://github.com/erich666/jgt-code/blob/master/Volume_09/Number_1/Telea2004/AFMM_Inpainting/fmm.cpp
+  // A python implementation: https://github.com/olvb/pyheal
+
   constexpr unsigned char UNKNOWN = 0;
   constexpr unsigned char BAND = 1;
   constexpr unsigned char KNOWN = 2;
@@ -535,8 +543,6 @@ void FastMarchingMethod(const Image1b& mask, Image1f* dist) {
 
   struct FrontPix {
     float T = std::numeric_limits<float>::max();  // distanceto - boundary
-    // float I = -1.f;
-    // unsigned char flag = KNOWN;
     int x = 0;
     int y = 0;
     FrontPix(){};
@@ -548,32 +554,30 @@ void FastMarchingMethod(const Image1b& mask, Image1f* dist) {
     }
   };
 
-  auto compare = [](const FrontPix& l, const FrontPix& r)  {
-    return l.T > r.T;
-  };
+  auto compare = [](const FrontPix& l, const FrontPix& r) { return l.T > r.T; };
   std::priority_queue<FrontPix, std::vector<FrontPix>, decltype(compare)>
       narrow_band{compare};
 
   // Initialization
-  for (int j = 2; j < mask.rows - 2; j++) {
-    for (int i = 2; i < mask.cols - 2; i++) {
+  for (int j = 0; j < mask.rows; j++) {
+    for (int i = 0; i < mask.cols; i++) {
       if (mask.at<unsigned char>(j, i) == 0) {
-        flags.at<unsigned char>(j, i) = KNOWN; // outside of mask is known as 0
+        flags.at<unsigned char>(j, i) = KNOWN;  // outside of mask is known as 0
         continue;
       }
 
       // Check 4-neightbors if it contancts non-zero pixel
       std::vector<std::pair<int, int>> neighbors_4;
       if (0 < i) {
-        neighbors_4.push_back({i-1, j});
-        }
+        neighbors_4.push_back({i - 1, j});
+      }
       if (i < mask.cols - 1) {
         neighbors_4.push_back({i + 1, j});
       }
       if (0 < j) {
         neighbors_4.push_back({i, j - 1});
       }
-      if (j < mask.rows -1) {
+      if (j < mask.rows - 1) {
         neighbors_4.push_back({i, j + 1});
       }
       for (auto& neighbor : neighbors_4) {
@@ -599,12 +603,17 @@ void FastMarchingMethod(const Image1b& mask, Image1f* dist) {
       return std::numeric_limits<float>::max();
     }
 
-    if (flags.at<unsigned char>(j1, i1) == KNOWN &&
-        flags.at<unsigned char>(j2, i2) == KNOWN) {
+    if (flags.at<unsigned char>(j1, i1) != UNKNOWN &&
+        flags.at<unsigned char>(j2, i2) != UNKNOWN) {
       const auto& d1 = dist->at<float>(j1, i1);
       const auto& d2 = dist->at<float>(j2, i2);
+      const auto d_diff = std::abs(d1 - d2);
 
-      float d = 2.f - (d1 - d2) * (d1 - d2);
+      if (d_diff >= 1.f) {
+        return 1.f + std::min(d1, d2);
+      }
+
+      float d = 2.f - d_diff * d_diff;
       if (d > 0.f) {
         float r = std::sqrt(d);
         float s = (d1 + d2 - r) * 0.5f;
@@ -620,27 +629,24 @@ void FastMarchingMethod(const Image1b& mask, Image1f* dist) {
       }
     }
 
-    if (flags.at<unsigned char>(j1, i1) == KNOWN) {
+    if (flags.at<unsigned char>(j1, i1) != UNKNOWN) {
       return 1.f + dist->at<float>(j1, i1);
     }
 
-    if (flags.at<unsigned char>(j2, i2) == KNOWN) {
+    if (flags.at<unsigned char>(j2, i2) != UNKNOWN) {
       return 1.f + dist->at<float>(j2, i2);
     }
 
     return std::numeric_limits<float>::max();
   };
 
-  constexpr float illegal_val = 0.f;
-  int iter =0;
   while (!narrow_band.empty()) {
-    const auto head = narrow_band.top(); /* STEP 1 */
+    const auto head = narrow_band.top();
     narrow_band.pop();
     flags.at<unsigned char>(head.y, head.x) = KNOWN;
 
     int i = head.x;
     int j = head.y;
-    LOGI("%f\n", head.T);
     std::vector<std::pair<int, int>> neighbors_4;
     if (0 < i) {
       neighbors_4.push_back({i - 1, j});
@@ -663,20 +669,16 @@ void FastMarchingMethod(const Image1b& mask, Image1f* dist) {
       }
 
       auto& d = dist->at<float>(y, x);
-      d = std::min({solve_eikonal(x, y - 1, x - 1, y),
-                    solve_eikonal(x, y + 1, x + 1, y),
-                    solve_eikonal(x, y - 1, x + 1, y),
-                    solve_eikonal(x, y + 1, x - 1, y)});
+      d = std::min({solve_eikonal(x - 1, y, x, y - 1),
+                    solve_eikonal(x + 1, y, x, y - 1),
+                    solve_eikonal(x - 1, y, x, y + 1),
+                    solve_eikonal(x + 1, y, x, y + 1)});
       if (std::numeric_limits<float>::max() * 0.1f < d) {
         d = illegal_val;
       }
 
       f = BAND;
       narrow_band.push(FrontPix(d, x, y));
-    }
-    iter++;
-    if (iter > 3000) {
-      break;
     }
   }
 }
