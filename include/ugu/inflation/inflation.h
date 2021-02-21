@@ -7,6 +7,7 @@
 
 #include "ugu/image.h"
 #include "ugu/mesh.h"
+#include "ugu/inpaint/inpaint.h"
 
 namespace ugu {
 
@@ -31,6 +32,7 @@ struct InflationParams {
 
   // For InflationBackTextureType::INPAINT
   int inpaint_kernel_size = 5;
+  InpaintMethod inpaint_method = InpaintMethod::TELEA;
 };
 
 bool Inflation(const Image1b& mask, Image1f& height,

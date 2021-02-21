@@ -241,6 +241,9 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/inflation/inflation.h
     include/ugu/inflation/inflation.cc
 
+    include/ugu/inpaint/inpaint.h
+    include/ugu/inpaint/inpaint.cc
+
     # implementations of header-only library
     ${UGU_STB_IMPLEMENTATION_CC}
     ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
@@ -322,6 +325,13 @@ if (NOT hasParent)
   test_inflation.cc)
   target_include_directories(ugu_inflation_test PRIVATE ${Ugu_INCLUDE_DIRS})
   target_link_libraries(ugu_inflation_test
+  ${Ugu_LIBS}
+  )
+
+  add_executable(ugu_inpaint_test
+  test_inpaint.cc)
+  target_include_directories(ugu_inpaint_test PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(ugu_inpaint_test
   ${Ugu_LIBS}
   )
 

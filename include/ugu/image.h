@@ -715,13 +715,6 @@ void MakeSignedDistanceField(const Image1b& mask,
 void SignedDistance2Color(const Image1f& sdf, Image3b* vis_sdf,
                           float min_negative_d, float max_positive_d);
 
-// Implements Fast Marching Method (FMM) used in the following paper.
-// Compared to Distance Transfrom, FMM is slower but more accurate and more smooth.
-// Telea, Alexandru. "An image inpainting technique based on the fast marching
-// method." Journal of graphics tools 9.1 (2004): 23-34.
-void FastMarchingMethod(const Image1b& mask, Image1f* dist,
-                        const float illegal_val = 0.f);
-
 #ifdef UGU_USE_TINYCOLORMAP
 void Depth2Color(
     const Image1f& depth, Image3b* vis_depth, float min_d = 200.0f,
