@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <queue>
 #include <random>
 #include <unordered_map>
 
@@ -513,6 +514,169 @@ void SignedDistance2Color(const Image1f& sdf, Image3b* vis_sdf,
         c[1] = static_cast<uint8_t>(255 * norm_inv_dist);
         c[2] = static_cast<uint8_t>(255);
       }
+    }
+  }
+}
+
+void FastMarchingMethod(const Image1b& mask, Image1f* dist) {
+  constexpr unsigned char UNKNOWN = 0;
+  constexpr unsigned char BAND = 1;
+  constexpr unsigned char KNOWN = 2;
+  // constexpr unsigned char INSIDE = 3; // Used for inpainting with
+  // modification
+
+  Image1b flags = Image1b::zeros(mask.rows, mask.cols);
+
+  if (mask.cols != dist->cols || mask.rows != dist->rows) {
+    *dist = Image1f::zeros(mask.rows, mask.cols);
+  } else {
+    dist->setTo(0.f);
+  }
+
+  struct FrontPix {
+    float T = std::numeric_limits<float>::max();  // distanceto - boundary
+    // float I = -1.f;
+    // unsigned char flag = KNOWN;
+    int x = 0;
+    int y = 0;
+    FrontPix(){};
+    ~FrontPix(){};
+    FrontPix(float T_, int x_, int y_) {
+      T = T_;
+      x = x_;
+      y = y_;
+    }
+  };
+
+  auto compare = [](const FrontPix& l, const FrontPix& r)  {
+    return l.T > r.T;
+  };
+  std::priority_queue<FrontPix, std::vector<FrontPix>, decltype(compare)>
+      narrow_band{compare};
+
+  // Initialization
+  for (int j = 2; j < mask.rows - 2; j++) {
+    for (int i = 2; i < mask.cols - 2; i++) {
+      if (mask.at<unsigned char>(j, i) == 0) {
+        flags.at<unsigned char>(j, i) = KNOWN; // outside of mask is known as 0
+        continue;
+      }
+
+      // Check 4-neightbors if it contancts non-zero pixel
+      std::vector<std::pair<int, int>> neighbors_4;
+      if (0 < i) {
+        neighbors_4.push_back({i-1, j});
+        }
+      if (i < mask.cols - 1) {
+        neighbors_4.push_back({i + 1, j});
+      }
+      if (0 < j) {
+        neighbors_4.push_back({i, j - 1});
+      }
+      if (j < mask.rows -1) {
+        neighbors_4.push_back({i, j + 1});
+      }
+      for (auto& neighbor : neighbors_4) {
+        auto [x, y] = neighbor;
+
+        auto& f = flags.at<unsigned char>(y, x);
+        if (f == BAND) {
+          continue;
+        }
+
+        if (mask.at<unsigned char>(y, x) == 0) {
+          narrow_band.push(FrontPix(0.f, x, y));
+          dist->at<float>(y, x) = 0.f;
+          f = BAND;
+        }
+      }
+    }
+  }
+
+  auto solve_eikonal = [&](int i1, int j1, int i2, int j2) -> float {
+    if (flags.cols - 1 < i1 || flags.cols - 1 < i2 || flags.rows - 1 < j1 ||
+        flags.rows - 1 < j2) {
+      return std::numeric_limits<float>::max();
+    }
+
+    if (flags.at<unsigned char>(j1, i1) == KNOWN &&
+        flags.at<unsigned char>(j2, i2) == KNOWN) {
+      const auto& d1 = dist->at<float>(j1, i1);
+      const auto& d2 = dist->at<float>(j2, i2);
+
+      float d = 2.f - (d1 - d2) * (d1 - d2);
+      if (d > 0.f) {
+        float r = std::sqrt(d);
+        float s = (d1 + d2 - r) * 0.5f;
+        if (d1 <= s && d2 <= s) {
+          return s;
+        }
+        s += r;
+        if (d1 <= s && d2 <= s) {
+          return s;
+        }
+        // Failure case
+        return std::numeric_limits<float>::max();
+      }
+    }
+
+    if (flags.at<unsigned char>(j1, i1) == KNOWN) {
+      return 1.f + dist->at<float>(j1, i1);
+    }
+
+    if (flags.at<unsigned char>(j2, i2) == KNOWN) {
+      return 1.f + dist->at<float>(j2, i2);
+    }
+
+    return std::numeric_limits<float>::max();
+  };
+
+  constexpr float illegal_val = 0.f;
+  int iter =0;
+  while (!narrow_band.empty()) {
+    const auto head = narrow_band.top(); /* STEP 1 */
+    narrow_band.pop();
+    flags.at<unsigned char>(head.y, head.x) = KNOWN;
+
+    int i = head.x;
+    int j = head.y;
+    LOGI("%f\n", head.T);
+    std::vector<std::pair<int, int>> neighbors_4;
+    if (0 < i) {
+      neighbors_4.push_back({i - 1, j});
+    }
+    if (i < mask.cols - 1) {
+      neighbors_4.push_back({i + 1, j});
+    }
+    if (0 < j) {
+      neighbors_4.push_back({i, j - 1});
+    }
+    if (j < mask.rows - 1) {
+      neighbors_4.push_back({i, j + 1});
+    }
+    for (auto& neighbor : neighbors_4) {
+      auto [x, y] = neighbor;
+
+      auto& f = flags.at<unsigned char>(y, x);
+      if (f != UNKNOWN) {
+        continue;
+      }
+
+      auto& d = dist->at<float>(y, x);
+      d = std::min({solve_eikonal(x, y - 1, x - 1, y),
+                    solve_eikonal(x, y + 1, x + 1, y),
+                    solve_eikonal(x, y - 1, x + 1, y),
+                    solve_eikonal(x, y + 1, x - 1, y)});
+      if (std::numeric_limits<float>::max() * 0.1f < d) {
+        d = illegal_val;
+      }
+
+      f = BAND;
+      narrow_band.push(FrontPix(d, x, y));
+    }
+    iter++;
+    if (iter > 3000) {
+      break;
     }
   }
 }
