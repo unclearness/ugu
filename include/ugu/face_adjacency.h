@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <set>
 #include <tuple>
 #include <unordered_set>
 #include <vector>
@@ -19,10 +20,14 @@
 
 namespace ugu {
 
-struct FaceAdjacency {
+using VertexAdjacency = std::vector<std::set<int>>;
+
+class FaceAdjacency {
+ private:
   // https://qiita.com/shinjiogaki/items/d16abb018a843c09b8c8
   std::vector<Eigen::Vector3i> vertex_indices_;
 
+ public:
 #ifdef UGU_FACE_ADJACENCY_USE_SPARSE_MAT
   // Sparse matrix version
   // - Much less memory
@@ -201,5 +206,26 @@ struct FaceAdjacency {
 
     return {boundary_edges, boundary_vertex_ids};
   }
+
+  VertexAdjacency GenerateVertexAdjacency() {
+    const auto vertex_num = mat_.rows();
+    VertexAdjacency vertex_adjacency(vertex_num);
+
+    for (auto face_id = 0; face_id < vertex_indices_.size(); face_id++) {
+      const Eigen::Vector3i& face = vertex_indices_[face_id];
+
+      vertex_adjacency[face[0]].insert(face[1]);
+      vertex_adjacency[face[1]].insert(face[0]);
+
+      vertex_adjacency[face[2]].insert(face[1]);
+      vertex_adjacency[face[1]].insert(face[2]);
+
+      vertex_adjacency[face[0]].insert(face[2]);
+      vertex_adjacency[face[2]].insert(face[0]);
+    }
+
+    return vertex_adjacency;
+  }
 };
+
 }  // namespace ugu

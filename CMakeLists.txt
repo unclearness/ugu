@@ -244,6 +244,9 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/inpaint/inpaint.h
     include/ugu/inpaint/inpaint.cc
 
+    include/ugu/geodesic/geodesic.h
+    include/ugu/geodesic/geodesic.cc
+
     # implementations of header-only library
     ${UGU_STB_IMPLEMENTATION_CC}
     ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
@@ -335,6 +338,13 @@ if (NOT hasParent)
   ${Ugu_LIBS}
   )
 
+
+  add_executable(ugu_geodesic_test
+  test_geodesic.cc)
+  target_include_directories(ugu_geodesic_test PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(ugu_geodesic_test
+  ${Ugu_LIBS}
+  )
 endif()
 
 if (WIN32)
