@@ -7,6 +7,9 @@
 
 #include <filesystem>
 #include <iostream>
+#include <random>
+
+#include "ugu/util.h"
 
 inline std::vector<std::string> Split(const std::string& s, char delim) {
   std::vector<std::string> elems;
@@ -174,7 +177,52 @@ void TestRemove() {
   bunny.WriteObj(data1_dir, "bunny_removed_back");
 }
 
+void TestAlignment() {
+  std::string data1_dir = "../data/bunny/";
+  std::string in_obj_path1 = data1_dir + "bunny.obj";
+  ugu::Mesh bunny;
+  bunny.LoadObj(in_obj_path1, data1_dir);
+
+  // Add noise
+  ugu::Mesh noised_bunny = ugu::Mesh(bunny);
+  bunny.CalcStats();
+  const auto& stats = bunny.stats();
+  std::mt19937 engine(0);
+  float bb_mean = (stats.bb_max - stats.bb_min).mean();
+  float sigma = bb_mean * 0.01f;
+  std::normal_distribution<float> gauss(0.0f, sigma);
+  auto org_vertices = bunny.vertices();
+  auto noised_vertices = org_vertices;
+  for (auto i = 0; i < noised_vertices.size(); i++) {
+    auto& v = noised_vertices[i];
+    auto& n = bunny.normals()[i];
+    v += gauss(engine) * n;
+  }
+  noised_bunny.set_vertices(noised_vertices);
+
+  Eigen::Vector3f noise_t{bb_mean, bb_mean * 2, bb_mean * -3};
+  Eigen::Vector3f axis(5, 2, 1);
+  axis.normalize();
+  Eigen::AngleAxisf noise_R(ugu::radians(30.f), axis);
+  Eigen::Affine3f T_gt = Eigen::Translation3f(noise_t) * noise_R.matrix();
+  ugu::Mesh noised_bunny_Rt = ugu::Mesh(noised_bunny);
+  noised_bunny_Rt.Transform(T_gt.rotation(), T_gt.translation());
+  noised_bunny_Rt.WriteObj(data1_dir, "noised_Rt_gt");
+  std::cout << "GT Rt" << std::endl;
+  std::cout << T_gt.matrix() << std::endl;
+
+  Eigen::Affine3f T_estimated = ugu::FindRigidTransformFrom3dCoresspondences(
+                                    org_vertices, noised_bunny_Rt.vertices())
+                                    .cast<float>();
+  std::cout << "Estimated Rt" << std::endl;
+  std::cout << T_estimated.matrix() << std::endl;
+  bunny.Transform(T_estimated.rotation(), T_estimated.translation());
+  bunny.WriteObj(data1_dir, "noised_Rt_estimated");
+}
+
 int main() {
+  TestAlignment();
+
   TestBlendshapes();
 
   TestIO();

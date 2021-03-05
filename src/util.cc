@@ -367,4 +367,86 @@ void WriteFaceIdAsText(const Image1i& face_id, const std::string& path) {
   ofs.flush();
 }
 
+// FINDING OPTIMAL ROTATION AND TRANSLATION BETWEEN CORRESPONDING 3D POINTS
+// http://nghiaho.com/?page_id=671
+Eigen::Affine3d FindRigidTransformFrom3dCoresspondences(
+    const std::vector<Eigen::Vector3d>& src,
+    const std::vector<Eigen::Vector3d>& dst) {
+  if (src.size() < 3 || src.size() != dst.size()) {
+    return Eigen::Affine3d::Identity();
+  }
+
+  Eigen::Vector3d src_centroid;
+  src_centroid.setZero();
+  for (const auto& p : src) {
+    src_centroid += p;
+  }
+  src_centroid /= static_cast<double>(src.size());
+
+  Eigen::Vector3d dst_centroid;
+  dst_centroid.setZero();
+  for (const auto& p : dst) {
+    dst_centroid += p;
+  }
+  dst_centroid /= static_cast<double>(dst.size());
+
+  Eigen::MatrixXd normed_src(3, src.size());
+  for (auto i = 0; i < src.size(); i++) {
+    normed_src.col(i) = src[i] - src_centroid;
+  }
+
+  Eigen::MatrixXd normed_dst(3, dst.size());
+  for (auto i = 0; i < dst.size(); i++) {
+    normed_dst.col(i) = dst[i] - dst_centroid;
+  }
+
+  Eigen::MatrixXd normed_dst_T = normed_dst.transpose();
+  Eigen::Matrix3d H = normed_src * normed_dst_T;
+
+  // TODO: rank check
+
+  Eigen::JacobiSVD<Eigen::Matrix3d> svd(
+      H, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  Eigen::Matrix3d R = svd.matrixV() * svd.matrixU().transpose();
+  double det = R.determinant();
+
+  constexpr double assert_eps = 0.001;
+  assert(std::abs(det) - 1.0 < assert_eps);
+
+  if (det < 0) {
+    Eigen::JacobiSVD<Eigen::Matrix3d> svd2(
+        R, Eigen::ComputeFullU | Eigen::ComputeFullV);
+
+    Eigen::Matrix3d V = svd2.matrixV();
+
+    V.coeffRef(0, 2) *= -1.0;
+    V.coeffRef(1, 2) *= -1.0;
+    V.coeffRef(2, 2) *= -1.0;
+
+    R = V * svd2.matrixU().transpose();
+  }
+  assert(std::abs(det - 1.0) < assert_eps);
+
+  Eigen::Vector3d t = dst_centroid - R * src_centroid;
+
+  Eigen::Affine3d T = Eigen::Translation3d(t) * R;
+
+  return T;
+}
+
+Eigen::Affine3d FindRigidTransformFrom3dCoresspondences(
+    const std::vector<Eigen::Vector3f>& src,
+    const std::vector<Eigen::Vector3f>& dst) {
+  std::vector<Eigen::Vector3d> src_d, dst_d;
+  auto to_double = [](const std::vector<Eigen::Vector3f>& fvec,
+                      std::vector<Eigen::Vector3d>& dvec) {
+    std::transform(fvec.begin(), fvec.end(), std::back_inserter(dvec),
+                   [](const Eigen::Vector3f& f) { return f.cast<double>(); });
+  };
+
+  to_double(src, src_d);
+  to_double(dst, dst_d);
+  return FindRigidTransformFrom3dCoresspondences(src_d, dst_d);
+}
+
 }  // namespace ugu
