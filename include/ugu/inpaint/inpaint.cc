@@ -142,7 +142,7 @@ using InpaintHeap = std::priority_queue<BandPix, std::vector<BandPix>, decltype(
 float SolveEikonal(int i1, int j1, int i2, int j2, const ugu::Image1b& flags,
                    const ugu::Image1f& dist) {
   if (flags.cols - 1 < i1 || flags.cols - 1 < i2 || flags.rows - 1 < j1 ||
-      flags.rows - 1 < j2) {
+      flags.rows - 1 < j2 || i1 < 0 || i2 < 0 || j1 < 0 || j2 < 0) {
     return std::numeric_limits<float>::max();
   }
 
