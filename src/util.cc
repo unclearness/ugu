@@ -369,7 +369,7 @@ void WriteFaceIdAsText(const Image1i& face_id, const std::string& path) {
 
 // FINDING OPTIMAL ROTATION AND TRANSLATION BETWEEN CORRESPONDING 3D POINTS
 // http://nghiaho.com/?page_id=671
-Eigen::Affine3d FindRigidTransformFrom3dCoresspondences(
+Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
     const std::vector<Eigen::Vector3d>& src,
     const std::vector<Eigen::Vector3d>& dst) {
   if (src.size() < 3 || src.size() != dst.size()) {
@@ -411,7 +411,7 @@ Eigen::Affine3d FindRigidTransformFrom3dCoresspondences(
   double det = R.determinant();
 
   constexpr double assert_eps = 0.001;
-  assert(std::abs(det) - 1.0 < assert_eps);
+  assert(std::abs(std::abs(det) - 1.0) < assert_eps);
 
   if (det < 0) {
     Eigen::JacobiSVD<Eigen::Matrix3d> svd2(
@@ -434,7 +434,7 @@ Eigen::Affine3d FindRigidTransformFrom3dCoresspondences(
   return T;
 }
 
-Eigen::Affine3d FindRigidTransformFrom3dCoresspondences(
+Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
     const std::vector<Eigen::Vector3f>& src,
     const std::vector<Eigen::Vector3f>& dst) {
   std::vector<Eigen::Vector3d> src_d, dst_d;
@@ -446,7 +446,7 @@ Eigen::Affine3d FindRigidTransformFrom3dCoresspondences(
 
   to_double(src, src_d);
   to_double(dst, dst_d);
-  return FindRigidTransformFrom3dCoresspondences(src_d, dst_d);
+  return FindRigidTransformFrom3dCorrespondences(src_d, dst_d);
 }
 
 }  // namespace ugu

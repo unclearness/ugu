@@ -191,11 +191,11 @@ T WeightedMedian(const std::vector<T>& data,
 
 // FINDING OPTIMAL ROTATION AND TRANSLATION BETWEEN CORRESPONDING 3D POINTS
 // http://nghiaho.com/?page_id=671
-Eigen::Affine3d FindRigidTransformFrom3dCoresspondences(
+Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
     const std::vector<Eigen::Vector3d>& src,
     const std::vector<Eigen::Vector3d>& dst);
 
-Eigen::Affine3d FindRigidTransformFrom3dCoresspondences(
+Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
     const std::vector<Eigen::Vector3f>& src,
     const std::vector<Eigen::Vector3f>& dst);
 

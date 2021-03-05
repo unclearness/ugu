@@ -211,7 +211,7 @@ void TestAlignment() {
   std::cout << "GT Rt" << std::endl;
   std::cout << T_gt.matrix() << std::endl;
 
-  Eigen::Affine3f T_estimated = ugu::FindRigidTransformFrom3dCoresspondences(
+  Eigen::Affine3f T_estimated = ugu::FindRigidTransformFrom3dCorrespondences(
                                     org_vertices, noised_bunny_Rt.vertices())
                                     .cast<float>();
   std::cout << "Estimated Rt" << std::endl;
