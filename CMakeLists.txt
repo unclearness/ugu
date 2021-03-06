@@ -98,7 +98,7 @@ if(UGU_USE_STB)
   endif()
 endif()
 
-option(UGU_USE_OPENCV "Use OpenCV as Image class" OFF)
+option(UGU_USE_OPENCV "Use OpenCV as Image class" ON)
 message("UGU_USE_OPENCV: ${UGU_USE_OPENCV}")
 if(UGU_USE_OPENCV)
   find_package(OpenCV REQUIRED)
@@ -343,6 +343,13 @@ if (NOT hasParent)
   test_geodesic.cc)
   target_include_directories(ugu_geodesic_test PRIVATE ${Ugu_INCLUDE_DIRS})
   target_link_libraries(ugu_geodesic_test
+  ${Ugu_LIBS}
+  )
+
+  add_executable(ugu_renderer_realtime_test
+  test_renderer_realtime.cc)
+  target_include_directories(ugu_renderer_realtime_test PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(ugu_renderer_realtime_test
   ${Ugu_LIBS}
   )
 endif()

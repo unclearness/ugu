@@ -4,9 +4,9 @@
  */
 
 #pragma once
-#include <chrono> //NOLINT
-#include <vector>
+#include <chrono>  //NOLINT
 #include <numeric>
+#include <vector>
 
 namespace ugu {
 
@@ -40,6 +40,9 @@ class Timer {
   }
   T elapsed_msec() const { return elapsed_msec_; }
   T average_msec() const {
+    if (history_.empty()) {
+      return elapsed_msec_;
+    }
     return static_cast<T>(std::accumulate(history_.begin(), history_.end(), 0) /
                           history_.size());
   }
