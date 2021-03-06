@@ -204,20 +204,48 @@ void TestAlignment() {
   Eigen::Vector3f axis(5, 2, 1);
   axis.normalize();
   Eigen::AngleAxisf noise_R(ugu::radians(30.f), axis);
-  Eigen::Affine3f T_gt = Eigen::Translation3f(noise_t) * noise_R.matrix();
+  float noise_s = 0.45f;
+  Eigen::Affine3f T_Rt_gt = Eigen::Translation3f(noise_t) * noise_R.matrix();
   ugu::Mesh noised_bunny_Rt = ugu::Mesh(noised_bunny);
-  noised_bunny_Rt.Transform(T_gt.rotation(), T_gt.translation());
+  noised_bunny_Rt.Transform(T_Rt_gt.rotation(), T_Rt_gt.translation());
   noised_bunny_Rt.WriteObj(data1_dir, "noised_Rt_gt");
   std::cout << "GT Rt" << std::endl;
-  std::cout << T_gt.matrix() << std::endl;
+  std::cout << T_Rt_gt.matrix() << std::endl;
 
-  Eigen::Affine3f T_estimated = ugu::FindRigidTransformFrom3dCorrespondences(
-                                    org_vertices, noised_bunny_Rt.vertices())
-                                    .cast<float>();
+  Eigen::Affine3f T_Rt_estimated = ugu::FindRigidTransformFrom3dCorrespondences(
+                                       org_vertices, noised_bunny_Rt.vertices())
+                                       .cast<float>();
   std::cout << "Estimated Rt" << std::endl;
-  std::cout << T_estimated.matrix() << std::endl;
-  bunny.Transform(T_estimated.rotation(), T_estimated.translation());
+  std::cout << T_Rt_estimated.matrix() << std::endl;
+  bunny.Transform(T_Rt_estimated.rotation(), T_Rt_estimated.translation());
   bunny.WriteObj(data1_dir, "noised_Rt_estimated");
+  bunny.Transform(T_Rt_estimated.inverse().rotation(),
+                  T_Rt_estimated.inverse().translation());
+
+  ugu::Mesh noised_bunny_Rts = ugu::Mesh(noised_bunny);
+  Eigen::Affine3f T_Rts_gt = Eigen::Translation3f(noise_t) * noise_R.matrix() *
+                             Eigen::Scaling(noise_s);
+  noised_bunny_Rts.Scale(noise_s);
+  noised_bunny_Rts.Transform(T_Rts_gt.rotation(), T_Rts_gt.translation());
+  noised_bunny_Rts.WriteObj(data1_dir, "noised_Rts_gt");
+  std::cout << "GT Rts" << std::endl;
+  std::cout << T_Rts_gt.matrix() << std::endl;
+
+  Eigen::Affine3f T_Rts_estimated =
+      ugu::FindSimilarityTransformFrom3dCorrespondences(
+          org_vertices, noised_bunny_Rts.vertices())
+          .cast<float>();
+  std::cout << "Estimated Rts" << std::endl;
+  std::cout << T_Rts_estimated.matrix() << std::endl;
+  double estimated_s_x =
+      T_Rts_estimated.matrix().block(0, 0, 3, 3).row(0).norm();
+  double estimated_s_y =
+      T_Rts_estimated.matrix().block(0, 0, 3, 3).row(1).norm();
+  double estimated_s_z =
+      T_Rts_estimated.matrix().block(0, 0, 3, 3).row(2).norm();
+  bunny.Scale(estimated_s_x, estimated_s_y, estimated_s_z);
+  bunny.Transform(T_Rts_estimated.rotation(), T_Rts_estimated.translation());
+  bunny.WriteObj(data1_dir, "noised_Rts_estimated");
 }
 
 int main() {

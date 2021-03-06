@@ -188,7 +188,6 @@ T WeightedMedian(const std::vector<T>& data,
   return data_weights[index].second;
 }
 
-
 // FINDING OPTIMAL ROTATION AND TRANSLATION BETWEEN CORRESPONDING 3D POINTS
 // http://nghiaho.com/?page_id=671
 Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
@@ -198,5 +197,24 @@ Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
 Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
     const std::vector<Eigen::Vector3f>& src,
     const std::vector<Eigen::Vector3f>& dst);
+
+// "Least-squares estimation of transformation parameters between two point
+// patterns ", Shinji Umeyama, PAMI 1991, :DOI:`10.1109/34.88573`
+// implementation reference:
+// https://github.com/scikit-image/scikit-image/blob/main/skimage/transform/_geometric.py#L63
+bool FindSimilarityTransformFromPointCorrespondences(
+    const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst, Eigen::MatrixXd& R,
+    Eigen::MatrixXd& t, Eigen::MatrixXd& scale, Eigen::MatrixXd& T);
+
+Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
+    const std::vector<Eigen::Vector3d>& src,
+    const std::vector<Eigen::Vector3d>& dst);
+
+Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
+    const std::vector<Eigen::Vector3f>& src,
+    const std::vector<Eigen::Vector3f>& dst);
+
+Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
+    const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst);
 
 }  // namespace ugu
