@@ -43,8 +43,9 @@ class Timer {
     if (history_.empty()) {
       return elapsed_msec_;
     }
-    return static_cast<T>(std::accumulate(history_.begin(), history_.end(), 0) /
-                          history_.size());
+    return static_cast<T>(
+        std::accumulate(history_.begin(), history_.end(), T(0)) /
+        history_.size());
   }
 };
 
