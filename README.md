@@ -33,14 +33,7 @@
 - in : mesh, camera parameters
 - out: color, depth, normal, mask and face id
 
-|color|depth|
-|---|---|
-|![](https://raw.githubusercontent.com/wiki/unclearness/ugu/images/renderer/front_color.png)|![](https://raw.githubusercontent.com/wiki/unclearness/ugu/images/renderer/front_vis_depth.png)|
-
-
-|normal|mask|face id|
-|---|---|---|
-|![](https://raw.githubusercontent.com/wiki/unclearness/ugu/images/renderer/front_vis_normal.png)|![](https://raw.githubusercontent.com/wiki/unclearness/ugu/images/renderer/front_mask.png)|![](https://raw.githubusercontent.com/wiki/unclearness/ugu/images/renderer/front_vis_face_id.png)|
+<img src="https://raw.githubusercontent.com/wiki/unclearness/ugu/images/renderer/bunny_realtime.gif" width="640">
 
 - Original code: https://github.com/unclearness/currender
 
