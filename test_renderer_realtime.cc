@@ -112,9 +112,9 @@ int main(int argc, char* argv[]) {
 
   while (true) {
     timer_all.Start();
-    float elapsed_msec_render = timer_render.average_msec();
+    float elapsed_msec_render = static_cast<float>(timer_render.average_msec());
     std::string render_fps = msec2fpsstr(elapsed_msec_render);
-    float elapsed_msec_all = timer_all.average_msec();
+    float elapsed_msec_all = static_cast<float>(timer_all.average_msec());
     std::string all_fps = msec2fpsstr(elapsed_msec_all);
 
     current_angle += elapsed_msec_all * angular_velocity_msec;
@@ -133,34 +133,39 @@ int main(int argc, char* argv[]) {
     timer_render.End();
 
     cv::putText(color, "shaded color", {10, 15}, cv::FONT_HERSHEY_SIMPLEX, 0.6,
-                cv::Scalar(255, 255, 255), 0.6);
+                cv::Scalar(255, 255, 255));
     color.copyTo(show_img(cv::Rect(0, 0, width, height)));
 
     ugu::Depth2Gray(depth, &vis_depth_1b);
     cv::cvtColor(vis_depth_1b, vis_depth, cv::COLOR_GRAY2BGR);
     cv::putText(vis_depth, "depth", {10, 15}, cv::FONT_HERSHEY_SIMPLEX, 0.6,
-                cv::Scalar(255, 255, 255), 0.6);
+                cv::Scalar(255, 255, 255));
     vis_depth.copyTo(show_img(cv::Rect(width, 0, width, height)));
 
     ugu::Normal2Color(normal, &vis_normal);
     cv::putText(vis_normal, "normal in camera coord.", {10, 15},
-                cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 0.6);
+                cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255));
     vis_normal.copyTo(show_img(cv::Rect(0, height, width, height)));
 
-    ugu::FaceId2Color(face_id, &vis_face_id);
+    ugu::FaceId2Color(face_id, &vis_face_id, 0,
+                      static_cast<int>(mesh->vertex_indices().size()));
     cv::putText(vis_face_id, "face id", {10, 15}, cv::FONT_HERSHEY_SIMPLEX, 0.6,
-                cv::Scalar(255, 255, 255), 0.6);
+                cv::Scalar(255, 255, 255));
     vis_face_id.copyTo(show_img(cv::Rect(width, height, width, height)));
 
     cv::putText(show_img, image_size_str + "  " + n_threads_str, {10, 40},
-                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 0.5);
+                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255));
     cv::putText(show_img, "rendering: " + render_fps + " fps", {10, 60},
-                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 0.5);
+                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255));
     cv::putText(show_img, "total    : " + all_fps + " fps", {10, 80},
-                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 0.5);
+                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255));
 
+    // cv::imshow and cv::waitKey take more than 10ms on Windows10 with
+    // OpenCV 4.5.1. So, total fps may become much slower than rendering only
+    // fps.
     cv::imshow("cpu rendering", show_img);
     cv::waitKey(1);
+
     timer_all.End();
   }
 
