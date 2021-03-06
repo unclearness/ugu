@@ -470,7 +470,9 @@ inline void PinholeCamera::InitRayTable() const {
   org_ray_w_table_.resize(width_ * height_);
   ray_c_table_.resize(width_ * height_);
   ray_w_table_.resize(width_ * height_);
-
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
   for (int y = 0; y < height_; y++) {
     for (int x = 0; x < width_; x++) {
       org_ray_c(static_cast<float>(x), static_cast<float>(y),
@@ -713,7 +715,9 @@ inline void OrthoCamera::InitRayTable() {
   org_ray_w_table_.resize(width_ * height_);
   ray_c_table_.resize(width_ * height_);
   ray_w_table_.resize(width_ * height_);
-
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
   for (int y = 0; y < height_; y++) {
     for (int x = 0; x < width_; x++) {
       org_ray_c(static_cast<float>(x), static_cast<float>(y),
