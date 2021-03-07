@@ -701,7 +701,7 @@ bool GenerateUpdatedTarget(Image3b& T, const BdsimParams& params,
       cohere_contrib[1] *= inv_Nt;
       cohere_contrib[2] *= inv_Nt;
 
-      Vec3d updated_p_d{0, 0, 0};
+      // Vec3d updated_p_d{0, 0, 0};
       for (int c = 0; c < 3; c++) {
         updated_p[c] = static_cast<unsigned char>(std::min(
             std::max(0.0, (comp_contrib[c] + cohere_contrib[c]) * inv_denom),

@@ -28,8 +28,10 @@ TT Sad(const ugu::Image<
   TT cost = TT(0);
   for (int jj = miny; jj <= maxy; jj++) {
     for (int ii = minx; ii <= maxx; ii++) {
-      const T& a_val = a.at<T>(jj, ii);
-      const T& b_val = b.at<T>(jj + offsety, ii + offsetx);
+      const T& a_val = a.template at<T>(jj, ii);
+      int b_y = std::clamp(jj + offsety, 0, b.rows - 1);
+      int b_x = std::clamp(ii + offsetx, 0, b.cols - 1);
+      const T& b_val = b.template at<T>(b_y, b_x);
       cost += static_cast<TT>(std::abs(a_val - b_val));
     }
   }
@@ -45,8 +47,10 @@ TT Sad(const ugu::Image<
   TT cost = TT(0);
   for (int jj = miny; jj <= maxy; jj++) {
     for (int ii = minx; ii <= maxx; ii++) {
-      const T& a_val = a.at<T>(jj, ii);
-      const T& b_val = b.at<T>(jj + offsety, ii + offsetx);
+      const T& a_val = a.template at<T>(jj, ii);
+      int b_y = std::clamp(jj + offsety, 0, b.rows - 1);
+      int b_x = std::clamp(ii + offsetx, 0, b.cols - 1);
+      const T& b_val = b.template at<T>(b_y, b_x);
       for (int c = 0; c < a.channels(); c++) {
         cost += static_cast<TT>(std::abs(a_val[c] - b_val[c]));
       }
@@ -64,8 +68,8 @@ TT Ssd(const ugu::Image<
   TT cost = TT(0);
   for (int jj = miny; jj <= maxy; jj++) {
     for (int ii = minx; ii <= maxx; ii++) {
-      const T& a_val = a.at<T>(jj, ii);
-      const T& b_val = b.at<T>(jj + offsety, ii + offsetx);
+      const T& a_val = a.template at<T>(jj, ii);
+      const T& b_val = b.template at<T>(jj + offsety, ii + offsetx);
 
       cost += static_cast<TT>((a_val - b_val) * (a_val - b_val));
     }
@@ -82,8 +86,8 @@ TT Ssd(const ugu::Image<
   TT cost = TT(0);
   for (int jj = miny; jj <= maxy; jj++) {
     for (int ii = minx; ii <= maxx; ii++) {
-      const T& a_val = a.at<T>(jj, ii);
-      const T& b_val = b.at<T>(jj + offsety, ii + offsetx);
+      const T& a_val = a.template at<T>(jj, ii);
+      const T& b_val = b.template at<T>(jj + offsety, ii + offsetx);
       for (int c = 0; c < a.channels(); c++) {
         cost += static_cast<TT>((a_val[c] - b_val[c]) * (a_val[c] - b_val[c]));
       }

@@ -241,7 +241,8 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
 void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
   assert(vis_normal != nullptr);
 
-  Init(vis_normal, normal.cols, normal.rows, static_cast<unsigned char>(0));
+  const unsigned char zero = static_cast<unsigned char>(0);
+  Init(vis_normal, normal.cols, normal.rows, zero);
 
   // Followed https://en.wikipedia.org/wiki/Normal_mapping
   // X: -1 to +1 :  Red: 0 to 255

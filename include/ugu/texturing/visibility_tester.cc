@@ -118,7 +118,7 @@ void VisibilityTesterOption::CopyTo(VisibilityTesterOption* dst) const {
   dst->use_depth = use_depth;
   dst->interp = interp;
   dst->calc_stat_vertex_info = calc_stat_vertex_info;
-  dst->collect_face_info;
+  dst->collect_face_info = collect_face_info;
   dst->calc_stat_face_info = calc_stat_face_info;
 }
 

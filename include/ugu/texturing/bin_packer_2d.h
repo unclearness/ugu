@@ -20,7 +20,8 @@ struct Rect_ {
   Point_<T, 2> br() const {
     Point_<T, 2> br;
     br[0] = x + width;
-    br[1] = y + height return br;
+    br[1] = y + height;
+    return br;
   }
   Point_<T, 2> tl() const {
     Point_<T, 2> tl;

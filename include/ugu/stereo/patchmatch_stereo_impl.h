@@ -717,7 +717,7 @@ inline bool RandomSearchPlaneRefinement(
     const Image1f& grad1, Image1f* disparity1, Image1f* cost1,
     PlaneImage* plane1, const Image1f& grad2,
     const PatchMatchStereoParam& param, std::default_random_engine& engine,
-    const std::uniform_real_distribution<float>& uniform_dist, float z_max,
+    std::uniform_real_distribution<float>& uniform_dist, float z_max,
     float theta_deg_max, float phi_deg_max, bool is_right) {
   const int half_ps = param.patch_size / 2;
 
@@ -854,7 +854,7 @@ inline bool ComputePatchMatchStereoImplBodyFromUpperLeft(
     const Image1f& grad2, Image1f* disparity2, Image1f* cost2,
     PlaneImage* plane2, const PatchMatchStereoParam& param,
     const Correspondence& first2second, std::default_random_engine& engine,
-    const std::uniform_real_distribution<float>& uniform_dist, float z_max,
+    std::uniform_real_distribution<float>& uniform_dist, float z_max,
     float theta_deg_max, float phi_deg_max, bool is_right, int iter) {
   Timer<> timer;
   timer.Start();
@@ -910,7 +910,7 @@ inline bool ComputePatchMatchStereoImplBodyFromLowerRight(
     const Image1f& grad2, Image1f* disparity2, Image1f* cost2,
     PlaneImage* plane2, const PatchMatchStereoParam& param,
     const Correspondence& first2second, std::default_random_engine& engine,
-    const std::uniform_real_distribution<float>& uniform_dist, float z_max,
+    std::uniform_real_distribution<float>& uniform_dist, float z_max,
     float theta_deg_max, float phi_deg_max, bool is_right, int iter) {
   Timer<> timer;
   timer.Start();

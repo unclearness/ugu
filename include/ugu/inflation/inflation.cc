@@ -1,9 +1,7 @@
-﻿/*
+/*
  * Copyright (C) 2021, unclearness
  * All rights reserved.
  */
-
-#pragma once
 
 #include "ugu/inflation/inflation.h"
 

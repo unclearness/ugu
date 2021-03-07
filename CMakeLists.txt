@@ -98,7 +98,7 @@ if(UGU_USE_STB)
   endif()
 endif()
 
-option(UGU_USE_OPENCV "Use OpenCV as Image class" ON)
+option(UGU_USE_OPENCV "Use OpenCV as Image class" OFF)
 message("UGU_USE_OPENCV: ${UGU_USE_OPENCV}")
 if(UGU_USE_OPENCV)
   find_package(OpenCV REQUIRED)
@@ -173,7 +173,7 @@ endif()
 
 # For OpenMP
 if(UGU_USE_OPENMP)
-  find_package(OpenMP REQUIRED)
+  find_package(OpenMP)
   if(OpenMP_FOUND)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
