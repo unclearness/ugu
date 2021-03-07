@@ -4,6 +4,8 @@
  */
 #ifdef UGU_USE_NANORT
 
+#include "texture_mapper.h"
+
 #include <algorithm>
 #include <deque>
 #include <functional>
@@ -13,15 +15,13 @@
 #include <unordered_set>
 
 #include "bin_packer_2d.h"
-#include "texture_mapper.h"
-
 #include "ugu/face_adjacency.h"
 #include "ugu/timer.h"
 
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgproc.hpp"
 #endif
-#define DEBUG_TM
+// #define DEBUG_TM
 
 namespace {
 
