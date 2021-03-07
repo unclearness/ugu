@@ -23,7 +23,13 @@ set(CMAKE_CXX_FLAGS "/std:c++17 -W4 -EHsc")
 
 else()
 # g++ option for *nix
-set(CMAKE_CXX_FLAGS  "-std=c++17 -Wall -O2")
+
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF) #Set this to ON if you want to use GNU++
+set(CMAKE_CXX_STANDARD 17)
+
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++17 -Wall -O2")
+
 
 endif()
 

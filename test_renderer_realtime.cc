@@ -6,6 +6,7 @@
 #ifdef UGU_USE_OPENCV
 
 #include <thread>
+#include <memory>
 
 #include "opencv2/highgui.hpp"
 #include "ugu/renderer/rasterizer.h"
@@ -92,7 +93,7 @@ int main(int argc, char* argv[]) {
   Eigen::Vector3f diff = stats.bb_max - stats.bb_min;
   float offset = std::max(diff[0], std::max(diff[1], diff[2])) * 1.5f;
 
-  ugu::Timer timer_render, timer_all;
+  ugu::Timer<> timer_render, timer_all;
   float angular_velocity_msec = ugu::radians(45.f) / 1000.f;
   float current_angle = 0.f;
   ugu::Image3b color;
