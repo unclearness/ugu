@@ -535,7 +535,7 @@ bool FindSimilarityTransformFromPointCorrespondences(
   constexpr double assert_eps = 0.001;
   assert(std::abs(std::abs(det_orgR) - 1.0) < assert_eps);
 
-  long int rank_A = svd.rank();
+  int rank_A =  static_cast<int>(svd.rank());
   if (rank_A == 0) {
     // null matrix case
     return false;

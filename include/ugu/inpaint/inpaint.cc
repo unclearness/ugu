@@ -136,8 +136,11 @@ struct BandPix {
   }
 };
 
-auto band_pix_compare = [](const BandPix& l, const BandPix& r) { return l.T > r.T; };
-using InpaintHeap = std::priority_queue<BandPix, std::vector<BandPix>, decltype(band_pix_compare)>;
+auto band_pix_compare = [](const BandPix& l, const BandPix& r) {
+  return l.T > r.T;
+};
+using InpaintHeap = std::priority_queue<BandPix, std::vector<BandPix>,
+                                        decltype(band_pix_compare)>;
 
 float SolveEikonal(int i1, int j1, int i2, int j2, const ugu::Image1b& flags,
                    const ugu::Image1f& dist) {
@@ -268,7 +271,7 @@ void InpaintTeleaPixel(int i, int j, const ugu::Image1b& mask,
   int min_y = std::max(0, j - inpaint_range);
   int max_y = std::min(color.rows - 1, j + inpaint_range);
 
-  float inpaint_range_sq = inpaint_range * inpaint_range;
+  float inpaint_range_sq = static_cast<float>(inpaint_range * inpaint_range);
 
   constexpr double eps = 1.0e-20f;
   constexpr double d0_sq = 1.0;
@@ -283,21 +286,26 @@ void InpaintTeleaPixel(int i, int j, const ugu::Image1b& mask,
         if (flags.at<unsigned char>(jj, ii) != KNOWN) {
           continue;
         }
-        float actual_r_sq = (jj - j) * (jj - j) + (ii - i) * (ii - i);
+        float actual_r_sq =
+            static_cast<float>((jj - j) * (jj - j) + (ii - i) * (ii - i));
         if (inpaint_range_sq < actual_r_sq) {
           continue;
         }
 
         ugu::Vec2f vec{0.f, 0.f};
-        vec[0] = (i - ii);
-        vec[1] = (j - jj);
+        vec[0] = static_cast<float>(i) - static_cast<float>(ii);
+        vec[1] = static_cast<float>(j) - static_cast<float>(jj);
 
-        double pix_dist_sq = vec[0] * vec[0] + vec[1] * vec[1];
+        double pix_dist_sq =
+            static_cast<double>(vec[0]) * static_cast<double>(vec[0]) +
+            static_cast<double>(vec[1]) * static_cast<double>(vec[1]);
         double pix_dist = std::sqrt(pix_dist_sq);
 
         // The directional component  (dot product of relative pixel position
         // vector and normal direction)
-        double direc_w = vec[0] * grad_T[0] + vec[1] * grad_T[1];
+        double direc_w =
+            static_cast<double>(vec[0]) * static_cast<double>(grad_T[0]) +
+            static_cast<double>(vec[1]) * static_cast<double>(grad_T[1]);
         direc_w /= (pix_dist + eps);
 
         direc_w = std::abs(direc_w) < eps ? eps : direc_w;
@@ -321,12 +329,12 @@ void InpaintTeleaPixel(int i, int j, const ugu::Image1b& mask,
                       0.5f;
         } else if (ii + 1 < flags.cols &&
                    flags.at<unsigned char>(jj, ii + 1) == KNOWN) {
-          grad_I[0] = color.at<ugu::Vec3b>(jj, ii + 1)[c] -
-                      color.at<ugu::Vec3b>(jj, ii)[c];
+          grad_I[0] = static_cast<float>(color.at<ugu::Vec3b>(jj, ii + 1)[c]) -
+                      static_cast<float>(color.at<ugu::Vec3b>(jj, ii)[c]);
         } else if (0 <= ii - 1 &&
                    flags.at<unsigned char>(jj, ii - 1) == KNOWN) {
-          grad_I[0] = color.at<ugu::Vec3b>(jj, ii)[c] -
-                      color.at<ugu::Vec3b>(jj, ii - 1)[c];
+          grad_I[0] = static_cast<float>(color.at<ugu::Vec3b>(jj, ii)[c]) -
+                      static_cast<float>(color.at<ugu::Vec3b>(jj, ii - 1)[c]);
         }
 
         if (0 <= jj - 1 && flags.at<unsigned char>(jj - 1, ii) == KNOWN &&
@@ -337,17 +345,19 @@ void InpaintTeleaPixel(int i, int j, const ugu::Image1b& mask,
                       0.5f;
         } else if (jj + 1 < flags.rows &&
                    flags.at<unsigned char>(jj + 1, ii) == KNOWN) {
-          grad_I[1] = color.at<ugu::Vec3b>(jj + 1, ii)[c] -
-                      color.at<ugu::Vec3b>(jj, ii)[c];
+          grad_I[1] = static_cast<float>(color.at<ugu::Vec3b>(jj + 1, ii)[c]) -
+                      static_cast<float>(color.at<ugu::Vec3b>(jj, ii)[c]);
         } else if (0 <= jj - 1 &&
                    flags.at<unsigned char>(jj - 1, ii) == KNOWN) {
-          grad_I[1] = color.at<ugu::Vec3b>(jj, ii)[c] -
-                      color.at<ugu::Vec3b>(jj - 1, ii)[c];
+          grad_I[1] = static_cast<float>(color.at<ugu::Vec3b>(jj, ii)[c]) -
+                      static_cast<float>(color.at<ugu::Vec3b>(jj - 1, ii)[c]);
         }
 
         Ia += weight * color.at<ugu::Vec3b>(jj, ii)[c];
-        Jx -= weight * (grad_I[0] * vec[0]);
-        Jy -= weight * (grad_I[1] * vec[1]);
+        Jx -= weight *
+              (static_cast<double>(grad_I[0]) * static_cast<double>(vec[0]));
+        Jy -= weight *
+              (static_cast<double>(grad_I[1]) * static_cast<double>(vec[1]));
         w_sum += weight;
       }
     }
@@ -425,15 +435,10 @@ void InpaintTelea(const ugu::Image1b& mask, ugu::Image3b& color,
       // Inpaint process
       InpaintTeleaPixel(x, y, mask, color, flags, dist, inpaint_range);
 
-
       f = BAND;
       narrow_band.push(BandPix(d, x, y));
     }
-
   }
-
-
-
 }
 
 }  // namespace

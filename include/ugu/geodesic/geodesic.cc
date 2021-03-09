@@ -44,7 +44,7 @@ bool ComputeGeodesicDistanceDijkstra(const ugu::Mesh& mesh, int src_vid,
   min_path_edges.resize(num_vertices, -1);
 
   ugu::FaceAdjacency face_adjacency;
-  face_adjacency.Init(num_vertices, mesh.vertex_indices());
+  face_adjacency.Init(static_cast<int>(num_vertices), mesh.vertex_indices());
 
   ugu::VertexAdjacency vertex_adjacency =
       face_adjacency.GenerateVertexAdjacency();

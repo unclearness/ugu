@@ -267,7 +267,8 @@ bool Inflation(const Image1b& mask, Image1f& height, Mesh& mesh,
       }
     }
 
-    Inpaint(eroded, inpainted_tex, params_.inpaint_kernel_size,
+    Inpaint(eroded, inpainted_tex,
+            static_cast<float>(params_.inpaint_kernel_size),
             params_.inpaint_method);
 
     back.set_materials({inpainted_mat});
@@ -282,7 +283,8 @@ bool Inflation(const Image1b& mask, Image1f& height, Mesh& mesh,
     for (auto i = 0; i < boundary_edges.size(); i++) {
       const auto& front_edge = boundary_edges[i];
       const auto back_edge = std::make_pair<int, int>(
-          front_edge.first + f2b_voffset, front_edge.second + f2b_voffset);
+          static_cast<int>(front_edge.first + f2b_voffset),
+          static_cast<int>(front_edge.second + f2b_voffset));
       Eigen::Vector3i f0 = {back_edge.first, front_edge.first,
                             front_edge.second};
       Eigen::Vector3i f1 = {back_edge.first, front_edge.second,

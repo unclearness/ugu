@@ -1521,7 +1521,7 @@ FindBoundaryLoops(const Mesh& mesh) {
   std::vector<std::vector<int>> boundary_vertex_ids_list;
 
   ugu::FaceAdjacency face_adjacency;
-  face_adjacency.Init(mesh.vertices().size(), mesh.vertex_indices());
+  face_adjacency.Init(static_cast<int>(mesh.vertices().size()), mesh.vertex_indices());
 
   auto [boundary_edges, boundary_vertex_ids] =
       face_adjacency.GetBoundaryEdges();
@@ -1540,7 +1540,7 @@ FindBoundaryLoops(const Mesh& mesh) {
     // The same loop
     // Find connecting vertex
     bool found_connected = false;
-    size_t connected_index = -1;
+    int connected_index = -1;
     for (auto i = 0; i < boundary_edges.size(); i++) {
       const auto& e = boundary_edges[i];
       if (cur_edge.second == e.first) {

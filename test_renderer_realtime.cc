@@ -125,8 +125,8 @@ int main(int argc, char* argv[]) {
 
     // Rotate on xz plane
     eye = center;
-    eye[0] = offset * std::sin(current_angle);
-    eye[2] = offset * std::cos(current_angle);
+    eye[0] += offset * std::sin(current_angle);
+    eye[2] += offset * std::cos(current_angle);
     ugu::c2w(eye, center, Eigen::Vector3f(0, 1, 0), &c2w_mat);
     camera->set_c2w(Eigen::Affine3d(c2w_mat.cast<double>()));
     timer_render.Start();
