@@ -217,4 +217,11 @@ Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
 Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
     const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst);
 
+bool RasterizeVertexColorToTexture(
+    const std::vector<Eigen::Vector3f>& vertex_colors,
+    const std::vector<Eigen::Vector3i>& vertex_color_indices,
+    const std::vector<Eigen::Vector2f>& uvs,
+    const std::vector<Eigen::Vector3i>& uv_indices, Image3b& texture,
+    int width = 512, int height = 512);
+
 }  // namespace ugu

@@ -9,6 +9,7 @@
 
 #include "ugu/geodesic/geodesic.h"
 #include "ugu/inpaint/inpaint.h"
+#include "ugu/util.h"
 
 namespace {
 
@@ -69,6 +70,17 @@ int main(int argc, char* argv[]) {
   ugu::ObjMaterial distance_mat;
   distance_mat.diffuse_texname = "geodesic_distance.png";
   int tex_len = 512;
+  distance_mat.diffuse_tex = ugu::Image3b::zeros(tex_len, tex_len);
+
+  ugu::RasterizeVertexColorToTexture(
+      mesh.vertex_colors(), mesh.vertex_indices(), mesh.uv(), mesh.uv_indices(),
+      distance_mat.diffuse_tex);
+
+  distance_mat.diffuse_texname = "geodesic_distance_vertex_rasterized.png";
+  mesh.set_materials({distance_mat});
+  mesh.WriteObj(data_dir, "bunny_geodesic_distance_vertex_rasterized");
+
+  distance_mat.diffuse_texname = "geodesic_distance.png";
   distance_mat.diffuse_tex = ugu::Image3b::zeros(tex_len, tex_len);
   auto& geodesic_tex = distance_mat.diffuse_tex;
 
