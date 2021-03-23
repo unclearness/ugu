@@ -672,8 +672,8 @@ bool RasterizeVertexColorToTexture(
                                               uvs[uv_face[2]]};
 
     for (auto& tri : target_tri) {
-      tri.x() = texture.cols * tri.x();
-      tri.y() = texture.rows * (1.f - tri.y());
+      tri.x() = texture.cols * tri.x() - 0.5f;
+      tri.y() = texture.rows * (1.f - tri.y()) - 0.5f;
     }
 
     RasterizeTriangle(src_vetex_color, target_tri, &texture, nullptr);

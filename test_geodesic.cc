@@ -92,8 +92,8 @@ int main(int argc, char* argv[]) {
     for (int j = 0; j < 3; j++) {
       auto uv_idx = mesh.uv_indices()[i][j];
       auto uv = mesh.uv()[uv_idx];
-      target_tri[j][0] = uv[0] * tex_len;
-      target_tri[j][1] = (1.0 - uv[1]) * tex_len;
+      target_tri[j][0] = uv[0] * tex_len - 0.5f;
+      target_tri[j][1] = (1.0 - uv[1]) * tex_len - 0.5f;
     }
 
     float area = EdgeFunction(target_tri[0], target_tri[1], target_tri[2]);
