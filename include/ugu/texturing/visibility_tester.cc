@@ -47,9 +47,9 @@ void BilinearInterpolation(float x, float y, const ugu::Image3b& image,
     (*color)[k] = (1.0f - local_u) * (1.0f - local_v) *
                       image.at<ugu::Vec3b>(tex_pos_min[1], tex_pos_min[0])[k] +
                   local_u * (1.0f - local_v) *
-                      image.at<ugu::Vec3b>(tex_pos_max[1], tex_pos_min[0])[k] +
-                  (1.0f - local_u) * local_v *
                       image.at<ugu::Vec3b>(tex_pos_min[1], tex_pos_max[0])[k] +
+                  (1.0f - local_u) * local_v *
+                      image.at<ugu::Vec3b>(tex_pos_max[1], tex_pos_min[0])[k] +
                   local_u * local_v *
                       image.at<ugu::Vec3b>(tex_pos_max[1], tex_pos_max[0])[k];
 
