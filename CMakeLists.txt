@@ -19,7 +19,8 @@ if (WIN32)
 # https://docs.microsoft.com/en-us/cpp/build/reference/compiler-option-warning-level?view=vs-2017
 # "However, for a new project, it may be best to use /W4 in all compilations;
 # this will ensure the fewest possible hard-to-find code defects."
-set(CMAKE_CXX_FLAGS "/std:c++17 -W4 -EHsc")
+set(CMAKE_CXX_FLAGS "/std:c++17 /W4 /EHsc /MP")
+
 
 else()
 # g++ option for *nix

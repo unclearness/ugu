@@ -278,75 +278,6 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
   return true;
 }
 
-template <typename T>
-inline float EdgeFunction(const T& a, const T& b, const T& c) {
-  return (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
-}
-
-bool RasterizeTriangle(const std::array<Eigen::Vector3f, 3>& src_vetex_color,
-                       const std::array<Eigen::Vector2f, 3>& target_tri,
-                       ugu::Image3b* target, ugu::Image1b* mask) {
-  // Area could be negative
-  float area = EdgeFunction(target_tri[0], target_tri[1], target_tri[2]);
-  if (std::abs(area) < std::numeric_limits<float>::min()) {
-    area = area > 0 ? std::numeric_limits<float>::min()
-                    : -std::numeric_limits<float>::min();
-  }
-  float inv_area = 1.0f / area;
-
-  // Loop for bounding box of the target triangle
-  int xmin = static_cast<int>(
-      std::min({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) - 1);
-  xmin = std::max(0, std::min(xmin, target->cols - 1));
-  int xmax = static_cast<int>(
-      std::max({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) + 1);
-  xmax = std::max(0, std::min(xmax, target->cols - 1));
-
-  int ymin = static_cast<int>(
-      std::min({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) - 1);
-  ymin = std::max(0, std::min(ymin, target->rows - 1));
-  int ymax = static_cast<int>(
-      std::max({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) + 1);
-  ymax = std::max(0, std::min(ymax, target->rows - 1));
-
-  auto saturate_cast = [](float x) {
-    return static_cast<unsigned char>(std::clamp(std::round(x), 0.f, 255.f));
-  };
-
-  for (int y = ymin; y <= ymax; y++) {
-    for (int x = xmin; x <= xmax; x++) {
-      Eigen::Vector2f pixel_sample(static_cast<float>(x),
-                                   static_cast<float>(y));
-      float w0 = EdgeFunction(target_tri[1], target_tri[2], pixel_sample);
-      float w1 = EdgeFunction(target_tri[2], target_tri[0], pixel_sample);
-      float w2 = EdgeFunction(target_tri[0], target_tri[1], pixel_sample);
-      // Barycentric in the target triangle
-      w0 *= inv_area;
-      w1 *= inv_area;
-      w2 *= inv_area;
-
-      // Barycentric coordinate should be positive inside of the triangle
-      // Skip outside of the target triangle
-      if (w0 < 0 || w1 < 0 || w2 < 0) {
-        continue;
-      }
-
-      // Barycentric to interpolate color
-      Eigen::Vector3f color = w0 * src_vetex_color[0] +
-                              w1 * src_vetex_color[1] + w2 * src_vetex_color[2];
-      target->at<ugu::Vec3b>(y, x) =
-          ugu::Vec3b({saturate_cast(color[0]), saturate_cast(color[1]),
-                      saturate_cast(color[2])});
-
-      if (mask != nullptr) {
-        mask->at<unsigned char>(y, x) = 255;
-      }
-    }
-  }
-
-  return true;
-}
-
 }  // namespace
 
 namespace ugu {
@@ -639,45 +570,6 @@ bool FindSimilarityTransformFromPointCorrespondences(
 
   T.block(0, 0, n_dim, n_dim) = scale * R;
   T.block(0, n_dim, n_dim, 1) = t;
-
-  return true;
-}
-
-bool RasterizeVertexColorToTexture(
-    const std::vector<Eigen::Vector3f>& vertex_colors,
-    const std::vector<Eigen::Vector3i>& vertex_color_indices,
-    const std::vector<Eigen::Vector2f>& uvs,
-    const std::vector<Eigen::Vector3i>& uv_indices, Image3b& texture, int width,
-    int height) {
-  if (vertex_color_indices.empty() ||
-      vertex_color_indices.size() != uv_indices.size()) {
-    return false;
-  }
-
-  if (width > 0 && height > 0) {
-    texture = Image3b::zeros(height, width);
-  } else if (texture.empty()) {
-    return false;
-  }
-
-  auto face_num = vertex_color_indices.size();
-  for (auto i = 0; i < face_num; i++) {
-    const auto vc_face = vertex_color_indices[i];
-    const auto uv_face = uv_indices[i];
-
-    std::array<Eigen::Vector3f, 3> src_vetex_color{vertex_colors[vc_face[0]],
-                                                   vertex_colors[vc_face[1]],
-                                                   vertex_colors[vc_face[2]]};
-    std::array<Eigen::Vector2f, 3> target_tri{uvs[uv_face[0]], uvs[uv_face[1]],
-                                              uvs[uv_face[2]]};
-
-    for (auto& tri : target_tri) {
-      tri.x() = texture.cols * tri.x() - 0.5f;
-      tri.y() = texture.rows * (1.f - tri.y()) - 0.5f;
-    }
-
-    RasterizeTriangle(src_vetex_color, target_tri, &texture, nullptr);
-  }
 
   return true;
 }

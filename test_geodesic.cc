@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
   int tex_len = 512;
   distance_mat.diffuse_tex = ugu::Image3b::zeros(tex_len, tex_len);
 
-  ugu::RasterizeVertexColorToTexture(
+  ugu::RasterizeVertexAttributeToTexture(
       mesh.vertex_colors(), mesh.vertex_indices(), mesh.uv(), mesh.uv_indices(),
       distance_mat.diffuse_tex);
 
