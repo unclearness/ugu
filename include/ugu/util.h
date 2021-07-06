@@ -337,4 +337,37 @@ bool RasterizeVertexAttributeToTexture(
   return true;
 }
 
+inline float U2X(float u, int w) { return u * w - 0.5f; }
+inline float V2Y(float v, int h) { return (1.f - v) * h - 0.5f; }
+
+template <typename T>
+bool FetchVertexAttributeFromTexture(const Image<T>& texture,
+                                     const std::vector<Eigen::Vector2f>& uvs,
+                                     std::vector<Eigen::Vector3f>& vertex_attrs,
+                                     bool use_bilinear = true) {
+  vertex_attrs.clear();
+
+  const int w = texture.cols;
+  const int h = texture.rows;
+  for (const auto& uv : uvs) {
+    float x = U2X(uv.x(), w);
+    float y = V2Y(uv.y(), h);
+    T attr;
+    if (use_bilinear) {
+      attr = BilinearInterpolation(x, y, texture);
+    } else {
+      int x_i = static_cast<int>(
+          std::clamp(std::round(x), 0.f, static_cast<float>(w - 1)));
+      int y_i = static_cast<int>(
+          std::clamp(std::round(y), 0.f, static_cast<float>(h - 1)));
+      attr = texture.at<T>(y_i, x_i);
+    }
+    vertex_attrs.emplace_back(static_cast<float>(attr[0]),
+                              static_cast<float>(attr[1]),
+                              static_cast<float>(attr[2]));
+  }
+
+  return true;
+}
+
 }  // namespace ugu

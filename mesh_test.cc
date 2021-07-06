@@ -237,18 +237,45 @@ void TestAlignment() {
           .cast<float>();
   std::cout << "Estimated Rts" << std::endl;
   std::cout << T_Rts_estimated.matrix() << std::endl;
-  double estimated_s_x =
+  float estimated_s_x =
       T_Rts_estimated.matrix().block(0, 0, 3, 3).row(0).norm();
-  double estimated_s_y =
+  float estimated_s_y =
       T_Rts_estimated.matrix().block(0, 0, 3, 3).row(1).norm();
-  double estimated_s_z =
+  float estimated_s_z =
       T_Rts_estimated.matrix().block(0, 0, 3, 3).row(2).norm();
   bunny.Scale(estimated_s_x, estimated_s_y, estimated_s_z);
   bunny.Transform(T_Rts_estimated.rotation(), T_Rts_estimated.translation());
   bunny.WriteObj(data1_dir, "noised_Rts_estimated");
 }
 
+void TestTexture() {
+  std::string data_dir = "../data/bunny/";
+  std::string in_obj_path = data_dir + "bunny.obj";
+  ugu::Mesh bunny;
+  bunny.LoadObj(in_obj_path, data_dir);
+
+  std::vector<Eigen::Vector3f> vertex_colors;
+  std::vector<Eigen::Vector2f> vertex_uv(bunny.vertices().size());
+  // Convert per-face uv to per-vertex uv
+  for (size_t i = 0; i < bunny.uv_indices().size(); i++) {
+    const auto pos_f = bunny.vertex_indices()[i];
+    const auto uv_f = bunny.uv_indices()[i];
+    for (size_t j = 0; j < 3; j++) {
+      const auto& vid = pos_f[j];
+      vertex_uv[vid] = bunny.uv()[uv_f[j]];
+    }
+  }
+  ugu::FetchVertexAttributeFromTexture(bunny.materials()[0].diffuse_tex,
+                                       vertex_uv, vertex_colors);
+
+  bunny.set_vertex_colors(vertex_colors);
+
+  bunny.WritePly(data_dir + "fetched_vertex_color.ply");
+}
+
 int main() {
+  TestTexture();
+
   TestAlignment();
 
   TestBlendshapes();
