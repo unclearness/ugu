@@ -190,83 +190,91 @@ endif()
 
 option(UGU_STATIC_LIBRARY "Build UGU as static library" ON)
 message("UGU_STATIC_LIBRARY: ${UGU_STATIC_LIBRARY}")
+set(
+  UGU_SOURCE
+
+  include/ugu/common.h
+  include/ugu/camera.h
+  include/ugu/mesh.h
+  include/ugu/face_adjacency.h
+  include/ugu/image.h
+  include/ugu/line.h
+  include/ugu/log.h
+  include/ugu/util/io_util.h
+  include/ugu/util/math_util.h
+  include/ugu/util/raster_util.h
+  include/ugu/util/rgbd_util.h
+  include/ugu/timer.h
+
+  src/camera.cc
+  src/mesh.cc
+  src/gltf.h
+  src/image.cc
+  src/log.cc
+  src/util.cc
+
+  include/ugu/renderer/base.h
+  include/ugu/renderer/raytracer.h
+  src/renderer/raytracer.cc
+  include/ugu/renderer/rasterizer.h
+  src/renderer/rasterizer.cc
+  include/ugu/renderer/pixel_shader.h
+  include/ugu/renderer/util_private.h
+  src/renderer/util_private.cc
+
+  include/ugu/sfs/voxel_carver.h
+  src/sfs/voxel_carver.cc
+  include/ugu/sfs/extract_voxel.h
+  src/sfs/extract_voxel.cc
+  include/ugu/sfs/marching_cubes.h
+  src/sfs/marching_cubes.cc
+  include/ugu/sfs/marching_cubes_lut.h
+  src/sfs/marching_cubes_lut.cc
+
+  include/ugu/texturing/visibility_tester.h
+  src/texturing/visibility_tester.cc
+  include/ugu/texturing/vertex_colorizer.h
+  src/texturing/vertex_colorizer.cc
+  include/ugu/texturing/texture_mapper.h
+  src/texturing/texture_mapper.cc
+  include/ugu/texturing/bin_packer_2d.h
+  src/texturing/bin_packer_2d.cc
+
+  include/ugu/stereo/base.h
+  src/stereo/base.cc
+
+  include/ugu/synthesis/bdsim.h
+  src/synthesis/bdsim.cc
+
+  include/ugu/inflation/inflation.h
+  src/inflation/inflation.cc
+
+  include/ugu/inpaint/inpaint.h
+  src/inpaint/inpaint.cc
+
+  include/ugu/geodesic/geodesic.h
+  src/geodesic/geodesic.cc
+
+  # implementations of header-only library
+  ${UGU_STB_IMPLEMENTATION_CC}
+  ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
+
+  # lodepng
+  ${UGU_LODEPNG_SOURCES}
+
+)
 if(UGU_STATIC_LIBRARY)
   set(Ugu_LIB ugu)
   add_definitions(-DUGU_STATIC_LIBRARY)
   add_library(${Ugu_LIB}
     STATIC
-    include/ugu/common.h
-    include/ugu/camera.h
-    include/ugu/mesh.h
-    include/ugu/face_adjacency.h
-    include/ugu/image.h
-    include/ugu/line.h
-    include/ugu/log.h
-    include/ugu/util/io_util.h
-    include/ugu/util/math_util.h
-    include/ugu/util/raster_util.h
-    include/ugu/util/rgbd_util.h
-    include/ugu/timer.h
-
-    src/camera.cc
-    src/mesh.cc
-    src/gltf.h
-    src/image.cc
-    src/log.cc
-    src/util.cc
-
-    include/ugu/renderer/base.h
-    include/ugu/renderer/raytracer.h
-    src/renderer/raytracer.cc
-    include/ugu/renderer/rasterizer.h
-    src/renderer/rasterizer.cc
-    include/ugu/renderer/pixel_shader.h
-    include/ugu/renderer/util_private.h
-    src/renderer/util_private.cc
-
-    include/ugu/sfs/voxel_carver.h
-    src/sfs/voxel_carver.cc
-    include/ugu/sfs/extract_voxel.h
-    src/sfs/extract_voxel.cc
-    include/ugu/sfs/marching_cubes.h
-    src/sfs/marching_cubes.cc
-    include/ugu/sfs/marching_cubes_lut.h
-    src/sfs/marching_cubes_lut.cc
-
-    include/ugu/texturing/visibility_tester.h
-    src/texturing/visibility_tester.cc
-    include/ugu/texturing/vertex_colorizer.h
-    src/texturing/vertex_colorizer.cc
-    include/ugu/texturing/texture_mapper.h
-    src/texturing/texture_mapper.cc
-    include/ugu/texturing/bin_packer_2d.h
-    src/texturing/bin_packer_2d.cc
-
-    include/ugu/stereo/base.h
-    src/stereo/base.cc
-
-    include/ugu/synthesis/bdsim.h
-    src/synthesis/bdsim.cc
-
-    include/ugu/inflation/inflation.h
-    src/inflation/inflation.cc
-
-    include/ugu/inpaint/inpaint.h
-    src/inpaint/inpaint.cc
-
-    include/ugu/geodesic/geodesic.h
-    src/geodesic/geodesic.cc
-
-    # implementations of header-only library
-    ${UGU_STB_IMPLEMENTATION_CC}
-    ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
-
-    # lodepng
-    ${UGU_LODEPNG_SOURCES}
+    ${UGU_SOURCE}
   )
 
   set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB})
 endif()
+
+set(SOURCE_LIST ${SOURCE_LIST} ${UGU_SOURCE})
 
 set_with_parent(Ugu_LIBS "${Ugu_LIBS}" "Ugu_LIBS")
 set_with_parent(Ugu_INCLUDE_DIRS "${Ugu_INCLUDE_DIRS}" "Ugu_INCLUDE_DIRS")
@@ -276,93 +284,33 @@ message("Ugu_INCLUDE_DIRS: ${Ugu_INCLUDE_DIRS}")
 target_include_directories(${Ugu_LIB} PUBLIC ${Ugu_INCLUDE_DIRS})
 set_target_properties(${Ugu_LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 
+set_property( GLOBAL PROPERTY USE_FOLDERS ON)
+
+function(setup_exe EXE_NAME EXE_SRC)
+  #SOURCE_GROUP("Source files\\examples\\" FILES ${EXE_SRC})
+  add_executable(${EXE_NAME} ${EXE_SRC})
+  target_include_directories(${EXE_NAME} PRIVATE ${Ugu_INCLUDE_DIRS})
+  target_link_libraries(${EXE_NAME} ${Ugu_LIBS})
+  #set(SOURCE_LIST ${SOURCE_LIST} ${EXE_SRC})
+  set_property(TARGET ${EXE_NAME} PROPERTY FOLDER "examples") 
+endfunction(setup_exe)
+
 if (NOT hasParent)
-  set(MESH_TEST_EXE ugu_mesh_test)
-  add_executable(${MESH_TEST_EXE}
-    mesh_test.cc)
-  target_include_directories(${MESH_TEST_EXE} PRIVATE ${Ugu_INCLUDE_DIRS})
-  target_link_libraries(${MESH_TEST_EXE}
-    ${Ugu_LIBS}
-    )
-
-  add_executable(ugu_image_test
-    test_image.cc)
-    target_include_directories(ugu_image_test PRIVATE ${Ugu_INCLUDE_DIRS})
-    target_link_libraries(ugu_image_test
-    ${Ugu_LIBS}
-  )
-
-  add_executable(ugu_renderer_test
-    renderer_test.cc)
-  target_include_directories(ugu_renderer_test PRIVATE ${Ugu_INCLUDE_DIRS})
-  target_link_libraries(ugu_renderer_test
-    ${Ugu_LIBS}
-  )
-
-  add_executable(ugu_sfs_test
-    sfs_test.cc)
-  target_include_directories(ugu_sfs_test PRIVATE ${Ugu_INCLUDE_DIRS})
-  target_link_libraries(ugu_sfs_test
-    ${Ugu_LIBS}
-  )
-
-  add_executable(ugu_texturing_test
-  test_texturing.cc)
-  target_include_directories(ugu_texturing_test PRIVATE ${Ugu_INCLUDE_DIRS})
-  target_link_libraries(ugu_texturing_test
-  ${Ugu_LIBS}
-  )
-
-  add_executable(ugu_stereo_test
-  test_stereo.cc)
-  target_include_directories(ugu_stereo_test PRIVATE ${Ugu_INCLUDE_DIRS})
-  target_link_libraries(ugu_stereo_test
-  ${Ugu_LIBS}
-  )
-
-  add_executable(ugu_synthesis_test
-  test_synthesis.cc)
-  target_include_directories(ugu_synthesis_test PRIVATE ${Ugu_INCLUDE_DIRS})
-  target_link_libraries(ugu_synthesis_test
-  ${Ugu_LIBS}
-  )
-
-  add_executable(ugu_adjacency_test
-  test_adjacency.cc)
-  target_include_directories(ugu_adjacency_test PRIVATE ${Ugu_INCLUDE_DIRS})
-  target_link_libraries(ugu_adjacency_test
-  ${Ugu_LIBS}
-  )
-
-  add_executable(ugu_inflation_test
-  test_inflation.cc)
-  target_include_directories(ugu_inflation_test PRIVATE ${Ugu_INCLUDE_DIRS})
-  target_link_libraries(ugu_inflation_test
-  ${Ugu_LIBS}
-  )
-
-  add_executable(ugu_inpaint_test
-  test_inpaint.cc)
-  target_include_directories(ugu_inpaint_test PRIVATE ${Ugu_INCLUDE_DIRS})
-  target_link_libraries(ugu_inpaint_test
-  ${Ugu_LIBS}
-  )
-
-
-  add_executable(ugu_geodesic_test
-  test_geodesic.cc)
-  target_include_directories(ugu_geodesic_test PRIVATE ${Ugu_INCLUDE_DIRS})
-  target_link_libraries(ugu_geodesic_test
-  ${Ugu_LIBS}
-  )
-
-  add_executable(ugu_renderer_realtime_test
-  test_renderer_realtime.cc)
-  target_include_directories(ugu_renderer_realtime_test PRIVATE ${Ugu_INCLUDE_DIRS})
-  target_link_libraries(ugu_renderer_realtime_test
-  ${Ugu_LIBS}
-  )
+  setup_exe(ex01_mesh examples/ex01_mesh.cc)
+  setup_exe(ex02_renderer examples/ex02_renderer.cc)
+  setup_exe(ex03_sfs examples/ex03_sfs.cc)
+  setup_exe(ex04_adjacency examples/ex04_adjacency.cc)
+  setup_exe(ex05_geodesic examples/ex05_geodesic.cc)
+  setup_exe(ex06_image examples/ex06_image.cc)
+  setup_exe(ex07_inflation examples/ex07_inflation.cc)
+  setup_exe(ex08_inpaint examples/ex08_inpaint.cc)
+  setup_exe(ex09_renderer_realtime examples/ex09_renderer_realtime.cc)
+  setup_exe(ex10_stereo examples/ex10_stereo.cc)
+  setup_exe(ex11_synthesis examples/ex11_synthesis.cc)
+  setup_exe(ex12_texturing examples/ex12_texturing.cc)
 endif()
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})
 
 if (WIN32)
   #set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${EXAMPLES_EXE})
