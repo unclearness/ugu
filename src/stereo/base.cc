@@ -3,9 +3,10 @@
  * All rights reserved.
  */
 
+#include "ugu/stereo/base.h"
+
 #include <random>
 
-#include "ugu/stereo/base.h"
 #include "patchmatch_stereo_impl.h"
 
 namespace {

@@ -9,16 +9,8 @@
 
 #include "ugu/geodesic/geodesic.h"
 #include "ugu/inpaint/inpaint.h"
-#include "ugu/util.h"
+#include "ugu/util/raster_util.h"
 
-namespace {
-
-template <typename T>
-inline float EdgeFunction(const T& a, const T& b, const T& c) {
-  return (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
-}
-
-}  // namespace
 
 int main(int argc, char* argv[]) {
   (void)argc;
@@ -96,7 +88,7 @@ int main(int argc, char* argv[]) {
       target_tri[j][1] = (1.0 - uv[1]) * tex_len - 0.5f;
     }
 
-    float area = EdgeFunction(target_tri[0], target_tri[1], target_tri[2]);
+    float area = ugu::EdgeFunction(target_tri[0], target_tri[1], target_tri[2]);
     if (std::abs(area) < std::numeric_limits<float>::min()) {
       area = area > 0 ? std::numeric_limits<float>::min()
                       : -std::numeric_limits<float>::min();
@@ -126,9 +118,9 @@ int main(int argc, char* argv[]) {
       for (int x = xmin; x <= xmax; x++) {
         Eigen::Vector2f pixel_sample(static_cast<float>(x),
                                      static_cast<float>(y));
-        float w0 = EdgeFunction(target_tri[1], target_tri[2], pixel_sample);
-        float w1 = EdgeFunction(target_tri[2], target_tri[0], pixel_sample);
-        float w2 = EdgeFunction(target_tri[0], target_tri[1], pixel_sample);
+        float w0 = ugu::EdgeFunction(target_tri[1], target_tri[2], pixel_sample);
+        float w1 = ugu::EdgeFunction(target_tri[2], target_tri[0], pixel_sample);
+        float w2 = ugu::EdgeFunction(target_tri[0], target_tri[1], pixel_sample);
         // Barycentric coordinate
         w0 *= inv_area;
         w1 *= inv_area;

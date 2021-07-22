@@ -9,7 +9,8 @@
 #include <iostream>
 #include <random>
 
-#include "ugu/util.h"
+#include "ugu/util/math_util.h"
+#include "ugu/util/raster_util.h"
 
 inline std::vector<std::string> Split(const std::string& s, char delim) {
   std::vector<std::string> elems;

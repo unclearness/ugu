@@ -10,7 +10,7 @@
 #include <iterator>
 
 #include "ugu/timer.h"
-#include "ugu/util.h"
+#include "ugu/util/math_util.h"
 
 namespace {
 void PrepareRay(nanort::Ray<float>* ray, const Eigen::Vector3f& camera_pos_w,

@@ -3,9 +3,12 @@
  * All rights reserved.
  */
 
-#include "ugu/util.h"
-
 #include <fstream>
+
+#include "ugu/util/io_util.h"
+#include "ugu/util/math_util.h"
+#include "ugu/util/raster_util.h"
+#include "ugu/util/rgbd_util.h"
 
 namespace {
 

@@ -202,7 +202,10 @@ if(UGU_STATIC_LIBRARY)
     include/ugu/image.h
     include/ugu/line.h
     include/ugu/log.h
-    include/ugu/util.h
+    include/ugu/util/io_util.h
+    include/ugu/util/math_util.h
+    include/ugu/util/raster_util.h
+    include/ugu/util/rgbd_util.h
     include/ugu/timer.h
 
     src/camera.cc
