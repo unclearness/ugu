@@ -10,7 +10,7 @@
  *
  */
 
-#include "bdsim.h"
+#include "ugu/synthesis/bdsim.h"
 
 #include <map>
 #include <numeric>

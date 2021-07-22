@@ -4,7 +4,7 @@
  */
 #ifdef UGU_USE_NANORT
 
-#include "texture_mapper.h"
+#include "ugu/texturing/texture_mapper.h"
 
 #include <algorithm>
 #include <deque>
@@ -14,7 +14,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "bin_packer_2d.h"
+#include "ugu/texturing/bin_packer_2d.h"
 #include "ugu/face_adjacency.h"
 #include "ugu/timer.h"
 

@@ -3,14 +3,14 @@
  * All rights reserved.
  */
 
-#include "visibility_tester.h"
+#include "ugu/texturing/visibility_tester.h"
 #ifdef UGU_USE_NANORT
 
 #include <cassert>
 #include <iterator>
 
 #include "ugu/timer.h"
-#include "ugu/util.h"
+#include "ugu/util/math_util.h"
 
 namespace {
 void PrepareRay(nanort::Ray<float>* ray, const Eigen::Vector3f& camera_pos_w,

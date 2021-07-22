@@ -5,7 +5,7 @@
 #include "ugu/camera.h"
 #include "ugu/stereo/base.h"
 #include "ugu/timer.h"
-#include "ugu/util.h"
+#include "ugu/util/rgbd_util.h"
 
 // test by bunny data
 int main(int argc, char* argv[]) {

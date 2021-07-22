@@ -12,9 +12,9 @@
 #include <functional>
 #include <random>
 
+#include "ugu//util/math_util.h"
 #include "ugu/stereo/base.h"
 #include "ugu/timer.h"
-#include "ugu/util.h"
 
 namespace {
 
@@ -698,7 +698,7 @@ inline bool WeightedMedianForFilled(Image1f* disparity, const Image3b& color,
 #endif  // 0
 
       if (!data.empty()) {
-        disparity->at<float>(j, i) = WeightedMedian(data, weights);
+        disparity->at<float>(j, i) = ugu::WeightedMedian(data, weights);
       } else {
         disparity->at<float>(j, i) = is_right
                                          ? std::numeric_limits<float>::lowest()

@@ -5,7 +5,7 @@
 
 #include <deque>
 
-#include "bin_packer_2d.h"
+#include "ugu/texturing/bin_packer_2d.h"
 
 namespace {
 

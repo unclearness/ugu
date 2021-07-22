@@ -4,13 +4,15 @@
  */
 
 #include <stdio.h>
+
 #include <fstream>
 #include <iostream>
 #include <vector>
 
 #include "ugu/renderer/rasterizer.h"
 #include "ugu/renderer/raytracer.h"
-#include "ugu/util.h"
+#include "ugu/util/io_util.h"
+#include "ugu/util/rgbd_util.h"
 
 // #define USE_RASTERIZER
 
