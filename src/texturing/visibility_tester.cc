@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "visibility_tester.h"
+#include "ugu/texturing/visibility_tester.h"
 #ifdef UGU_USE_NANORT
 
 #include <cassert>

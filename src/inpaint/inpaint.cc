@@ -4,7 +4,7 @@
  *
  */
 
-#include "inpaint.h"
+#include "ugu/inpaint/inpaint.h"
 
 #include <queue>
 

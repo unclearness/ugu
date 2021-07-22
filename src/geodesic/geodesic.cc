@@ -4,7 +4,7 @@
  *
  */
 
-#include "geodesic.h"
+#include "ugu/geodesic/geodesic.h"
 
 #include <queue>
 

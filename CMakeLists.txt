@@ -214,45 +214,45 @@ if(UGU_STATIC_LIBRARY)
 
     include/ugu/renderer/base.h
     include/ugu/renderer/raytracer.h
-    include/ugu/renderer/raytracer.cc
+    src/renderer/raytracer.cc
     include/ugu/renderer/rasterizer.h
-    include/ugu/renderer/rasterizer.cc
+    src/renderer/rasterizer.cc
     include/ugu/renderer/pixel_shader.h
     include/ugu/renderer/util_private.h
-    include/ugu/renderer/util_private.cc
+    src/renderer/util_private.cc
 
     include/ugu/sfs/voxel_carver.h
-    include/ugu/sfs/voxel_carver.cc
+    src/sfs/voxel_carver.cc
     include/ugu/sfs/extract_voxel.h
-    include/ugu/sfs/extract_voxel.cc
+    src/sfs/extract_voxel.cc
     include/ugu/sfs/marching_cubes.h
-    include/ugu/sfs/marching_cubes.cc
+    src/sfs/marching_cubes.cc
     include/ugu/sfs/marching_cubes_lut.h
-    include/ugu/sfs/marching_cubes_lut.cc
+    src/sfs/marching_cubes_lut.cc
 
     include/ugu/texturing/visibility_tester.h
-    include/ugu/texturing/visibility_tester.cc
+    src/texturing/visibility_tester.cc
     include/ugu/texturing/vertex_colorizer.h
-    include/ugu/texturing/vertex_colorizer.cc
+    src/texturing/vertex_colorizer.cc
     include/ugu/texturing/texture_mapper.h
-    include/ugu/texturing/texture_mapper.cc
+    src/texturing/texture_mapper.cc
     include/ugu/texturing/bin_packer_2d.h
-    include/ugu/texturing/bin_packer_2d.cc
+    src/texturing/bin_packer_2d.cc
 
     include/ugu/stereo/base.h
-    include/ugu/stereo/base.cc
+    src/stereo/base.cc
 
     include/ugu/synthesis/bdsim.h
-    include/ugu/synthesis/bdsim.cc
+    src/synthesis/bdsim.cc
 
     include/ugu/inflation/inflation.h
-    include/ugu/inflation/inflation.cc
+    src/inflation/inflation.cc
 
     include/ugu/inpaint/inpaint.h
-    include/ugu/inpaint/inpaint.cc
+    src/inpaint/inpaint.cc
 
     include/ugu/geodesic/geodesic.h
-    include/ugu/geodesic/geodesic.cc
+    src/geodesic/geodesic.cc
 
     # implementations of header-only library
     ${UGU_STB_IMPLEMENTATION_CC}

@@ -4,7 +4,7 @@
  */
 #ifdef UGU_USE_NANORT
 
-#include "vertex_colorizer.h"
+#include "ugu/texturing/vertex_colorizer.h"
 
 namespace ugu {
 

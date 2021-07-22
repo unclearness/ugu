@@ -6,7 +6,8 @@
 #include <random>
 
 #include "ugu/stereo/base.h"
-#include "ugu/stereo/patchmatch_stereo_impl.h"
+#include "patchmatch_stereo_impl.h"
+
 namespace {
 
 // all_cost[j][i][d]: cost of disparity d at (i, j)
