@@ -43,7 +43,7 @@ bool RasterizeTriangle(const std::array<Eigen::Vector3f, 3>& src_vetex_color,
   ymax = std::max(0, std::min(ymax, target->rows - 1));
 
   auto saturate_cast = [=](float x) {
-    constexpr bool is_integer = std::numeric_limits<T::value_type>::is_integer;
+      constexpr bool is_integer = std::numeric_limits<typename T::value_type>::is_integer;
     if (min_val < max_val) {
       x = std::clamp(x, min_val, max_val);
     }
@@ -75,10 +75,10 @@ bool RasterizeTriangle(const std::array<Eigen::Vector3f, 3>& src_vetex_color,
       Eigen::Vector3f color = w0 * src_vetex_color[0] +
                               w1 * src_vetex_color[1] + w2 * src_vetex_color[2];
 
-      target->at<T>(y, x) =
-          T({static_cast<T::value_type>(saturate_cast(color[0])),
-             static_cast<T::value_type>(saturate_cast(color[1])),
-             static_cast<T::value_type>(saturate_cast(color[2]))});
+        target->template at<T>(y, x) =
+        T({static_cast<typename T::value_type>(saturate_cast(color[0])),
+            static_cast<typename T::value_type>(saturate_cast(color[1])),
+            static_cast<typename T::value_type>(saturate_cast(color[2]))});
 
       if (mask != nullptr) {
         mask->at<unsigned char>(y, x) = 255;
@@ -152,7 +152,7 @@ bool FetchVertexAttributeFromTexture(const Image<T>& texture,
           std::clamp(std::round(x), 0.f, static_cast<float>(w - 1)));
       int y_i = static_cast<int>(
           std::clamp(std::round(y), 0.f, static_cast<float>(h - 1)));
-      attr = texture.at<T>(y_i, x_i);
+        attr = texture.template at<T>(y_i, x_i);
     }
     vertex_attrs.emplace_back(static_cast<float>(attr[0]),
                               static_cast<float>(attr[1]),
