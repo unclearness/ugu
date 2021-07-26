@@ -10,7 +10,7 @@
 
 namespace ugu {
 
-bool kMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
+bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
             std::vector<size_t>& labels,
             std::vector<Eigen::VectorXf>& centroids, std::vector<float>& dists,
             std::vector<std::vector<Eigen::VectorXf>>& clustered_points,

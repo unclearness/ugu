@@ -76,11 +76,11 @@ int main(int argc, char* argv[]) {
   std::vector<float> dists;
   std::vector<std::vector<Eigen::VectorXf>> clustered_points;
   int num_clusters = 10;
-  ugu::kMeans(points, num_clusters, labels, centroids, dists, clustered_points,
+  ugu::KMeans(points, num_clusters, labels, centroids, dists, clustered_points,
               100, 1.f, false, 0);
   SavePoints("kmeans_naive.ply", points, num_clusters, labels, centroids);
 
-  ugu::kMeans(points, num_clusters, labels, centroids, dists, clustered_points,
+  ugu::KMeans(points, num_clusters, labels, centroids, dists, clustered_points,
               100, 1.f, true, 0);
   SavePoints("kmeans_plusplus.ply", points, num_clusters, labels, centroids);
 
