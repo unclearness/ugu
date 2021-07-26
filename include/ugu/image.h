@@ -354,6 +354,12 @@ class Image {
     }
     std::memcpy(dst.data_->data(), data_->data(), sizeof(T) * rows * cols);
   }
+
+  Image<T> clone() const {
+    Image<T> dst;
+    this->copyTo(dst);
+    return dst;
+  }
 };
 
 using Image1b = Image<Vec1b>;  // For gray image.

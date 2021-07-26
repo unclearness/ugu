@@ -255,6 +255,9 @@ set(
   include/ugu/geodesic/geodesic.h
   src/geodesic/geodesic.cc
 
+  include/ugu/clustering/clustering.h
+  src/clustering/clustering.cc
+
   # implementations of header-only library
   ${UGU_STB_IMPLEMENTATION_CC}
   ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
@@ -308,6 +311,7 @@ if (NOT hasParent)
   setup_exe(ex10_stereo examples/ex10_stereo.cc)
   setup_exe(ex11_synthesis examples/ex11_synthesis.cc)
   setup_exe(ex12_texturing examples/ex12_texturing.cc)
+  setup_exe(ex13_clustering examples/ex13_clustering.cc)
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})
