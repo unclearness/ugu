@@ -111,6 +111,11 @@ void InitKMeansPlusPlus(const std::vector<Eigen::VectorXf>& points,
       auto it =
           std::lower_bound(dists_dstr.begin(), dists_dstr.end(), sampled_val);
       new_index = std::distance(dists_dstr.begin(), it);
+      // -1 to sample "hit" points
+      // 
+      if (new_index > 0) {
+        new_index -= 1;
+      }
       // ugu::LOGI("new_index %d %f %f\n", new_index, sampled_val, *it);
       // If selects exisiting index, sample again
       if (selected.find(new_index) != selected.end()) {
@@ -155,11 +160,7 @@ bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
   if (init_plus_plus) {
     InitKMeansPlusPlus(points, centroids, engine);
   } else {
-    // At least one sample for each cluster
-    for (size_t i = 0; i < nc; i++) {
-      labels[i] = i;
-    }
-    for (size_t i = nc; i < points.size(); i++) {
+    for (size_t i = 0; i < points.size(); i++) {
       labels[i] = static_cast<size_t>(cluster_dstr(engine));
     }
 
@@ -224,7 +225,7 @@ bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
     iter++;
     unchanged_ratio =
         static_cast<float>(unchanged_num) / static_cast<float>(points.size());
-    // ugu::LOGI("%d %f \n", iter, unchanged_ratio);
+     ugu::LOGI("%d %f \n", iter, unchanged_ratio);
   }
 
   //  clustered_points

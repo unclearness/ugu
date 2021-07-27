@@ -241,6 +241,7 @@ void FmmInitCommon(const ugu::Image1b& mask, ugu::Image1b& flags,
 void InpaintTeleaPixel(int i, int j, const ugu::Image1b& mask,
                        ugu::Image3b& color, const ugu::Image1b& flags,
                        const ugu::Image1f& dist, int inpaint_range) {
+  (void) mask;
   ugu::Vec2f grad_T{0.f, 0.f};
   if (0 <= i - 1 && flags.at<unsigned char>(j, i - 1) == KNOWN &&
       i + 1 < flags.cols && flags.at<unsigned char>(j, i + 1) == KNOWN) {

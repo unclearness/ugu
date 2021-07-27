@@ -177,9 +177,9 @@ class Image {
   ~Image() {}
   int channels() const { return channels_; }
 
-  int rows;
-  int cols;
-  unsigned char* data;
+  int rows{-1};
+  int cols{-1};
+  unsigned char* data{nullptr};
 
   bool empty() const {
     if (width_ < 0 || height_ < 0 || data_->empty()) {

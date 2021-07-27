@@ -45,7 +45,8 @@ int main(int argc, char* argv[]) {
   }
 
   ugu::FaceAdjacency face_adjacency;
-  face_adjacency.Init(mesh->vertices().size(), mesh->vertex_indices());
+  face_adjacency.Init(static_cast<int>(mesh->vertices().size()),
+                      mesh->vertex_indices());
 
   auto [boundary_edges, boundary_vertex_ids] =
       face_adjacency.GetBoundaryEdges();

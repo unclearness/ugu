@@ -228,4 +228,20 @@ class FaceAdjacency {
   }
 };
 
+inline std::unordered_map<int, std::vector<int>> GenerateVertex2FaceMap(
+    const std::vector<Eigen::Vector3i>& vertex_indices, size_t num_vertices) {
+  std::unordered_map<int, std::vector<int>> v2f;
+  for (size_t i = 0; i < num_vertices; i++) {
+   // v2f.insert(static_cast<int>(i), {});
+  }
+
+  for (size_t i = 0; i < vertex_indices.size(); i++) {
+    const auto& index = vertex_indices[i];
+   v2f[index[0]].push_back(static_cast<int>(i));
+   v2f[index[1]].push_back(static_cast<int>(i));
+   v2f[index[2]].push_back(static_cast<int>(i));
+  }
+  return v2f;
+}
+
 }  // namespace ugu

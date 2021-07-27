@@ -31,10 +31,177 @@ bool operator<(const DijkstraVertexInfo& l, const DijkstraVertexInfo& r) {
 using DijkstraHeap =
     std::priority_queue<DijkstraVertexInfo, std::vector<DijkstraVertexInfo>>;
 
-bool ComputeGeodesicDistanceDijkstra(const ugu::Mesh& mesh, int src_vid,
-                                     Eigen::SparseMatrix<float>& edge_dists,
-                                     std::vector<double>& dists,
-                                     std::vector<int>& min_path_edges) {
+void DijkstraUpdate(DijkstraHeap& q, ugu::VertexAdjacency& vertex_adjacency,
+                    Eigen::SparseMatrix<float>& edge_dists,
+                    std::vector<double>& dists,
+                    std::vector<int>& min_path_edges) {
+  auto min_v = q.top();
+  q.pop();
+  // LOGI("%f\n", min_v.dist);
+  const auto& connected_v_list = vertex_adjacency[min_v.id];
+  for (const auto& v : connected_v_list) {
+    double updated_dist = dists[min_v.id] + edge_dists.coeffRef(min_v.id, v);
+    if (updated_dist < dists[v]) {
+      dists[v] = updated_dist;
+      min_path_edges[v] = min_v.id;
+      q.push({v, updated_dist});
+    }
+  }
+}
+
+// Implementation of the following paper
+// Kimmel, Ron, and James A. Sethian. "Computing geodesic paths on manifolds."
+// Proceedings of the national academy of Sciences 95.15 (1998): 8431-8435.
+// https://www.pnas.org/content/pnas/95/15/8431.full.pdf
+void FmmUpdate(DijkstraHeap& q, ugu::VertexAdjacency& vertex_adjacency,
+               const std::unordered_map<int, std::vector<int>>& v2f,
+               const std::vector<Eigen::Vector3i>& faces,
+               Eigen::SparseMatrix<float>& edge_dists,
+               std::vector<double>& dists, std::vector<int>& min_path_edges) {
+  auto min_v = q.top();
+  q.pop();
+
+  constexpr double EPS = 1e-20;
+  // LOGI("%f\n", min_v.dist);
+  constexpr double F = 1.0;
+  constexpr double F2 = F * F;
+  const auto& connected_v_list = vertex_adjacency[min_v.id];
+  for (const auto& v : connected_v_list) {
+    // Get face id
+    std::vector<int> fids = v2f.at(v);
+    int fid = fids[0];
+    // int vid_2 = -1;
+    // int possible_vid2_count = 0;
+    std::vector<int> vid2_candidates;
+    // Get 3rd vertex
+    for (const auto& id : fids) {
+      const auto& face = faces[id];
+      for (int c = 0; c < 3; c++) {
+        if (face[c] == min_v.id) {
+          // Better code to search 3rd vertex...
+          for (int cc = 0; cc < 3; cc++) {
+            if (face[cc] != min_v.id && face[cc] != v) {
+              vid2_candidates.push_back(face[cc]);
+              fid = id;
+              // possible_vid2_count++;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (vid2_candidates.empty()) {
+      // Skip if 3rd vertex has not been visited.
+      // We need 2 visited vertices to update remaining 1 vertex
+      continue;
+    }
+
+    // Search the best candidate
+    int vid_2 = vid2_candidates[0];
+    double vid_2_d = dists[vid_2];
+    for (size_t i = 1; i < vid2_candidates.size(); i++) {
+      int tmp = vid2_candidates[i];
+      double tmp_dist = dists[tmp];
+      if (tmp_dist < vid_2_d) {
+        vid_2 = tmp;
+        vid_2_d = tmp_dist;
+      }
+    }
+
+    if (dists[vid_2] == std::numeric_limits<double>::max()) {
+      // continue;
+    }
+
+    // Names are consitent with:
+    // 4.1. A Construction for Acute Triangulations.
+    // Fig. 5.
+
+    int A = min_v.id;
+    int B = vid_2;
+    if (dists[B] < dists[A]) {
+      std::swap(A, B);
+    }
+    int C = v;
+
+    const double& a = edge_dists.coeffRef(B, C);
+    const double& b = edge_dists.coeffRef(A, C);
+    const double& c = edge_dists.coeffRef(A, B);
+    const double a2 = a * a;
+    const double b2 = b * b;
+    const double c2 = c * c;
+    const double cos_theta =
+        (a2 + b2 - c2) / (2 * a * b);  // From Law of cosines
+    const double theta = std::acos(cos_theta);
+
+    const double u = dists[B] - dists[A];
+    assert(0.0 < u);
+    const double u2 = u * u;
+
+    // Eq. [4] in the paper
+    const double qa = a2 + b2 - 2 * a * b * std::cos(theta);
+    const double qb = 2 * b * u * (a * std::cos(theta) - b);
+    const double sin_theta = std::sin(theta);
+    const double sin_theta2 = sin_theta * sin_theta;
+    const double qc = b2 * (u2 - F2 * a2 * sin_theta2);
+
+    if (std::abs(qa) < EPS) {
+      //  continue;
+    }
+    double qD = qb * qb - 4 * qa * qc;
+    if (qD < 0) {
+      // I don't why sometimes Discriminator < 0...
+      if (0.01 < std::abs(qD)) {
+        // ugu::LOGE("something wrong...\n");
+        // ugu::LOGE("%f %f %f %f %d \n", qD, dists[A], dists[B], dists[C],
+        //          vid2_candidates.size());
+        continue;
+      } else {
+        qD = 0.0;
+      }
+    }
+
+    const auto t0 = (-qb + std::sqrt(qD)) / (2 * qa);
+    const auto t1 = (-qb - std::sqrt(qD)) / (2 * qa);
+    double t = t0 > 0 ? t0 : t1;
+    // I don't know why sometimes t < 0...
+    if (t < 0) {
+      continue;
+    }
+
+    const double a_cos_theta = a * cos_theta;
+    const double a_inv_cos_theta =
+        cos_theta < EPS ? std::numeric_limits<double>::max() : a / cos_theta;
+    const double cond = b * (t - u) / t;
+
+    bool is_satisfied = true;
+    is_satisfied &= (u < t);
+    is_satisfied &= ((a_cos_theta < cond) && (cond < a_inv_cos_theta));
+
+    double updated_dist = dists[v];
+    if (is_satisfied) {
+      updated_dist = std::min(dists[v], t + dists[A]);
+    } else {
+      // The last term in the original paper is "c * F + dists[B]".
+      // But I think the paper is wrong..."a * F + dists[B]" generates visually
+      // better results...
+      updated_dist =
+          std::min(dists[v], std::min(b * F + dists[A], a * F + dists[B]));
+    }
+
+    if (updated_dist < dists[v]) {
+      dists[v] = updated_dist;
+      min_path_edges[v] = min_v.id;
+      q.push({v, updated_dist});
+    }
+  }
+}
+
+bool ComputeGeodesicDistanceDijkstraBase(const ugu::Mesh& mesh, int src_vid,
+                                         Eigen::SparseMatrix<float>& edge_dists,
+                                         std::vector<double>& dists,
+                                         std::vector<int>& min_path_edges,
+                                         bool is_fmm) {
   dists.clear();
   const auto num_vertices = mesh.vertices().size();
   dists.resize(num_vertices, std::numeric_limits<double>::max());
@@ -81,20 +248,21 @@ bool ComputeGeodesicDistanceDijkstra(const ugu::Mesh& mesh, int src_vid,
 
   // Initialization
   q.push({src_vid, 0.0});
+  std::unordered_map<int, std::vector<int>> v2f;
+
+  const auto& faces = mesh.vertex_indices();
+
+  if (is_fmm) {
+    v2f = ugu::GenerateVertex2FaceMap(faces, mesh.vertices().size());
+  }
 
   // Main process
   while (!q.empty()) {
-    auto min_v = q.top();
-    q.pop();
-    // LOGI("%f\n", min_v.dist);
-    const auto& connected_v_list = vertex_adjacency[min_v.id];
-    for (const auto& v : connected_v_list) {
-      double updated_dist = dists[min_v.id] + edge_dists.coeffRef(min_v.id, v);
-      if (updated_dist < dists[v]) {
-        dists[v] = updated_dist;
-        min_path_edges[v] = min_v.id;
-        q.push({v, updated_dist});
-      }
+    if (is_fmm) {
+      FmmUpdate(q, vertex_adjacency, v2f, faces, edge_dists, dists,
+                min_path_edges);
+    } else {
+      DijkstraUpdate(q, vertex_adjacency, edge_dists, dists, min_path_edges);
     }
   }
 
@@ -111,8 +279,11 @@ bool ComputeGeodesicDistance(const Mesh& mesh, int src_vid,
                              std::vector<int>& min_path_edges,
                              GeodesicComputeMethod method) {
   if (method == GeodesicComputeMethod::DIJKSTRA) {
-    return ComputeGeodesicDistanceDijkstra(mesh, src_vid, edge_dists, dists,
-                                           min_path_edges);
+    return ComputeGeodesicDistanceDijkstraBase(mesh, src_vid, edge_dists, dists,
+                                               min_path_edges, false);
+  } else if (method == GeodesicComputeMethod::FAST_MARCHING_METHOD) {
+    return ComputeGeodesicDistanceDijkstraBase(mesh, src_vid, edge_dists, dists,
+                                               min_path_edges, true);
   }
 
   return false;
