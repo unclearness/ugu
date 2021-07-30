@@ -124,6 +124,43 @@ void InitKMeansPlusPlus(const std::vector<Eigen::VectorXf>& points,
   }
 }
 
+#if 0
+
+std::function<Eigen::VectorXf (const Eigen::VectorXf&)> GetKernelGrad(
+    ugu::MeanShiftKernel kernel) {
+  if (kernel == ugu::MeanShiftKernel::GAUSSIAN) {
+    return [&](const Eigen::VectorXf& x) {
+      return -x * std::exp(-x.squaredNorm() * 0.5f);
+    };
+  }
+
+  return [&](const Eigen::VectorXf& x) {
+    return x;
+  };
+}
+#endif  // 0
+
+#if 0
+std::function<double(const Eigen::VectorXf&)> GetKernelGrad(
+    ugu::MeanShiftKernel kernel) {
+  if (kernel == ugu::MeanShiftKernel::GAUSSIAN) {
+    return [&](const Eigen::VectorXf& x) {
+      return -x .norm() * std::exp(-x.squaredNorm() * 0.5f);
+    };
+  }
+
+  return [&](const Eigen::VectorXf& x) { return x.norm(); };
+}
+#endif
+
+std::function<double(double)> GetKernelGrad(ugu::MeanShiftKernel kernel) {
+  if (kernel == ugu::MeanShiftKernel::GAUSSIAN) {
+    return [&](double x) { return -x * std::exp(-x * x * 0.5); };
+  }
+
+  return [&](double x) { return 0; };
+}
+
 }  // namespace
 
 namespace ugu {
@@ -230,6 +267,70 @@ bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
   //  clustered_points
   for (size_t i = 0; i < points.size(); i++) {
     clustered_points[labels[i]].push_back(points[i]);
+  }
+
+  return true;
+}
+
+bool MeanShift(const std::vector<Eigen::VectorXf>& points,
+               const Eigen::VectorXf& init, float band_width,
+               float term_min_threshold, int term_max_iter,
+               Eigen::VectorXf& node, MeanShiftKernel kernel) {
+  node = init;
+
+  auto grad_func = GetKernelGrad(kernel);
+
+  int iter = 0;
+  float diff = std::numeric_limits<float>::max();
+  bool is_term_max_iter = term_max_iter > 0;
+  bool is_term_min_threshold = 0.f < term_min_threshold;
+  const int default_term_max_iter = 100;
+  auto terminated = [&] {
+    if (!is_term_max_iter && !is_term_min_threshold) {
+      if (default_term_max_iter <= iter) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+
+    if (is_term_max_iter && term_max_iter <= iter) {
+      return true;
+    }
+
+    if (is_term_min_threshold && diff < term_min_threshold) {
+      return true;
+    }
+
+    return false;
+  };
+
+  Eigen::VectorXf prev_node(node);
+
+  std::vector<double> coeffs(points.size());
+  const double inv_sq_h = 1 / (band_width * band_width);
+  while (!terminated()) {
+    prev_node = node;
+
+  ugu::LOGI("prev (%f %f %f)\n", prev_node[0], prev_node[1], prev_node[2]);
+    ugu::LOGI("node (%f %f %f)\n", node[0], node[1], node[2]);
+
+    double denom = 0;
+   node.setZero();
+    for (size_t i = 0; i < points.size(); i++) {
+      double t = (prev_node - points[i]).squaredNorm() * inv_sq_h;
+      coeffs[i] = -grad_func(t);
+      node += points[i] * coeffs[i];
+      denom += coeffs[i];
+    }
+
+    node /= denom;
+
+    iter++;
+    diff = (prev_node - node).norm();
+    ugu::LOGI("%d %f \n", iter, diff);
+    ugu::LOGI("prev (%f %f %f)\n", prev_node[0], prev_node[1], prev_node[2]);
+    ugu::LOGI("node (%f %f %f)\n", node[0], node[1], node[2]);
   }
 
   return true;

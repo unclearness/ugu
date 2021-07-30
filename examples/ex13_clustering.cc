@@ -46,12 +46,7 @@ void SavePoints(const std::string& ply_path,
   mesh.WritePly(ply_path);
 }
 
-}  // namespace
-
-int main(int argc, char* argv[]) {
-  (void)argc;
-  (void)argv;
-
+void KMeansTest() {
   std::vector<Eigen::VectorXf> points;
   float r = 1.f;
   std::normal_distribution<float> dstr(0.f, r);
@@ -83,6 +78,45 @@ int main(int argc, char* argv[]) {
   ugu::KMeans(points, num_clusters, labels, centroids, dists, clustered_points,
               100, 1.f, true, 0);
   SavePoints("kmeans_plusplus.ply", points, num_clusters, labels, centroids);
+}
+
+void MeanShiftTest() {
+  std::vector<Eigen::VectorXf> points;
+  float r = 1.f;
+  std::normal_distribution<float> dstr(0.f, r);
+
+  size_t pc = 3000;
+  for (size_t i = 0; i < pc; i++) {
+    float x = dstr(engine);
+    float y = dstr(engine);
+    float z = dstr(engine);
+    Eigen::VectorXf p(3);
+    p[0] = x;
+    p[1] = y;
+    p[2] = z;
+    points.emplace_back(p);
+  }
+
+  Eigen::VectorXf init(3);
+  init[0] = r;
+  init[1] = r;
+  init[2] = r;
+
+  Eigen::VectorXf node(3);
+  ugu::LOGI("init      (%f %f %f)\n", init[0], init[1], init[2]);
+  ugu::MeanShift(points, init, r, 0.0001f, 100, node);
+  ugu::LOGI("converged (%f %f %f)\n", node[0], node[1], node[2]);
+}
+
+}  // namespace
+
+int main(int argc, char* argv[]) {
+  (void)argc;
+  (void)argv;
+
+  KMeansTest();
+
+  MeanShiftTest();
 
   return 0;
 }
