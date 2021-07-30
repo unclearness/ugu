@@ -3,13 +3,12 @@
 
 #ifdef UGU_USE_JSON
 
-#include "ugu/mesh.h"
-
 #include <fstream>
 #include <iomanip>
 #include <unordered_map>
 
 #include "nlohmann/json.hpp"
+#include "ugu/mesh.h"
 
 namespace ugu {
 namespace gltf {
@@ -172,8 +171,12 @@ struct Accessor {
   std::string type;
 
   bool write_minmax = false;
-  std::array<float, 3> max;
-  std::array<float, 3> min;
+  std::array<float, 3> max{std::numeric_limits<float>::lowest(),
+                           std::numeric_limits<float>::lowest(),
+                           std::numeric_limits<float>::lowest()};
+  std::array<float, 3> min{std::numeric_limits<float>::max(),
+                           std::numeric_limits<float>::max(),
+                           std::numeric_limits<float>::max()};
 };
 void to_json(json& j, const Accessor& obj) {
   j = json{{"bufferView", obj.bufferView},

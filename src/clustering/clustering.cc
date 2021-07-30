@@ -12,37 +12,6 @@
 #include "ugu/common.h"
 
 namespace {
-void CalcCentroids(const std::vector<Eigen::VectorXf>& points,
-                   const std::vector<size_t>& labels,
-                   std::vector<Eigen::VectorXf>& centroids, size_t nc) {
-  centroids.resize(nc);
-  Eigen::VectorXf zero = Eigen::VectorXf(centroids[0].rows());
-  zero.setZero();
-  std::fill(centroids.begin(), centroids.end(), zero);
-  std::vector<size_t> centroid_counts(nc, 0);
-
-  for (size_t i = 0; i < points.size(); i++) {
-    size_t l = labels[i];
-    centroids[l] += points[i];
-    centroid_counts[l] += 1;
-  }
-
-  Eigen::VectorXf inf = Eigen::VectorXf(centroids[0].rows());
-  inf.setConstant(std::numeric_limits<float>::infinity());
-  for (size_t i = 0; i < nc; i++) {
-    if (centroid_counts[i] < 1) {
-      // Set inf to illegal point
-      centroids[i] = inf;
-      continue;
-    }
-    centroids[i] /= static_cast<float>(centroid_counts[i]);
-  }
-
-  // for (size_t i = 0; i < nc; i++) {
-  //  ugu::LOGI("%d %d (%f, %f, %f)\n", i, centroid_counts[i], centroids[i][0],
-  //            centroids[i][1], centroids[i][2]);
-  //}
-}
 
 void AssignLabelForInvalidClusters(const std::vector<Eigen::VectorXf>& points,
                                    std::vector<size_t>& labels,
@@ -158,12 +127,45 @@ std::function<double(double)> GetKernelGrad(ugu::MeanShiftKernel kernel) {
     return [&](double x) { return -x * std::exp(-x * x * 0.5); };
   }
 
-  return [&](double x) { return 0; };
+  ugu::LOGE("This kernel is not supported\n");
+  return [&](double x) { return x; };
 }
 
 }  // namespace
 
 namespace ugu {
+
+void CalcCentroids(const std::vector<Eigen::VectorXf>& points,
+                   const std::vector<size_t>& labels,
+                   std::vector<Eigen::VectorXf>& centroids, size_t nc) {
+  centroids.resize(nc);
+  Eigen::VectorXf zero = Eigen::VectorXf(points[0].rows());
+  zero.setZero();
+  std::fill(centroids.begin(), centroids.end(), zero);
+  std::vector<size_t> centroid_counts(nc, 0);
+
+  for (size_t i = 0; i < points.size(); i++) {
+    size_t l = labels[i];
+    centroids[l] += points[i];
+    centroid_counts[l] += 1;
+  }
+
+  Eigen::VectorXf inf = Eigen::VectorXf(centroids[0].rows());
+  inf.setConstant(std::numeric_limits<float>::infinity());
+  for (size_t i = 0; i < nc; i++) {
+    if (centroid_counts[i] < 1) {
+      // Set inf to illegal point
+      centroids[i] = inf;
+      continue;
+    }
+    centroids[i] /= static_cast<float>(centroid_counts[i]);
+  }
+
+  // for (size_t i = 0; i < nc; i++) {
+  //  ugu::LOGI("%d %d (%f, %f, %f)\n", i, centroid_counts[i], centroids[i][0],
+  //            centroids[i][1], centroids[i][2]);
+  //}
+}
 
 bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
             std::vector<size_t>& labels,
@@ -272,6 +274,8 @@ bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
   return true;
 }
 
+// Implementation reference:
+// http://takashiijiri.com/study/ImgProc/MeanShift.htm
 bool MeanShift(const std::vector<Eigen::VectorXf>& points,
                const Eigen::VectorXf& init, float band_width,
                float term_min_threshold, int term_max_iter,
@@ -312,11 +316,11 @@ bool MeanShift(const std::vector<Eigen::VectorXf>& points,
   while (!terminated()) {
     prev_node = node;
 
-  ugu::LOGI("prev (%f %f %f)\n", prev_node[0], prev_node[1], prev_node[2]);
-    ugu::LOGI("node (%f %f %f)\n", node[0], node[1], node[2]);
+    // ugu::LOGI("prev (%f %f %f)\n", prev_node[0], prev_node[1], prev_node[2]);
+    // ugu::LOGI("node (%f %f %f)\n", node[0], node[1], node[2]);
 
     double denom = 0;
-   node.setZero();
+    node.setZero();
     for (size_t i = 0; i < points.size(); i++) {
       double t = (prev_node - points[i]).squaredNorm() * inv_sq_h;
       coeffs[i] = -grad_func(t);
@@ -324,13 +328,67 @@ bool MeanShift(const std::vector<Eigen::VectorXf>& points,
       denom += coeffs[i];
     }
 
-    node /= denom;
+    node /= static_cast<float>(denom);
 
     iter++;
     diff = (prev_node - node).norm();
-    ugu::LOGI("%d %f \n", iter, diff);
-    ugu::LOGI("prev (%f %f %f)\n", prev_node[0], prev_node[1], prev_node[2]);
-    ugu::LOGI("node (%f %f %f)\n", node[0], node[1], node[2]);
+    // ugu::LOGI("%d %f \n", iter, diff);
+    // ugu::LOGI("prev (%f %f %f)\n", prev_node[0], prev_node[1], prev_node[2]);
+    // ugu::LOGI("node (%f %f %f)\n", node[0], node[1], node[2]);
+  }
+
+  return true;
+}
+
+bool MeanShiftClustering(
+    const std::vector<Eigen::VectorXf>& points, int& num_clusters,
+    std::vector<size_t>& labels, std::vector<Eigen::VectorXf>& nodes,
+    std::vector<std::vector<Eigen::VectorXf>>& clustered_points,
+    float band_width, float term_min_threshold, int term_max_iter,
+    float cluster_theshold, MeanShiftKernel kernel) {
+  labels.resize(points.size(), size_t(~0));
+  nodes.resize(points.size());
+
+  // Run MeanShift for each point
+  // TODO: Acceleration by kd-tree. Distance query targets are always "points"
+#ifdef UGU_USE_OPENMP
+#pragma omp parallel for
+#endif
+  for (long int i = 0; i < static_cast<long int>(points.size()); i++) {
+    const auto& p = points[i];
+    MeanShift(points, p, band_width, term_min_threshold, term_max_iter,
+              nodes[i], kernel);
+  }
+
+  // Clustering extreme points
+  num_clusters = 1;
+  labels[0] = 0;
+  clustered_points.push_back({points[0]});
+  for (size_t i = 1; i < nodes.size(); i++) {
+    // Check distance
+    bool merged = false;
+    for (size_t ii = 0; ii < i; ii++) {
+      // If find near cluster, merge
+      float dist = (nodes[i] - nodes[ii]).norm();
+      // ugu::LOGI("%f \n", dist);
+      if (dist < cluster_theshold) {
+        // merge
+        labels[i] = labels[ii];
+        clustered_points[labels[i]].push_back(points[i]);
+
+        merged = true;
+        break;
+      }
+    }
+
+    if (merged) {
+      continue;
+    }
+
+    // Add new cluster
+    num_clusters++;
+    labels[i] = static_cast<size_t>(num_clusters) - 1;
+    clustered_points.push_back({points[i]});
   }
 
   return true;

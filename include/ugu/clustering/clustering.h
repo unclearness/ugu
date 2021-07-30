@@ -10,6 +10,11 @@
 
 namespace ugu {
 
+
+void CalcCentroids(const std::vector<Eigen::VectorXf>& points,
+                   const std::vector<size_t>& labels,
+                   std::vector<Eigen::VectorXf>& centroids, size_t nc);
+
 bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
             std::vector<size_t>& labels,
             std::vector<Eigen::VectorXf>& centroids, std::vector<float>& dists,
@@ -24,5 +29,12 @@ bool MeanShift(const std::vector<Eigen::VectorXf>& points,
                float term_min_threshold, int term_max_iter,
                Eigen::VectorXf& node,
                MeanShiftKernel kernel = MeanShiftKernel::GAUSSIAN);
+
+bool MeanShiftClustering(
+    const std::vector<Eigen::VectorXf>& points, int& num_clusters,
+    std::vector<size_t>& labels, std::vector<Eigen::VectorXf>& nodes,
+    std::vector<std::vector<Eigen::VectorXf>>& clustered_points,
+    float band_width, float term_min_threshold, int term_max_iter,
+    float cluster_theshold, MeanShiftKernel kernel = MeanShiftKernel::GAUSSIAN);
 
 }  // namespace ugu
