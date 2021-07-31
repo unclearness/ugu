@@ -131,6 +131,26 @@ std::function<double(double)> GetKernelGrad(ugu::MeanShiftKernel kernel) {
   return [&](double x) { return x; };
 }
 
+// TODO: kd-tree
+std::unordered_set<int32_t> RangeQuery(
+    const std::vector<Eigen::VectorXf>& points, int32_t q, float epsilon,
+    bool remove_q = true) {
+  std::unordered_set<int32_t> nn_set;
+  // size_t q_ = static_cast<size_t>(q);
+  for (size_t i = 0; i < points.size(); i++) {
+    float dist = (points[i] - points[q]).norm();
+    if (dist < epsilon) {
+      nn_set.insert(static_cast<int32_t>(i));
+    }
+  }
+
+  if (remove_q) {
+    nn_set.erase(q);
+  }
+
+  return nn_set;
+}
+
 }  // namespace
 
 namespace ugu {
@@ -146,6 +166,9 @@ void CalcCentroids(const std::vector<Eigen::VectorXf>& points,
 
   for (size_t i = 0; i < points.size(); i++) {
     size_t l = labels[i];
+    if (nc < l) {
+      continue;
+    }
     centroids[l] += points[i];
     centroid_counts[l] += 1;
   }
@@ -394,4 +417,92 @@ bool MeanShiftClustering(
   return true;
 }
 
+// A naive implementatio of DBSCAN
+// https://en.wikipedia.org/wiki/DBSCAN
+bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
+            std::vector<int32_t>& labels,
+            std::vector<std::vector<Eigen::VectorXf>>& clustered_points,
+            std::vector<Eigen::VectorXf>& noise_points, float epsilon,
+            size_t min_nn_points) {
+  constexpr size_t DBSCAN_MAX_SIZE = std::numeric_limits<int32_t>::max();
+
+  if (DBSCAN_MAX_SIZE < points.size()) {
+    return false;
+  }
+
+  num_clusters = 0;
+  constexpr int32_t illegal = std::numeric_limits<int32_t>::lowest();
+  constexpr int32_t noise = -1;
+  labels.resize(points.size(), illegal);
+  for (size_t i = 0; i < points.size(); i++) {
+    if (labels[i] != illegal) {
+      // Already processed
+      continue;
+    }
+
+    const std::unordered_set<int32_t> nn_ids_seed =
+        RangeQuery(points, static_cast<int32_t>(i), epsilon);
+
+    if (nn_ids_seed.size() < min_nn_points) {
+      // Skip noise
+      labels[i] = noise;
+      continue;
+    }
+
+    // Current cluster label
+    int32_t c = num_clusters;
+    num_clusters += 1;
+    labels[i] = c;
+
+    std::unordered_set<int32_t> seed_set = nn_ids_seed;
+    seed_set.insert(static_cast<int32_t>(i));
+
+    std::unordered_set<int32_t> to_remove;
+    while (!seed_set.empty()) {
+      std::unordered_set<int32_t> expanded;
+      for (const int32_t& q : seed_set) {
+        if (labels[q] == noise) {
+          labels[q] = c;
+        } else if (labels[q] != illegal) {
+          // Skip already processed points
+          to_remove.insert(q);
+          continue;
+        }
+
+        labels[q] = c;
+
+        const std::unordered_set<int32_t> nn_ids =
+            RangeQuery(points, q, epsilon);
+
+        if (min_nn_points <= nn_ids.size()) {
+          expanded.insert(nn_ids.begin(), nn_ids.end());
+        }
+      }
+
+      // Merge
+      seed_set.insert(expanded.begin(), expanded.end());
+
+      // Remove
+      for (const auto& r : to_remove) {
+        seed_set.erase(r);
+      }
+
+      // expanded.clear();
+    }
+  }
+
+  noise_points.clear();
+  clustered_points.resize(num_clusters);
+  for (size_t i = 0; i < points.size(); i++) {
+    const auto& l = labels[i];
+    const auto& p = points[i];
+    if (l < 0) {
+      noise_points.push_back(p);
+    } else {
+      clustered_points[l].push_back(p);
+    }
+  }
+
+  return true;
+}
 }  // namespace ugu

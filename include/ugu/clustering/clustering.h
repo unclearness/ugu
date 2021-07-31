@@ -10,7 +10,6 @@
 
 namespace ugu {
 
-
 void CalcCentroids(const std::vector<Eigen::VectorXf>& points,
                    const std::vector<size_t>& labels,
                    std::vector<Eigen::VectorXf>& centroids, size_t nc);
@@ -36,5 +35,11 @@ bool MeanShiftClustering(
     std::vector<std::vector<Eigen::VectorXf>>& clustered_points,
     float band_width, float term_min_threshold, int term_max_iter,
     float cluster_theshold, MeanShiftKernel kernel = MeanShiftKernel::GAUSSIAN);
+
+bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
+            std::vector<int32_t>& labels,
+            std::vector<std::vector<Eigen::VectorXf>>& clustered_points,
+            std::vector<Eigen::VectorXf>& noise_points, float epsilon,
+            size_t min_nn_points);
 
 }  // namespace ugu
