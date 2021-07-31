@@ -275,7 +275,7 @@ void DBSCANTest() {
   ugu::Timer<> timer;
   timer.Start();
   ugu::DBSCAN(points, num_clusters, labels, clustered_points, noise_points, r,
-              30);
+              40);
   timer.End();
   ugu::LOGI("DBSCAN %f ms\n", timer.elapsed_msec());
   ugu::LOGI("#Clusters DBSCAN %d\n", num_clusters);

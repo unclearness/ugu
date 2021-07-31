@@ -118,12 +118,12 @@ std::unordered_set<int32_t> RangeQueryKdTree(
   nanoflann::SearchParams params;
   // For squared L2 distance
   const float sq_epsilon = epsilon * epsilon;
-  size_t nMatches = index.index->radiusSearch(points[q].data(), sq_epsilon,
-                                              ret_matches, params);
+  const size_t nMatches = index.index->radiusSearch(
+      points[q].data(), sq_epsilon, ret_matches, params);
 
   std::unordered_set<int32_t> nn_set;
-
-  for (const auto& m : ret_matches) {
+  for (size_t i = 0; i < nMatches; i++) {
+    const auto& m = ret_matches[i];
     nn_set.insert(static_cast<int32_t>(m.first));
   }
 
@@ -439,7 +439,7 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
   // TODO: Do not copy..
   Eigen::MatrixXf mat(points.size(), points[0].rows());
   for (size_t i = 0; i < points.size(); i++) {
-    for (size_t j = 0; j < points[0].rows(); j++) {
+    for (Eigen::Index j = 0; j < points[0].rows(); j++) {
       mat.coeffRef(i, j) = points[i][j];
     }
   }
