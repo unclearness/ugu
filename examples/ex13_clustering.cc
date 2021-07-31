@@ -7,6 +7,7 @@
 
 #include "ugu/clustering/clustering.h"
 #include "ugu/mesh.h"
+#include "ugu/timer.h"
 
 namespace {
 std::default_random_engine engine(0);
@@ -36,7 +37,12 @@ void SavePoints(const std::string& ply_path,
                               color_dstr(engine));
   }
   for (size_t i = 0; i < points.size(); i++) {
-    point_colors.push_back(label_colors[labels[i]]);
+    auto l = labels[i];
+    if (l < num_clusters) {
+      point_colors.push_back(label_colors[l]);
+    } else {
+      point_colors.emplace_back(0.f, 0.f, 0.f);
+    }
   }
   for (size_t i = 0; i < num_clusters; i++) {
     // Red for cluster centroids
@@ -51,7 +57,7 @@ void KMeansTest() {
   float r = 1.f;
   std::normal_distribution<float> dstr(0.f, r);
 
-#if 0
+#if 1
   size_t pc = 3000;
   size_t gt_clusters = 10;
   for (size_t i = 0; i < pc; i++) {
@@ -83,17 +89,25 @@ void KMeansTest() {
                  });
 #endif
 
+  ugu::Timer<> timer;
+
   std::vector<size_t> labels;
   std::vector<Eigen::VectorXf> centroids;
   std::vector<float> dists;
   std::vector<std::vector<Eigen::VectorXf>> clustered_points;
   int num_clusters = 10;
+  timer.Start();
   ugu::KMeans(points, num_clusters, labels, centroids, dists, clustered_points,
               100, 1.f, false, 0);
+  timer.End();
+  ugu::LOGI("KMeans naive %f ms\n", timer.elapsed_msec());
   SavePoints("kmeans_naive.ply", points, num_clusters, labels, centroids);
 
+  timer.Start();
   ugu::KMeans(points, num_clusters, labels, centroids, dists, clustered_points,
               100, 1.f, true, 0);
+  ugu::LOGI("KMeans++ %f ms\n", timer.elapsed_msec());
+  timer.End();
   SavePoints("kmeans_plusplus.ply", points, num_clusters, labels, centroids);
 }
 
@@ -161,10 +175,15 @@ void MeanShiftTest() {
   r = 100.f;
 #endif
 
+  ugu::Timer<> timer;
+
   Eigen::VectorXf node(3);
   ugu::LOGI("MeanShift init              (%f %f %f)\n", init[0], init[1],
             init[2]);
+  timer.Start();
   ugu::MeanShift(points, init, r, 0.0001f, 100, node);
+  timer.End();
+  ugu::LOGI("MeanShift %f ms\n", timer.elapsed_msec());
   ugu::LOGI("MeanShift converged extrema (%f %f %f)\n", node[0], node[1],
             node[2]);
 
@@ -173,8 +192,12 @@ void MeanShiftTest() {
   std::vector<float> dists;
   std::vector<std::vector<Eigen::VectorXf>> clustered_points;
   int num_clusters = 0;
+
+  timer.Start();
   ugu::MeanShiftClustering(points, num_clusters, labels, nodes,
                            clustered_points, r, 0.0001f, 100, r / 50);
+  timer.End();
+  ugu::LOGI("MeanShiftClustering %f ms\n", timer.elapsed_msec());
   ugu::LOGI("#Clusters MeanShiftClustering %d\n", num_clusters);
   std::vector<Eigen::VectorXf> centroids;
   ugu::CalcCentroids(points, labels, centroids, num_clusters);
@@ -249,9 +272,12 @@ void DBSCANTest() {
   std::vector<std::vector<Eigen::VectorXf>> clustered_points;
   std::vector<Eigen::VectorXf> noise_points;
   int num_clusters = 0;
+  ugu::Timer<> timer;
+  timer.Start();
   ugu::DBSCAN(points, num_clusters, labels, clustered_points, noise_points, r,
               30);
-
+  timer.End();
+  ugu::LOGI("DBSCAN %f ms\n", timer.elapsed_msec());
   ugu::LOGI("#Clusters DBSCAN %d\n", num_clusters);
   std::vector<Eigen::VectorXf> centroids;
   std::vector<size_t> labels_;

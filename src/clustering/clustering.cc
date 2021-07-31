@@ -11,6 +11,10 @@
 
 #include "ugu/common.h"
 
+#ifdef UGU_USE_NANOFLANN
+#include "nanoflann.hpp"
+#endif
+
 namespace {
 
 void AssignLabelForInvalidClusters(const std::vector<Eigen::VectorXf>& points,
@@ -93,35 +97,6 @@ void InitKMeansPlusPlus(const std::vector<Eigen::VectorXf>& points,
   }
 }
 
-#if 0
-
-std::function<Eigen::VectorXf (const Eigen::VectorXf&)> GetKernelGrad(
-    ugu::MeanShiftKernel kernel) {
-  if (kernel == ugu::MeanShiftKernel::GAUSSIAN) {
-    return [&](const Eigen::VectorXf& x) {
-      return -x * std::exp(-x.squaredNorm() * 0.5f);
-    };
-  }
-
-  return [&](const Eigen::VectorXf& x) {
-    return x;
-  };
-}
-#endif  // 0
-
-#if 0
-std::function<double(const Eigen::VectorXf&)> GetKernelGrad(
-    ugu::MeanShiftKernel kernel) {
-  if (kernel == ugu::MeanShiftKernel::GAUSSIAN) {
-    return [&](const Eigen::VectorXf& x) {
-      return -x .norm() * std::exp(-x.squaredNorm() * 0.5f);
-    };
-  }
-
-  return [&](const Eigen::VectorXf& x) { return x.norm(); };
-}
-#endif
-
 std::function<double(double)> GetKernelGrad(ugu::MeanShiftKernel kernel) {
   if (kernel == ugu::MeanShiftKernel::GAUSSIAN) {
     return [&](double x) { return -x * std::exp(-x * x * 0.5); };
@@ -131,8 +106,38 @@ std::function<double(double)> GetKernelGrad(ugu::MeanShiftKernel kernel) {
   return [&](double x) { return x; };
 }
 
+#ifdef UGU_USE_NANOFLANN
+
+using ugu_kdtree_t = nanoflann::KDTreeEigenMatrixAdaptor<
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>>;
+
+std::unordered_set<int32_t> RangeQueryKdTree(
+    const std::vector<Eigen::VectorXf>& points, ugu_kdtree_t& index, int32_t q,
+    float epsilon, bool remove_q = true) {
+  std::vector<std::pair<Eigen::Index, float>> ret_matches;
+  nanoflann::SearchParams params;
+  // For squared L2 distance
+  const float sq_epsilon = epsilon * epsilon;
+  size_t nMatches = index.index->radiusSearch(points[q].data(), sq_epsilon,
+                                              ret_matches, params);
+
+  std::unordered_set<int32_t> nn_set;
+
+  for (const auto& m : ret_matches) {
+    nn_set.insert(static_cast<int32_t>(m.first));
+  }
+
+  if (!remove_q) {
+    nn_set.insert(q);
+  }
+
+  return nn_set;
+}
+
+#endif
+
 // TODO: kd-tree
-std::unordered_set<int32_t> RangeQuery(
+std::unordered_set<int32_t> RangeQueryNaive(
     const std::vector<Eigen::VectorXf>& points, int32_t q, float epsilon,
     bool remove_q = true) {
   std::unordered_set<int32_t> nn_set;
@@ -430,6 +435,20 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
     return false;
   }
 
+#ifdef UGU_USE_NANOFLANN
+  // TODO: Do not copy..
+  Eigen::MatrixXf mat(points.size(), points[0].rows());
+  for (size_t i = 0; i < points.size(); i++) {
+    for (size_t j = 0; j < points[0].rows(); j++) {
+      mat.coeffRef(i, j) = points[i][j];
+    }
+  }
+
+  ugu_kdtree_t mat_index(static_cast<size_t>(points[0].size()), mat,
+                         10 /* max leaf */);
+  mat_index.index->buildIndex();
+#endif
+
   num_clusters = 0;
   constexpr int32_t illegal = std::numeric_limits<int32_t>::lowest();
   constexpr int32_t noise = -1;
@@ -440,8 +459,13 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
       continue;
     }
 
+#ifdef UGU_USE_NANOFLANN
     const std::unordered_set<int32_t> nn_ids_seed =
-        RangeQuery(points, static_cast<int32_t>(i), epsilon);
+        RangeQueryKdTree(points, mat_index, static_cast<int32_t>(i), epsilon);
+#else
+    const std::unordered_set<int32_t> nn_ids_seed =
+        RangeQueryNaive(points, static_cast<int32_t>(i), epsilon);
+#endif
 
     if (nn_ids_seed.size() < min_nn_points) {
       // Skip noise
@@ -471,8 +495,13 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
 
         labels[q] = c;
 
+#ifdef UGU_USE_NANOFLANN
         const std::unordered_set<int32_t> nn_ids =
-            RangeQuery(points, q, epsilon);
+            RangeQueryKdTree(points, mat_index, q, epsilon);
+#else
+        const std::unordered_set<int32_t> nn_ids =
+            RangeQueryNaive(points, q, epsilon);
+#endif
 
         if (min_nn_points <= nn_ids.size()) {
           expanded.insert(nn_ids.begin(), nn_ids.end());
@@ -486,8 +515,6 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
       for (const auto& r : to_remove) {
         seed_set.erase(r);
       }
-
-      // expanded.clear();
     }
   }
 
