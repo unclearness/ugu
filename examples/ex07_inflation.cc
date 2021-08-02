@@ -13,11 +13,15 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::string data_dir = "../data/bunny/";
-  std::string mask_path = data_dir + "00000_mask.png";
-  std::string color_path = data_dir + "00000_color.png";
+  std::string data_dir = "../data/anime/";
+  std::string mask_path = data_dir + "shion2_mask.png";
+  std::string color_path = data_dir + "shion2.jpg";
 
   ugu::Image1b mask = ugu::imread<ugu::Image1b>(mask_path);
+  ugu::Erode(mask.clone(), &mask, 3);
+  ugu::Erode(mask.clone(), &mask, 3);
+  ugu::resize(mask.clone(), mask, ugu::Size(-1, -1), 0.5f, 0.5f);
+
   // Inflation
   ugu::Image1f height;
   ugu::Mesh mesh;
@@ -35,7 +39,7 @@ int main(int argc, char* argv[]) {
   mesh.WriteObj(data_dir, "00000_height_single");
 
   params.generate_back = true;
-  // params.back_texture_type = ugu::InflationBackTextureType::INPAINT;
+  params.back_texture_type = ugu::InflationBackTextureType::INPAINT;
   ugu::Inflation(mask, height, mesh, params);
   mesh.WriteObj(data_dir, "00000_height_double");
 

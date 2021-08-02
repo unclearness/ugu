@@ -216,6 +216,7 @@ set(
   include/ugu/util/math_util.h
   include/ugu/util/raster_util.h
   include/ugu/util/rgbd_util.h
+  include/ugu/util/thread_util.h
   include/ugu/timer.h
 
   src/camera.cc
@@ -324,6 +325,7 @@ if (NOT hasParent)
   setup_exe(ex11_synthesis examples/ex11_synthesis.cc)
   setup_exe(ex12_texturing examples/ex12_texturing.cc)
   setup_exe(ex13_clustering examples/ex13_clustering.cc)
+  setup_exe(ex14_thread examples/ex14_thread.cc)
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})

@@ -152,7 +152,7 @@ class Image {
 
     width_ = width;
     height_ = height;
-    data_->resize(height_ * width_);
+    data_->resize(static_cast<size_t>(height_ * width_));
     data = reinterpret_cast<unsigned char*>(data_->data());
     rows = height;
     cols = width;
@@ -190,11 +190,13 @@ class Image {
 
   template <typename TT>
   TT& at(int y, int x) {
-    return *(reinterpret_cast<TT*>(data_->data()) + (y * cols + x));
+    return *(reinterpret_cast<TT*>(data_->data()) +
+             static_cast<int64_t>((y * cols) + x));
   }
   template <typename TT>
   const TT& at(int y, int x) const {
-    return *(reinterpret_cast<TT*>(data_->data()) + (y * cols + x));
+    return *(reinterpret_cast<TT*>(data_->data()) +
+             static_cast<int64_t>((y * cols) + x));
   }
 
   void setTo(typename T::value_type val) {
