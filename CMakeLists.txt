@@ -271,6 +271,9 @@ set(
   include/ugu/clustering/clustering.h
   src/clustering/clustering.cc
 
+  include/ugu/optimizer/optimizer.h
+  src/optimizer/optimizer.cc
+
   # implementations of header-only library
   ${UGU_STB_IMPLEMENTATION_CC}
   ${UGU_TINYOBJLOADER_IMPLEMENTATION_CC}
@@ -326,6 +329,7 @@ if (NOT hasParent)
   setup_exe(ex12_texturing examples/ex12_texturing.cc)
   setup_exe(ex13_clustering examples/ex13_clustering.cc)
   setup_exe(ex14_thread examples/ex14_thread.cc)
+  setup_exe(ex15_optimizer examples/ex15_optimizer.cc)
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})
