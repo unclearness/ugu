@@ -85,10 +85,11 @@ int main(int argc, char* argv[]) {
 
   ugu::Timer<> timer;
   Eigen::VectorXd f1_init(2);
-  f1_init[0] = 1.1;
-  f1_init[1] = 1.1;
+  f1_init[0] = 2.5;
+  f1_init[1] = 3.1;
   ugu::OptimizerOutput f1_out;
 
+#if 1
   timer.Start();
   ugu::GradientDescent({f1_init, f1, f1_grad}, f1_out);
   timer.End();
@@ -103,11 +104,20 @@ int main(int argc, char* argv[]) {
             timer.elapsed_msec());
 
   timer.Start();
-  ugu::Newton({f1_init, f1, f1_grad, 0.1, ugu::OptimizerTerminateCriteria(),
-               f1_hessian},
-              f1_out);
+  ugu::Newton(
+      {f1_init, f1, f1_grad, 1, ugu::OptimizerTerminateCriteria(), f1_hessian},
+      f1_out);
   timer.End();
   ugu::LOGI("f1 newton iter %d : %lf (%lf, %lf) %f ms\n", f1_out.best_iter,
+            f1_out.best, f1_out.best_param[0], f1_out.best_param[1],
+            timer.elapsed_msec());
+
+  timer.Start();
+  ugu::QuasiNewton({f1_init, f1, f1_grad, 0.01,
+                    ugu::OptimizerTerminateCriteria(), f1_hessian},
+                   f1_out);
+  timer.End();
+  ugu::LOGI("f1 LBFGS iter %d : %lf (%lf, %lf) %f ms\n", f1_out.best_iter,
             f1_out.best, f1_out.best_param[0], f1_out.best_param[1],
             timer.elapsed_msec());
 
@@ -127,7 +137,7 @@ int main(int argc, char* argv[]) {
             f1_out.best_param[1], timer.elapsed_msec());
 
   timer.Start();
-  ugu::Newton({f1_init, Rosenbrock2, Rosenbrock2_grad, 0.001,
+  ugu::Newton({f1_init, Rosenbrock2, Rosenbrock2_grad, 0.01,
                ugu::OptimizerTerminateCriteria(), Rosenbrock2_hessian},
               f1_out);
   timer.End();
@@ -136,12 +146,22 @@ int main(int argc, char* argv[]) {
             f1_out.best_param[1], timer.elapsed_msec());
 
   timer.Start();
-  ugu::Newton({f1_init, Rosenbrock2, Rosenbrock2_grad, 0.001,
+  ugu::Newton({f1_init, Rosenbrock2, Rosenbrock2_grad, 0.01,
                ugu::OptimizerTerminateCriteria(),
-               ugu::GenNumericalHessian(Rosenbrock2, 0.1)},
+               ugu::GenNumericalHessian(Rosenbrock2, 0.01)},
               f1_out);
   timer.End();
   ugu::LOGI("Rosenbrock2 newton numerical iter %d : %lf (%lf, %lf) %f ms\n",
+            f1_out.best_iter, f1_out.best, f1_out.best_param[0],
+            f1_out.best_param[1], timer.elapsed_msec());
+
+#endif
+  timer.Start();
+  ugu::QuasiNewton({f1_init, Rosenbrock2, Rosenbrock2_grad, 0.01,
+                    ugu::OptimizerTerminateCriteria()},
+                   f1_out);
+  timer.End();
+  ugu::LOGI("Rosenbrock2 LBFGS iter %d : %lf (%lf, %lf) %f ms\n",
             f1_out.best_iter, f1_out.best, f1_out.best_param[0],
             f1_out.best_param[1], timer.elapsed_msec());
 

@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "Eigen/Core"
+#include "Eigen/Sparse"
 
 namespace ugu {
 
@@ -50,35 +51,55 @@ struct OptimizerInput {
   double lr = 1.0;
   OptimizerTerminateCriteria terminate_criteria;
   HessianFunc hessian_func;
+  OptIndex LBFGS_memoery_num = 10;
+  Eigen::SparseMatrix<double> LBFGS_init;
 
   OptimizerInput() = delete;
-  OptimizerInput(const OptParams& init_param, LossFunc loss_func,
-                 GradFunc grad_func, double lr = 0.001,
-                 OptimizerTerminateCriteria terminate_criteria =
-                     OptimizerTerminateCriteria(),
-                 HessianFunc hessian_func = HessianFunc())
+  OptimizerInput(
+      const OptParams& init_param, LossFunc loss_func, GradFunc grad_func,
+      double lr = 0.001,
+      OptimizerTerminateCriteria terminate_criteria =
+          OptimizerTerminateCriteria(),
+      HessianFunc hessian_func = HessianFunc(), int LBFGS_memoery_num = 10,
+      Eigen::SparseMatrix<double> LBFGS_init = Eigen::SparseMatrix<double>())
       : init_param(init_param),
         loss_func(loss_func),
         grad_func(grad_func),
         lr(lr),
         terminate_criteria(terminate_criteria),
-        hessian_func(hessian_func){};
+        hessian_func(hessian_func),
+        LBFGS_memoery_num(LBFGS_memoery_num),
+        LBFGS_init(LBFGS_init) {
+    if (this->LBFGS_memoery_num < 1) {
+      LBFGS_memoery_num = 10;
+    }
+
+    if (LBFGS_init.rows() != init_param.rows()) {
+      this->LBFGS_init =
+          Eigen::SparseMatrix<double>(init_param.rows(), init_param.rows());
+      this->LBFGS_init.setIdentity();
+    }
+  };
 };
 
 struct OptimizerOutput {
   double best = std::numeric_limits<double>::max();
   OptParams best_param;
+  GradVec best_grad;
   int best_iter = 0;
 
   std::vector<double> val_history;
   std::vector<OptParams> param_history;
+  std::vector<GradVec> grad_history;
 
   void Clear() {
     best = std::numeric_limits<double>::max();
+    best_grad.setZero();
     best_param.setZero();
     best_iter = 0;
     val_history.clear();
     param_history.clear();
+    grad_history.clear();
   }
 };
 
@@ -87,5 +108,10 @@ HessianFunc GenNumericalHessian(LossFunc loss_func, double h);
 
 void GradientDescent(const OptimizerInput& input, OptimizerOutput& output);
 void Newton(const OptimizerInput& input, OptimizerOutput& output);
+
+enum class QuasiNewtonMethod { LBFGS };
+
+void QuasiNewton(const OptimizerInput& input, OptimizerOutput& output,
+                 QuasiNewtonMethod method = QuasiNewtonMethod::LBFGS);
 
 }  // namespace ugu
