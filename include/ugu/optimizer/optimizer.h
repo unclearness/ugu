@@ -5,17 +5,18 @@
 
 #pragma once
 
-
-#include "Eigen/Core"
 #include <functional>
 #include <stdexcept>
 #include <vector>
+
+#include "Eigen/Core"
 
 namespace ugu {
 
 using OptParams = Eigen::VectorXd;
 using GradVec = Eigen::VectorXd;
 using Hessian = Eigen::MatrixXd;
+using OptIndex = Eigen::Index;
 
 using LossFunc = std::function<double(const OptParams&)>;
 using GradFunc = std::function<GradVec(const OptParams&)>;
@@ -61,7 +62,7 @@ struct OptimizerInput {
         grad_func(grad_func),
         lr(lr),
         terminate_criteria(terminate_criteria),
-        hessian_func(hessian_func) {};
+        hessian_func(hessian_func){};
 };
 
 struct OptimizerOutput {
@@ -81,7 +82,8 @@ struct OptimizerOutput {
   }
 };
 
-GradFunc GenNumericalDifferentiation(LossFunc loss_func, double h);
+GradFunc GenNumericalGrad(LossFunc loss_func, double h);
+HessianFunc GenNumericalHessian(LossFunc loss_func, double h);
 
 void GradientDescent(const OptimizerInput& input, OptimizerOutput& output);
 void Newton(const OptimizerInput& input, OptimizerOutput& output);
