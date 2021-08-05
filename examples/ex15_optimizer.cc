@@ -165,5 +165,16 @@ int main(int argc, char* argv[]) {
             f1_out.best_iter, f1_out.best, f1_out.best_param[0],
             f1_out.best_param[1], timer.elapsed_msec());
 
+  timer.Start();
+  ugu::QuasiNewton({f1_init, Rosenbrock2, Rosenbrock2_grad, 0.001,
+                    ugu::OptimizerTerminateCriteria(), ugu::HessianFunc(), 10,
+                    Eigen::SparseMatrix<double>(), true,
+                    ugu::LineSearchMethod::BACK_TRACKING},
+                   f1_out);
+  timer.End();
+  ugu::LOGI("Rosenbrock2 LBFGS line search iter %d : %lf (%lf, %lf) %f ms\n",
+            f1_out.best_iter, f1_out.best, f1_out.best_param[0],
+            f1_out.best_param[1], timer.elapsed_msec());
+
   return 0;
 }

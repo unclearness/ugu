@@ -13,6 +13,39 @@ namespace {
 using UpdateFunc = std::function<void(const ugu::OptimizerInput& in,
                                       ugu::OptimizerOutput& out)>;
 
+double LineSearchBacktracking(const ugu::GradVec& update_direc,
+                              const ugu::OptimizerInput& in,
+                              ugu::OptimizerOutput& out) {
+  // BACK_TRACKING
+  double a = in.line_search_max;
+  double r = 0.5;
+  while (true) {
+    // Armijo rule
+    double c1 = 1e-4;
+    auto new_param = out.best_param + a * update_direc;
+    double new_val = in.loss_func(new_param);
+
+    double constraint = out.best + c1 * a * out.best_grad.dot(update_direc);
+
+    if (new_val <= constraint) {
+      return a;
+    }
+
+    a *= r;
+  }
+}
+
+double LineSearch(const ugu::GradVec& update_direc,
+                  const ugu::OptimizerInput& in, ugu::OptimizerOutput& out) {
+  if (in.line_search_method == ugu::LineSearchMethod::BACK_TRACKING) {
+    return LineSearchBacktracking(update_direc, in, out);
+  }
+
+  throw std::invalid_argument("This type is not implemented");
+
+  //return 0.0;
+}
+
 void LoopBody(const ugu::OptimizerInput& input, ugu::OptimizerOutput& output,
               UpdateFunc update_func) {
   output.Clear();
@@ -55,8 +88,14 @@ void GradientDescentUdpateFunc(const ugu::OptimizerInput& in,
                                ugu::OptimizerOutput& out) {
   // Eval grad
   auto grad = in.grad_func(out.best_param);
-  // out.best_grad = grad;
-  out.best_param -= (in.lr * grad);
+
+  double lr = in.lr;
+
+  if (in.use_line_search) {
+    lr = LineSearch(-grad, in, out);
+  }
+
+  out.best_param += (lr * -grad);
 }
 
 // http://www.dais.is.tohoku.ac.jp/~shioura/teaching/mp13/mp13-13.pdf
@@ -67,7 +106,13 @@ void NewtonUpdateFunc(const ugu::OptimizerInput& in,
   ugu::Hessian hessian = in.hessian_func(out.best_param);
   ugu::OptParams delta = (-hessian.inverse() * grad);
 
-  out.best_param += (in.lr * delta);
+  double lr = in.lr;
+
+  if (in.use_line_search) {
+    lr = LineSearch(delta, in, out);
+  }
+
+  out.best_param += (lr * delta);
 }
 
 // https://en.wikipedia.org/wiki/Limited-memory_BFGS
@@ -83,19 +128,11 @@ void LBFGSUpdateFunc(const ugu::OptimizerInput& in, ugu::OptimizerOutput& out) {
     return;
   }
 
-  size_t k = out.grad_history.size() - 1;
+  ugu::OptIndex k = static_cast<ugu::OptIndex>(out.grad_history.size() - 1);
   std::vector<ugu::GradVec> y_list;
   std::vector<ugu::GradVec> s_list;
   std::vector<double> rho_list;
-  // rho_list.push_back(1 / (y_now.dot(s_now)));
-  ugu::OptIndex m = static_cast<ugu::OptIndex>(out.grad_history.size());
 
-  // std::cout << grad << " "
-  //           << out.grad_history[k] << std::endl;
-
-  // std::cout << out.best_param << " " << out.param_history[k] << std::endl;
-
-  // for (ugu::OptIndex i = 1; i <= k; i++) {
   for (ugu::OptIndex i = k; i >= 1; i--) {
     ugu::GradVec y = out.grad_history[i] - out.grad_history[i - 1];
     ugu::GradVec s = out.param_history[i] - out.param_history[i - 1];
@@ -166,12 +203,13 @@ void LBFGSUpdateFunc(const ugu::OptimizerInput& in, ugu::OptimizerOutput& out) {
 
   z = -z;
 
-  out.best_param += (in.lr * z);
+  double lr = in.lr;
 
-  // std::cout << out.best_param  << std::endl;
-  // std::cout << z << std::endl;
-  // std::cout << std::endl;
-  // std::cout << std::endl;
+  if (in.use_line_search) {
+    lr = LineSearch(z, in, out);
+  }
+
+  out.best_param += (lr * z);
 }
 
 }  // namespace

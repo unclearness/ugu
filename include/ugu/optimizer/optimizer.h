@@ -44,6 +44,8 @@ struct OptimizerTerminateCriteria {
   }
 };
 
+enum class LineSearchMethod { BACK_TRACKING };
+
 struct OptimizerInput {
   OptParams init_param;
   LossFunc loss_func;
@@ -53,6 +55,9 @@ struct OptimizerInput {
   HessianFunc hessian_func;
   OptIndex LBFGS_memoery_num = 10;
   Eigen::SparseMatrix<double> LBFGS_init;
+  bool use_line_search = false;
+  LineSearchMethod line_search_method = LineSearchMethod::BACK_TRACKING;
+  double line_search_max = 100.0;
 
   OptimizerInput() = delete;
   OptimizerInput(
@@ -61,7 +66,10 @@ struct OptimizerInput {
       OptimizerTerminateCriteria terminate_criteria =
           OptimizerTerminateCriteria(),
       HessianFunc hessian_func = HessianFunc(), int LBFGS_memoery_num = 10,
-      Eigen::SparseMatrix<double> LBFGS_init = Eigen::SparseMatrix<double>())
+      Eigen::SparseMatrix<double> LBFGS_init = Eigen::SparseMatrix<double>(),
+      bool use_line_search = false,
+      LineSearchMethod line_search_method = LineSearchMethod::BACK_TRACKING,
+      double line_search_max = 100.0)
       : init_param(init_param),
         loss_func(loss_func),
         grad_func(grad_func),
@@ -69,7 +77,10 @@ struct OptimizerInput {
         terminate_criteria(terminate_criteria),
         hessian_func(hessian_func),
         LBFGS_memoery_num(LBFGS_memoery_num),
-        LBFGS_init(LBFGS_init) {
+        LBFGS_init(LBFGS_init),
+        use_line_search(use_line_search),
+        line_search_method(line_search_method),
+        line_search_max(line_search_max) {
     if (this->LBFGS_memoery_num < 1) {
       LBFGS_memoery_num = 10;
     }
