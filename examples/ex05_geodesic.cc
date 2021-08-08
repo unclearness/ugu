@@ -10,6 +10,7 @@
 #include "ugu/geodesic/geodesic.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/timer.h"
+#include "ugu/util/image_util.h"
 #include "ugu/util/raster_util.h"
 
 namespace {

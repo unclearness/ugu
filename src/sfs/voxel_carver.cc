@@ -10,6 +10,7 @@
 #include "ugu/sfs/extract_voxel.h"
 #include "ugu/sfs/marching_cubes.h"
 #include "ugu/timer.h"
+#include "ugu/util/image_util.h"
 
 namespace {
 

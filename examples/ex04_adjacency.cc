@@ -7,6 +7,7 @@
 
 #include "ugu/face_adjacency.h"
 #include "ugu/mesh.h"
+#include "ugu/util/geom_util.h"
 
 // test by bunny data with 6 views
 int main(int argc, char* argv[]) {

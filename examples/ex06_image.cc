@@ -8,6 +8,7 @@
 #include <fstream>
 
 #include "ugu/image.h"
+#include "ugu/util/image_util.h"
 
 // test by bunny data with 6 views
 int main(int argc, char* argv[]) {

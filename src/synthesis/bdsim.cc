@@ -17,6 +17,7 @@
 #include <valarray>
 
 #include "ugu/timer.h"
+#include "ugu/util/image_util.h"
 
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgproc.hpp"

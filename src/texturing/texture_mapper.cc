@@ -14,9 +14,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "ugu/texturing/bin_packer_2d.h"
 #include "ugu/face_adjacency.h"
+#include "ugu/texturing/bin_packer_2d.h"
 #include "ugu/timer.h"
+#include "ugu/util/image_util.h"
 
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgproc.hpp"

@@ -15,6 +15,7 @@
 
 #include "ugu/sfs/marching_cubes_lut.h"
 #include "ugu/timer.h"
+#include "ugu/util/image_util.h"
 
 namespace {
 

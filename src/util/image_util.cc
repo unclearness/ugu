@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "ugu/image.h"
+#include "ugu/util/image_util.h"
 
 #include <algorithm>
 #include <array>
@@ -517,7 +517,6 @@ void SignedDistance2Color(const Image1f& sdf, Image3b* vis_sdf,
     }
   }
 }
-
 
 void Conv(const Image1b& src, Image1f* dst, float* filter, int kernel_size) {
   const int hk = kernel_size / 2;

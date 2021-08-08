@@ -3,12 +3,12 @@
  * All rights reserved.
  */
 
-#include "ugu/mesh.h"
-
 #include <filesystem>
 #include <iostream>
 #include <random>
 
+#include "ugu/mesh.h"
+#include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
 

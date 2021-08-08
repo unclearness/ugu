@@ -217,14 +217,17 @@ set(
   include/ugu/util/raster_util.h
   include/ugu/util/rgbd_util.h
   include/ugu/util/thread_util.h
+  include/ugu/util/geom_util.h
+  include/ugu/util/image_util.h
   include/ugu/timer.h
 
   src/camera.cc
   src/mesh.cc
   src/gltf.h
-  src/image.cc
   src/log.cc
   src/util.cc
+  src/util/geom_util.cc
+  src/util/image_util.cc
 
   include/ugu/renderer/base.h
   include/ugu/renderer/raytracer.h

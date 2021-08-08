@@ -5,6 +5,8 @@
 
 #include "ugu/sfs/extract_voxel.h"
 
+#include "ugu/util/geom_util.h"
+
 #include <algorithm>
 #include <limits>
 #include <memory>

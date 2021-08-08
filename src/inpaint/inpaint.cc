@@ -5,6 +5,7 @@
  */
 
 #include "ugu/inpaint/inpaint.h"
+#include "ugu/util/image_util.h"
 
 #include <queue>
 
