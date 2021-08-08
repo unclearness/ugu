@@ -31,6 +31,7 @@ using ugu::Image3b;
 using ugu::Image3f;
 using ugu::imwrite;
 using ugu::Mesh;
+using ugu::MeshPtr;
 using ugu::MeshStats;
 using ugu::Normal2Color;
 using ugu::PinholeCamera;
@@ -41,7 +42,7 @@ using ugu::zfill;
 
 namespace {
 
-void PreparePoseAndName(const std::shared_ptr<Mesh> mesh,
+void PreparePoseAndName(const MeshPtr mesh,
                         std::vector<Eigen::Affine3d>& pose_list,
                         std::vector<std::string>& name_list) {
   MeshStats stats = mesh->stats();
@@ -96,7 +97,7 @@ void PreparePoseAndName(const std::shared_ptr<Mesh> mesh,
   name_list.push_back("bottom");
 }
 
-void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
+void Test(const std::string& out_dir, MeshPtr mesh,
           std::shared_ptr<Camera> camera, const Renderer& renderer,
           bool number_prefix = true) {
   // images
@@ -186,7 +187,7 @@ void Test(const std::string& out_dir, std::shared_ptr<Mesh> mesh,
   }
 }
 
-void AlignMesh(std::shared_ptr<Mesh> mesh) {
+void AlignMesh(MeshPtr mesh) {
   // move center as origin
   MeshStats stats = mesh->stats();
   mesh->Translate(-stats.center);
@@ -227,7 +228,7 @@ int main(int argc, char* argv[]) {
   }
 
   // load mesh
-  std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
+  MeshPtr mesh = std::make_shared<Mesh>();
   mesh->LoadObj(obj_path, data_dir);
 
   // original mesh with z:backward, y:up, x:right, like OpenGL

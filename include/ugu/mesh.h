@@ -51,6 +51,9 @@ struct Blendshape {
   std::vector<Eigen::Vector3f> normals;
 };
 
+class Mesh;
+using MeshPtr = std::shared_ptr<Mesh>;
+
 class Mesh {
   std::vector<Eigen::Vector3f> vertices_;
   std::vector<Eigen::Vector3f> vertex_colors_;   // optional, RGB order
@@ -79,6 +82,9 @@ class Mesh {
   Mesh();
   ~Mesh();
   Mesh(const Mesh& src);
+  static MeshPtr Create();
+  static MeshPtr Create(const Mesh& src);
+
   void Clear();
 
   // get average normal per vertex from face normal

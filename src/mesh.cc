@@ -170,6 +170,10 @@ Mesh::Mesh(const Mesh& src) {
 }
 Mesh::~Mesh() {}
 
+MeshPtr Mesh::Create() { return std::make_shared<Mesh>(); }
+
+MeshPtr Mesh::Create(const Mesh& src) { return std::make_shared<Mesh>(src); }
+
 const std::vector<Eigen::Vector3f>& Mesh::vertices() const { return vertices_; }
 const std::vector<Eigen::Vector3f>& Mesh::vertex_colors() const {
   return vertex_colors_;

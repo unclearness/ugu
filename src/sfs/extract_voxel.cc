@@ -265,7 +265,7 @@ void ExtractVoxel(VoxelGrid* voxel_grid, Mesh* mesh, bool inside_empty) {
   std::vector<Eigen::Vector3f> vertices;
   std::vector<Eigen::Vector3i> vertex_indices;
 
-  std::shared_ptr<Mesh> cube = MakeCube(voxel_grid->resolution());
+  MeshPtr cube = MakeCube(voxel_grid->resolution());
 
   // update on_surface flag of voxels
   if (inside_empty) {

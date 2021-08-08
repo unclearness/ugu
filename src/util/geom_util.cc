@@ -147,8 +147,7 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
   return true;
 }
 
-bool MergeMeshes(const std::vector<std::shared_ptr<Mesh>>& src_meshes,
-                 Mesh* merged) {
+bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged) {
   if (src_meshes.empty()) {
     return false;
   }
@@ -258,10 +257,9 @@ FindBoundaryLoops(const Mesh& mesh) {
   return {boundary_edges_list, boundary_vertex_ids_list};
 }
 
-std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
-                               const Eigen::Matrix3f& R,
-                               const Eigen::Vector3f& t) {
-  std::shared_ptr<Mesh> cube(new Mesh);
+MeshPtr MakeCube(const Eigen::Vector3f& length, const Eigen::Matrix3f& R,
+                 const Eigen::Vector3f& t) {
+  MeshPtr cube(new Mesh);
   std::vector<Eigen::Vector3f> vertices(24);
   std::vector<Eigen::Vector3i> vertex_indices(12);
   std::vector<Eigen::Vector3f> vertex_colors(24);
@@ -343,25 +341,25 @@ std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length,
   return cube;
 }
 
-std::shared_ptr<Mesh> MakeCube(const Eigen::Vector3f& length) {
+MeshPtr MakeCube(const Eigen::Vector3f& length) {
   const Eigen::Matrix3f R = Eigen::Matrix3f::Identity();
   const Eigen::Vector3f t(0.0f, 0.0f, 0.0f);
   return MakeCube(length, R, t);
 }
 
-std::shared_ptr<Mesh> MakeCube(float length, const Eigen::Matrix3f& R,
-                               const Eigen::Vector3f& t) {
+MeshPtr MakeCube(float length, const Eigen::Matrix3f& R,
+                 const Eigen::Vector3f& t) {
   Eigen::Vector3f length_xyz{length, length, length};
   return MakeCube(length_xyz, R, t);
 }
 
-std::shared_ptr<Mesh> MakeCube(float length) {
+MeshPtr MakeCube(float length) {
   const Eigen::Matrix3f R = Eigen::Matrix3f::Identity();
   const Eigen::Vector3f t(0.0f, 0.0f, 0.0f);
   return MakeCube(length, R, t);
 }
 
-void SetRandomVertexColor(std::shared_ptr<Mesh> mesh, int seed) {
+void SetRandomVertexColor(MeshPtr mesh, int seed) {
   std::mt19937 mt(seed);
   std::uniform_int_distribution<int> random_color(0, 255);
 
@@ -373,6 +371,10 @@ void SetRandomVertexColor(std::shared_ptr<Mesh> mesh, int seed) {
   }
 
   mesh->set_vertex_colors(vertex_colors);
+}
+
+int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane) {
+  return -1;
 }
 
 }  // namespace ugu
