@@ -374,7 +374,94 @@ void SetRandomVertexColor(MeshPtr mesh, int seed) {
 }
 
 int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane) {
-  return -1;
+  int32_t num_removed{0};
+
+  std::vector<bool> valid_vertex_table(mesh->vertices().size(), false);
+  for (size_t i = 0; i < mesh->vertices().size(); i++) {
+    if (plane.IsNormalSide(mesh->vertices()[i])) {
+      valid_vertex_table[i] = true;
+    }
+  }
+
+  std::vector<int> valid_table(mesh->vertices().size(), -1);
+  std::vector<Eigen::Vector3f> valid_vertices, valid_vertex_colors;
+  std::vector<Eigen::Vector2f> valid_uv;
+  std::vector<Eigen::Vector3i> valid_indices;
+  bool with_uv = !mesh->uv().empty() && !mesh->uv_indices().empty();
+  bool with_vertex_color = !mesh->vertex_colors().empty();
+  int valid_count = 0;
+  for (size_t i = 0; i < mesh->vertices().size(); i++) {
+    if (valid_vertex_table[i]) {
+      valid_table[i] = valid_count;
+      valid_vertices.push_back(mesh->vertices()[i]);
+      if (with_uv) {
+        valid_uv.push_back(mesh->uv()[i]);
+      }
+      if (with_vertex_color) {
+        valid_vertex_colors.push_back(mesh->vertex_colors()[i]);
+      }
+      valid_count++;
+    } else {
+      num_removed++;
+    }
+  }
+
+  int valid_face_count{0};
+  std::vector<int> valid_face_table(mesh->vertex_indices().size(), -1);
+  for (size_t i = 0; i < mesh->vertex_indices().size(); i++) {
+    Eigen::Vector3i face;
+    int32_t valid_v_num = 0;
+    for (int j = 0; j < 3; j++) {
+      int new_index = valid_table[mesh->vertex_indices()[i][j]];
+      if (new_index < 0) {
+        valid_v_num++;
+        continue;
+      }
+      face[j] = new_index;
+    }
+    if (valid_v_num == 0) {
+      // All vertices are removed
+      continue;
+    } else if (valid_v_num == 1) {
+      // Add two new vertices to make two faces
+
+    } else if (valid_v_num == 2) {
+      // Add two new vertices to make a face
+
+    } else {
+      // All vertices are kept
+      valid_indices.push_back(face);
+      valid_face_table[i] = valid_face_count;
+      valid_face_count++;
+    }
+  }
+
+  mesh->set_vertices(valid_vertices);
+  mesh->set_vertex_indices(valid_indices);
+  if (with_uv) {
+    mesh->set_uv(valid_uv);
+    mesh->set_uv_indices(valid_indices);
+  }
+  if (with_vertex_color) {
+    mesh->set_vertex_colors(valid_vertex_colors);
+  }
+  mesh->CalcNormal();
+
+  std::vector<int> new_material_ids(valid_indices.size(), 0);
+  const std::vector<int>& old_material_ids = mesh->material_ids();
+
+  for (size_t i = 0; i < old_material_ids.size(); i++) {
+    int org_f_idx = static_cast<int>(i);
+    int new_f_idx = valid_face_table[org_f_idx];
+    if (new_f_idx < 0) {
+      continue;
+    }
+    new_material_ids[new_f_idx] = old_material_ids[org_f_idx];
+  }
+
+  mesh->set_material_ids(new_material_ids);
+
+  return num_removed;
 }
 
 }  // namespace ugu
