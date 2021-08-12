@@ -376,6 +376,8 @@ void SetRandomVertexColor(MeshPtr mesh, int seed) {
 int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane) {
   int32_t num_removed{0};
 
+  mesh->CalcFaceNormal();
+
   std::vector<bool> valid_vertex_table(mesh->vertices().size(), false);
   for (size_t i = 0; i < mesh->vertices().size(); i++) {
     if (plane.IsNormalSide(mesh->vertices()[i])) {
@@ -410,23 +412,70 @@ int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane) {
   std::vector<int> valid_face_table(mesh->vertex_indices().size(), -1);
   for (size_t i = 0; i < mesh->vertex_indices().size(); i++) {
     Eigen::Vector3i face;
-    int32_t valid_v_num = 0;
+    // int32_t valid_v_num = 0;
+    std::vector<int32_t> valid_vid;
+    std::vector<int32_t> invalid_vid;
     for (int j = 0; j < 3; j++) {
-      int new_index = valid_table[mesh->vertex_indices()[i][j]];
+      auto vid = mesh->vertex_indices()[i][j];
+      int new_index = valid_table[vid];
       if (new_index < 0) {
-        valid_v_num++;
+        invalid_vid.push_back(vid);
         continue;
       }
       face[j] = new_index;
+      valid_vid.push_back(vid);
     }
-    if (valid_v_num == 0) {
+    if (valid_vid.size() == 0) {
       // All vertices are removed
       continue;
-    } else if (valid_v_num == 1) {
-      // Add two new vertices to make two faces
-
-    } else if (valid_v_num == 2) {
+    } else if (valid_vid.size() == 1) {
       // Add two new vertices to make a face
+
+      // Eigen::Vector3f vec1 =
+      //    mesh->vertices()[invalid_vid[0]] - mesh->vertices()[valid_vid[0]];
+      // Eigen::Vector3f vec2 =
+      //    mesh->vertices()[invalid_vid[1]] - mesh->vertices()[valid_vid[0]];
+
+      // Edges as 3D line equations
+      Line3f l1, l2;
+      l1.Set(mesh->vertices()[valid_vid[0]], mesh->vertices()[invalid_vid[0]]);
+      l2.Set(mesh->vertices()[valid_vid[0]], mesh->vertices()[invalid_vid[1]]);
+
+      // Get intersection points of edges and plane
+      float t1, t2;
+      Eigen::Vector3f p1, p2;
+      plane.CalcIntersctionPoint(l1, t1, p1);
+      plane.CalcIntersctionPoint(l2, t2, p2);
+
+      // Interpolation ratio for uv and vertex color
+      float interp1 =
+          (mesh->vertices()[valid_vid[0]] - p1).norm() /
+          (mesh->vertices()[valid_vid[0]] - mesh->vertices()[invalid_vid[0]])
+              .norm();
+      float interp2 =
+          (mesh->vertices()[valid_vid[0]] - p2).norm() /
+          (mesh->vertices()[valid_vid[0]] - mesh->vertices()[invalid_vid[1]])
+              .norm();
+
+      valid_vertices.push_back(p1);
+      valid_vertices.push_back(p2);
+
+      Eigen::Vector3i f(valid_table[valid_vid[0]], valid_vertices.size() - 1,
+                        valid_vertices.size() - 2);
+
+      Eigen::Vector3f tmp_n = (p1 - mesh->vertices()[valid_vid[0]])
+                                  .cross(p2 - mesh->vertices()[valid_vid[0]]);
+
+      if (tmp_n.dot(mesh->face_normals()[i]) > 0) {
+        f = Eigen::Vector3i(valid_vertices.size() - 1,
+                            valid_table[valid_vid[0]],
+                            valid_vertices.size() - 2);
+      }
+
+      valid_indices.emplace_back(f);
+
+    } else if (valid_vid.size() == 2) {
+      // Add two new vertices to make two face
 
     } else {
       // All vertices are kept

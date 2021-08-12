@@ -274,7 +274,23 @@ void TestTexture() {
   bunny.WritePly(data_dir + "fetched_vertex_color.ply");
 }
 
+void TestCut() {
+  std::string data_dir = "../data/bunny/";
+  std::string in_obj_path = data_dir + "bunny.obj";
+  auto bunny = ugu::Mesh::Create();
+  bunny->LoadObj(in_obj_path, data_dir);
+  Eigen::Vector3f n(1.f, 0.f, 1.f);
+  n.normalize();
+
+  ugu::Planef plane(n, 50.f);
+  ugu::CutByPlane(bunny, plane);
+
+  bunny->WritePly(data_dir + "cut_by_plane.ply");
+}
+
 int main() {
+  TestCut();
+
   TestTexture();
 
   TestAlignment();
