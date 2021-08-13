@@ -88,6 +88,11 @@ T WeightedMedian(const std::vector<T>& data,
   return data_weights[index].second;
 }
 
+template <typename T, typename TT>
+T LinearInterpolation(const T& val1, const T& val2, const TT& r) {
+  return (TT(1.0) - r) * val1 + r * val2;
+}
+
 // FINDING OPTIMAL ROTATION AND TRANSLATION BETWEEN CORRESPONDING 3D POINTS
 // http://nghiaho.com/?page_id=671
 Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
