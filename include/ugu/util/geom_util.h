@@ -6,6 +6,7 @@
 #pragma once
 
 #include "ugu/mesh.h"
+#include "ugu/line.h"
 
 namespace ugu {
 
@@ -26,13 +27,6 @@ MeshPtr MakeCube(float length, const Eigen::Matrix3f& R,
 MeshPtr MakeCube(float length);
 
 void SetRandomVertexColor(MeshPtr mesh, int seed = 0);
-
-struct Planef {
-  Eigen::Vector3f n;
-  float d;
-
-  bool IsNormalSide(const Eigen::Vector3f& p) const { return d > -(n.dot(p)); }
-};
 
 int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane = true);
 

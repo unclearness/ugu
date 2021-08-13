@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (C) 2019, unclearness
  * All rights reserved.
  */
@@ -8,6 +8,7 @@
 #include <random>
 
 #include "ugu/face_adjacency.h"
+#include "ugu/util/math_util.h"
 
 namespace {
 
@@ -19,6 +20,31 @@ void CopyVec(const std::vector<T>& src, std::vector<T>* dst,
     dst->reserve(src.size());
   }
   std::copy(src.begin(), src.end(), std::back_inserter(*dst));
+}
+
+void CalcIntersectionAndRatio(const Eigen::Vector3f& p_st,
+                              const Eigen::Vector3f& p_ed,
+                              const ugu::Planef& plane,
+                              Eigen::Vector3f& interp_p, float& interp_r) {
+  // Edges as 3D line equations
+  ugu::Line3f l1;
+  l1.Set(p_st, p_ed);
+
+  // Get intersection points of edges and plane
+  float t1 = -1.f;
+  plane.CalcIntersctionPoint(l1, t1, interp_p);
+
+  // Interpolation ratio for uv and vertex color
+  interp_r = (p_st - interp_p).norm() / (p_st - p_ed).norm();
+}
+
+Eigen::Vector3i GenerateFace(int vid1, int vid2, int vid3, bool flipped) {
+  Eigen::Vector3i f(vid1, vid2, vid3);
+  if (flipped) {
+    f = Eigen::Vector3i(vid2, vid1, vid3);
+  }
+
+  return f;
 }
 
 }  // namespace
@@ -376,63 +402,222 @@ void SetRandomVertexColor(MeshPtr mesh, int seed) {
 int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane) {
   int32_t num_removed{0};
 
-  std::vector<bool> valid_vertex_table(mesh->vertices().size(), false);
-  for (size_t i = 0; i < mesh->vertices().size(); i++) {
-    if (plane.IsNormalSide(mesh->vertices()[i])) {
-      valid_vertex_table[i] = true;
-    }
-  }
+  mesh->CalcFaceNormal();
 
-  std::vector<int> valid_table(mesh->vertices().size(), -1);
   std::vector<Eigen::Vector3f> valid_vertices, valid_vertex_colors;
   std::vector<Eigen::Vector2f> valid_uv;
-  std::vector<Eigen::Vector3i> valid_indices;
+  std::vector<Eigen::Vector3i> valid_indices, valid_uv_indices;
   bool with_uv = !mesh->uv().empty() && !mesh->uv_indices().empty();
   bool with_vertex_color = !mesh->vertex_colors().empty();
-  int valid_count = 0;
-  for (size_t i = 0; i < mesh->vertices().size(); i++) {
-    if (valid_vertex_table[i]) {
-      valid_table[i] = valid_count;
-      valid_vertices.push_back(mesh->vertices()[i]);
-      if (with_uv) {
-        valid_uv.push_back(mesh->uv()[i]);
-      }
-      if (with_vertex_color) {
-        valid_vertex_colors.push_back(mesh->vertex_colors()[i]);
-      }
-      valid_count++;
-    } else {
-      num_removed++;
-    }
-  }
+
+  std::vector<int> added_table(mesh->vertices().size(), -1);
+  std::vector<int> added_uv_table(mesh->uv().size(), -1);
 
   int valid_face_count{0};
   std::vector<int> valid_face_table(mesh->vertex_indices().size(), -1);
   for (size_t i = 0; i < mesh->vertex_indices().size(); i++) {
-    Eigen::Vector3i face;
-    int32_t valid_v_num = 0;
+    Eigen::Vector3i face, uv_face;
+    std::vector<int32_t> valid_vid, invalid_vid;
+    std::vector<int32_t> valid_uv_vid, invalid_uv_vid;
     for (int j = 0; j < 3; j++) {
-      int new_index = valid_table[mesh->vertex_indices()[i][j]];
+      auto vid = mesh->vertex_indices()[i][j];
+      int new_index = -1;
+      if (plane.IsNormalSide(mesh->vertices()[vid])) {
+        if (added_table[vid] < 0) {
+          // Newly add
+          valid_vertices.push_back(mesh->vertices()[vid]);
+          added_table[vid] = static_cast<int>(valid_vertices.size() - 1);
+          if (with_vertex_color) {
+            valid_vertex_colors.push_back(mesh->vertex_colors()[vid]);
+          }
+        }
+        new_index = added_table[vid];
+      }
+
       if (new_index < 0) {
-        valid_v_num++;
+        invalid_vid.push_back(vid);
+        if (with_uv) {
+          auto uv_vid = mesh->uv_indices()[i][j];
+          invalid_uv_vid.push_back(uv_vid);
+        }
         continue;
       }
       face[j] = new_index;
+      valid_vid.push_back(vid);
+      if (with_uv) {
+        auto uv_vid = mesh->uv_indices()[i][j];
+        if (added_uv_table[uv_vid] < 0) {
+          // Newly add
+          valid_uv.push_back(mesh->uv()[uv_vid]);
+          added_uv_table[uv_vid] = static_cast<int>(valid_uv.size() - 1);
+        }
+        valid_uv_vid.push_back(uv_vid);
+        uv_face[j] = added_uv_table[uv_vid];
+      }
     }
-    if (valid_v_num == 0) {
+    if (valid_vid.size() == 0) {
       // All vertices are removed
       continue;
-    } else if (valid_v_num == 1) {
-      // Add two new vertices to make two faces
-
-    } else if (valid_v_num == 2) {
+    } else if (valid_vid.size() == 1) {
       // Add two new vertices to make a face
+      //     original triangle
+      //      -----------
+      //     |           /
+      //     |          /   outside
+      //     |         /
+      //     |        /
+      //     |-------/    plane
+      //     | new  /
+      //     |face /
+      //     |    /     inside
+      //     |   /
+      //     |  /
+      //     | /
+
+      Eigen::Vector3f p1, p2;
+      float interp1, interp2;
+      CalcIntersectionAndRatio(mesh->vertices()[valid_vid[0]],
+                               mesh->vertices()[invalid_vid[0]], plane, p1,
+                               interp1);
+      CalcIntersectionAndRatio(mesh->vertices()[valid_vid[0]],
+                               mesh->vertices()[invalid_vid[1]], plane, p2,
+                               interp2);
+
+      valid_vertices.push_back(p1);
+      valid_vertices.push_back(p2);
+
+      Eigen::Vector3f tmp_n = (p1 - mesh->vertices()[valid_vid[0]])
+                                  .cross(p2 - mesh->vertices()[valid_vid[0]]);
+      bool flipped = tmp_n.dot(mesh->face_normals()[i]) > 0;
+
+      Eigen::Vector3i f =
+          GenerateFace(added_table[valid_vid[0]],
+                       static_cast<int>(valid_vertices.size() - 1),
+                       static_cast<int>(valid_vertices.size() - 2), flipped);
+
+      valid_indices.emplace_back(f);
+
+      if (with_uv) {
+        Eigen::Vector2f uv1 =
+            LinearInterpolation(mesh->uv()[valid_uv_vid[0]],
+                                mesh->uv()[invalid_uv_vid[0]], interp1);
+        Eigen::Vector2f uv2 =
+            LinearInterpolation(mesh->uv()[valid_uv_vid[0]],
+                                mesh->uv()[invalid_uv_vid[1]], interp2);
+
+        valid_uv.push_back(uv1);
+        valid_uv.push_back(uv2);
+
+        Eigen::Vector3i uv_f =
+            GenerateFace(added_uv_table[valid_uv_vid[0]],
+                         static_cast<int>(valid_uv.size() - 1),
+                         static_cast<int>(valid_uv.size() - 2), flipped);
+
+        valid_uv_indices.push_back(uv_f);
+      }
+
+      if (with_vertex_color) {
+        Eigen::Vector3f vc1 = LinearInterpolation(
+            mesh->vertex_colors()[valid_uv_vid[0]],
+            mesh->vertex_colors()[invalid_uv_vid[0]], interp1);
+        Eigen::Vector3f vc2 = LinearInterpolation(
+            mesh->vertex_colors()[valid_uv_vid[0]],
+            mesh->vertex_colors()[invalid_uv_vid[1]], interp2);
+
+        valid_vertex_colors.push_back(vc1);
+        valid_vertex_colors.push_back(vc2);
+      }
+
+    } else if (valid_vid.size() == 2) {
+      // Add two new vertices to make two faces
+      //      -----------
+      //     |∖new face 1/
+      //     |  ∖       /   inside
+      //     |new ∖    /
+      //     |face 2∖ /
+      //     |-------/    plane
+      //     |      /
+      //     |     /
+      //     |    /     outside
+      //     |   /
+      //     |  /
+      //     | /
+      //     original triangle
+
+      Eigen::Vector3f p1, p2;
+      float interp1, interp2;
+      CalcIntersectionAndRatio(mesh->vertices()[valid_vid[0]],
+                               mesh->vertices()[invalid_vid[0]], plane, p1,
+                               interp1);
+      CalcIntersectionAndRatio(mesh->vertices()[valid_vid[1]],
+                               mesh->vertices()[invalid_vid[0]], plane, p2,
+                               interp2);
+
+      valid_vertices.push_back(p1);
+      valid_vertices.push_back(p2);
+
+      Eigen::Vector3f tmp_n1 = (p1 - mesh->vertices()[valid_vid[0]])
+                                   .cross(p2 - mesh->vertices()[valid_vid[0]]);
+      bool flipped1 = tmp_n1.dot(mesh->face_normals()[i]) > 0;
+      Eigen::Vector3i f1 =
+          GenerateFace(added_table[valid_vid[0]],
+                       static_cast<int>(valid_vertices.size() - 1),
+                       static_cast<int>(valid_vertices.size() - 2), flipped1);
+      valid_indices.emplace_back(f1);
+
+      Eigen::Vector3f tmp_n2 = -(mesh->vertices()[valid_vid[0]] - p2)
+                                    .cross(mesh->vertices()[valid_vid[1]] - p2);
+      bool flipped2 = tmp_n2.dot(mesh->face_normals()[i]) > 0;
+      Eigen::Vector3i f2 =
+          GenerateFace(added_table[valid_vid[0]], added_table[valid_vid[1]],
+                       static_cast<int>(valid_vertices.size() - 1), flipped2);
+      valid_indices.emplace_back(f2);
+
+      if (with_uv) {
+        Eigen::Vector2f uv1 =
+            LinearInterpolation(mesh->uv()[valid_uv_vid[0]],
+                                mesh->uv()[invalid_uv_vid[0]], interp1);
+        Eigen::Vector2f uv2 =
+            LinearInterpolation(mesh->uv()[valid_uv_vid[1]],
+                                mesh->uv()[invalid_uv_vid[0]], interp2);
+
+        valid_uv.push_back(uv1);
+        valid_uv.push_back(uv2);
+
+        Eigen::Vector3i uv_f1 =
+            GenerateFace(added_uv_table[valid_uv_vid[0]],
+                         static_cast<int>(valid_uv.size() - 1),
+                         static_cast<int>(valid_uv.size() - 2), flipped1);
+
+        valid_uv_indices.push_back(uv_f1);
+
+        Eigen::Vector3i uv_f2 = GenerateFace(
+            added_uv_table[valid_uv_vid[0]], added_uv_table[valid_uv_vid[1]],
+            static_cast<int>(valid_uv.size() - 1), flipped2);
+
+        valid_uv_indices.push_back(uv_f2);
+      }
+
+      if (with_vertex_color) {
+        Eigen::Vector3f vc1 = LinearInterpolation(
+            mesh->vertex_colors()[valid_uv_vid[0]],
+            mesh->vertex_colors()[invalid_uv_vid[0]], interp1);
+        Eigen::Vector3f vc2 = LinearInterpolation(
+            mesh->vertex_colors()[valid_uv_vid[1]],
+            mesh->vertex_colors()[invalid_uv_vid[0]], interp2);
+
+        valid_vertex_colors.push_back(vc1);
+        valid_vertex_colors.push_back(vc2);
+      }
 
     } else {
       // All vertices are kept
       valid_indices.push_back(face);
       valid_face_table[i] = valid_face_count;
       valid_face_count++;
+      if (with_uv) {
+        valid_uv_indices.push_back(uv_face);
+      }
     }
   }
 
@@ -440,7 +625,7 @@ int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane) {
   mesh->set_vertex_indices(valid_indices);
   if (with_uv) {
     mesh->set_uv(valid_uv);
-    mesh->set_uv_indices(valid_indices);
+    mesh->set_uv_indices(valid_uv_indices);
   }
   if (with_vertex_color) {
     mesh->set_vertex_colors(valid_vertex_colors);
@@ -460,6 +645,10 @@ int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane) {
   }
 
   mesh->set_material_ids(new_material_ids);
+
+  if (fill_plane) {
+    // TODO: fill plane by triangulation
+  }
 
   return num_removed;
 }
