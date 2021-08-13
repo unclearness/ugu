@@ -286,6 +286,7 @@ void TestCut() {
   ugu::CutByPlane(bunny, plane);
 
   bunny->WritePly(data_dir + "cut_by_plane.ply");
+  bunny->WriteObj(data_dir, "cut_by_plane");
 }
 
 int main() {
