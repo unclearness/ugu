@@ -7,6 +7,7 @@
 #include <iostream>
 #include <random>
 
+#include "ugu/external/external.h"
 #include "ugu/mesh.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
@@ -289,8 +290,24 @@ void TestCut() {
   bunny->WriteObj(data_dir, "cut_by_plane");
 }
 
+void TestDecimation() {
+  std::string data_dir = "../data/bunny/";
+  std::string in_obj_path = data_dir + "bunny.obj";
+  ugu::Mesh src, dst;
+  src.LoadObj(in_obj_path, data_dir);
+
+  auto targe_face_num = static_cast<int>(src.vertex_indices().size() * 0.05);
+
+  ugu::FastQuadricMeshSimplification(src, targe_face_num, &dst);
+
+  dst.WritePly(data_dir + "bunny_decimated.ply");
+  dst.WriteObj(data_dir, "bunny_decimated");
+}
+
 int main() {
   TestCut();
+
+  TestDecimation();
 
   TestTexture();
 
