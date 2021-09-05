@@ -87,7 +87,13 @@ message("JSON_INSTALL_DIR: ${JSON_INSTALL_DIR}")
 if(NOT DEFINED NANOFLANN_INSTALL_DIR)
   set_with_parent(NANOFLANN_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/nanoflann/include" "nanoflann installed directory")
 endif()
-message("NANOFLANN_INSTALL_DIR: ${NANOFLANN_INSTALL_DIR}") 
+message("NANOFLANN_INSTALL_DIR: ${NANOFLANN_INSTALL_DIR}")
+
+if(NOT DEFINED FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR)
+  set_with_parent(FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Fast-Quadric-Mesh-Simplification/src.cmd" "Fast-Quadric-Mesh-Simplification installed directory")
+endif()
+message("FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR: ${FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR}") 
+
 # switch for optional libraries
 option(UGU_USE_STB "Use stb to enable image i/o" ON)
 message("UGU_USE_STB: ${UGU_USE_STB}")
@@ -183,6 +189,13 @@ if(UGU_USE_NANOFLANN)
   add_definitions(-DUGU_USE_NANOFLANN)
 endif()
 
+option(UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION "Use Fast-Quadric-Mesh-Simplification" ON)
+message("UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION: ${UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION}")
+if(UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR})
+  add_definitions(-DUGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION)
+endif()
+
 
 option(UGU_USE_OPENMP "Use OpenMP to enable parallelization" ON)
 message("UGU_USE_OPENMP: ${UGU_USE_OPENMP}")
@@ -276,6 +289,9 @@ set(
 
   include/ugu/optimizer/optimizer.h
   src/optimizer/optimizer.cc
+
+  include/ugu/external/external.h
+  src/external/fast_quadric_mesh_simplification.cc
 
   # implementations of header-only library
   ${UGU_STB_IMPLEMENTATION_CC}
