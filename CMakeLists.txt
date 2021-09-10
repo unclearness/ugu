@@ -213,6 +213,7 @@ if(UGU_USE_MVS_TEXTURING)
         ${MVS_TEXTURING_INSTALL_DIR}/third_party/rayint/libs)
   set(Ugu_LIBS ${Ugu_LIBS} tex mve mve_util mrf)
   add_definitions(-DUGU_USE_MVS_TEXTURING)
+  set_property(TARGET texrecon tex mve mve_sfm mve_math mve_fssr mve_dmrecon mve_util mrf PROPERTY FOLDER "mvs-texturing") 
 endif()
 
 option(UGU_USE_OPENMP "Use OpenMP to enable parallelization" ON)
@@ -351,6 +352,7 @@ function(setup_exe EXE_NAME EXE_SRC)
   #set(SOURCE_LIST ${SOURCE_LIST} ${EXE_SRC})
   set_property(TARGET ${EXE_NAME} PROPERTY FOLDER "examples") 
 endfunction(setup_exe)
+
 
 if (NOT hasParent)
   setup_exe(ex01_mesh examples/ex01_mesh.cc)
