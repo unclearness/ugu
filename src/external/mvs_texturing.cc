@@ -109,6 +109,8 @@ bool ConvertMesh(const ugu::Mesh& ugu_mesh, mve::TriangleMesh::Ptr mesh) {
 bool ConvertObjModel(tex::Model& objmodel, ugu::Mesh& ugu_mesh) {
   // ugu_mesh.Clear();
 
+  // TODO: Vertex id and face id may change...
+
   auto vertices = objmodel.get_vertices();
   auto texcoords = objmodel.get_texcoords();
   auto normals = objmodel.get_normals();
