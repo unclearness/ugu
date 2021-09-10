@@ -94,6 +94,12 @@ if(NOT DEFINED FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR)
 endif()
 message("FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR: ${FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR}") 
 
+
+if(NOT DEFINED MVS_TEXTURING_INSTALL_DIR)
+  set_with_parent(MVS_TEXTURING_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/mvs-texturing" "mvs-texturing installed directory")
+endif()
+message("MVS_TEXTURING_INSTALL_DIR: ${MVS_TEXTURING_INSTALL_DIR}")
+
 # switch for optional libraries
 option(UGU_USE_STB "Use stb to enable image i/o" ON)
 message("UGU_USE_STB: ${UGU_USE_STB}")
@@ -196,6 +202,19 @@ if(UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION)
   add_definitions(-DUGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION)
 endif()
 
+option(UGU_USE_MVS_TEXTURING "Use mvs-texturing" ON)
+message("UGU_USE_MVS_TEXTURING: ${UGU_USE_MVS_TEXTURING}")
+if(UGU_USE_MVS_TEXTURING)
+  add_subdirectory(${MVS_TEXTURING_INSTALL_DIR})
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS}
+        ${MVS_TEXTURING_INSTALL_DIR}
+        ${MVS_TEXTURING_INSTALL_DIR}/libs
+        ${MVS_TEXTURING_INSTALL_DIR}/third_party/mve/libs
+        ${MVS_TEXTURING_INSTALL_DIR}/third_party/rayint/libs)
+  set(Ugu_LIBS ${Ugu_LIBS} tex mve mve_util mrf)
+  add_definitions(-DUGU_USE_MVS_TEXTURING)
+  set_property(TARGET texrecon tex mve mve_sfm mve_math mve_fssr mve_dmrecon mve_util mrf PROPERTY FOLDER "mvs-texturing") 
+endif()
 
 option(UGU_USE_OPENMP "Use OpenMP to enable parallelization" ON)
 message("UGU_USE_OPENMP: ${UGU_USE_OPENMP}")
@@ -292,6 +311,7 @@ set(
 
   include/ugu/external/external.h
   src/external/fast_quadric_mesh_simplification.cc
+  src/external/mvs_texturing.cc
 
   # implementations of header-only library
   ${UGU_STB_IMPLEMENTATION_CC}
@@ -332,6 +352,7 @@ function(setup_exe EXE_NAME EXE_SRC)
   #set(SOURCE_LIST ${SOURCE_LIST} ${EXE_SRC})
   set_property(TARGET ${EXE_NAME} PROPERTY FOLDER "examples") 
 endfunction(setup_exe)
+
 
 if (NOT hasParent)
   setup_exe(ex01_mesh examples/ex01_mesh.cc)

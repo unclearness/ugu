@@ -28,3 +28,6 @@
 [submodule "third_party/Fast-Quadric-Mesh-Simplification"]
 	path = third_party/Fast-Quadric-Mesh-Simplification
 	url = https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification.git
+[submodule "third_party/mvs-texturing"]
+	path = third_party/mvs-texturing
+	url = https://github.com/unclearness/mvs-texturing.git

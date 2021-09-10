@@ -10,6 +10,7 @@
 #include "ugu/texturing/texture_mapper.h"
 #include "ugu/texturing/vertex_colorizer.h"
 #include "ugu/texturing/visibility_tester.h"
+#include "ugu/external/external.h"
 
 // test by bunny data with 6 views
 int main(int argc, char* argv[]) {
@@ -109,6 +110,12 @@ int main(int argc, char* argv[]) {
   tmoption.tex_w = 512;
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   output_mesh->WriteObj(data_dir, "bunny_textured_charts");
+
+  // mvs-texturing
+  ugu::Mesh debug_mesh;
+  ugu::MvsTexturing(keyframes, output_mesh.get(), &debug_mesh);
+  output_mesh->WriteObj(data_dir, "bunny_mvs_texturing");
+  debug_mesh.WriteObj(data_dir, "bunny_mvs_texturing_debug");
 
   return 0;
 }
