@@ -112,7 +112,10 @@ int main(int argc, char* argv[]) {
   output_mesh->WriteObj(data_dir, "bunny_textured_charts");
 
   // mvs-texturing
-  ugu::MvsTexturing(keyframes, output_mesh.get());
+  ugu::Mesh debug_mesh;
+  ugu::MvsTexturing(keyframes, output_mesh.get(), &debug_mesh);
+  output_mesh->WriteObj(data_dir, "bunny_mvs_texturing");
+  debug_mesh.WriteObj(data_dir, "bunny_mvs_texturing_debug");
 
   return 0;
 }

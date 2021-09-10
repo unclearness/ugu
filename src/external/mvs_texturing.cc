@@ -78,7 +78,7 @@ bool Keyframes2TextureViews(
         static_cast<size_t>(kf->color.cols * kf->color.rows * 3);
     std::memcpy(image->get_data_pointer(), kf->color.data, data_size);
 
-    mve::image::save_png_file(image, "mve_" + std::to_string(i) + ".png");
+    // mve::image::save_png_file(image, "mve_" + std::to_string(i) + ".png");
 
     texture_views->push_back(tex::TextureView(i, cam_info, image));
   }
@@ -106,6 +106,100 @@ bool ConvertMesh(const ugu::Mesh& ugu_mesh, mve::TriangleMesh::Ptr mesh) {
   return true;
 }
 
+bool ConvertObjModel(tex::Model& objmodel, ugu::Mesh& ugu_mesh) {
+  // ugu_mesh.Clear();
+
+  auto vertices = objmodel.get_vertices();
+  auto texcoords = objmodel.get_texcoords();
+  auto normals = objmodel.get_normals();
+  auto material_lib = objmodel.get_material_lib();
+  auto groups = objmodel.get_groups();
+
+  std::vector<Eigen::Vector2f> ugu_uv;
+  std::vector<Eigen::Vector3f> ugu_vertices;
+  std::vector<Eigen::Vector3f> ugu_normals;
+  std::vector<ugu::ObjMaterial> ugu_materials;
+  std::vector<Eigen::Vector3i> ugu_uv_indices, ugu_indices, ugu_normal_indices;
+  //  std::vector<std::vector<int>> ugu_face_indices_per_material;
+  std::vector<int> ugu_material_ids;
+
+  std::transform(texcoords.begin(), texcoords.end(), std::back_inserter(ugu_uv),
+                 [](auto& texcoord) {
+                   return Eigen::Vector2f(texcoord[0], 1.f - texcoord[1]);
+                 });
+
+  std::transform(vertices.begin(), vertices.end(),
+                 std::back_inserter(ugu_vertices), [](auto& vertex) {
+                   return Eigen::Vector3f(vertex[0], vertex[1], vertex[2]);
+                 });
+
+  std::transform(normals.begin(), normals.end(),
+                 std::back_inserter(ugu_normals), [](auto& normal) {
+                   return Eigen::Vector3f(normal[0], normal[1], normal[2]);
+                 });
+
+  std::transform(material_lib.begin(), material_lib.end(),
+                 std::back_inserter(ugu_materials), [](auto& material) {
+                   ugu::ObjMaterial ugu_material;
+                   ugu_material.name = material.name;
+                   mve::ByteImage::ConstPtr diffuse_map = material.diffuse_map;
+                   ugu_material.diffuse_tex = ugu::Image3b::zeros(
+                       diffuse_map->height(), diffuse_map->width());
+                   const size_t data_size = static_cast<size_t>(
+                       diffuse_map->height() * diffuse_map->width() * 3);
+                   std::memcpy(ugu_material.diffuse_tex.data,
+                               diffuse_map->get_data_pointer(), data_size);
+                   return ugu_material;
+                 });
+
+  // ugu_face_indices_per_material.resize(groups.size());
+  for (const auto& group : groups) {
+    int index = -1;
+    for (size_t i = 0; i < ugu_materials.size(); i++) {
+      if (group.material_name == ugu_materials[i].name) {
+        index = static_cast<int>(i);
+        break;
+      }
+    }
+    if (index < 0) {
+      ugu::LOGE("something wrong...\n");
+      return false;
+    }
+
+    // auto& ugu_group = ugu_face_indices_per_material[index];
+
+    for (size_t j = 0; j < group.faces.size(); j++) {
+      const auto& face = group.faces[j];
+      ugu_indices.emplace_back(static_cast<int>(face.vertex_ids[0]),
+                               static_cast<int>(face.vertex_ids[1]),
+                               static_cast<int>(face.vertex_ids[2]));
+
+      ugu_normal_indices.emplace_back(static_cast<int>(face.normal_ids[0]),
+                                      static_cast<int>(face.normal_ids[1]),
+                                      static_cast<int>(face.normal_ids[2]));
+      ugu_uv_indices.emplace_back(static_cast<int>(face.texcoord_ids[0]),
+                                  static_cast<int>(face.texcoord_ids[1]),
+                                  static_cast<int>(face.texcoord_ids[2]));
+
+      // ugu_group.push_back(j + offset);
+      ugu_material_ids.push_back(index);
+    }
+  }
+
+  ugu_mesh.set_vertices(ugu_vertices);
+  ugu_mesh.set_normals(ugu_normals);
+  ugu_mesh.set_uv(ugu_uv);
+
+  ugu_mesh.set_vertex_indices(ugu_indices);
+  ugu_mesh.set_normal_indices(ugu_normal_indices);
+  ugu_mesh.set_uv_indices(ugu_uv_indices);
+
+  ugu_mesh.set_materials(ugu_materials);
+  ugu_mesh.set_material_ids(ugu_material_ids);
+
+  return true;
+}
+
 }  // namespace
 
 namespace ugu {
@@ -113,40 +207,6 @@ namespace ugu {
 bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
                   ugu::Mesh* ugu_mesh, ugu::Mesh* debug_mesh) {
 #ifdef UGU_USE_MVS_TEXTURING
-  // util::system::print_build_timestamp(aergv[0]);
-  // util::system::register_segfault_handlr();
-
-  // Timer timer;
-  // util::WallTimer wtimer;
-
-  // Arguments conf;
-  // try {
-  //  conf = parse_args(argc, argv);
-  //} catch (std::invalid_argument& ia) {
-  //  std::cerr << ia.what() << std::endl;
-  //  std::exit(EXIT_FAILURE);
-  //}
-
-  // std::string const out_dir = util::fs::dirname(conf.out_prefix);
-
-#if 0
-      if (!util::fs::dir_exists(out_dir.c_str())) {
-    std::cerr << "Destination directory does not exist!" << std::endl;
-    std::exit(EXIT_FAILURE);
-  }
-
-  std::string const tmp_dir = util::fs::join_path(out_dir, "tmp");
-  if (!util::fs::dir_exists(tmp_dir.c_str())) {
-    util::fs::mkdir(tmp_dir.c_str());
-  } else {
-    std::cerr
-        << "Temporary directory \"tmp\" exists within the destination "
-           "directory.\n"
-        << "Cannot continue since this directory would be delete in the end.\n"
-        << std::endl;
-    std::exit(EXIT_FAILURE);
-  }
-#endif  // 0
 
   Arguments conf;
 
@@ -161,50 +221,28 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
   conf.settings.smoothness_term = tex::SmoothnessTerm::SMOOTHNESS_TERM_POTTS;
   conf.settings.outlier_removal = tex::OutlierRemoval::
       OUTLIER_REMOVAL_GAUSS_CLAMPING;  // OUTLIER_REMOVAL_NONE;
-  // ToneMapping tone_mapping = TONE_MAPPING_NONE;
 
-  // Set the number of threads to use.
-  // tbb::task_scheduler_init schedule(conf.num_threads > 0 ? conf.num_threads
-  // : tbb::task_scheduler_init::automatic);
   if (conf.num_threads > 0) {
     omp_set_dynamic(0);
     omp_set_num_threads(conf.num_threads);
   }
 
-  // std::cout << "Load and prepare mesh: " << std::endl;
   mve::TriangleMesh::Ptr mesh = mve::TriangleMesh::create();
   ConvertMesh(*ugu_mesh, mesh);
-
-#if 0
-      try {
-    mesh = mve::geom::load_ply_mesh(conf.in_mesh);
-  } catch (std::exception& e) {
-    std::cerr << "\tCould not load mesh: " << e.what() << std::endl;
-    // std::exit(EXIT_FAILURE);
-    return false;
-  }
-#endif  // 0
 
   mve::MeshInfo mesh_info(mesh);
   tex::prepare_mesh(&mesh_info, mesh);
 
-  // std::cout << "Generating texture views: " << std::endl;
   tex::TextureViews texture_views;
   Keyframes2TextureViews(keyframes, &texture_views);
-
-  // timer.measure("Loading");
 
   const uint32_t num_faces =
       static_cast<uint32_t>(mesh->get_faces().size() / 3);
 
-  // std::cout << "Building adjacency graph: " << std::endl;
   tex::Graph graph(num_faces);
   tex::build_adjacency_graph(mesh, mesh_info, &graph);
 
   if (conf.labeling_file.empty()) {
-    // std::cout << "View selection:" << std::endl;
-    // util::WallTimer rwtimer;
-
     tex::DataCosts data_costs(num_faces,
                               static_cast<uint16_t>(texture_views.size()));
     if (conf.data_cost_file.empty()) {
@@ -221,28 +259,21 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
 #endif  // 0
 
     } else {
-      // std::cout << "\tLoading data cost file... " << std::flush;
       try {
         tex::DataCosts::load_from_file(conf.data_cost_file, &data_costs);
       } catch (util::FileException e) {
         std::cout << "failed!" << std::endl;
         std::cerr << e.what() << std::endl;
-        // std::exit(EXIT_FAILURE);
         return false;
       }
-      // std::cout << "done." << std::endl;
     }
-    // timer.measure("Calculating data costs");
 
     try {
       tex::view_selection(data_costs, &graph, conf.settings);
     } catch (std::runtime_error& e) {
       std::cerr << "\tOptimization failed: " << e.what() << std::endl;
-      // std::exit(EXIT_FAILURE);
       return false;
     }
-    // timer.measure("Running MRF optimization");
-    // std::cout << "\tTook: " << rwtimer.get_elapsed_sec() << "s" << std::endl;
 
 #if 0
        /* Write labeling to file. */
@@ -256,8 +287,6 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
 #endif  // 0
 
   } else {
-    // std::cout << "Loading labeling from file... " << std::flush;
-
     /* Load labeling from file. */
     std::vector<std::size_t> labeling =
         vector_from_file<std::size_t>(conf.labeling_file);
@@ -265,7 +294,6 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
       std::cerr << "Wrong labeling file for this mesh/scene combination... "
                    "aborting!"
                 << std::endl;
-      // std::exit(EXIT_FAILURE);
       return false;
     }
 
@@ -276,13 +304,10 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
         std::cerr << "Wrong labeling file for this mesh/scene combination... "
                      "aborting!"
                   << std::endl;
-        // std::exit(EXIT_FAILURE);
         return false;
       }
       graph.set_label(i, label);
     }
-
-    // std::cout << "done." << std::endl;
   }
 
   tex::TextureAtlases texture_atlases;
@@ -296,7 +321,6 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
                                   &texture_patches);
 
     if (conf.settings.global_seam_leveling) {
-      // std::cout << "Running global seam leveling:" << std::endl;
       tex::global_seam_leveling(graph, mesh, mesh_info, vertex_projection_infos,
                                 &texture_patches);
       // timer.measure("Running global seam leveling");
@@ -314,38 +338,26 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
         texture_patch->adjust_colors(patch_adjust_values);
         texture_patch_counter.inc();
       }
-      // timer.measure("Calculating texture patch validity masks");
     }
 
     if (conf.settings.local_seam_leveling) {
-      // std::cout << "Running local seam leveling:" << std::endl;
       tex::local_seam_leveling(graph, mesh, vertex_projection_infos,
                                &texture_patches);
     }
-    // timer.measure("Running local seam leveling");
 
     /* Generate texture atlases. */
-    // std::cout << "Generating texture atlases:" << std::endl;
     tex::generate_texture_atlases(&texture_patches, conf.settings,
                                   &texture_atlases);
   }
 
   /* Create and write out obj model. */
-  {
-    // std::cout << "Building objmodel:" << std::endl;
-    tex::Model model;
-    tex::build_model(mesh, texture_atlases, &model);
-    // timer.measure("Building OBJ model");
 
-    // std::cout << "\tSaving model... " << std::flush;
-    tex::Model::save(model, conf.out_prefix);
-    // std::cout << "done." << std::endl;
-    // timer.measure("Saving");
-  }
+  tex::Model objmodel;
+  tex::build_model(mesh, texture_atlases, &objmodel);
 
-  // std::cout << "Whole texturing procedure took: " << wtimer.get_elapsed_sec()
-  //         << "s" << std::endl;
-  // timer.measure("Total");
+  ConvertObjModel(objmodel, *ugu_mesh);
+
+  // tex::Model::save(model, conf.out_prefix);
 
 #if 0
       if (conf.write_timings) {
@@ -355,7 +367,6 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
 
   if (conf.write_view_selection_model) {
     texture_atlases.clear();
-    // std::cout << "Generating debug texture patches:" << std::endl;
     {
       tex::TexturePatches texture_patches;
       generate_debug_embeddings(&texture_views);
@@ -368,25 +379,13 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
                                     &texture_atlases);
     }
 
-    // std::cout << "Building debug objmodel:" << std::endl;
-    {
-      tex::Model model;
-      tex::build_model(mesh, texture_atlases, &model);
-      // std::cout << "\tSaving model... " << std::flush;
-      tex::Model::save(model, conf.out_prefix + "_view_selection");
-      // std::cout << "done." << std::endl;
-    }
+    tex::Model debugobjmodel;
+    tex::build_model(mesh, texture_atlases, &debugobjmodel);
+    ConvertObjModel(debugobjmodel, *debug_mesh);
+    // tex::Model::save(debugobjmodel, conf.out_prefix + "_view_selection");
   }
 
   // convert to ugu_mesh
-
-#if 0
-   /* Remove temporary files. */
-  for (util::fs::File const& file : util::fs::Directory(tmp_dir)) {
-    util::fs::unlink(util::fs::join_path(file.path, file.name).c_str());
-  }
-  util::fs::rmdir(tmp_dir.c_str());
-#endif  // 0
 
   return true;
 #else
