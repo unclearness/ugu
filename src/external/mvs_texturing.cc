@@ -29,8 +29,6 @@
 #pragma warning(pop)
 #endif
 
-#endif
-
 namespace {
 
 bool Keyframes2TextureViews(
@@ -203,6 +201,8 @@ bool ConvertObjModel(tex::Model& objmodel, ugu::Mesh& ugu_mesh) {
 }
 
 }  // namespace
+
+#endif
 
 namespace ugu {
 
@@ -393,6 +393,7 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
 
   return true;
 #else
+  (void)keyframes, ugu_mesh, debug_mesh;
   ugu::LOGE("Not available in current configuration\n");
   return false;
 #endif
