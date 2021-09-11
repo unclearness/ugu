@@ -211,7 +211,7 @@ if(UGU_USE_MVS_TEXTURING)
         ${MVS_TEXTURING_INSTALL_DIR}/libs
         ${MVS_TEXTURING_INSTALL_DIR}/third_party/mve/libs
         ${MVS_TEXTURING_INSTALL_DIR}/third_party/rayint/libs)
-  set(Ugu_LIBS ${Ugu_LIBS} tex mve mve_util mrf)
+  set(MvsTexturing_LIBS tex mve mve_util mrf)
   add_definitions(-DUGU_USE_MVS_TEXTURING)
   set_property(TARGET texrecon tex mve mve_sfm mve_math mve_fssr mve_dmrecon mve_util mrf PROPERTY FOLDER "mvs-texturing") 
 endif()
@@ -332,7 +332,7 @@ if(UGU_STATIC_LIBRARY)
     ${UGU_SOURCE}
   )
 
-  set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB})
+  set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB} ${MvsTexturing_LIBS}) # This order is important in Ubuntu...
 endif()
 
 set(SOURCE_LIST ${SOURCE_LIST} ${UGU_SOURCE})
