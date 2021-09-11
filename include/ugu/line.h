@@ -196,9 +196,9 @@ FindBestLineCrossingPointLeastSquares(const std::vector<Line3<T>>& lines) {
   p.z() = ans.cast<T>()[lines.size() + 2];
 
   for (auto i = 0; i < lines.size(); i++) {
-    auto a = (p.cast<T>() - lines[i].a);
+      auto a = (p.template cast<T>() - lines[i].a);
     auto perpendiculer = lines[i].a + a.dot(lines[i].d) * lines[i].d;
-    auto error = (p.cast<T>() - perpendiculer).norm();
+      auto error = (p.template cast<T>() - perpendiculer).norm();
 
     errors.push_back(error);
   }

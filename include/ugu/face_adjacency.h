@@ -8,6 +8,7 @@
 #include <set>
 #include <tuple>
 #include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 #define UGU_FACE_ADJACENCY_USE_SPARSE_MAT

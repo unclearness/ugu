@@ -225,8 +225,10 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
       OUTLIER_REMOVAL_GAUSS_CLAMPING;  // OUTLIER_REMOVAL_NONE;
 
   if (conf.num_threads > 0) {
+#ifdef UGU_USE_OPENMP
     omp_set_dynamic(0);
     omp_set_num_threads(conf.num_threads);
+#endif
   }
 
   mve::TriangleMesh::Ptr mesh = mve::TriangleMesh::create();
