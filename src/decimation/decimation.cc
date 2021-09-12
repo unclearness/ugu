@@ -115,22 +115,76 @@ using QSlimHeap =
 
 struct DecimatedMesh {
   ugu::MeshPtr mesh;
+
+  std::vector<Eigen::Vector3f> vertices;
+  std::vector<Eigen::Vector3f> vertex_colors;   // optional, RGB order
+  std::vector<Eigen::Vector3i> vertex_indices;  // face
+
+  std::vector<Eigen::Vector3f> normals;  // normal per vertex
+  // std::vector<Eigen::Vector3f> face_normals;  // normal per face
+  // std::vector<Eigen::Vector3i> normal_indices;
+
+  std::vector<Eigen::Vector2f> uv;
+  std::vector<Eigen::Vector3i> uv_indices;
+
   std::vector<bool> valid_vertices;
+
+  std::vector<std::vector<int32_t>> vid2uvid;
 
   DecimatedMesh(ugu::MeshPtr mesh) : mesh(mesh) {
     valid_vertices.resize(mesh->vertices().size(), true);
+
+    vertices = mesh->vertices();
+    vertex_colors = mesh->vertex_colors();
+    vertex_indices = mesh->vertex_indices();
+
+    normals = mesh->normals();
+
+    uv = mesh->uv();
+    uv_indices = mesh->uv_indices();
+  }
+
+  void Finalize() {
+    mesh->set_vertices(vertices);
+    mesh->set_vertex_colors(vertex_colors);
+    mesh->set_vertex_indices(vertex_indices);
+
+    mesh->set_normals(normals);
+
+    mesh->set_uv(uv);
+    mesh->set_uv_indices(uv_indices);
+  }
+
+  void Update(int vid, const VertexAttr& vertex_attr, double scale,
+              ugu::QSlimType type) {
+    // Extract vertex attributes from quadrics matrix
+
+    // Recover original scale of the vertex attributes
+
+    // Set except uv and uv_indices
+
+    // Set uv and uv_indices by index conversion
   }
 
   DecimatedMesh() {}
   ~DecimatedMesh() {}
 };
 
-void UpdateDecimatedVertex() {
+void UpdateDecimatedVertex(DecimatedMesh& mesh, QSlimEdgeInfo& e,
+                           ugu::QSlimType type) {
+  int32_t v1 = e.edge.first;
+  int32_t v2 = e.edge.second;
+
   // Remove original two vertex attributes
   // Mark them as invalid
+  mesh.valid_vertices[v1] = false;
+  mesh.valid_vertices[v2] = false;
 
   // Add the decimated vertex attribtues
-  // Set decimated vertex attributes to the one of the invalidated/
+  // Set decimated vertex attributes to the one of the invalidated
+  mesh.valid_vertices[v1] = true;
+  Eigen::Vector3f vertex, normal, vertex_color;
+  Eigen::Vector3f uv;
 
   // Reconstruct new faces
   // Remove original face indices
