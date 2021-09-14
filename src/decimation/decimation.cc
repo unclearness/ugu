@@ -132,6 +132,10 @@ struct DecimatedMesh {
 
   std::vector<std::vector<int32_t>> vid2uvid;
 
+
+
+  std::unordered_map<int, std::vector<int>> v2f, uv_v2f;
+
   VertexAttrsPtr vert_attrs;
   QuadricsPtr quadrics;
 
@@ -164,8 +168,9 @@ struct DecimatedMesh {
   void Finalize() {
     // Appy valid mask
 
-    // copy
 
+
+    // copy
     mesh->set_vertices(vertices);
     mesh->set_vertex_colors(vertex_colors);
     mesh->set_vertex_indices(vertex_indices);
@@ -176,9 +181,16 @@ struct DecimatedMesh {
     mesh->set_uv_indices(uv_indices);
   }
 
-  void Update(int vid, const VertexAttr& vertex_attr, double scale,
-              ugu::QSlimType type) {
+  void Update(int vid, const QSlimEdgeInfo& e, VertexAttr& vertex_attr,
+              double scale, ugu::QSlimType type) {
     // Extract vertex attributes from quadrics matrix
+    // Eigen::Vector3f vertex, normal, vertex_color;
+    // Eigen::Vector3f uv;
+    if (type == ugu::QSlimType::XYZ) {
+      vertex_attr[0] = e.decimated_v[0];
+      vertex_attr[1] = e.decimated_v[1];
+      vertex_attr[2] = e.decimated_v[2];
+    }
 
     // Recover original scale of the vertex attributes
 
@@ -205,8 +217,7 @@ struct DecimatedMesh {
       uv_face_adjacency.Init(mesh->uv().size(), mesh->uv_indices());
       auto [uv_boundary_edges, uv_boundary_vertex_ids] =
           uv_face_adjacency.GetBoundaryEdges();
-
-      std::unordered_map<int, std::vector<int>> uv_v2f =
+      uv_v2f =
           ugu::GenerateVertex2FaceMap(mesh->uv_indices(), mesh->uv().size());
 
       for (const auto& uv_vid : uv_boundary_vertex_ids) {
@@ -276,12 +287,21 @@ struct DecimatedMesh {
     // Add the decimated vertex attribtues
     // Set decimated vertex attributes to the one of the invalidated
     valid_vertices[v1] = true;
-    Eigen::Vector3f vertex, normal, vertex_color;
-    Eigen::Vector3f uv;
+    //Eigen::Vector3f vertex, normal, vertex_color;
+    //Eigen::Vector3f uv;
+    Update(v1, e, vert_attrs->at(v1), 1.0, type);
 
     // Reconstruct new faces
     // Remove original face indices
+
+    
+
+    //face_adjacency.RemoveFace();  
+
+
     // Add new face indices
+  
+
 
     std::vector<QSlimEdgeInfo> new_edges;
     return new_edges;
