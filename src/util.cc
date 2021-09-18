@@ -63,18 +63,14 @@ bool Depth2PointCloudImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
       vertices.push_back(camera_p);
 
       if (with_texture) {
-        // +0.5f comes from mapping 0~1 to -0.5~width(or height)+0.5
-        // since uv 0 and 1 is pixel boundary at ends while pixel position is
-        // the center of pixel
-        Eigen::Vector2f uv(
-            static_cast<float>(x + 0.5f) / static_cast<float>(depth.cols),
-            static_cast<float>(y + 0.5f) / static_cast<float>(depth.rows));
+        Eigen::Vector2f uv(ugu::X2U(x, depth.cols),
+                           ugu::Y2V(y, depth.rows, false));
 
         // nearest neighbor
         // todo: bilinear
         Eigen::Vector2i pixel_pos(
-            static_cast<int>(std::round(uv.x() * color.cols)),
-            static_cast<int>(std::round(uv.y() * color.rows)));
+            static_cast<int>(std::round(ugu::U2X(uv.x(), color.cols))),
+            static_cast<int>(std::round(ugu::V2Y(uv.y(), color.rows, false))));
 
         Eigen::Vector3f pixel_color;
         const ugu::Vec3b& tmp_color =
@@ -174,16 +170,15 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
 
       vid2xy.push_back(std::make_pair(x, y));
 
-      Eigen::Vector2f uv(
-          static_cast<float>(x + 0.5f) / static_cast<float>(depth.cols),
-          static_cast<float>(y + 0.5f) / static_cast<float>(depth.rows));
+      Eigen::Vector2f uv(ugu::X2U(x, depth.cols),
+                         ugu::Y2V(y, depth.rows, false));
 
       if (with_vertex_color) {
         // nearest neighbor
         // todo: bilinear
         Eigen::Vector2i pixel_pos(
-            static_cast<int>(std::round(uv.x() * color.cols)),
-            static_cast<int>(std::round(uv.y() * color.rows)));
+            static_cast<int>(std::round(ugu::U2X(uv.x(), color.cols))),
+            static_cast<int>(std::round(ugu::V2Y(uv.y(), color.rows, false))));
 
         Eigen::Vector3f pixel_color;
         const ugu::Vec3b& tmp_color =
