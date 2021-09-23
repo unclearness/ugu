@@ -7,9 +7,12 @@
 #include "ugu/decimation/decimation.h"
 
 #include <queue>
+#include <random>
 #include <unordered_set>
+#include <iostream>
 
 #include "ugu/face_adjacency.h"
+#include "ugu/util/math_util.h"
 
 namespace {
 
@@ -48,6 +51,12 @@ struct QSlimUvEdge {
     //    std::swap(uv_edge.first, uv_edge.second);
     // }
   }
+
+  bool operator<(const QSlimUvEdge& value) const {
+
+    return edge.first < value.edge.first;
+  }
+
 };
 
 // bool operator==(const QSlimEdges& v1, const QSlimEdges& v2) {
@@ -409,7 +418,8 @@ struct DecimatedMesh {
 
 #endif  // 0
 
-struct DecimatedMesh {
+#if 1
+				struct DecimatedMesh {
   ugu::MeshPtr mesh;
 
   std::vector<Eigen::Vector3f> vertices;
@@ -427,10 +437,11 @@ struct DecimatedMesh {
   std::vector<bool> valid_faces;
 
   std::vector<std::vector<int32_t>> vid2uvid;
+  std::vector<int32_t> uvid2vid;
   std::unordered_map<int, std::vector<int>> v2f, uv_v2f;
 
-  std::set<QSlimEdge> valid_pairs;
-  std::unordered_set<int32_t> invalid_vids;
+  // std::set<QSlimEdge> valid_pairs;
+  // std::unordered_set<int32_t> invalid_vids;
 
   ugu::FaceAdjacency face_adjacency, uv_face_adjacency;
 
@@ -441,11 +452,34 @@ struct DecimatedMesh {
     vertices = mesh->vertices();
     vertex_colors = mesh->vertex_colors();
     vertex_indices = mesh->vertex_indices();
-
     normals = mesh->normals();
+
+    if (vertex_colors.empty()) {
+        vertex_colors.resize(vertices.size());
+    }
 
     uv = mesh->uv();
     uv_indices = mesh->uv_indices();
+
+    vid2uvid.resize(vertices.size());
+    uvid2vid.resize(uv.size());
+    for (size_t i = 0; i < vertex_indices.size(); i++) {
+      const auto& f = vertex_indices[i];
+      const auto& uv_f = uv_indices[i];
+      for (int j = 0; j < 3; j++) {
+        int32_t vid = f[j];
+        int32_t uv_id = uv_f[j];
+        vid2uvid[vid].push_back(uv_id);
+        uvid2vid[uv_id] = vid;
+      }
+    }
+
+    face_adjacency.Init(mesh->vertices().size(), mesh->vertex_indices());
+    v2f = ugu::GenerateVertex2FaceMap(mesh->vertex_indices(),
+                                      mesh->vertices().size());
+
+    uv_face_adjacency.Init(mesh->uv().size(), mesh->uv_indices());
+    uv_v2f = ugu::GenerateVertex2FaceMap(mesh->uv_indices(), mesh->uv().size());
   }
 
   int32_t VertexNum() const {
@@ -456,14 +490,15 @@ struct DecimatedMesh {
     return std::count(valid_faces.begin(), valid_faces.end(), true);
   }
 
-  std::pair<Eigen::Vector3i, Eigen::Vector3i> RemoveFace(int32_t fid) {
+  std::tuple<bool, Eigen::Vector3i, Eigen::Vector3i> RemoveFace(int32_t fid) {
     if (!valid_faces[fid]) {
-      throw std::exception("");
+      //throw std::exception("Invalid");
+      return {false, vertex_indices[fid], uv_indices[fid]};
     }
     valid_faces[fid] = false;
     face_adjacency.RemoveFace(fid);
     uv_face_adjacency.RemoveFace(fid);
-    return {vertex_indices[fid], uv_indices[fid]};
+    return {true, vertex_indices[fid], uv_indices[fid]};
   }
 
   std::pair<std::unordered_set<int32_t>, std::map<QSlimUvEdge, std::int32_t>>
@@ -496,7 +531,11 @@ struct DecimatedMesh {
       face_adjacency.GetAdjacentFaces(fid, &adjacent_fids);
       // uv_face_adjacency.GetAdjacentFaces(fid, &adjacent_uv_fids);
 
-      auto [face, uv_face] = RemoveFace(fid);
+      auto [success, face, uv_face] = RemoveFace(fid);
+  
+      if (!success) {
+        continue;
+      }
 
       const std::array<std::array<int, 2>, 3> order = {
           {{{0, 1}}, {{1, 2}}, {{0, 2}}}};
@@ -636,18 +675,50 @@ struct DecimatedMesh {
 
   void Finalize() {
     // Appy valid mask
+    vertices = ugu::Mask(vertices, valid_vertices);
+    vertex_colors = ugu::Mask(vertex_colors, valid_vertices);
+    normals = ugu::Mask(normals, valid_vertices);
+    vertex_indices = ugu::Mask(vertex_indices, valid_faces);
+
+    std::vector<bool> valid_uv(uv.size(), false);
+    std::vector<bool> valid_uv_faces(uv_indices.size(), false);
+
+    for (size_t i = 0; i < vid2uvid.size(); i++) {
+      for (size_t j = 0; j < vid2uvid[i].size(); j++) {
+        valid_uv[vid2uvid[i][j]] = valid_vertices[i];
+      }
+    }
+
+    for (size_t i = 0; i < uv_indices.size(); i++) {
+      bool valid = true;
+      for (int j = 0; j < 3; j++) {
+        if (!valid_uv[uv_indices[i][j]]) {
+          valid = false;
+          break;
+        }
+      }
+      valid_uv_faces[i] = valid;
+    }
+
+    uv = ugu::Mask(uv, valid_uv);
+    uv_indices = ugu::Mask(uv_indices, valid_uv_faces);
+
+
+    mesh->Clear();
 
     // copy
     mesh->set_vertices(vertices);
+
+#if 0
     mesh->set_vertex_colors(vertex_colors);
     mesh->set_vertex_indices(vertex_indices);
-
     mesh->set_normals(normals);
-
     mesh->set_uv(uv);
     mesh->set_uv_indices(uv_indices);
+#endif
   }
 
+#if 0
   std::set<QSlimEdge> PrepareValidPairs(bool keep_geom_boundary,
                                         bool keep_uv_boundary) {
     face_adjacency.Init(mesh->vertices().size(), mesh->vertex_indices());
@@ -720,10 +791,13 @@ struct DecimatedMesh {
 
     return valid_pairs;
   }
+#endif
 
   DecimatedMesh() {}
   ~DecimatedMesh() {}
 };
+#endif  // 1
+
 
 }  // namespace
 
@@ -731,7 +805,7 @@ namespace ugu {
 
 bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
            int32_t target_vertex_num, bool keep_geom_boundary,
-           bool keep_uv_boundary, bool accept_non_edge, float non_edge_dist) {
+           bool keep_uv_boundary) {
 #if 0
 				  // Set up valid pairs (edge and non-dege)
   DecimatedMesh decimated_mesh(mesh);
@@ -779,6 +853,67 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
   decimated_mesh.Finalize();
 
 #endif  // 0
+
+#if 1
+  DecimatedMesh decimated_mesh(mesh);
+  std::mt19937 engine(0);
+  std::uniform_real_distribution<double> dist1(0, 1.0);
+
+  while (true) {
+    if (target_vertex_num > 0 &&
+        target_vertex_num >= decimated_mesh.VertexNum()) {
+      break;
+    }
+
+    if (target_face_num > 0 && target_face_num >= decimated_mesh.FaceNum()) {
+      break;
+    }
+
+#if 0
+				  int32_t vid_org = (decimated_mesh.VertexNum() - 1) * dist1(engine);
+    int32_t vid = -1;
+    int32_t count = 0;
+    for (size_t i = 0; i < decimated_mesh.valid_vertices.size(); i++) {
+      if (decimated_mesh.valid_vertices[i]) {
+        count++;
+        if (count == vid_org) {
+          vid = i;
+        }
+      }
+    }
+#endif  // 0
+
+    int32_t fid_org = (decimated_mesh.FaceNum() - 1) * dist1(engine);
+    int32_t fid = -1;
+    int32_t count = 0;
+    for (size_t i = 0; i < decimated_mesh.valid_faces.size(); i++) {
+      if (decimated_mesh.valid_faces[i]) {
+        count++;
+        if (count == fid_org) {
+          fid = i;
+          break;
+        }
+      }
+    }
+
+    int32_t vid1 = decimated_mesh.vertex_indices[fid][0];
+    int32_t vid2 = decimated_mesh.vertex_indices[fid][1];
+
+    Eigen::Vector3f new_pos, new_normal, new_color;
+    Eigen::Vector2f new_uv;
+
+    new_pos =
+        0.5f * (decimated_mesh.vertices[vid1] + decimated_mesh.vertices[vid2]);
+
+    decimated_mesh.CollapseEdge(vid1, vid2, decimated_mesh.normals[vid1],
+                                new_pos, new_normal, new_color, new_uv);
+
+    std::cout << decimated_mesh.FaceNum() << " " << decimated_mesh.VertexNum() << std::endl;
+
+  }
+#endif
+
+  decimated_mesh.Finalize();
 
   return true;
 }

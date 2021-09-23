@@ -93,6 +93,24 @@ T LinearInterpolation(const T& val1, const T& val2, const TT& r) {
   return (TT(1.0) - r) * val1 + r * val2;
 }
 
+template <class Container, class Predicate>
+Container Filter(const Container& c, Predicate f) {
+  Container r;
+  std::copy_if(begin(c), end(c), std::back_inserter(r), f);
+  return r;
+}
+
+template <class Container>
+Container Mask(const Container& c, std::vector<bool> m) {
+  Container r;
+  for (size_t i = 0; i < c.size(); i++) {
+    if (m[i]) {
+      r.push_back(c[i]);
+    }
+  }
+  return r;
+}
+
 // FINDING OPTIMAL ROTATION AND TRANSLATION BETWEEN CORRESPONDING 3D POINTS
 // http://nghiaho.com/?page_id=671
 Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(

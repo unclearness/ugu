@@ -295,15 +295,23 @@ void TestCut() {
 void TestDecimation() {
   std::string data_dir = "../data/bunny/";
   std::string in_obj_path = data_dir + "bunny.obj";
-  ugu::Mesh src, dst;
-  src.LoadObj(in_obj_path, data_dir);
+  ugu::MeshPtr src = ugu::Mesh::Create();
+  ugu::Mesh dst;
+  src->LoadObj(in_obj_path, data_dir);
 
-  auto targe_face_num = static_cast<int>(src.vertex_indices().size() * 0.05);
+  auto targe_face_num = static_cast<int>(src->vertex_indices().size() * 0.02);
 
-  ugu::FastQuadricMeshSimplification(src, targe_face_num, &dst);
+  ugu::QSlim(src, ugu::QSlimType::XYZ, targe_face_num, -1);
 
-  dst.WritePly(data_dir + "bunny_decimated.ply");
-  dst.WriteObj(data_dir, "bunny_decimated");
+  src->WritePly(data_dir + "bunny_qslim.ply");
+
+  ugu::FastQuadricMeshSimplification(*src, targe_face_num, &dst);
+
+  dst.WritePly(data_dir + "bunny_fast_decimated.ply");
+  dst.WriteObj(data_dir, "bunny_fast_decimated");
+
+
+
 }
 
 int main() {
