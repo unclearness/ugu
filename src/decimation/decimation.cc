@@ -14,8 +14,6 @@
 #include "ugu/face_adjacency.h"
 #include "ugu/util/math_util.h"
 
-namespace {
-
 using QSlimEdge = std::pair<int32_t, int32_t>;
 
 struct QSlimUvEdge {
@@ -52,10 +50,42 @@ struct QSlimUvEdge {
     // }
   }
 
-  bool operator<(const QSlimUvEdge& value) const {
-    return edge.first < value.edge.first;
+  bool operator==(const QSlimUvEdge& value) const {
+    return edge.first == value.edge.first && edge.second == value.edge.second;
+  }
+
+#if 0
+				inline size_t operator()(const QSlimUvEdge& map_key) const {
+    const auto hash1 = std::hash<int>()(map_key.edge.first);
+    const auto hash2 = std::hash<int>()(map_key.edge.second);
+    return  hash1 ^ (hash2 << 1);
+  }
+#endif  // 0
+};
+
+namespace std {
+
+template <>
+struct hash<QSlimUvEdge> {
+  std::size_t operator()(const QSlimUvEdge& k) const {
+    // using std::hash;
+    // using std::size_t;
+    // using std::string;
+
+    // Compute individual hash values for first,
+    // second and third and combine them using XOR
+    // and bit shifting:
+
+    const auto hash1 = std::hash<int>()(k.edge.first);
+    const auto hash2 = std::hash<int>()(k.edge.second);
+
+    return hash1 ^ (hash2 << 1);
   }
 };
+
+}  // namespace std
+
+namespace {
 
 // bool operator==(const QSlimEdges& v1, const QSlimEdges& v2) {
 //  return v1.edge == v2.edge && v1.uv_edge == v2.uv_edge;
@@ -499,7 +529,8 @@ struct DecimatedMesh {
     return {true, vertex_indices[fid], uv_indices[fid]};
   }
 
-  std::pair<std::unordered_set<int32_t>, std::map<QSlimUvEdge, std::int32_t>>
+  std::pair<std::unordered_set<int32_t>,
+            std::unordered_map<QSlimUvEdge, std::int32_t>>
   RemoveVertex(int32_t vid) {
     std::unordered_set<int32_t> face_ids;
     // std::unordered_set<int32_t> connected_vids;
@@ -513,7 +544,7 @@ struct DecimatedMesh {
     // std::unordered_set<QSlimEdges> left_edges; // edges included removed
     // faces but not shared among faces
 
-    std::map<QSlimUvEdge, std::int32_t> edge_count;
+    std::unordered_map<QSlimUvEdge, std::int32_t> edge_count;
 
     // Remove a vetex
     if (!valid_vertices[vid]) {
@@ -525,9 +556,12 @@ struct DecimatedMesh {
 
     // Remove faces connected to the vertex
     for (const auto& fid : v2f[vid]) {
-      //std::vector<int32_t> adjacent_fids, adjacent_uv_fids;
-      //face_adjacency.GetAdjacentFaces(fid, &adjacent_fids);
+      // std::vector<int32_t> adjacent_fids, adjacent_uv_fids;
+      // face_adjacency.GetAdjacentFaces(fid, &adjacent_fids);
       // uv_face_adjacency.GetAdjacentFaces(fid, &adjacent_uv_fids);
+
+      // std::cout << vid
+      //           << " " << fid << std::endl;
 
       auto [success, face, uv_face] = RemoveFace(fid);
 
@@ -536,15 +570,17 @@ struct DecimatedMesh {
       }
 
       const std::array<std::array<int, 2>, 3> order = {
-          {{{0, 1}}, {{1, 2}}, {{0, 2}}}};
+          {{{0, 1}}, {{1, 2}}, {{2, 0}}}};
 
-      //QSlimUvEdge e1(face[0], face[1], uv_face[0], uv_face[1]);
-      //QSlimUvEdge e2(face[1], face[2], uv_face[1], uv_face[2]);
-      //QSlimUvEdge e3(face[2], face[0], uv_face[2], uv_face[0]);
+      // QSlimUvEdge e1(face[0], face[1], uv_face[0], uv_face[1]);
+      // QSlimUvEdge e2(face[1], face[2], uv_face[1], uv_face[2]);
+      // QSlimUvEdge e3(face[2], face[0], uv_face[2], uv_face[0]);
 
+      std::cout << "fid " << fid << std::endl;
       for (int i = 0; i < 3; i++) {
         QSlimUvEdge e1(face[order[i][0]], face[order[i][1]],
                        uv_face[order[i][0]], uv_face[order[i][1]]);
+        std::cout << e1.edge.first << " " << e1.edge.second << std::endl;
         if (edge_count.find(e1) != edge_count.end()) {
           edge_count[e1] += 1;
         } else {
@@ -574,7 +610,7 @@ struct DecimatedMesh {
     if (result == valid_vertices.end()) {
       return {vid, uv_vid};
     } else {
-      vid = static_cast<int32_t>(*result);
+      vid = static_cast<int32_t>(std::distance(valid_vertices.begin(), result));
       std::vector<int> uv_vids = vid2uvid[vid];
 
       assert(!uv_vids.empty());
@@ -601,14 +637,13 @@ struct DecimatedMesh {
     if (result == valid_faces.end()) {
       return fid;
     } else {
-      fid = static_cast<int32_t>(*result);
+      fid = static_cast<int32_t>(std::distance(valid_faces.begin(), result));
 
       valid_faces[fid] = true;
 
       vertex_indices[fid] = face;
       uv_indices[fid] = uv_face;
     }
-
 
     for (int i = 0; i < 3; i++) {
       v2f[face[i]].push_back(fid);
@@ -624,7 +659,7 @@ struct DecimatedMesh {
                     const Eigen::Vector3f& new_color,
                     const Eigen::Vector2f& new_uv) {
     std::unordered_set<int32_t> removed_face_ids;
-    std::map<QSlimUvEdge, std::int32_t> removed_edge_count;
+    std::unordered_map<QSlimUvEdge, std::int32_t> removed_edge_count;
 
     // Remove vertices
     auto [fids1, ecount1] = RemoveVertex(v1);
@@ -674,7 +709,6 @@ struct DecimatedMesh {
       }
 
       AddFace(face, uv_face);
-
     }
 
     return true;
@@ -981,7 +1015,8 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     }
 #endif  // 0
 
-    int32_t fid_org = (decimated_mesh.FaceNum() - 1) * dist1(engine);
+#if 0
+				    int32_t fid_org = (decimated_mesh.FaceNum() - 1) * dist1(engine);
     int32_t fid = -1;
     int32_t count = 0;
     for (size_t i = 0; i < decimated_mesh.valid_faces.size(); i++) {
@@ -997,6 +1032,10 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     int32_t vid1 = decimated_mesh.vertex_indices[fid][0];
     int32_t vid2 = decimated_mesh.vertex_indices[fid][1];
 
+#endif  // 0
+    int32_t vid1 = 16;
+    int32_t vid2 = 23;
+
     Eigen::Vector3f new_pos, new_normal, new_color;
     Eigen::Vector2f new_uv;
 
@@ -1008,6 +1047,7 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
 
     std::cout << decimated_mesh.FaceNum() << " " << decimated_mesh.VertexNum()
               << std::endl;
+    break;
   }
 #endif
 

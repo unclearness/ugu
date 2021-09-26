@@ -12,6 +12,7 @@
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
+#include "ugu/util/rgbd_util.h"
 #include "ugu/decimation/decimation.h"
 
 
@@ -293,8 +294,21 @@ void TestCut() {
 }
 
 void TestDecimation() {
-  auto plane = ugu::MakePlane(1.0f);
-  plane->WritePly("plane.ply");
+  //auto plane = ugu::MakePlane(1.0f);
+  //plane->WritePly("plane.ply");
+
+#if 0
+  auto plane_image = ugu::Image1f::zeros(8, 8);
+  plane_image.setTo(1.0f);
+  auto camera =
+      ugu::OrthoCamera(8, 8);
+  ugu::Mesh mesh;
+  auto color = ugu::Image3b::zeros(8, 8);
+  color.setTo(200);
+  ugu::Depth2Mesh(plane_image, color,  camera, &mesh, 99999, 1,1, true);
+  mesh.WriteObj("./", "plane");
+
+  return;
 
   std::string data_dir = "../data/bunny/";
   std::string in_obj_path = data_dir + "bunny.obj";
@@ -307,6 +321,16 @@ void TestDecimation() {
   ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() / 100 , -1);
 
   src->WritePly(data_dir + "bunny_qslim.ply");
+#endif  // 0
+
+  std::string data_dir = "../data/";
+  std::string in_obj_path = data_dir + "plane.obj";
+  ugu::MeshPtr src = ugu::Mesh::Create();
+  ugu::Mesh dst;
+  src->LoadObj(in_obj_path, data_dir);
+  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() - 1, -1);
+
+  src->WritePly(data_dir + "qslim.ply");
 
   //ugu::FastQuadricMeshSimplification(*src, targe_face_num, &dst);
 
@@ -318,9 +342,11 @@ void TestDecimation() {
 }
 
 int main() {
-  TestCut();
+  //TestCut();
 
   TestDecimation();
+
+  return 0;
 
   TestTexture();
 
