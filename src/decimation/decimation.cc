@@ -13,6 +13,7 @@
 
 #include "ugu/face_adjacency.h"
 #include "ugu/util/math_util.h"
+#include "ugu/util/geom_util.h"
 
 using QSlimEdge = std::pair<int32_t, int32_t>;
 
@@ -473,6 +474,8 @@ struct DecimatedMesh {
 
   ugu::FaceAdjacency face_adjacency, uv_face_adjacency;
 
+  std::unordered_set<int> unified_boundary_vertex_ids;
+  
   DecimatedMesh(ugu::MeshPtr mesh) : mesh(mesh) {
     valid_vertices.resize(mesh->vertices().size(), true);
     valid_faces.resize(mesh->vertex_indices().size(), true);
@@ -508,6 +511,17 @@ struct DecimatedMesh {
 
     uv_face_adjacency.Init(mesh->uv().size(), mesh->uv_indices());
     uv_v2f = ugu::GenerateVertex2FaceMap(mesh->uv_indices(), mesh->uv().size());
+
+
+
+  auto [boundary_edges_list, boundary_vertex_ids_list] =
+        ugu::FindBoundaryLoops(*mesh);
+
+    for (const auto& list : boundary_vertex_ids_list) {
+      for (const auto& id : list) {
+        unified_boundary_vertex_ids.insert(id);
+      }
+    }
   }
 
   int32_t VertexNum() const {
@@ -549,8 +563,8 @@ struct DecimatedMesh {
     // Remove a vetex
     if (!valid_vertices[vid]) {
       // If vertex is alreay invalid, do nothing
-      // return;
-      throw std::exception("");
+      return {face_ids, edge_count};
+      //throw std::exception("");
     }
     valid_vertices[vid] = false;
 
@@ -576,11 +590,11 @@ struct DecimatedMesh {
       // QSlimUvEdge e2(face[1], face[2], uv_face[1], uv_face[2]);
       // QSlimUvEdge e3(face[2], face[0], uv_face[2], uv_face[0]);
 
-      std::cout << "fid " << fid << std::endl;
+      //std::cout << "fid " << fid << std::endl;
       for (int i = 0; i < 3; i++) {
         QSlimUvEdge e1(face[order[i][0]], face[order[i][1]],
                        uv_face[order[i][0]], uv_face[order[i][1]]);
-        std::cout << e1.edge.first << " " << e1.edge.second << std::endl;
+        //std::cout << e1.edge.first << " " << e1.edge.second << std::endl;
         if (edge_count.find(e1) != edge_count.end()) {
           edge_count[e1] += 1;
         } else {
@@ -702,7 +716,7 @@ struct DecimatedMesh {
               .normalized();
 
       // order check
-      if (n.dot(org_normal) < 0) {
+      if (n.dot(org_normal) > 0) {
         fliped = true;
         std::swap(face[0], face[1]);
         std::swap(uv_face[0], uv_face[1]);
@@ -1015,7 +1029,7 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     }
 #endif  // 0
 
-#if 0
+
 				    int32_t fid_org = (decimated_mesh.FaceNum() - 1) * dist1(engine);
     int32_t fid = -1;
     int32_t count = 0;
@@ -1032,9 +1046,11 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     int32_t vid1 = decimated_mesh.vertex_indices[fid][0];
     int32_t vid2 = decimated_mesh.vertex_indices[fid][1];
 
-#endif  // 0
-    int32_t vid1 = 16;
-    int32_t vid2 = 23;
+
+    if (decimated_mesh.unified_boundary_vertex_ids.count(vid1) > 0 ||
+        decimated_mesh.unified_boundary_vertex_ids.count(vid2) > 0) {
+      continue;
+    }
 
     Eigen::Vector3f new_pos, new_normal, new_color;
     Eigen::Vector2f new_uv;
@@ -1045,9 +1061,8 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     decimated_mesh.CollapseEdge(vid1, vid2, decimated_mesh.normals[vid1],
                                 new_pos, new_normal, new_color, new_uv);
 
-    std::cout << decimated_mesh.FaceNum() << " " << decimated_mesh.VertexNum()
-              << std::endl;
-    break;
+    //std::cout << decimated_mesh.FaceNum() << " " << decimated_mesh.VertexNum()
+    //          << std::endl;
   }
 #endif
 

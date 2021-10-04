@@ -309,8 +309,9 @@ void TestDecimation() {
   mesh.WriteObj("./", "plane");
 
   return;
-
-  std::string data_dir = "../data/bunny/";
+#endif  // 0
+#if 0
+				  std::string data_dir = "../data/bunny/";
   std::string in_obj_path = data_dir + "bunny.obj";
   ugu::MeshPtr src = ugu::Mesh::Create();
   ugu::Mesh dst;
@@ -318,19 +319,24 @@ void TestDecimation() {
 
   auto targe_face_num = static_cast<int>(src->vertex_indices().size() * 0.02);
 
-  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() / 100 , -1);
+  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() - 1000 , -1);
 
   src->WritePly(data_dir + "bunny_qslim.ply");
+
 #endif  // 0
 
-  std::string data_dir = "../data/";
+
+#if 1
+				  std::string data_dir = "../data/";
   std::string in_obj_path = data_dir + "plane.obj";
   ugu::MeshPtr src = ugu::Mesh::Create();
   ugu::Mesh dst;
   src->LoadObj(in_obj_path, data_dir);
-  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() - 1, -1);
+  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() - 30, -1);
 
   src->WritePly(data_dir + "qslim.ply");
+#endif  // 0
+
 
   //ugu::FastQuadricMeshSimplification(*src, targe_face_num, &dst);
 
