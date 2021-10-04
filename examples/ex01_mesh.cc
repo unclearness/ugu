@@ -7,14 +7,13 @@
 #include <iostream>
 #include <random>
 
+#include "ugu/decimation/decimation.h"
 #include "ugu/external/external.h"
 #include "ugu/mesh.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
 #include "ugu/util/rgbd_util.h"
-#include "ugu/decimation/decimation.h"
-
 
 inline std::vector<std::string> Split(const std::string& s, char delim) {
   std::vector<std::string> elems;
@@ -294,8 +293,8 @@ void TestCut() {
 }
 
 void TestDecimation() {
-  //auto plane = ugu::MakePlane(1.0f);
-  //plane->WritePly("plane.ply");
+  // auto plane = ugu::MakePlane(1.0f);
+  // plane->WritePly("plane.ply");
 
 #if 0
   auto plane_image = ugu::Image1f::zeros(8, 8);
@@ -325,30 +324,25 @@ void TestDecimation() {
 
 #endif  // 0
 
-
 #if 1
-				  std::string data_dir = "../data/";
+  std::string data_dir = "../data/";
   std::string in_obj_path = data_dir + "plane.obj";
   ugu::MeshPtr src = ugu::Mesh::Create();
   ugu::Mesh dst;
   src->LoadObj(in_obj_path, data_dir);
-  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() - 30, -1);
+  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.5, -1);
 
   src->WritePly(data_dir + "qslim.ply");
 #endif  // 0
 
+  // ugu::FastQuadricMeshSimplification(*src, targe_face_num, &dst);
 
-  //ugu::FastQuadricMeshSimplification(*src, targe_face_num, &dst);
-
-  //dst.WritePly(data_dir + "bunny_fast_decimated.ply");
- // dst.WriteObj(data_dir, "bunny_fast_decimated");
-
-
-
+  // dst.WritePly(data_dir + "bunny_fast_decimated.ply");
+  // dst.WriteObj(data_dir, "bunny_fast_decimated");
 }
 
 int main() {
-  //TestCut();
+  // TestCut();
 
   TestDecimation();
 

@@ -252,6 +252,11 @@ inline std::unordered_map<int, std::vector<int>> GenerateVertex2FaceMap(
     v2f[index[1]].push_back(static_cast<int>(i));
     v2f[index[2]].push_back(static_cast<int>(i));
   }
+
+  for (auto& p : v2f) {
+    std::sort(p.second.begin(), p.second.end());
+  }
+
   return v2f;
 }
 
