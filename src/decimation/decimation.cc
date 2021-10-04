@@ -15,9 +15,8 @@
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
 
-using QSlimEdge = std::pair<int32_t, int32_t>;
-
-struct QSlimUvEdge {
+#if 0
+				struct QSlimUvEdge {
   QSlimEdge edge;
   QSlimEdge uv_edge;
 
@@ -47,6 +46,8 @@ struct QSlimUvEdge {
   }
 };
 
+}  // namespace
+
 namespace std {
 
 template <>
@@ -61,9 +62,161 @@ struct hash<QSlimUvEdge> {
 
 }  // namespace std
 
+#endif  // 0
+
 namespace {
 
+using QSlimEdge = std::pair<int32_t, int32_t>;
+
+QSlimEdge MakeQSlimEdge(int32_t v0, int32_t v1) {
+  if (v0 < v1) {
+    return QSlimEdge(v0, v1);
+  }
+
+  return QSlimEdge(v1, v0);
+}
+
+using VertexAttr = Eigen::VectorXd;
+using VertexAttrs = std::vector<VertexAttr>;
+using VertexAttrsPtr = std::shared_ptr<VertexAttrs>;
+
+void ConvertVertexAttr2Vectors(const VertexAttr& attr, Eigen::Vector3f& new_pos,
+                               Eigen::Vector3f& new_normal,
+                               Eigen::Vector3f& new_color,
+                               Eigen::Vector2f& new_uv, ugu::QSlimType type) {
+  if (type == ugu::QSlimType::XYZ) {
+    new_pos[0] = attr[0];
+    new_pos[1] = attr[1];
+    new_pos[2] = attr[2];
+
+  } else if (type == ugu::QSlimType::XYZ_UV) {
+    new_pos[0] = attr[0];
+    new_pos[1] = attr[1];
+    new_pos[2] = attr[2];
+
+    new_uv[0] = attr[3];
+    new_uv[1] = attr[4];
+  }
+}
+
+void ConvertVertexAttrs2Vectors(
+    const VertexAttrsPtr attrs, std::vector<Eigen::Vector3f>& vertices,
+    std::vector<Eigen::Vector3f>& normals,
+    std::vector<Eigen::Vector3f>& vertex_colors,
+    const std::vector<Eigen::Vector2f>& org_uv,
+    std::vector<Eigen::Vector2f>& uv,
+    const std::vector<std::vector<int32_t>>& vid2uvid, ugu::QSlimType type) {
+  uv = org_uv;
+  size_t vnum = attrs->size();
+  for (size_t i = 0; i < vnum; i++) {
+    ConvertVertexAttr2Vectors(attrs->at(i), vertices[i], normals[i],
+                              vertex_colors[i], uv[vid2uvid[i][0]], type);
+  }
+}
+
+using Quadric = Eigen::MatrixXd;
+using Quadrics = std::vector<Quadric>;
+using QuadricPtr = std::shared_ptr<Quadric>;
+using QuadricsPtr = std::shared_ptr<Quadrics>;
+
+bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
+                                const VertexAttr& v2, const Quadric& q2,
+                                VertexAttr& v, double& error) {
+  VertexAttr zero(v1.size());
+  zero.setZero();
+  zero[zero.size() - 1] = 1.0;
+
+  bool ret = true;
+
+  Quadric q = q1 + q2;
+
+  if (std::abs(q.determinant()) < 0.00001) {
+    // Not ivertible case
+    ret = false;
+
+    // Select best one from v1, v2 and (v1+v2)/2
+    std::array<VertexAttr, 3> candidates = {v1, v2, (v1 + v2) * 0.5};
+    double min_error = std::numeric_limits<double>::max();
+    VertexAttr min_vert = v1;
+
+    for (int i = 0; i < 3; i++) {
+      double tmp_error = candidates[i].transpose() * q * candidates[i];
+      if (tmp_error < min_error) {
+        min_error = tmp_error;
+        candidates[i];
+        min_vert = candidates[i];
+      }
+    }
+
+    error = min_error;
+    v = min_vert;
+
+  } else {
+    // Invertible case
+    // Eq. (1) in the paper
+    Quadric q_inv = q.inverse();
+    v = q_inv * zero;
+    error = v.transpose() * q * v;
+  }
+
+  return ret;
+}
+
+struct QSlimEdgeInfo {
+  QSlimEdge edge = {-1, -1};
+  // QSlimEdge edge_uv = {-1, -1};
+  // int org_vid = -1;
+  // QSlimEdge org_edge = {-1, -1};
+  double error = std::numeric_limits<double>::max();
+  QuadricsPtr quadrics;
+  VertexAttrsPtr vert_attrs;
+  VertexAttr decimated_v;
+  bool keep_this_edge = false;
+  QSlimEdgeInfo(QSlimEdge edge_, VertexAttrsPtr vert_attrs_,
+                QuadricsPtr quadrics_, bool keep_this_edge_) {
+    edge = edge_;
+    // org_vid = org_vid_;
+    // error = error_;
+    quadrics = quadrics_;
+    vert_attrs = vert_attrs_;
+    decimated_v.setConstant(std::numeric_limits<double>::max());
+    keep_this_edge = keep_this_edge_;
+
+    ComputeError();
+  }
+
+  void ComputeError() {
+    if (keep_this_edge) {
+      error = std::numeric_limits<double>::max();
+    } else {
+      int v0 = edge.first;
+      int v1 = edge.second;
+      ComputeOptimalConstraction(vert_attrs->at(v0), quadrics->at(v0),
+                                 vert_attrs->at(v1), quadrics->at(v1),
+                                 decimated_v, error);
+    }
+  }
+
+  QSlimEdgeInfo() {}
+  ~QSlimEdgeInfo() {}
+};
+
+bool operator<(const QSlimEdgeInfo& l, const QSlimEdgeInfo& r) {
+  return l.error > r.error;
+};
+
+using QSlimHeap =
+    std::priority_queue<QSlimEdgeInfo, std::vector<QSlimEdgeInfo>>;
+
+struct QSlimHandler {
+  QuadricsPtr quadrics;
+  VertexAttrsPtr vert_attrs;
+
+  void InitializeQuadrics() {}
+};
+
 #if 1
+// To handle topoloy
 struct DecimatedMesh {
   ugu::MeshPtr mesh;
 
@@ -91,6 +244,7 @@ struct DecimatedMesh {
   ugu::FaceAdjacency face_adjacency, uv_face_adjacency;
 
   std::unordered_set<int> unified_boundary_vertex_ids;
+  std::unordered_set<int> unified_boundary_uv_ids;
 
   bool use_uv = false;
 
@@ -112,6 +266,19 @@ struct DecimatedMesh {
 
     use_uv = !uv.empty() && !uv_indices.empty();
 
+    face_adjacency.Init(mesh->vertices().size(), mesh->vertex_indices());
+    v2f = ugu::GenerateVertex2FaceMap(mesh->vertex_indices(),
+                                      mesh->vertices().size());
+
+    auto [boundary_edges_list, boundary_vertex_ids_list] =
+        ugu::FindBoundaryLoops(*mesh);
+
+    for (const auto& list : boundary_vertex_ids_list) {
+      for (const auto& id : list) {
+        unified_boundary_vertex_ids.insert(id);
+      }
+    }
+
     if (use_uv) {
       vid2uvid.resize(vertices.size());
       uvid2vid.resize(uv.size());
@@ -129,19 +296,10 @@ struct DecimatedMesh {
       uv_face_adjacency.Init(mesh->uv().size(), mesh->uv_indices());
       uv_v2f =
           ugu::GenerateVertex2FaceMap(mesh->uv_indices(), mesh->uv().size());
-    }
 
-    face_adjacency.Init(mesh->vertices().size(), mesh->vertex_indices());
-    v2f = ugu::GenerateVertex2FaceMap(mesh->vertex_indices(),
-                                      mesh->vertices().size());
-
-    auto [boundary_edges_list, boundary_vertex_ids_list] =
-        ugu::FindBoundaryLoops(*mesh);
-
-    for (const auto& list : boundary_vertex_ids_list) {
-      for (const auto& id : list) {
-        unified_boundary_vertex_ids.insert(id);
-      }
+      auto [uv_boundary_edges, uv_boundary_vertex_ids] =
+          uv_face_adjacency.GetBoundaryEdges();
+      unified_boundary_uv_ids = std::move(uv_boundary_vertex_ids);
     }
   }
 
@@ -153,6 +311,28 @@ struct DecimatedMesh {
     return std::count(valid_faces.begin(), valid_faces.end(), true);
   }
 
+  std::set<QSlimEdge> ConnectingEdges(int32_t vid) {
+    std::set<QSlimEdge> edges;
+
+    for (const auto& f : v2f[vid]) {
+      if (vertex_indices[f][0] == vid) {
+        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1]));
+        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][2]));
+
+      } else if (vertex_indices[f][1] == vid) {
+        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][0]));
+        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][2]));
+      } else if (vertex_indices[f][2] == vid) {
+        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][0]));
+        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1]));
+      } else {
+        throw std::exception("something wrong");
+      }
+    }
+
+    return edges;
+  }
+
   auto FacesContactingEdges(int32_t v0, int32_t v1) {
     const auto& v0_f = v2f[v0];
     std::unordered_set<int32_t> union_fids(v0_f.begin(), v0_f.end());
@@ -161,33 +341,16 @@ struct DecimatedMesh {
       union_fids.insert(fid);
     }
 
-    for (const auto& fid : union_fids) {
-      assert(valid_faces[fid]);
-    }
-
-    assert(valid_vertices[v0] && valid_vertices[v1]);
-
     std::unordered_set<int32_t> no_intersection = union_fids;
     std::unordered_set<int32_t> intersection;
     std::set_intersection(v0_f.begin(), v0_f.end(), v1_f.begin(), v1_f.end(),
                           std::inserter(intersection, intersection.end()));
-#if 0
-				    if (intersection.size()){
-      std::cout << "v0f" << std::endl;
-      for (auto f : v0_f) {
-        std::cout << f << " " << vertex_indices[f] << std::endl;
-      }
-
-      std::cout << "v1f" << std::endl;
-      for (auto f : v1_f) {
-        std::cout << f << " " << vertex_indices[f] << std::endl;
-      }
-
-    }
-#endif  // 0
 
     // For non-manifold meshes, always 2
     assert(intersection.size() == 2);
+    if (intersection.size() != 2) {
+      throw std::exception("something wrong");
+    }
 
     for (const auto& fid : intersection) {
       no_intersection.erase(fid);
@@ -196,38 +359,28 @@ struct DecimatedMesh {
     return std::make_tuple(union_fids, intersection, no_intersection);
   }
 
-  std::tuple<bool, Eigen::Vector3i, Eigen::Vector3i> RemoveFace(int32_t fid) {
+  void RemoveFace(int32_t fid) {
     if (!valid_faces[fid]) {
-      throw std::exception("Invalid");
-      // return {false, vertex_indices[fid], uv_indices[fid]};
+      throw std::exception("Something wrong");
     }
 
     // Remove from v2f
-
-    // std::cout << "fid " << fid << std::endl;
     for (int32_t i = 0; i < 3; i++) {
       int32_t vid = vertex_indices[fid][i];
       assert(valid_vertices[vid]);
-      // std::cout << vid << " before " << v2f[vid].size() << std::endl;
       auto result = std::remove(v2f[vid].begin(), v2f[vid].end(), fid);
       v2f[vid].erase(result, v2f[vid].end());
-      // std::cout << vid << " after " << v2f[vid].size() << std::endl;
     }
 
     valid_faces[fid] = false;
     vertex_indices[fid].setConstant(99999);
-    // face_adjacency.RemoveFace(fid);
-    // uv_face_adjacency.RemoveFace(fid);
-
-    return {true, vertex_indices[fid], uv_indices[fid]};
   }
 
   void RemoveVertex(int32_t vid) {
     // Remove a vetex
     if (!valid_vertices[vid]) {
-      // If vertex is alreay invalid, do nothing
-      // return {face_ids, edge_count};
-      throw std::exception("");
+      // If vertex is alreay invalid, something wrong
+      throw std::exception("something wrong");
     }
     valid_vertices[vid] = false;
     vertices[vid].setConstant(99999);
@@ -239,12 +392,12 @@ struct DecimatedMesh {
     // unified_boundary_vertex_ids.erase(vid);
   }
 
-  bool CollapseEdge(int32_t v1, int32_t v2, const Eigen::Vector3f& org_normal,
-                    const Eigen::Vector3f& new_pos,
-                    const Eigen::Vector3f& new_normal,
-                    const Eigen::Vector3f& new_color,
-                    const Eigen::Vector2f& new_uv) {
-    std::cout << "decimate " << v1 << " " << v2 << std::endl;
+  bool CollapseEdge(int32_t v1, int32_t v2, bool update_vertex = false,
+                    const Eigen::Vector3f& new_pos = Eigen::Vector3f::Zero(),
+                    const Eigen::Vector3f& new_normal = Eigen::Vector3f::Zero(),
+                    const Eigen::Vector3f& new_color = Eigen::Vector3f::Zero(),
+                    const Eigen::Vector2f& new_uv = Eigen::Vector2f::Zero()) {
+    // std::cout << "decimate " << v1 << " " << v2 << std::endl;
 
     // Get faces connecting the 2 vertices (A, B)
     auto [union_fids, intersection, no_intersection] =
@@ -266,11 +419,13 @@ struct DecimatedMesh {
 
     // Update the vertex A's attribute by new ones
     // valid_vertices[v1] = true;
-    vertices[v1] = new_pos;
-    normals[v1] = new_normal;
-    vertex_colors[v1] = new_color;
-    if (use_uv) {
-      uv[vid2uvid[v1][0]] = new_uv;
+    if (update_vertex) {
+      vertices[v1] = new_pos;
+      normals[v1] = new_normal;
+      vertex_colors[v1] = new_color;
+      if (use_uv) {
+        uv[vid2uvid[v1][0]] = new_uv;
+      }
     }
 
     // Remove 2 faces which share edge A-B from the faces
@@ -288,44 +443,17 @@ struct DecimatedMesh {
     return true;
   }
 
+  void Finalize(VertexAttrsPtr vert_attrs, ugu::QSlimType type) {
+    ConvertVertexAttrs2Vectors(vert_attrs, vertices, normals, vertex_colors,
+                               mesh->uv(), uv, vid2uvid, type);
+    Finalize();
+  }
+
   void Finalize() {
     // Appy valid mask
-#if 0
-				    vertices = ugu::Mask(vertices, valid_vertices);
-    vertex_colors = ugu::Mask(vertex_colors, valid_vertices);
-    normals = ugu::Mask(normals, valid_vertices);
-
-
-
-    vertex_indices = ugu::Mask(vertex_indices, valid_faces);
-    std::vector<bool> valid_uv(uv.size(), false);
-    std::vector<bool> valid_uv_faces(uv_indices.size(), false);
-
-    for (size_t i = 0; i < vid2uvid.size(); i++) {
-      for (size_t j = 0; j < vid2uvid[i].size(); j++) {
-        valid_uv[vid2uvid[i][j]] = valid_vertices[i];
-      }
-    }
-
-    for (size_t i = 0; i < uv_indices.size(); i++) {
-      bool valid = true;
-      for (int j = 0; j < 3; j++) {
-        if (!valid_uv[uv_indices[i][j]]) {
-          valid = false;
-          break;
-        }
-      }
-      valid_uv_faces[i] = valid;
-    }
-
-    uv = ugu::Mask(uv, valid_uv);
-    uv_indices = ugu::Mask(uv_indices, valid_uv_faces);
-
-#endif  // 0
+    auto material_ids = mesh->material_ids();
 
     mesh->Clear();
-
-    auto material_ids = mesh->material_ids();
 
     RemoveVertices(valid_vertices, valid_faces);
 
@@ -429,141 +557,88 @@ struct DecimatedMesh {
     return num_removed;
   }
 
-#if 0
-  std::set<QSlimEdge> PrepareValidPairs(bool keep_geom_boundary,
-                                        bool keep_uv_boundary) {
-    face_adjacency.Init(mesh->vertices().size(), mesh->vertex_indices());
-    if (keep_geom_boundary) {
-      auto [boundary_edges, boundary_vertex_ids] =
-          face_adjacency.GetBoundaryEdges();
-
-      for (const auto& vid : boundary_vertex_ids) {
-        invalid_vids.insert(vid);
-      }
-    }
-
-    if (keep_uv_boundary) {
-      // Treat uv vids by converting them to corresponding geom vids
-      // TODO: direct solution?
-      uv_face_adjacency.Init(mesh->uv().size(), mesh->uv_indices());
-      auto [uv_boundary_edges, uv_boundary_vertex_ids] =
-          uv_face_adjacency.GetBoundaryEdges();
-      uv_v2f =
-          ugu::GenerateVertex2FaceMap(mesh->uv_indices(), mesh->uv().size());
-
-      for (const auto& uv_vid : uv_boundary_vertex_ids) {
-        // Find the vertex id for geometry face (not uv)
-        const auto uv_f_id = uv_v2f[uv_vid][0];
-        const auto uv_f = mesh->vertex_indices()[uv_f_id];
-        // Get index in uv face
-        int index = 0;
-        for (int i = 0; i < 3; i++) {
-          if (uv_f[i] == uv_vid) {
-            index = i;
-            break;
-          }
-        }
-
-        // Convert to geom face
-        const auto geom_f = mesh->vertex_indices()[uv_f_id];
-        // Convert to geom vid
-        int vid = geom_f[index];
-
-        invalid_vids.insert(vid);
-      }
-    }
-
-    for (const auto& f : mesh->vertex_indices()) {
-      size_t v0c = invalid_vids.count(f[0]);
-      size_t v1c = invalid_vids.count(f[1]);
-      size_t v2c = invalid_vids.count(f[2]);
-
-      // Pair keeps always (smaller, bigger)
-      // Is this okay for geometry face reconstruction?
-
-      if (v0c == 0 && v1c == 0) {
-        int32_t v0 = std::min(f[0], f[1]);
-        int32_t v1 = std::max(f[0], f[1]);
-        valid_pairs.insert(std::make_pair(v0, v1));
-      }
-
-      if (v1c == 0 && v2c == 0) {
-        int32_t v1 = std::min(f[1], f[2]);
-        int32_t v2 = std::max(f[1], f[2]);
-        valid_pairs.insert(std::make_pair(v1, v2));
-      }
-
-      if (v2c == 0 && v0c == 0) {
-        int32_t v2 = std::min(f[0], f[2]);
-        int32_t v0 = std::max(f[0], f[2]);
-        valid_pairs.insert(std::make_pair(v2, v0));
-      }
-    }
-
-    return valid_pairs;
-  }
-#endif
-
   DecimatedMesh() {}
   ~DecimatedMesh() {}
 };
 #endif  // 1
 
+std::set<QSlimEdge> PrepareValidEdges(
+    const std::vector<Eigen::Vector3i>& faces,
+    const std::unordered_set<int>& unified_boundary_vertex_ids,
+    const std::unordered_set<int>& unified_boundary_uv_ids,
+    const std::vector<int32_t>& uvid2vid, bool keep_geom_boundary,
+    bool keep_uv_boundary) {
+  std::set<QSlimEdge> valid_edges;
+  std::unordered_set<int> invalid_vids;
+
+  if (keep_geom_boundary) {
+    invalid_vids = unified_boundary_vertex_ids;
+  }
+
+  if (keep_uv_boundary) {
+    for (const auto& uv_vid : unified_boundary_uv_ids) {
+      invalid_vids.insert(uvid2vid.at(uv_vid));
+    }
+  }
+
+  for (const auto& f : faces) {
+    size_t v0c = invalid_vids.count(f[0]);
+    size_t v1c = invalid_vids.count(f[1]);
+    size_t v2c = invalid_vids.count(f[2]);
+
+    // Pair keeps always (smaller, bigger)
+    // Is this okay for geometry face reconstruction?
+
+    if (v0c == 0 && v1c == 0) {
+      int32_t v0 = std::min(f[0], f[1]);
+      int32_t v1 = std::max(f[0], f[1]);
+      valid_edges.insert(std::make_pair(v0, v1));
+    }
+
+    if (v1c == 0 && v2c == 0) {
+      int32_t v1 = std::min(f[1], f[2]);
+      int32_t v2 = std::max(f[1], f[2]);
+      valid_edges.insert(std::make_pair(v1, v2));
+    }
+
+    if (v2c == 0 && v0c == 0) {
+      int32_t v2 = std::min(f[0], f[2]);
+      int32_t v0 = std::max(f[0], f[2]);
+      valid_edges.insert(std::make_pair(v2, v0));
+    }
+  }
+  return valid_edges;
+}
+
+std::vector<QSlimEdgeInfo> CollapseEdgeAndUpdateQuadrics(DecimatedMesh& mesh,
+                                                         QSlimHandler& handler,
+                                                         QSlimEdgeInfo& e,
+                                                         ugu::QSlimType type) {
+  int32_t v1 = e.edge.first;
+  int32_t v2 = e.edge.second;
+
+  // Update topology
+  mesh.CollapseEdge(v1, v2);
+
+  // Update vertex attributes and quadrics
+  std::vector<QSlimEdgeInfo> new_edges;
+  auto raw_edges = mesh.ConnectingEdges(v1);
+  bool keep_this_edge = true;
+  for (const auto& e : raw_edges) {
+    new_edges.emplace_back(e, handler.vert_attrs, handler.quadrics,
+                           keep_this_edge);
+  }
+
+  return new_edges;
+}
+
 }  // namespace
 
 namespace ugu {
 
-bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
-           int32_t target_vertex_num, bool keep_geom_boundary,
-           bool keep_uv_boundary) {
-#if 0
-				  // Set up valid pairs (edge and non-dege)
-  DecimatedMesh decimated_mesh(mesh);
-  decimated_mesh.PrepareValidPairs(keep_geom_boundary, keep_uv_boundary);
-
-  // Initialize quadrics
-  // QuadricsPtr quadrics = Ini
-  // decimated_mesh.quadrics = quadrics;
-  decimated_mesh.InitializeQuadrics();
-
-  // Initialize heap
-  QSlimHeap heap;
-
-  // Add the valid pairs  to heap
-  for (const auto& p : decimated_mesh.valid_pairs) {
-    QSlimEdgeInfo info(p, decimated_mesh.vert_attrs, decimated_mesh.quadrics,
-                       false);
-    heap.push(info);
-  }
-
-  // Main loop
-  while (!heap.empty()) {
-    if (target_vertex_num > 0 &&
-        target_vertex_num <= decimated_mesh.VertexNum()) {
-      break;
-    }
-
-    if (target_face_num > 0 && target_face_num <= decimated_mesh.FaceNum()) {
-      break;
-    }
-
-    // Find the lowest error pair
-    auto min_e = heap.top();
-    heap.pop();
-
-    // Decimate the pair
-    auto new_edges = decimated_mesh.UpdateDecimatedVertex(min_e, type);
-
-    // Add new pairs
-    for (const auto& e : new_edges) {
-      heap.push(e);
-    }
-  }
-
-  decimated_mesh.Finalize();
-
-#endif  // 0
-
+bool RandomDecimation(MeshPtr mesh, QSlimType type, int32_t target_face_num,
+                      int32_t target_vertex_num, bool keep_geom_boundary,
+                      bool keep_uv_boundary) {
 #if 1
   DecimatedMesh decimated_mesh(mesh);
   std::mt19937 engine(0);
@@ -636,8 +711,8 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     new_pos =
         0.5f * (decimated_mesh.vertices[vid1] + decimated_mesh.vertices[vid2]);
 
-    decimated_mesh.CollapseEdge(vid1, vid2, decimated_mesh.normals[vid1],
-                                new_pos, new_normal, new_color, new_uv);
+    decimated_mesh.CollapseEdge(vid1, vid2, true, new_pos, new_normal,
+                                new_color, new_uv);
 
     std::cout << decimated_mesh.FaceNum() << " " << decimated_mesh.VertexNum()
               << std::endl;
@@ -645,6 +720,59 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
 #endif
 
   decimated_mesh.Finalize();
+
+  return true;
+}
+
+bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
+           int32_t target_vertex_num, bool keep_geom_boundary,
+           bool keep_uv_boundary) {
+  // Set up valid edges (we do not consider non-edges yet)
+  DecimatedMesh decimated_mesh(mesh);
+  auto valid_edges = PrepareValidEdges(
+      decimated_mesh.vertex_indices, decimated_mesh.unified_boundary_vertex_ids,
+      decimated_mesh.unified_boundary_uv_ids, decimated_mesh.uvid2vid,
+      keep_geom_boundary, keep_uv_boundary);
+
+  // Initialize quadrics
+  QSlimHandler handler;
+  handler.InitializeQuadrics();
+
+  // Initialize heap
+  QSlimHeap heap;
+
+  // Add the valid pairs  to heap
+  for (const auto& p : valid_edges) {
+    QSlimEdgeInfo info(p, handler.vert_attrs, handler.quadrics, false);
+    heap.push(info);
+  }
+
+  // Main loop
+  while (!heap.empty()) {
+    if (target_vertex_num > 0 &&
+        target_vertex_num <= decimated_mesh.VertexNum()) {
+      break;
+    }
+
+    if (target_face_num > 0 && target_face_num <= decimated_mesh.FaceNum()) {
+      break;
+    }
+
+    // Find the lowest error pair
+    auto min_e = heap.top();
+    heap.pop();
+
+    // Decimate the pair
+    auto new_edges =
+        CollapseEdgeAndUpdateQuadrics(decimated_mesh, handler, min_e, type);
+
+    // Add new pairs
+    for (const auto& e : new_edges) {
+      heap.push(e);
+    }
+  }
+
+  decimated_mesh.Finalize(handler.vert_attrs, type);
 
   return true;
 }

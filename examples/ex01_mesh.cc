@@ -309,7 +309,7 @@ void TestDecimation() {
 
   return;
 #endif  // 0
-#if 0
+#if 1
 				  std::string data_dir = "../data/bunny/";
   std::string in_obj_path = data_dir + "bunny.obj";
   ugu::MeshPtr src = ugu::Mesh::Create();
@@ -324,7 +324,7 @@ void TestDecimation() {
 
 #endif  // 0
 
-#if 1
+#if 0
   std::string data_dir = "../data/";
   std::string in_obj_path = data_dir + "plane.obj";
   ugu::MeshPtr src = ugu::Mesh::Create();
