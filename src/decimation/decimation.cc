@@ -166,7 +166,7 @@ bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
   const Quadric q = q1 + q2;
   const Eigen::MatrixXd& A = q.topLeftCorner(org_size, org_size);
   const VertexAttr& b = q.topRightCorner(org_size, 1);
-
+  const double c = q(org_size, org_size);
   if (std::abs(q.determinant()) < 0.00001) {
     // Not ivertible case
     ret = false;
@@ -177,7 +177,8 @@ bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
     VertexAttr min_vert = v1;
 
     for (int i = 0; i < 3; i++) {
-      double tmp_error = b.transpose() * candidates[i] + q(org_size, org_size);
+      double vav = candidates[i].transpose() * A * candidates[i];
+      double tmp_error = vav + 2.0 * b.transpose() * candidates[i] + c;
       if (tmp_error < min_error) {
         min_error = tmp_error;
         candidates[i];
@@ -191,15 +192,13 @@ bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
   } else {
     // Invertible case
     // Eq. (1) in the paper
-#if 0
-				    Quadric q_inv = q.inverse();
-    v = q_inv * zero;
-    error = v.transpose() * q * v;
-    v.conservativeResize(org_size, 1);
-#endif  // 0
-
     v = -A.inverse() * b;
-    error = b.transpose() * v + q(org_size, org_size);
+    error = b.transpose() * v + c;
+  }
+
+  if (error < 0) {
+    assert(std::abs(error) < 0.00001);
+    error = 0;
   }
 
   return ret;
@@ -282,6 +281,8 @@ struct DecimatedMesh {
   std::unordered_set<int> unified_boundary_vertex_ids;
   std::unordered_set<int> unified_boundary_uv_ids;
 
+  std::unordered_set<int32_t> ignore_vids, ignore_fids;
+
   bool use_uv = false;
 
   DecimatedMesh(ugu::MeshPtr mesh) : mesh(mesh) {
@@ -340,29 +341,46 @@ struct DecimatedMesh {
   }
 
   int32_t VertexNum() const {
-    return std::count(valid_vertices.begin(), valid_vertices.end(), true);
+    return std::count(valid_vertices.begin(), valid_vertices.end(), true) +
+           ignore_vids.size();
   }
 
   int32_t FaceNum() const {
-    return std::count(valid_faces.begin(), valid_faces.end(), true);
+    return std::count(valid_faces.begin(), valid_faces.end(), true) +
+           ignore_fids.size();
   }
 
   std::set<QSlimEdge> ConnectingEdges(int32_t vid) {
     std::set<QSlimEdge> edges;
 
     for (const auto& f : v2f[vid]) {
-      if (vertex_indices[f][0] == vid) {
-        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1]));
-        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][2]));
+      bool ignore_v0 = ignore_vids.count(vertex_indices[f][0]) > 0;
+      bool ignore_v1 = ignore_vids.count(vertex_indices[f][1]) > 0;
+      bool ignore_v2 = ignore_vids.count(vertex_indices[f][2]) > 0;
 
+      if (vertex_indices[f][0] == vid) {
+        if (!ignore_v1) {
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1]));
+        }
+        if (!ignore_v2) {
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][2]));
+        }
       } else if (vertex_indices[f][1] == vid) {
-        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][0]));
-        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][2]));
+        if (!ignore_v0) {
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][0]));
+        }
+        if (!ignore_v2) {
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][2]));
+        }
       } else if (vertex_indices[f][2] == vid) {
-        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][0]));
-        edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1]));
+        if (!ignore_v0) {
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][0]));
+        }
+        if (!ignore_v1) {
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1]));
+        }
       } else {
-        throw std::exception("something wrong");
+        //   throw std::exception("something wrong");
       }
     }
 
@@ -382,11 +400,22 @@ struct DecimatedMesh {
     std::set_intersection(v0_f.begin(), v0_f.end(), v1_f.begin(), v1_f.end(),
                           std::inserter(intersection, intersection.end()));
 
+#if 0
     // For non-manifold meshes, always 2
     assert(intersection.size() == 2);
     if (intersection.size() != 2) {
+      for (auto f : v0_f) {
+        std::cout << vertex_indices[f] << std::endl;
+        std::cout << valid_faces[f] << std::endl;
+      }
+      for (auto f : v1_f) {
+        std::cout << vertex_indices[f] << std::endl;
+        std::cout << valid_faces[f] << std::endl;
+      }
+
       throw std::exception("something wrong");
     }
+#endif  // 0
 
     for (const auto& fid : intersection) {
       no_intersection.erase(fid);
@@ -403,7 +432,9 @@ struct DecimatedMesh {
     // Remove from v2f
     for (int32_t i = 0; i < 3; i++) {
       int32_t vid = vertex_indices[fid][i];
-      assert(valid_vertices[vid]);
+      if (!valid_vertices[vid]) {
+        assert(ignore_vids.count(vid) > 0);
+      }
       auto result = std::remove(v2f[vid].begin(), v2f[vid].end(), fid);
       v2f[vid].erase(result, v2f[vid].end());
     }
@@ -438,6 +469,16 @@ struct DecimatedMesh {
     // Get faces connecting the 2 vertices (A, B)
     auto [union_fids, intersection, no_intersection] =
         FacesContactingEdges(v1, v2);
+
+#if 0
+				    // Ignore some vids
+    for (const auto& vid : ignore_vids) {
+      union_fids.erase(vid);
+      intersection.erase(vid);
+      no_intersection.erase(vid);
+    }
+
+#endif  // 0
 
     std::unordered_set<int32_t> to_remove_face_ids = std::move(intersection);
     std::unordered_set<int32_t> to_keep_face_ids = std::move(no_intersection);
@@ -629,6 +670,8 @@ struct QSlimHandler {
     Q.bottomLeftCorner(1, A_size) = b.transpose();
     Q(A_size, A_size) = c;
 
+    // std::cout << Q << std::endl;
+
     return Q;
   }
 
@@ -675,14 +718,14 @@ struct QSlimHandler {
   }
 };
 
-std::set<QSlimEdge> PrepareValidEdges(
+std::pair<std::set<QSlimEdge>, std::unordered_set<int32_t>> PrepareValidEdges(
     const std::vector<Eigen::Vector3i>& faces,
     const std::unordered_set<int>& unified_boundary_vertex_ids,
     const std::unordered_set<int>& unified_boundary_uv_ids,
     const std::vector<int32_t>& uvid2vid, bool keep_geom_boundary,
     bool keep_uv_boundary) {
   std::set<QSlimEdge> valid_edges;
-  std::unordered_set<int> invalid_vids;
+  std::unordered_set<int32_t> invalid_vids;
 
   if (keep_geom_boundary) {
     invalid_vids = unified_boundary_vertex_ids;
@@ -695,7 +738,8 @@ std::set<QSlimEdge> PrepareValidEdges(
   }
 
   for (const auto& f : faces) {
-    size_t v0c = invalid_vids.count(f[0]);
+#if 0
+	  size_t v0c = invalid_vids.count(f[0]);
     size_t v1c = invalid_vids.count(f[1]);
     size_t v2c = invalid_vids.count(f[2]);
 
@@ -718,8 +762,22 @@ std::set<QSlimEdge> PrepareValidEdges(
       int32_t v0 = std::max(f[0], f[2]);
       valid_edges.insert(std::make_pair(v2, v0));
     }
+
+#endif  // 0
+
+    size_t v0c = invalid_vids.count(f[0]);
+    size_t v1c = invalid_vids.count(f[1]);
+    size_t v2c = invalid_vids.count(f[2]);
+
+    if (v0c > 0 || v1c > 0 || v2c > 0) {
+      continue;
+    }
+
+    valid_edges.emplace(MakeQSlimEdge(f[0], f[1]));
+    valid_edges.emplace(MakeQSlimEdge(f[1], f[2]));
+    valid_edges.emplace(MakeQSlimEdge(f[2], f[0]));
   }
-  return valid_edges;
+  return {valid_edges, invalid_vids};
 }
 
 std::vector<QSlimEdgeInfo> CollapseEdgeAndUpdateQuadrics(DecimatedMesh& mesh,
@@ -847,10 +905,12 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
            bool keep_uv_boundary) {
   // Set up valid edges (we do not consider non-edges yet)
   DecimatedMesh decimated_mesh(mesh);
-  auto valid_edges = PrepareValidEdges(
+  auto [valid_edges, ignore_vids_] = PrepareValidEdges(
       decimated_mesh.vertex_indices, decimated_mesh.unified_boundary_vertex_ids,
       decimated_mesh.unified_boundary_uv_ids, decimated_mesh.uvid2vid,
       keep_geom_boundary, false);
+
+  decimated_mesh.ignore_vids = std::move(ignore_vids_);
 
   // Initialize quadrics
   QSlimHandler handler;
@@ -867,6 +927,24 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
   }
 
   std::unordered_set<int32_t> removed_vids;
+  ;
+#if 0
+				  for (const auto& vid : decimated_mesh.ignore_vids) {
+    decimated_mesh.valid_vertices[vid] = false;
+    for (const auto& fid : decimated_mesh.v2f[vid]) {
+      decimated_mesh.valid_faces[fid] = false;
+      decimated_mesh.ignore_fids.insert(fid);
+    }
+    decimated_mesh.v2f[vid].clear();
+  }
+
+  for (auto& p : decimated_mesh.v2f) {
+    for (const auto fid : decimated_mesh.ignore_fids) {
+      p.second.erase(std::remove(p.second.begin(), p.second.end(), fid),
+                     p.second.end());
+    }
+  }
+#endif  // 0
 
   // Main loop
   while (!heap.empty()) {
@@ -886,14 +964,30 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
 
     heap.pop();
 
+#if 0
+				    if (decimated_mesh.unified_boundary_vertex_ids.count(min_e.edge.first) >
+            0 ||
+        decimated_mesh.unified_boundary_vertex_ids.count(min_e.edge.second) >
+            0) {
+      continue;
+    }
+
+#endif  // 0
+
     // Skip if it has been decimated
     if (removed_vids.count(min_e.edge.first) > 0 ||
         removed_vids.count(min_e.edge.second) > 0) {
+      if (removed_vids.count(min_e.edge.first) > 0) {
+        assert(!decimated_mesh.valid_vertices[min_e.edge.first]);
+      }
+      if (removed_vids.count(min_e.edge.second) > 0) {
+        assert(!decimated_mesh.valid_vertices[min_e.edge.second]);
+      }
       continue;
     }
 
     // std::cout << "decimate " << min_e.edge.first << ", " << min_e.edge.second
-    //         << std::endl;
+    //         << " " << min_e.error << std::endl;
 
     // Decimate the pair
     auto new_edges =
@@ -910,6 +1004,14 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     // std::cout << decimated_mesh.FaceNum() << " " <<
     // decimated_mesh.VertexNum()
     //           << std::endl;
+  }
+
+  // Recover
+  for (const auto& vid : decimated_mesh.ignore_vids) {
+    decimated_mesh.valid_vertices[vid] = true;
+  }
+  for (const auto& fid : decimated_mesh.ignore_fids) {
+    decimated_mesh.valid_faces[fid] = true;
   }
 
   decimated_mesh.Finalize(handler.vert_attrs, type);

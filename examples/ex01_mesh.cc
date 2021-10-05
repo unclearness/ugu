@@ -310,7 +310,7 @@ void TestDecimation() {
   return;
 #endif  // 0
 #if 1
-				  std::string data_dir = "../data/bunny/";
+  std::string data_dir = "../data/bunny/";
   std::string in_obj_path = data_dir + "bunny_mani.obj";
   ugu::MeshPtr src = ugu::Mesh::Create();
   ugu::Mesh dst;
@@ -318,12 +318,11 @@ void TestDecimation() {
 
   auto targe_face_num = static_cast<int>(src->vertex_indices().size() * 0.02);
 
-  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1 , -1);
+  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1, -1);
 
   src->WritePly(data_dir + "bunny_qslim.ply");
 
 #endif  // 0
-
 
 #if 0
   std::string data_dir = "../data/spot/";
@@ -346,7 +345,7 @@ void TestDecimation() {
   ugu::MeshPtr src = ugu::Mesh::Create();
   ugu::Mesh dst;
   src->LoadObj(in_obj_path, data_dir);
-  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.5, -1);
+  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1, -1);
 
   src->WritePly(data_dir + "qslim.ply");
 #endif  // 0
