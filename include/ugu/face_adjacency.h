@@ -7,8 +7,8 @@
 
 #include <set>
 #include <tuple>
-#include <unordered_set>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #define UGU_FACE_ADJACENCY_USE_SPARSE_MAT
@@ -154,6 +154,16 @@ class FaceAdjacency {
     return true;
   }
 
+  bool OverwriteFace(int face_id, const Eigen::Vector3i& face) {
+    int& m0 = mat_.coeffRef(face[0], face[1]);
+    int& m1 = mat_.coeffRef(face[1], face[2]);
+    int& m2 = mat_.coeffRef(face[2], face[0]);
+
+    m0 = face_id + 1;
+    m1 = face_id + 1;
+    m2 = face_id + 1;
+  }
+
   bool HasBoundaryEdge(int face_id,
                        std::vector<std::pair<int, int>>* boundary_edges) {
     const Eigen::Vector3i& face = vertex_indices_[face_id];
@@ -233,15 +243,20 @@ inline std::unordered_map<int, std::vector<int>> GenerateVertex2FaceMap(
     const std::vector<Eigen::Vector3i>& vertex_indices, size_t num_vertices) {
   std::unordered_map<int, std::vector<int>> v2f;
   for (size_t i = 0; i < num_vertices; i++) {
-   // v2f.insert(static_cast<int>(i), {});
+    // v2f.insert(static_cast<int>(i), {});
   }
 
   for (size_t i = 0; i < vertex_indices.size(); i++) {
     const auto& index = vertex_indices[i];
-   v2f[index[0]].push_back(static_cast<int>(i));
-   v2f[index[1]].push_back(static_cast<int>(i));
-   v2f[index[2]].push_back(static_cast<int>(i));
+    v2f[index[0]].push_back(static_cast<int>(i));
+    v2f[index[1]].push_back(static_cast<int>(i));
+    v2f[index[2]].push_back(static_cast<int>(i));
   }
+
+  for (auto& p : v2f) {
+    std::sort(p.second.begin(), p.second.end());
+  }
+
   return v2f;
 }
 

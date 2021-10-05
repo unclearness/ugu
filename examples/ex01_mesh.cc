@@ -7,11 +7,13 @@
 #include <iostream>
 #include <random>
 
+#include "ugu/decimation/decimation.h"
 #include "ugu/external/external.h"
 #include "ugu/mesh.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
+#include "ugu/util/rgbd_util.h"
 
 inline std::vector<std::string> Split(const std::string& s, char delim) {
   std::vector<std::string> elems;
@@ -291,23 +293,53 @@ void TestCut() {
 }
 
 void TestDecimation() {
-  std::string data_dir = "../data/bunny/";
-  std::string in_obj_path = data_dir + "bunny.obj";
-  ugu::Mesh src, dst;
-  src.LoadObj(in_obj_path, data_dir);
+  {
+    std::string data_dir = "../data/plane/";
+    std::string in_obj_path = data_dir + "plane.obj";
+    ugu::MeshPtr src = ugu::Mesh::Create();
+    ugu::Mesh dst;
+    src->LoadObj(in_obj_path, data_dir);
+    ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1,
+               -1);
 
-  auto targe_face_num = static_cast<int>(src.vertex_indices().size() * 0.05);
+    src->WritePly(data_dir + "plane_qslim.ply");
+  }
 
-  ugu::FastQuadricMeshSimplification(src, targe_face_num, &dst);
+  {
+    std::string data_dir = "../data/spot/";
+    std::string in_obj_path = data_dir + "spot_triangulated.obj";
+    ugu::MeshPtr src = ugu::Mesh::Create();
+    ugu::Mesh dst;
+    src->LoadObj(in_obj_path, data_dir);
 
-  dst.WritePly(data_dir + "bunny_decimated.ply");
-  dst.WriteObj(data_dir, "bunny_decimated");
+    ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1,
+               -1);
+
+    src->WritePly(data_dir + "spot_qslim.ply");
+  }
+
+  {
+    std::string data_dir = "../data/bunny/";
+    std::string in_obj_path = data_dir + "bunny.obj";
+    ugu::MeshPtr src = ugu::Mesh::Create();
+    ugu::Mesh dst;
+    src->LoadObj(in_obj_path, data_dir);
+
+    auto targe_face_num = static_cast<int>(src->vertex_indices().size() * 0.02);
+
+    ugu::FastQuadricMeshSimplification(*src, targe_face_num, &dst);
+    dst.WritePly(data_dir + "bunny_fast_decimated.ply");
+
+    ugu::QSlim(src, ugu::QSlimType::XYZ, targe_face_num, -1);
+
+    src->WritePly(data_dir + "bunny_qslim.ply");
+  }
 }
 
 int main() {
-  TestCut();
-
   TestDecimation();
+
+  TestCut();
 
   TestTexture();
 

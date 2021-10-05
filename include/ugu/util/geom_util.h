@@ -26,6 +26,9 @@ MeshPtr MakeCube(float length, const Eigen::Matrix3f& R,
                  const Eigen::Vector3f& t);
 MeshPtr MakeCube(float length);
 
+MeshPtr MakePlane(float length, const Eigen::Matrix3f& R = Eigen::Matrix3f::Identity(),
+                  const Eigen::Vector3f& t = Eigen::Vector3f::Zero());
+
 void SetRandomVertexColor(MeshPtr mesh, int seed = 0);
 
 int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane = true);

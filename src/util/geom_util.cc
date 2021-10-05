@@ -385,6 +385,31 @@ MeshPtr MakeCube(float length) {
   return MakeCube(length, R, t);
 }
 
+MeshPtr MakePlane(float length, const Eigen::Matrix3f& R,
+                  const Eigen::Vector3f& t) {
+  MeshPtr plane = std::make_shared<Mesh>();
+  std::vector<Eigen::Vector3f> vertices(4);
+  std::vector<Eigen::Vector3i> vertex_indices(2);
+
+  const float h_x = length / 2;
+  const float h_y = length / 2;
+  // const float h_z = length / 2;
+
+  vertices[0] = Eigen::Vector3f(h_x, h_y, 0.f);
+  vertices[1] = Eigen::Vector3f(-h_x, h_y, 0.f);
+  vertices[2] = Eigen::Vector3f(h_x, -h_y, 0.f);
+  vertices[3] = Eigen::Vector3f(-h_x, -h_y, 0.f);
+  vertex_indices[0] = Eigen::Vector3i(0, 1, 2);
+  vertex_indices[1] = Eigen::Vector3i(2, 1, 3);
+
+  plane->set_vertices(vertices);
+  plane->set_vertex_indices(vertex_indices);
+
+  plane->CalcNormal();
+
+  return plane;
+}
+
 void SetRandomVertexColor(MeshPtr mesh, int seed) {
   std::mt19937 mt(seed);
   std::uniform_int_distribution<int> random_color(0, 255);

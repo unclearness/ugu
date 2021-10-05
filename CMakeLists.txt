@@ -312,6 +312,9 @@ set(
   include/ugu/optimizer/optimizer.h
   src/optimizer/optimizer.cc
 
+  include/ugu/decimation/decimation.h
+  src/decimation/decimation.cc
+
   include/ugu/external/external.h
   src/external/fast_quadric_mesh_simplification.cc
   src/external/mvs_texturing.cc

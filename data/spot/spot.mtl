@@ -1,0 +1,7 @@
+newmtl material000
+Ka 0.0 0.0 0.0
+Kd 1.0 1.0 1.0
+Ks 0.0 0.0 0.0
+illum 1
+Ns 8
+map_Kd spot_texture.png
