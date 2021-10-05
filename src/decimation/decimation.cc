@@ -390,7 +390,7 @@ struct DecimatedMesh {
     // For non-manifold meshes, always 2
     assert(intersection.size() == 2);
     if (intersection.size() != 2) {
-    //  throw std::exception("something wrong");
+        throw std::exception("something wrong");
     }
 
     for (const auto& fid : intersection) {
@@ -893,8 +893,8 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
       continue;
     }
 
-    // std::cout << "decimate " << min_e.edge.first << ", " << min_e.edge.second
-    //         << std::endl;
+    std::cout << "decimate " << min_e.edge.first << ", " << min_e.edge.second
+             << std::endl;
 
     // Decimate the pair
     auto new_edges =
@@ -908,9 +908,9 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
       heap.push(e);
     }
 
-    // std::cout << decimated_mesh.FaceNum() << " " <<
-    // decimated_mesh.VertexNum()
-    //          << std::endl;
+    std::cout << decimated_mesh.FaceNum() << " " <<
+    decimated_mesh.VertexNum()
+              << std::endl;
   }
 
   decimated_mesh.Finalize(handler.vert_attrs, type);
