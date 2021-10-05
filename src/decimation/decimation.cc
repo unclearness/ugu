@@ -114,6 +114,38 @@ void ConvertVertexAttrs2Vectors(
   }
 }
 
+void ConvertVectors2VertexAttr(VertexAttr& attr, const Eigen::Vector3f& pos,
+                               const Eigen::Vector3f& normal,
+                               const Eigen::Vector3f& color,
+                               const Eigen::Vector2f& uv, ugu::QSlimType type) {
+  if (type == ugu::QSlimType::XYZ) {
+    attr[0] = pos[0];
+    attr[1] = pos[1];
+    attr[2] = pos[2];
+
+  } else if (type == ugu::QSlimType::XYZ_UV) {
+    attr[0] = pos[0];
+    attr[1] = pos[1];
+    attr[2] = pos[2];
+
+    attr[3] = uv[0];
+    attr[4] = uv[1];
+  }
+}
+
+void ConvertVectors2VertexAttrs(
+    VertexAttrsPtr attrs, const std::vector<Eigen::Vector3f>& vertices,
+    const std::vector<Eigen::Vector3f>& normals,
+    const std::vector<Eigen::Vector3f>& vertex_colors,
+    const std::vector<Eigen::Vector2f>& uv,
+    const std::vector<std::vector<int32_t>>& vid2uvid, ugu::QSlimType type) {
+  size_t vnum = attrs->size();
+  for (size_t i = 0; i < vnum; i++) {
+    ConvertVectors2VertexAttr(attrs->at(i), vertices[i], normals[i],
+                              vertex_colors[i], uv[vid2uvid[i][0]], type);
+  }
+}
+
 using Quadric = Eigen::MatrixXd;
 using Quadrics = std::vector<Quadric>;
 using QuadricPtr = std::shared_ptr<Quadric>;
@@ -211,8 +243,77 @@ using QSlimHeap =
 struct QSlimHandler {
   QuadricsPtr quadrics;
   VertexAttrsPtr vert_attrs;
+  ugu::QSlimType type;
 
-  void InitializeQuadrics() {}
+  Quadric ComputeInitialQuadric(int32_t vid0, int32_t vid1, int32_t vid2) {
+    // Same notation to the paper
+    const VertexAttr& p = vert_attrs->at(vid0);
+    const VertexAttr& q = vert_attrs->at(vid1);
+    const VertexAttr& r = vert_attrs->at(vid2);
+
+    VertexAttr e1 = (q - p).normalized();
+    VertexAttr e2 = (r - p - e1.dot(r - p) * e1).normalized();
+
+    const Eigen::Index A_size = vert_attrs->at(vid0).rows();
+    Eigen::MatrixXd A = Eigen::MatrixXd::Identity(A_size, A_size) -
+                        e1 * e1.transpose() - e2 * e2.transpose();
+    const VertexAttr b = p.dot(e1) * e1 + p.dot(e2) * e2 - p;
+    const double pe1 = p.dot(e1);
+    const double pe2 = p.dot(e2);
+    const double c = p.dot(p) - pe1 * pe1 - pe2 * pe2;
+
+    const Eigen::Index Q_size = A_size + 1;
+    Quadric Q = Eigen::MatrixXd::Zero(Q_size, Q_size);
+    Q.topLeftCorner(A_size, A_size) = A;
+    Q.topRightCorner(A_size, 1) = b;
+    Q.bottomLeftCorner(1, A_size) = b.transpose();
+    Q(A_size, A_size) = c;
+
+    return Q;
+  }
+
+  void ComputeInitialQuadric(int32_t vid,
+                             const std::vector<int32_t>& neighbor_fids,
+                             const std::vector<Eigen::Vector3i>& faces) {
+    for (const auto& fid : neighbor_fids) {
+      const auto face = faces[fid];
+      std::vector<int32_t> dst_vids;
+
+      for (int32_t i = 0; i < 3; i++) {
+        if (face[i] != vid) {
+          dst_vids.push_back(face[i]);
+        }
+      }
+      // Summation for all faces (planes) connecting to a vertex
+      quadrics->at(vid) += ComputeInitialQuadric(vid, dst_vids[0], dst_vids[1]);
+    }
+  }
+
+  void InitializeQuadrics(const ugu::MeshPtr mesh,
+                          const std::unordered_map<int, std::vector<int>>& v2f,
+                          const std::vector<std::vector<int32_t>>& vid2uvid,
+                          ugu::QSlimType type) {
+    this->type = type;
+    quadrics = std::make_shared<Quadrics>();
+    vert_attrs = std::make_shared<VertexAttrs>();
+
+    vert_attrs->resize(mesh->vertices().size());
+    quadrics->resize(mesh->vertices().size());
+
+    const Eigen::Index qsize = vert_attrs->at(0).rows() + 1;
+    for (auto& q : *quadrics) {
+      q.resize(qsize, qsize);
+      q.setZero();
+    }
+
+    ConvertVectors2VertexAttrs(vert_attrs, mesh->vertices(), mesh->normals(),
+                               mesh->vertex_colors(), mesh->uv(), vid2uvid,
+                               type);
+
+    for (size_t i = 0; i < mesh->vertices().size(); i++) {
+      ComputeInitialQuadric(i, v2f.at(i), mesh->vertex_indices());
+    }
+  }
 };
 
 #if 1
@@ -621,12 +722,18 @@ std::vector<QSlimEdgeInfo> CollapseEdgeAndUpdateQuadrics(DecimatedMesh& mesh,
   mesh.CollapseEdge(v1, v2);
 
   // Update vertex attributes and quadrics
+  handler.quadrics->at(v1) =
+      handler.quadrics->at(v1) + handler.quadrics->at(v2);
+  handler.vert_attrs->at(v1) = e.decimated_v;
+
+  // Construct edges to add heap
   std::vector<QSlimEdgeInfo> new_edges;
   auto raw_edges = mesh.ConnectingEdges(v1);
   bool keep_this_edge = true;
   for (const auto& e : raw_edges) {
-    new_edges.emplace_back(e, handler.vert_attrs, handler.quadrics,
-                           keep_this_edge);
+    auto new_edge =
+        QSlimEdgeInfo(e, handler.vert_attrs, handler.quadrics, keep_this_edge);
+    new_edges.emplace_back(new_edge);
   }
 
   return new_edges;
@@ -736,7 +843,8 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
 
   // Initialize quadrics
   QSlimHandler handler;
-  handler.InitializeQuadrics();
+  handler.InitializeQuadrics(mesh, decimated_mesh.v2f, decimated_mesh.vid2uvid,
+                             type);
 
   // Initialize heap
   QSlimHeap heap;
