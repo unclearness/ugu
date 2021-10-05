@@ -9,6 +9,7 @@
 #include <iostream>
 #include <queue>
 #include <random>
+#include <stdexcept>
 #include <unordered_set>
 
 #include "ugu/face_adjacency.h"
@@ -385,7 +386,7 @@ struct DecimatedMesh {
           edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1]));
         }
       } else {
-        //   throw std::exception("something wrong");
+        throw std::runtime_error("something wrong");
       }
     }
 
@@ -418,7 +419,7 @@ struct DecimatedMesh {
         std::cout << valid_faces[f] << std::endl;
       }
 
-      throw std::exception("something wrong");
+      throw std::runtime_error("something wrong");
     }
 #endif  // 0
 
@@ -431,7 +432,7 @@ struct DecimatedMesh {
 
   void RemoveFace(int32_t fid) {
     if (!valid_faces[fid]) {
-      throw std::exception("Something wrong");
+      throw std::runtime_error("Something wrong");
     }
 
     // Remove from v2f
@@ -452,7 +453,7 @@ struct DecimatedMesh {
     // Remove a vetex
     if (!valid_vertices[vid]) {
       // If vertex is alreay invalid, something wrong
-      throw std::exception("something wrong");
+      throw std::runtime_error("something wrong");
     }
     valid_vertices[vid] = false;
     vertices[vid].setConstant(99999);
