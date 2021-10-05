@@ -119,11 +119,13 @@ void ConvertVectors2VertexAttr(VertexAttr& attr, const Eigen::Vector3f& pos,
                                const Eigen::Vector3f& color,
                                const Eigen::Vector2f& uv, ugu::QSlimType type) {
   if (type == ugu::QSlimType::XYZ) {
+    attr.resize(3, 1);
     attr[0] = pos[0];
     attr[1] = pos[1];
     attr[2] = pos[2];
 
   } else if (type == ugu::QSlimType::XYZ_UV) {
+    attr.resize(5, 1);
     attr[0] = pos[0];
     attr[1] = pos[1];
     attr[2] = pos[2];
@@ -154,9 +156,10 @@ using QuadricsPtr = std::shared_ptr<Quadrics>;
 bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
                                 const VertexAttr& v2, const Quadric& q2,
                                 VertexAttr& v, double& error) {
-  VertexAttr zero(v1.size());
-  zero.setZero();
-  zero[zero.size() - 1] = 1.0;
+  auto org_size = v1.rows();
+  //VertexAttr zero(org_size  + 1);
+  //zero.setZero();
+  //zero[zero.size() - 1] = 1.0;
 
   bool ret = true;
 
@@ -171,7 +174,10 @@ bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
     double min_error = std::numeric_limits<double>::max();
     VertexAttr min_vert = v1;
 
+
     for (int i = 0; i < 3; i++) {
+      candidates[i].conservativeResize(org_size + 1, 1);
+      candidates[i][org_size] = 1.0;
       double tmp_error = candidates[i].transpose() * q * candidates[i];
       if (tmp_error < min_error) {
         min_error = tmp_error;
@@ -186,9 +192,19 @@ bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
   } else {
     // Invertible case
     // Eq. (1) in the paper
-    Quadric q_inv = q.inverse();
+#if 0
+				    Quadric q_inv = q.inverse();
     v = q_inv * zero;
     error = v.transpose() * q * v;
+    v.conservativeResize(org_size, 1);
+#endif  // 0
+
+    const Eigen::MatrixXd& A = q.topLeftCorner(org_size, org_size);
+    const VertexAttr& b = q.topRightCorner(org_size, 1);
+
+    v = -A.inverse() * b;
+
+    error = b.transpose() * v + q(org_size, org_size);
   }
 
   return ret;
@@ -239,82 +255,6 @@ bool operator<(const QSlimEdgeInfo& l, const QSlimEdgeInfo& r) {
 
 using QSlimHeap =
     std::priority_queue<QSlimEdgeInfo, std::vector<QSlimEdgeInfo>>;
-
-struct QSlimHandler {
-  QuadricsPtr quadrics;
-  VertexAttrsPtr vert_attrs;
-  ugu::QSlimType type;
-
-  Quadric ComputeInitialQuadric(int32_t vid0, int32_t vid1, int32_t vid2) {
-    // Same notation to the paper
-    const VertexAttr& p = vert_attrs->at(vid0);
-    const VertexAttr& q = vert_attrs->at(vid1);
-    const VertexAttr& r = vert_attrs->at(vid2);
-
-    VertexAttr e1 = (q - p).normalized();
-    VertexAttr e2 = (r - p - e1.dot(r - p) * e1).normalized();
-
-    const Eigen::Index A_size = vert_attrs->at(vid0).rows();
-    Eigen::MatrixXd A = Eigen::MatrixXd::Identity(A_size, A_size) -
-                        e1 * e1.transpose() - e2 * e2.transpose();
-    const VertexAttr b = p.dot(e1) * e1 + p.dot(e2) * e2 - p;
-    const double pe1 = p.dot(e1);
-    const double pe2 = p.dot(e2);
-    const double c = p.dot(p) - pe1 * pe1 - pe2 * pe2;
-
-    const Eigen::Index Q_size = A_size + 1;
-    Quadric Q = Eigen::MatrixXd::Zero(Q_size, Q_size);
-    Q.topLeftCorner(A_size, A_size) = A;
-    Q.topRightCorner(A_size, 1) = b;
-    Q.bottomLeftCorner(1, A_size) = b.transpose();
-    Q(A_size, A_size) = c;
-
-    return Q;
-  }
-
-  void ComputeInitialQuadric(int32_t vid,
-                             const std::vector<int32_t>& neighbor_fids,
-                             const std::vector<Eigen::Vector3i>& faces) {
-    for (const auto& fid : neighbor_fids) {
-      const auto face = faces[fid];
-      std::vector<int32_t> dst_vids;
-
-      for (int32_t i = 0; i < 3; i++) {
-        if (face[i] != vid) {
-          dst_vids.push_back(face[i]);
-        }
-      }
-      // Summation for all faces (planes) connecting to a vertex
-      quadrics->at(vid) += ComputeInitialQuadric(vid, dst_vids[0], dst_vids[1]);
-    }
-  }
-
-  void InitializeQuadrics(const ugu::MeshPtr mesh,
-                          const std::unordered_map<int, std::vector<int>>& v2f,
-                          const std::vector<std::vector<int32_t>>& vid2uvid,
-                          ugu::QSlimType type) {
-    this->type = type;
-    quadrics = std::make_shared<Quadrics>();
-    vert_attrs = std::make_shared<VertexAttrs>();
-
-    vert_attrs->resize(mesh->vertices().size());
-    quadrics->resize(mesh->vertices().size());
-
-    const Eigen::Index qsize = vert_attrs->at(0).rows() + 1;
-    for (auto& q : *quadrics) {
-      q.resize(qsize, qsize);
-      q.setZero();
-    }
-
-    ConvertVectors2VertexAttrs(vert_attrs, mesh->vertices(), mesh->normals(),
-                               mesh->vertex_colors(), mesh->uv(), vid2uvid,
-                               type);
-
-    for (size_t i = 0; i < mesh->vertices().size(); i++) {
-      ComputeInitialQuadric(i, v2f.at(i), mesh->vertex_indices());
-    }
-  }
-};
 
 #if 1
 // To handle topoloy
@@ -450,7 +390,7 @@ struct DecimatedMesh {
     // For non-manifold meshes, always 2
     assert(intersection.size() == 2);
     if (intersection.size() != 2) {
-      throw std::exception("something wrong");
+    //  throw std::exception("something wrong");
     }
 
     for (const auto& fid : intersection) {
@@ -663,6 +603,81 @@ struct DecimatedMesh {
 };
 #endif  // 1
 
+struct QSlimHandler {
+  QuadricsPtr quadrics;
+  VertexAttrsPtr vert_attrs;
+  ugu::QSlimType type;
+
+  Quadric ComputeInitialQuadric(int32_t vid0, int32_t vid1, int32_t vid2) {
+    // Same notation to the paper
+    const VertexAttr& p = vert_attrs->at(vid0);
+    const VertexAttr& q = vert_attrs->at(vid1);
+    const VertexAttr& r = vert_attrs->at(vid2);
+
+    VertexAttr e1 = (q - p).normalized();
+    VertexAttr e2 = (r - p - e1.dot(r - p) * e1).normalized();
+
+    const Eigen::Index A_size = vert_attrs->at(vid0).rows();
+    Eigen::MatrixXd A = Eigen::MatrixXd::Identity(A_size, A_size) -
+                        e1 * e1.transpose() - e2 * e2.transpose();
+    const VertexAttr b = p.dot(e1) * e1 + p.dot(e2) * e2 - p;
+    const double pe1 = p.dot(e1);
+    const double pe2 = p.dot(e2);
+    const double c = p.dot(p) - pe1 * pe1 - pe2 * pe2;
+
+    const Eigen::Index Q_size = A_size + 1;
+    Quadric Q = Eigen::MatrixXd::Zero(Q_size, Q_size);
+    Q.topLeftCorner(A_size, A_size) = A;
+    Q.topRightCorner(A_size, 1) = b;
+    Q.bottomLeftCorner(1, A_size) = b.transpose();
+    Q(A_size, A_size) = c;
+
+    return Q;
+  }
+
+  void ComputeInitialQuadric(int32_t vid,
+                             const std::vector<int32_t>& neighbor_fids,
+                             const std::vector<Eigen::Vector3i>& faces) {
+    for (const auto& fid : neighbor_fids) {
+      const auto face = faces[fid];
+      std::vector<int32_t> dst_vids;
+
+      for (int32_t i = 0; i < 3; i++) {
+        if (face[i] != vid) {
+          dst_vids.push_back(face[i]);
+        }
+      }
+      // Summation for all faces (planes) connecting to a vertex
+      quadrics->at(vid) += ComputeInitialQuadric(vid, dst_vids[0], dst_vids[1]);
+    }
+  }
+
+  void InitializeQuadrics(const DecimatedMesh& mesh,
+                          const std::unordered_map<int, std::vector<int>>& v2f,
+                          const std::vector<std::vector<int32_t>>& vid2uvid,
+                          ugu::QSlimType type) {
+    this->type = type;
+    quadrics = std::make_shared<Quadrics>();
+    vert_attrs = std::make_shared<VertexAttrs>();
+
+    vert_attrs->resize(mesh.vertices.size());
+    quadrics->resize(mesh.vertices.size());
+
+    ConvertVectors2VertexAttrs(vert_attrs, mesh.vertices, mesh.normals,
+                               mesh.vertex_colors, mesh.uv, vid2uvid, type);
+
+    const Eigen::Index qsize = vert_attrs->at(0).rows() + 1;
+    for (auto& q : *quadrics) {
+      q.resize(qsize, qsize);
+      q.setZero();
+    }
+
+    for (size_t i = 0; i < mesh.vertices.size(); i++) {
+      ComputeInitialQuadric(i, v2f.at(i), mesh.vertex_indices);
+    }
+  }
+};
+
 std::set<QSlimEdge> PrepareValidEdges(
     const std::vector<Eigen::Vector3i>& faces,
     const std::unordered_set<int>& unified_boundary_vertex_ids,
@@ -843,8 +858,8 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
 
   // Initialize quadrics
   QSlimHandler handler;
-  handler.InitializeQuadrics(mesh, decimated_mesh.v2f, decimated_mesh.vid2uvid,
-                             type);
+  handler.InitializeQuadrics(decimated_mesh, decimated_mesh.v2f,
+                             decimated_mesh.vid2uvid, type);
 
   // Initialize heap
   QSlimHeap heap;
@@ -855,14 +870,16 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     heap.push(info);
   }
 
+  std::unordered_set<int32_t> removed_vids;
+
   // Main loop
   while (!heap.empty()) {
     if (target_vertex_num > 0 &&
-        target_vertex_num <= decimated_mesh.VertexNum()) {
+        target_vertex_num >= decimated_mesh.VertexNum()) {
       break;
     }
 
-    if (target_face_num > 0 && target_face_num <= decimated_mesh.FaceNum()) {
+    if (target_face_num > 0 && target_face_num >= decimated_mesh.FaceNum()) {
       break;
     }
 
@@ -870,14 +887,30 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     auto min_e = heap.top();
     heap.pop();
 
+    // Skip if it has been decimated
+    if (removed_vids.count(min_e.edge.first) > 0 ||
+        removed_vids.count(min_e.edge.second) > 0) {
+      continue;
+    }
+
+    // std::cout << "decimate " << min_e.edge.first << ", " << min_e.edge.second
+    //         << std::endl;
+
     // Decimate the pair
     auto new_edges =
         CollapseEdgeAndUpdateQuadrics(decimated_mesh, handler, min_e, type);
+
+    // Memory removed vid
+    removed_vids.insert(min_e.edge.second);
 
     // Add new pairs
     for (const auto& e : new_edges) {
       heap.push(e);
     }
+
+    // std::cout << decimated_mesh.FaceNum() << " " <<
+    // decimated_mesh.VertexNum()
+    //          << std::endl;
   }
 
   decimated_mesh.Finalize(handler.vert_attrs, type);

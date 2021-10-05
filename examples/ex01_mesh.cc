@@ -318,7 +318,7 @@ void TestDecimation() {
 
   auto targe_face_num = static_cast<int>(src->vertex_indices().size() * 0.02);
 
-  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() - 1000 , -1);
+  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1 , -1);
 
   src->WritePly(data_dir + "bunny_qslim.ply");
 
