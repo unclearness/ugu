@@ -299,7 +299,7 @@ void TestDecimation() {
     ugu::MeshPtr src = ugu::Mesh::Create();
     ugu::Mesh dst;
     src->LoadObj(in_obj_path, data_dir);
-    ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1,
+    ugu::QSlim(src, ugu::QSlimType::XYZ_UV, src->vertex_indices().size() * 0.1,
                -1);
 
     src->WriteObj(data_dir, "plane_qslim");

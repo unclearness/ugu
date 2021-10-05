@@ -464,8 +464,10 @@ struct DecimatedMesh {
     valid_vertices[vid] = false;
     vertices[vid].setConstant(99999);
 
-    for (auto uvid : vid2uvid[vid]) {
-      if (ignore_uv_ids.count(uvid) == 0) {
+    for (size_t i = 0; i <vid2uvid[vid].size(); i++) {
+      auto uvid = vid2uvid[vid][i];
+      if (ignore_uv_ids.count(uvid) != 0) { // only uv boundary
+     //   if (ignore_uv_ids.count(uvid) == 0) { // collapse
         valid_uvs[uvid] = false;
         uv[uvid].setConstant(99999);
       }
@@ -595,27 +597,23 @@ struct DecimatedMesh {
     ConvertVertexAttrs2Vectors(vert_attrs, vertices, normals, vertex_colors,
                                mesh->uv(), uv, vid2uvid, type);
 
-
-      uv = org_uv;
-
-#if 0
-				    for (size_t i = 0; i < valid_vertices.size(); i++) {
-      if (vid2uvid[i].size() > -1) {
+#if 1
+    for (size_t i = 0; i < valid_vertices.size(); i++) {
+      if (vid2uvid[i].size() > 1) {
         for (size_t j = 1; j < vid2uvid[i].size(); j++) {
           const auto uvid = vid2uvid[i][j];
           if (ignore_uv_ids.count(uvid) > 0) {
-          //  valid_uvs[uvid] = true;
-         //   uv[uvid] = org_uv[uvid];
-         }
+            valid_uvs[uvid] = true;
+            uv[uvid] = org_uv[uvid];
+          }
         }
       }
     }
 #endif  // 0
 
+    // std::fill(valid_uvs.begin(), valid_uvs.end(), true);
 
-   //std::fill(valid_uvs.begin(), valid_uvs.end(), true);
-
-   // std::fill(valid_uv_faces.begin(), valid_uv_faces.end(), true);
+    // std::fill(valid_uv_faces.begin(), valid_uv_faces.end(), true);
 
     Finalize();
   }
@@ -703,7 +701,7 @@ struct DecimatedMesh {
       std::vector<int> valid_uv_table(uv.size(), -1);
       int valid_uv_count = 0;
       for (size_t i = 0; i < uv.size(); i++) {
-        if (valid_uv_table_[i] && valid_vertex_table[uvid2vid[i]]) {
+        if (valid_uv_table_[i]) {
           valid_uv_table[i] = valid_uv_count;
           valid_uv.push_back(uv[i]);
           valid_uv_count++;
