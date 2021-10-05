@@ -292,6 +292,11 @@ struct DecimatedMesh {
     vertices = mesh->vertices();
     vertex_colors = mesh->vertex_colors();
     vertex_indices = mesh->vertex_indices();
+
+    if (mesh->normals().size() != vertices.size()) {
+      mesh->CalcNormal();
+    }
+
     normals = mesh->normals();
 
     if (vertex_colors.empty()) {
@@ -491,6 +496,21 @@ struct DecimatedMesh {
           vertex_indices[fid][i] = v1;
         }
         assert(valid_faces[fid]);
+      }
+
+      // Ensure normal is not flipped
+      // TODO: But this does not work well... Why?
+      int32_t vid0 = vertex_indices[fid][0];
+      int32_t vid1 = vertex_indices[fid][1];
+      int32_t vid2 = vertex_indices[fid][2];
+      Eigen::Vector3f face_n =
+          (vertices[vid1] - vertices[vid0])
+              .normalized()
+              .cross((vertices[vid2] - vertices[vid0]).normalized())
+              .normalized();
+
+      if (face_n.dot(normals[v1]) < 0 && face_n.dot(normals[v2]) < 0) {
+        std::swap(vertex_indices[fid][1], vertex_indices[fid][2]);
       }
     }
 

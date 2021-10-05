@@ -293,75 +293,53 @@ void TestCut() {
 }
 
 void TestDecimation() {
-  // auto plane = ugu::MakePlane(1.0f);
-  // plane->WritePly("plane.ply");
+  {
+    std::string data_dir = "../data/plane/";
+    std::string in_obj_path = data_dir + "plane.obj";
+    ugu::MeshPtr src = ugu::Mesh::Create();
+    ugu::Mesh dst;
+    src->LoadObj(in_obj_path, data_dir);
+    ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1,
+               -1);
 
-#if 0
-  auto plane_image = ugu::Image1f::zeros(8, 8);
-  plane_image.setTo(1.0f);
-  auto camera =
-      ugu::OrthoCamera(8, 8);
-  ugu::Mesh mesh;
-  auto color = ugu::Image3b::zeros(8, 8);
-  color.setTo(200);
-  ugu::Depth2Mesh(plane_image, color,  camera, &mesh, 99999, 1,1, true);
-  mesh.WriteObj("./", "plane");
+    src->WritePly(data_dir + "plane_qslim.ply");
+  }
 
-  return;
-#endif  // 0
-#if 1
-  std::string data_dir = "../data/bunny/";
-  std::string in_obj_path = data_dir + "bunny_mani.obj";
-  ugu::MeshPtr src = ugu::Mesh::Create();
-  ugu::Mesh dst;
-  src->LoadObj(in_obj_path, data_dir);
+  {
+    std::string data_dir = "../data/spot/";
+    std::string in_obj_path = data_dir + "spot_triangulated.obj";
+    ugu::MeshPtr src = ugu::Mesh::Create();
+    ugu::Mesh dst;
+    src->LoadObj(in_obj_path, data_dir);
 
-  auto targe_face_num = static_cast<int>(src->vertex_indices().size() * 0.02);
+    ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1,
+               -1);
 
-  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1, -1);
+    src->WritePly(data_dir + "spot_qslim.ply");
+  }
 
-  src->WritePly(data_dir + "bunny_qslim.ply");
+  {
+    std::string data_dir = "../data/bunny/";
+    std::string in_obj_path = data_dir + "bunny.obj";
+    ugu::MeshPtr src = ugu::Mesh::Create();
+    ugu::Mesh dst;
+    src->LoadObj(in_obj_path, data_dir);
 
-#endif  // 0
+    auto targe_face_num = static_cast<int>(src->vertex_indices().size() * 0.02);
 
-#if 0
-  std::string data_dir = "../data/spot/";
-  std::string in_obj_path = data_dir + "spot_triangulated.obj";
-  ugu::MeshPtr src = ugu::Mesh::Create();
-  ugu::Mesh dst;
-  src->LoadObj(in_obj_path, data_dir);
+    ugu::FastQuadricMeshSimplification(*src, targe_face_num, &dst);
+    dst.WritePly(data_dir + "bunny_fast_decimated.ply");
 
-  auto targe_face_num = static_cast<int>(src->vertex_indices().size() * 0.02);
+    ugu::QSlim(src, ugu::QSlimType::XYZ, targe_face_num, -1);
 
-  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1, -1);
-
-  src->WritePly(data_dir + "spot_qslim.ply");
-
-#endif  // 0
-
-#if 0
-  std::string data_dir = "../data/";
-  std::string in_obj_path = data_dir + "plane.obj";
-  ugu::MeshPtr src = ugu::Mesh::Create();
-  ugu::Mesh dst;
-  src->LoadObj(in_obj_path, data_dir);
-  ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1, -1);
-
-  src->WritePly(data_dir + "qslim.ply");
-#endif  // 0
-
-  // ugu::FastQuadricMeshSimplification(*src, targe_face_num, &dst);
-
-  // dst.WritePly(data_dir + "bunny_fast_decimated.ply");
-  // dst.WriteObj(data_dir, "bunny_fast_decimated");
+    src->WritePly(data_dir + "bunny_qslim.ply");
+  }
 }
 
 int main() {
-  // TestCut();
-
   TestDecimation();
 
-  return 0;
+  TestCut();
 
   TestTexture();
 
