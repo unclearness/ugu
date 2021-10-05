@@ -157,13 +157,15 @@ bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
                                 const VertexAttr& v2, const Quadric& q2,
                                 VertexAttr& v, double& error) {
   auto org_size = v1.rows();
-  //VertexAttr zero(org_size  + 1);
-  //zero.setZero();
-  //zero[zero.size() - 1] = 1.0;
+  // VertexAttr zero(org_size  + 1);
+  // zero.setZero();
+  // zero[zero.size() - 1] = 1.0;
 
   bool ret = true;
 
-  Quadric q = q1 + q2;
+  const Quadric q = q1 + q2;
+  const Eigen::MatrixXd& A = q.topLeftCorner(org_size, org_size);
+  const VertexAttr& b = q.topRightCorner(org_size, 1);
 
   if (std::abs(q.determinant()) < 0.00001) {
     // Not ivertible case
@@ -174,11 +176,8 @@ bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
     double min_error = std::numeric_limits<double>::max();
     VertexAttr min_vert = v1;
 
-
     for (int i = 0; i < 3; i++) {
-      candidates[i].conservativeResize(org_size + 1, 1);
-      candidates[i][org_size] = 1.0;
-      double tmp_error = candidates[i].transpose() * q * candidates[i];
+      double tmp_error = b.transpose() * candidates[i] + q(org_size, org_size);
       if (tmp_error < min_error) {
         min_error = tmp_error;
         candidates[i];
@@ -199,11 +198,7 @@ bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
     v.conservativeResize(org_size, 1);
 #endif  // 0
 
-    const Eigen::MatrixXd& A = q.topLeftCorner(org_size, org_size);
-    const VertexAttr& b = q.topRightCorner(org_size, 1);
-
     v = -A.inverse() * b;
-
     error = b.transpose() * v + q(org_size, org_size);
   }
 
@@ -390,7 +385,7 @@ struct DecimatedMesh {
     // For non-manifold meshes, always 2
     assert(intersection.size() == 2);
     if (intersection.size() != 2) {
-        throw std::exception("something wrong");
+      throw std::exception("something wrong");
     }
 
     for (const auto& fid : intersection) {
@@ -477,6 +472,8 @@ struct DecimatedMesh {
     // Merge v2f of B to A
     std::copy(v2f[v2].begin(), v2f[v2].end(), std::back_inserter(v2f[v1]));
     std::sort(v2f[v1].begin(), v2f[v1].end());
+    auto result = std::unique(v2f[v1].begin(), v2f[v1].end());
+    v2f[v1].erase(result, v2f[v1].end());
 
     // Remove the vertex B with older id
     RemoveVertex(v2);
@@ -703,7 +700,6 @@ std::set<QSlimEdge> PrepareValidEdges(
     size_t v2c = invalid_vids.count(f[2]);
 
     // Pair keeps always (smaller, bigger)
-    // Is this okay for geometry face reconstruction?
 
     if (v0c == 0 && v1c == 0) {
       int32_t v0 = std::min(f[0], f[1]);
@@ -744,7 +740,7 @@ std::vector<QSlimEdgeInfo> CollapseEdgeAndUpdateQuadrics(DecimatedMesh& mesh,
   // Construct edges to add heap
   std::vector<QSlimEdgeInfo> new_edges;
   auto raw_edges = mesh.ConnectingEdges(v1);
-  bool keep_this_edge = true;
+  bool keep_this_edge = false;
   for (const auto& e : raw_edges) {
     auto new_edge =
         QSlimEdgeInfo(e, handler.vert_attrs, handler.quadrics, keep_this_edge);
@@ -854,7 +850,7 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
   auto valid_edges = PrepareValidEdges(
       decimated_mesh.vertex_indices, decimated_mesh.unified_boundary_vertex_ids,
       decimated_mesh.unified_boundary_uv_ids, decimated_mesh.uvid2vid,
-      keep_geom_boundary, keep_uv_boundary);
+      keep_geom_boundary, false);
 
   // Initialize quadrics
   QSlimHandler handler;
@@ -885,6 +881,9 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
 
     // Find the lowest error pair
     auto min_e = heap.top();
+
+    assert(!min_e.keep_this_edge);
+
     heap.pop();
 
     // Skip if it has been decimated
@@ -893,8 +892,8 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
       continue;
     }
 
-    std::cout << "decimate " << min_e.edge.first << ", " << min_e.edge.second
-             << std::endl;
+    // std::cout << "decimate " << min_e.edge.first << ", " << min_e.edge.second
+    //         << std::endl;
 
     // Decimate the pair
     auto new_edges =
@@ -908,9 +907,9 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
       heap.push(e);
     }
 
-    std::cout << decimated_mesh.FaceNum() << " " <<
-    decimated_mesh.VertexNum()
-              << std::endl;
+    // std::cout << decimated_mesh.FaceNum() << " " <<
+    // decimated_mesh.VertexNum()
+    //           << std::endl;
   }
 
   decimated_mesh.Finalize(handler.vert_attrs, type);
