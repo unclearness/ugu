@@ -267,8 +267,8 @@ struct DecimatedMesh {
   std::vector<Eigen::Vector2f> uv;
   std::vector<Eigen::Vector3i> uv_indices;
 
-  std::vector<bool> valid_vertices;
-  std::vector<bool> valid_faces;
+  std::vector<bool> valid_vertices, valid_faces;
+  std::vector<bool> valid_uvs, valid_uv_faces;
 
   std::vector<std::vector<int32_t>> vid2uvid;
   std::vector<int32_t> uvid2vid;
@@ -282,7 +282,7 @@ struct DecimatedMesh {
   std::unordered_set<int> unified_boundary_vertex_ids;
   std::unordered_set<int> unified_boundary_uv_ids;
 
-  std::unordered_set<int32_t> ignore_vids, ignore_fids;
+  std::unordered_set<int32_t> ignore_vids, ignore_fids, ignore_uv_ids;
 
   bool use_uv = false;
 
@@ -304,10 +304,12 @@ struct DecimatedMesh {
       vertex_colors.resize(vertices.size());
     }
 
+    valid_uvs.resize(mesh->uv().size(), true);
+    valid_uv_faces.resize(mesh->uv_indices().size(), true);
     uv = mesh->uv();
     uv_indices = mesh->uv_indices();
 
-    use_uv = !uv.empty() && !uv_indices.empty();
+    use_uv = !uv.empty() && !uv_indices.empty() && uv_indices.size() == vertex_indices.size();
 
     face_adjacency.Init(mesh->vertices().size(), mesh->vertex_indices());
     v2f = ugu::GenerateVertex2FaceMap(mesh->vertex_indices(),
@@ -447,6 +449,10 @@ struct DecimatedMesh {
 
     valid_faces[fid] = false;
     vertex_indices[fid].setConstant(99999);
+
+    valid_uv_faces[fid] = false;
+    uv_indices[fid].setConstant(999999);
+
   }
 
   void RemoveVertex(int32_t vid) {
@@ -457,6 +463,13 @@ struct DecimatedMesh {
     }
     valid_vertices[vid] = false;
     vertices[vid].setConstant(99999);
+
+    for (auto uvid : vid2uvid[vid]) {
+      if (ignore_uv_ids.count(uvid) == 0) {
+        valid_uvs[uvid] = false;
+        uv[uvid].setConstant(99999);
+      }
+    }
 
     // Clear v2f
     v2f[vid].clear();
@@ -577,8 +590,33 @@ struct DecimatedMesh {
   }
 
   void Finalize(VertexAttrsPtr vert_attrs, ugu::QSlimType type) {
+    auto org_uv = mesh->uv();
+
     ConvertVertexAttrs2Vectors(vert_attrs, vertices, normals, vertex_colors,
                                mesh->uv(), uv, vid2uvid, type);
+
+
+      uv = org_uv;
+
+#if 0
+				    for (size_t i = 0; i < valid_vertices.size(); i++) {
+      if (vid2uvid[i].size() > -1) {
+        for (size_t j = 1; j < vid2uvid[i].size(); j++) {
+          const auto uvid = vid2uvid[i][j];
+          if (ignore_uv_ids.count(uvid) > 0) {
+          //  valid_uvs[uvid] = true;
+         //   uv[uvid] = org_uv[uvid];
+         }
+        }
+      }
+    }
+#endif  // 0
+
+
+   //std::fill(valid_uvs.begin(), valid_uvs.end(), true);
+
+   // std::fill(valid_uv_faces.begin(), valid_uv_faces.end(), true);
+
     Finalize();
   }
 
@@ -586,12 +624,15 @@ struct DecimatedMesh {
     // Appy valid mask
     auto material_ids = mesh->material_ids();
 
+    material_ids.resize(FaceNum());
+    auto materials = mesh->materials();
+
     mesh->Clear();
 
-    RemoveVertices(valid_vertices, valid_faces);
+    RemoveVertices(valid_vertices, valid_faces, valid_uvs, valid_uv_faces);
 
     mesh->set_material_ids(material_ids);
-
+    mesh->set_materials(materials);
 #if 0
     // copy
     mesh->set_vertices(vertices);
@@ -605,7 +646,9 @@ struct DecimatedMesh {
   }
 
   int RemoveVertices(const std::vector<bool>& valid_vertex_table,
-                     const std::vector<bool>& valid_face_table_) {
+                     const std::vector<bool>& valid_face_table_, 
+                      const std::vector<bool>& valid_uv_table_,
+                     const std::vector<bool>& valid_uv_face_table_) {
     if (valid_vertex_table.size() != vertices.size()) {
       ugu::LOGE("valid_vertex_table must be same size to vertices");
       return -1;
@@ -615,17 +658,14 @@ struct DecimatedMesh {
     std::vector<int> valid_table(vertices.size(), -1);
     std::vector<Eigen::Vector3f> valid_vertices, valid_vertex_colors;
     std::vector<Eigen::Vector2f> valid_uv;
-    std::vector<Eigen::Vector3i> valid_indices;
-    bool with_uv = !uv.empty() && !uv_indices.empty();
+    std::vector<Eigen::Vector3i> valid_indices, valid_uv_indices;
+    //bool with_uv = !uv.empty() && !uv_indices.empty();
     bool with_vertex_color = !vertex_colors.empty();
     int valid_count = 0;
     for (size_t i = 0; i < vertices.size(); i++) {
       if (valid_vertex_table[i]) {
         valid_table[i] = valid_count;
         valid_vertices.push_back(vertices[i]);
-        if (with_uv) {
-          valid_uv.push_back(uv[i]);
-        }
         if (with_vertex_color) {
           valid_vertex_colors.push_back(vertex_colors[i]);
         }
@@ -659,11 +699,50 @@ struct DecimatedMesh {
       valid_face_count++;
     }
 
+    if (use_uv) {
+      std::vector<int> valid_uv_table(uv.size(), -1);
+      int valid_uv_count = 0;
+      for (size_t i = 0; i < uv.size(); i++) {
+        if (valid_uv_table_[i] && valid_vertex_table[uvid2vid[i]]) {
+          valid_uv_table[i] = valid_uv_count;
+          valid_uv.push_back(uv[i]);
+          valid_uv_count++;
+        } else {
+          // num_removed++;
+        }
+      }
+
+      int valid_uv_face_count{0};
+      std::vector<int> valid_uv_face_table(uv_indices.size(), -1);
+      for (size_t i = 0; i < uv_indices.size(); i++) {
+        Eigen::Vector3i face;
+        if (!valid_uv_face_table_[i]) {
+          continue;
+        }
+        bool valid{true};
+        for (int j = 0; j < 3; j++) {
+          int new_index = valid_uv_table[uv_indices[i][j]];
+          if (new_index < 0) {
+            valid = false;
+            break;
+          }
+          face[j] = new_index;
+        }
+        if (!valid) {
+          continue;
+        }
+        valid_uv_indices.push_back(face);
+        valid_uv_face_table[i] = valid_uv_face_count;
+        valid_uv_face_count++;
+      }
+    }
+
+
     mesh->set_vertices(valid_vertices);
     mesh->set_vertex_indices(valid_indices);
-    if (with_uv) {
+    if (use_uv) {
       mesh->set_uv(valid_uv);
-      mesh->set_uv_indices(valid_indices);
+      mesh->set_uv_indices(valid_uv_indices);
     }
     if (with_vertex_color) {
       mesh->set_vertex_colors(valid_vertex_colors);
@@ -977,9 +1056,16 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
   auto [valid_edges, ignore_vids_] = PrepareValidEdges(
       decimated_mesh.vertex_indices, decimated_mesh.unified_boundary_vertex_ids,
       decimated_mesh.unified_boundary_uv_ids, decimated_mesh.uvid2vid,
-      decimated_mesh.v2f, keep_geom_boundary, false);
+      decimated_mesh.v2f, keep_geom_boundary, keep_uv_boundary);
 
   decimated_mesh.ignore_vids = std::move(ignore_vids_);
+
+  for (const auto& vid : decimated_mesh.ignore_vids) {
+    for (const auto& uvid : decimated_mesh.vid2uvid[vid]) {
+      decimated_mesh.ignore_uv_ids.insert(uvid);
+    }
+  }
+
 
   // Initialize quadrics
   QSlimHandler handler;
@@ -1079,13 +1165,16 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     //           << std::endl;
   }
 
-  // Recover
+#if 1
+				  // Recover
   for (const auto& vid : decimated_mesh.ignore_vids) {
     decimated_mesh.valid_vertices[vid] = true;
   }
   for (const auto& fid : decimated_mesh.ignore_fids) {
     decimated_mesh.valid_faces[fid] = true;
   }
+
+#endif  // 0
 
   decimated_mesh.Finalize(handler.vert_attrs, type);
 

@@ -302,7 +302,7 @@ void TestDecimation() {
     ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1,
                -1);
 
-    src->WritePly(data_dir + "plane_qslim.ply");
+    src->WriteObj(data_dir, "plane_qslim");
   }
 
   {
@@ -312,10 +312,10 @@ void TestDecimation() {
     ugu::Mesh dst;
     src->LoadObj(in_obj_path, data_dir);
 
-    ugu::QSlim(src, ugu::QSlimType::XYZ, src->vertex_indices().size() * 0.1,
+    ugu::QSlim(src, ugu::QSlimType::XYZ_UV, src->vertex_indices().size() * 0.1,
                -1);
 
-    src->WritePly(data_dir + "spot_qslim.ply");
+    src->WriteObj(data_dir, "spot_qslim");
   }
 
   {
@@ -330,9 +330,9 @@ void TestDecimation() {
     ugu::FastQuadricMeshSimplification(*src, targe_face_num, &dst);
     dst.WritePly(data_dir + "bunny_fast_decimated.ply");
 
-    ugu::QSlim(src, ugu::QSlimType::XYZ, targe_face_num, -1);
+    ugu::QSlim(src, ugu::QSlimType::XYZ_UV, targe_face_num, -1);
 
-    src->WritePly(data_dir + "bunny_qslim.ply");
+    src->WriteObj(data_dir, "bunny_qslim");
   }
 }
 
