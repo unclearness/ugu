@@ -465,8 +465,8 @@ struct DecimatedMesh {
     // unified_boundary_vertex_ids.erase(vid);
   }
 
-  bool CollapseEdge(int32_t v1, int32_t v2, bool update_vertex = false,
-                    const Eigen::Vector3f& new_pos = Eigen::Vector3f::Zero(),
+  bool CollapseEdge(int32_t v1, int32_t v2, const Eigen::Vector3f& new_pos,
+                    bool update_vertex = false,
                     const Eigen::Vector3f& new_normal = Eigen::Vector3f::Zero(),
                     const Eigen::Vector3f& new_color = Eigen::Vector3f::Zero(),
                     const Eigen::Vector2f& new_uv = Eigen::Vector2f::Zero()) {
@@ -489,6 +489,54 @@ struct DecimatedMesh {
     std::unordered_set<int32_t> to_remove_face_ids = std::move(intersection);
     std::unordered_set<int32_t> to_keep_face_ids = std::move(no_intersection);
 
+    // Ensure normal is not flipped
+    for (const auto& fid : to_keep_face_ids) {
+      int32_t vid0 = vertex_indices[fid][0];
+      int32_t vid1 = vertex_indices[fid][1];
+      int32_t vid2 = vertex_indices[fid][2];
+      // Replace v2
+      // This is a test before real replacing
+      if (vid0 == v2) {
+        vid0 = v1;
+      }
+      if (vid1 == v2) {
+        vid1 = v1;
+      }
+      if (vid2 == v2) {
+        vid2 = v1;
+      }
+
+      Eigen::Vector3f vpos0 = vertices[vid0];
+      Eigen::Vector3f vpos1 = vertices[vid1];
+      Eigen::Vector3f vpos2 = vertices[vid2];
+
+      if (v1 == vid0) {
+        vpos0 = new_pos;
+      }
+
+      if (v1 == vid1) {
+        vpos1 = new_pos;
+      }
+
+      if (v1 == vid2) {
+        vpos2 = new_pos;
+      }
+
+      Eigen::Vector3f v10 = (vpos1 - vpos0).normalized();
+      Eigen::Vector3f v20 = (vpos2 - vpos0).normalized();
+
+      // Skip if it becomes one line
+      if (std::abs(v10.dot(v20)) > 0.999) {
+        return false;
+      }
+      // Skip if normal is fiipped
+      Eigen::Vector3f face_n = v10.cross(v20).normalized();
+      if (face_n.dot(normals[v1]) < 0.0) {
+        // std::swap(vertex_indices[fid][1], vertex_indices[fid][2]);
+        return false;
+      }
+    }
+
     // Replace of B among the faces with A
     for (const auto& fid : to_keep_face_ids) {
       for (int32_t i = 0; i < 3; i++) {
@@ -497,21 +545,6 @@ struct DecimatedMesh {
           vertex_indices[fid][i] = v1;
         }
         assert(valid_faces[fid]);
-      }
-
-      // Ensure normal is not flipped
-      // TODO: But this does not work well... Why?
-      int32_t vid0 = vertex_indices[fid][0];
-      int32_t vid1 = vertex_indices[fid][1];
-      int32_t vid2 = vertex_indices[fid][2];
-      Eigen::Vector3f face_n =
-          (vertices[vid1] - vertices[vid0])
-              .normalized()
-              .cross((vertices[vid2] - vertices[vid0]).normalized())
-              .normalized();
-
-      if (face_n.dot(normals[v1]) < 0 && face_n.dot(normals[v2]) < 0) {
-        std::swap(vertex_indices[fid][1], vertex_indices[fid][2]);
       }
     }
 
@@ -743,13 +776,25 @@ std::pair<std::set<QSlimEdge>, std::unordered_set<int32_t>> PrepareValidEdges(
     const std::vector<Eigen::Vector3i>& faces,
     const std::unordered_set<int>& unified_boundary_vertex_ids,
     const std::unordered_set<int>& unified_boundary_uv_ids,
-    const std::vector<int32_t>& uvid2vid, bool keep_geom_boundary,
-    bool keep_uv_boundary) {
+    const std::vector<int32_t>& uvid2vid,
+    const std::unordered_map<int, std::vector<int>>& v2f,
+    bool keep_geom_boundary, bool keep_uv_boundary) {
   std::set<QSlimEdge> valid_edges;
   std::unordered_set<int32_t> invalid_vids;
 
   if (keep_geom_boundary) {
     invalid_vids = unified_boundary_vertex_ids;
+#if 0
+    std::unordered_set<int32_t> neigbor_vids;
+    for (const auto& vid : invalid_vids) {
+      for (const auto& fid : v2f.at(vid)) {
+        neigbor_vids.insert(faces[fid][0]);
+        neigbor_vids.insert(faces[fid][1]);
+        neigbor_vids.insert(faces[fid][2]);
+      }
+    }
+    invalid_vids.insert(neigbor_vids.begin(), neigbor_vids.end());
+#endif
   }
 
   if (keep_uv_boundary) {
@@ -801,15 +846,19 @@ std::pair<std::set<QSlimEdge>, std::unordered_set<int32_t>> PrepareValidEdges(
   return {valid_edges, invalid_vids};
 }
 
-std::vector<QSlimEdgeInfo> CollapseEdgeAndUpdateQuadrics(DecimatedMesh& mesh,
-                                                         QSlimHandler& handler,
-                                                         QSlimEdgeInfo& e,
-                                                         ugu::QSlimType type) {
+std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
+    DecimatedMesh& mesh, QSlimHandler& handler, QSlimEdgeInfo& e,
+    ugu::QSlimType type) {
   int32_t v1 = e.edge.first;
   int32_t v2 = e.edge.second;
-
+  std::vector<QSlimEdgeInfo> new_edges;
   // Update topology
-  mesh.CollapseEdge(v1, v2);
+  Eigen::Vector3f new_pos =
+      handler.vert_attrs->at(v1).block(0, 0, 3, 1).cast<float>();
+  bool ret = mesh.CollapseEdge(v1, v2, new_pos);
+  if (!ret) {
+    return {false, new_edges};
+  }
 
   // Update vertex attributes and quadrics
   handler.quadrics->at(v1) =
@@ -817,7 +866,6 @@ std::vector<QSlimEdgeInfo> CollapseEdgeAndUpdateQuadrics(DecimatedMesh& mesh,
   handler.vert_attrs->at(v1) = e.decimated_v;
 
   // Construct edges to add heap
-  std::vector<QSlimEdgeInfo> new_edges;
   auto raw_edges = mesh.ConnectingEdges(v1);
   bool keep_this_edge = false;
   for (const auto& e : raw_edges) {
@@ -826,7 +874,7 @@ std::vector<QSlimEdgeInfo> CollapseEdgeAndUpdateQuadrics(DecimatedMesh& mesh,
     new_edges.emplace_back(new_edge);
   }
 
-  return new_edges;
+  return {true, new_edges};
 }
 
 }  // namespace
@@ -908,7 +956,7 @@ bool RandomDecimation(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     new_pos =
         0.5f * (decimated_mesh.vertices[vid1] + decimated_mesh.vertices[vid2]);
 
-    decimated_mesh.CollapseEdge(vid1, vid2, true, new_pos, new_normal,
+    decimated_mesh.CollapseEdge(vid1, vid2, new_pos, true, new_normal,
                                 new_color, new_uv);
 
     std::cout << decimated_mesh.FaceNum() << " " << decimated_mesh.VertexNum()
@@ -929,7 +977,7 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
   auto [valid_edges, ignore_vids_] = PrepareValidEdges(
       decimated_mesh.vertex_indices, decimated_mesh.unified_boundary_vertex_ids,
       decimated_mesh.unified_boundary_uv_ids, decimated_mesh.uvid2vid,
-      keep_geom_boundary, false);
+      decimated_mesh.v2f, keep_geom_boundary, false);
 
   decimated_mesh.ignore_vids = std::move(ignore_vids_);
 
@@ -1011,8 +1059,12 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     //         << " " << min_e.error << std::endl;
 
     // Decimate the pair
-    auto new_edges =
+    auto [is_collapsed, new_edges] =
         CollapseEdgeAndUpdateQuadrics(decimated_mesh, handler, min_e, type);
+
+    if (!is_collapsed) {
+      continue;
+    }
 
     // Memory removed vid
     removed_vids.insert(min_e.edge.second);
