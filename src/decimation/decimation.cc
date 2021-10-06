@@ -15,6 +15,7 @@
 #include "ugu/face_adjacency.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
+#include "ugu/util/raster_util.h"
 
 #if 0
 				struct QSlimUvEdge {
@@ -309,7 +310,8 @@ struct DecimatedMesh {
     uv = mesh->uv();
     uv_indices = mesh->uv_indices();
 
-    use_uv = !uv.empty() && !uv_indices.empty() && uv_indices.size() == vertex_indices.size();
+    use_uv = !uv.empty() && !uv_indices.empty() &&
+             uv_indices.size() == vertex_indices.size();
 
     face_adjacency.Init(mesh->vertices().size(), mesh->vertex_indices());
     v2f = ugu::GenerateVertex2FaceMap(mesh->vertex_indices(),
@@ -336,6 +338,11 @@ struct DecimatedMesh {
           vid2uvid[vid].push_back(uv_id);
           uvid2vid[uv_id] = vid;
         }
+      }
+      for (size_t i = 0; i < vertices.size(); i++) {
+        std::sort(vid2uvid[i].begin(), vid2uvid[i].end());
+        auto res = std::unique(vid2uvid[i].begin(), vid2uvid[i].end());
+        vid2uvid[i].erase(res, vid2uvid[i].end());
       }
 
       uv_face_adjacency.Init(mesh->uv().size(), mesh->uv_indices());
@@ -452,7 +459,6 @@ struct DecimatedMesh {
 
     valid_uv_faces[fid] = false;
     uv_indices[fid].setConstant(999999);
-
   }
 
   void RemoveVertex(int32_t vid) {
@@ -464,13 +470,13 @@ struct DecimatedMesh {
     valid_vertices[vid] = false;
     vertices[vid].setConstant(99999);
 
-    for (size_t i = 0; i <vid2uvid[vid].size(); i++) {
+    for (size_t i = 0; i < vid2uvid[vid].size(); i++) {
       auto uvid = vid2uvid[vid][i];
-     // if (ignore_uv_ids.count(uvid) != 0) { // only uv boundary
-     //   if (ignore_uv_ids.count(uvid) == 0) { // collapse
-        valid_uvs[uvid] = false;
-       // uv[uvid].setConstant(99999);
-     // }
+      // if (ignore_uv_ids.count(uvid) != 0) { // only uv boundary
+      //   if (ignore_uv_ids.count(uvid) == 0) { // collapse
+      valid_uvs[uvid] = false;
+      // uv[uvid].setConstant(99999);
+      // }
     }
 
     // Clear v2f
@@ -480,11 +486,11 @@ struct DecimatedMesh {
     // unified_boundary_vertex_ids.erase(vid);
   }
 
-  bool CollapseEdge(int32_t v1, int32_t v2, const Eigen::Vector3f& new_pos,
-                    bool update_vertex = false,
-                    const Eigen::Vector3f& new_normal = Eigen::Vector3f::Zero(),
-                    const Eigen::Vector3f& new_color = Eigen::Vector3f::Zero(),
-                    const Eigen::Vector2f& new_uv = Eigen::Vector2f::Zero()) {
+  bool CollapseEdge(
+      int32_t v1, int32_t v2, const Eigen::Vector3f& new_pos,
+      const Eigen::Vector2f& new_uv, bool update_vertex = false,
+      const Eigen::Vector3f& new_normal = Eigen::Vector3f::Zero(),
+      const Eigen::Vector3f& new_color = Eigen::Vector3f::Zero()) {
     // std::cout << "decimate " << v1 << " " << v2 << std::endl;
 
     // Get faces connecting the 2 vertices (A, B)
@@ -550,7 +556,241 @@ struct DecimatedMesh {
         // std::swap(vertex_indices[fid][1], vertex_indices[fid][2]);
         return false;
       }
+
+#if 0
+				      if (use_uv) {
+#if 1
+				        const int32_t uv1 = vid2uvid[v1][0];
+        const int32_t uv2 = vid2uvid[v2][0];
+        assert(vid2uvid[v1].size() == 1);
+        assert(vid2uvid[v2].size() == 1);
+        int32_t uvid0 = uv_indices[fid][0];  // uv[vid2uvid[vid0][0]];
+        int32_t uvid1 = uv_indices[fid][1];
+        int32_t uvid2 = uv_indices[fid][2];
+
+#if 0
+				        float w0 = ugu::EdgeFunction(uv[uvid1], uv[uvid2], new_uv);
+        float w1 = ugu::EdgeFunction(uv[uvid2], uv[uvid0], new_uv);
+        float w2 = ugu::EdgeFunction(uv[uvid0], uv[uvid1], new_uv);
+        // Barycentric in the target triangle
+        // w0 *= inv_area;
+        // w1 *= inv_area;
+        // w2 *= inv_area;
+
+        // Barycentric coordinate should be positive inside of the triangle
+        // Skip outside of the target triangle
+        if (std::abs(w0) > 1e-3 && std::abs(w1) > 1e-3 && std::abs(w2) > 1e-3)
+        if ((w0 < 0 && w1 < 0 && w2 < 0) || (w0 > 0 && w1 > 0 && w2 > 0)) {
+          // return false;
+        } else {
+          std::cout << w0 << " " << w1 << " " << w2 << std::endl << std::endl;
+          return false;
+        }
+#endif  // 0
+
+
+
+        const float area = ugu::EdgeFunction(uv[uvid0], uv[uvid1], uv[uvid2]); 
+       // const float inv_area = 1.f / area;
+
+
+        if (uvid0 == uv2) {
+          uvid0 = uv1;
+        }
+        if (uvid1 == uv2) {
+          uvid1 = uv1;
+        }
+        if (uvid2 == uv2) {
+          uvid2 = uv1;
+        }
+
+        Eigen::Vector2f uvpos0 = uv[uvid0];
+        Eigen::Vector2f uvpos1 = uv[uvid1];
+        Eigen::Vector2f uvpos2 = uv[uvid2];
+
+
+        if (uv1 == uvid0) {
+          uvpos0 = new_uv;
+        }
+
+        if (uv1 == uvid1) {
+          uvpos1 = new_uv;
+        }
+
+        if (uv1 == uvid2) {
+          uvpos2 = new_uv;
+        }
+
+        Eigen::Vector2f uv10 = (uvpos1 - uvpos0).normalized();
+        Eigen::Vector2f uv20 = (uvpos2 - uvpos0).normalized();
+        if (std::abs(uv10.dot(uv20)) > 0.999999f) {
+            return false;
+        }
+
+#if 1
+				        float cross_update =
+            ugu::EdgeFunction(uvpos0, uvpos1, uvpos2);  // uv10.cross(uv20);
+       //if (cross_update < 0) {
+       //   return false;
+      // }
+        if ((area > 0 && cross_update < 0) ||
+            (area < 0 && cross_update > 0)) {
+          return false;
+        }
+#endif  // 0
+
+#endif  // 0
+
+
+      }
+#endif  // 0
     }
+
+#if 0
+				    if (use_uv) {
+#if 1
+      const int32_t uv1 = vid2uvid[v1][0];
+      const int32_t uv2 = vid2uvid[v2][0];
+      Eigen::Vector2f uvpos1 = uv[uv1];
+      Eigen::Vector2f uvpos2 = uv[uv2];
+
+      Eigen::Vector2f direc = (uvpos2 - uvpos1).normalized();
+
+      Eigen::Vector2f diff = (new_uv - uvpos1);
+
+      if (diff.norm() > 0.000001f) {
+        float tx = diff.x() / direc.x();
+        float ty = diff.y() / direc.y();
+
+        // if (std::abs(tx - ty) > 1e-3 ||(tx < 0 || 1 < tx) || (ty < 0 || 1 <
+        // ty)) {
+        // return false;
+        // }
+
+        bool on_line = (std::abs(tx - ty) < 1e-5) && (0 <= tx || tx <= 1);
+
+        if (!on_line) {
+          int32_t on_count = 0;
+          for (const auto& fid : to_remove_face_ids) {
+            // const int32_t uv1 = vid2uvid[v1][0];
+            // const int32_t uv2 = vid2uvid[v2][0];
+            // assert(vid2uvid[v1].size() == 1);
+            // assert(vid2uvid[v2].size() == 1);
+            int32_t uvid0 = uv_indices[fid][0];  // uv[vid2uvid[vid0][0]];
+            int32_t uvid1 = uv_indices[fid][1];
+            int32_t uvid2 = uv_indices[fid][2];
+
+            float w0 = ugu::EdgeFunction(uv[uvid1], uv[uvid2], new_uv);
+            float w1 = ugu::EdgeFunction(uv[uvid2], uv[uvid0], new_uv);
+            float w2 = ugu::EdgeFunction(uv[uvid0], uv[uvid1], new_uv);
+            // Barycentric in the target triangle
+            // w0 *= inv_area;
+            // w1 *= inv_area;
+            // w2 *= inv_area;
+
+            // Barycentric coordinate should be positive inside of the triangle
+            // Skip outside of the target triangle
+            // if (std::abs(w0) > 1e-3 && std::abs(w1) > 1e-3 && std::abs(w2) >
+            // 1e-3)
+            if ((w0 < 0 && w1 < 0 && w2 < 0) || (w0 > 0 && w1 > 0 && w2 > 0)) {
+              // return false;
+              on_count++;
+              break;
+            } else {
+              //   std::cout << w0 << " " << w1 << " " << w2 << std::endl <<
+              //   std::endl;
+              // return false;
+              // not_on_count++;
+            }
+          }
+
+          if (on_count < 1) {
+            return false;
+          }
+        }
+      }
+#endif  // 1
+    }
+#endif  // 0
+
+    if (use_uv) {
+      double sum_rad = 0.0;
+      const int32_t uv1 = vid2uvid[v1][0];
+      const int32_t uv2 = vid2uvid[v2][0];
+      assert(vid2uvid[v1].size() == 1);
+      assert(vid2uvid[v2].size() == 1);
+      for (const auto& fid : to_keep_face_ids) { 
+      
+#if 0
+				        int32_t uvid0 = uv_indices[fid][0]; 
+        int32_t uvid1 = uv_indices[fid][1];
+        int32_t uvid2 = uv_indices[fid][2];
+        std::vector<int32_t> uvids;
+        int new_uv_index = 0;
+        if (uvid0 != uv1 && uvid0 != uv2) {
+          uvids.push_back(uvid0);
+        }
+        if (uvid1 != uv1 && uvid1 != uv2) {
+          uvids.push_back(uvid1);
+        }
+        if (uvid2 != uv1 && uvid2 != uv2) {
+          uvids.push_back(uvid2);
+        }
+
+        Eigen::Vector2f uvpos0 = uv[uvids[0]];
+        Eigen::Vector2f uvpos1 = uv[uvids[1]];
+#endif  // 0
+        int32_t uvid0 = uv_indices[fid][0];
+        int32_t uvid1 = uv_indices[fid][1];
+        int32_t uvid2 = uv_indices[fid][2];
+        Eigen::Vector2f uvpos0 = uv[uvid0];
+        Eigen::Vector2f uvpos1 = uv[uvid1];
+        Eigen::Vector2f uvpos2 = uv[uvid2];
+        std::array<Eigen::Vector2f, 3> uv_tri{uvpos0, uvpos1, uvpos2};
+        int32_t new_uv_index = 0;
+        std::vector<int32_t> uvids;
+        if (uvid0 == uv1 || uvid0 == uv2) {
+          new_uv_index = 0;
+        } else {
+          uvids.push_back(0);
+        }
+        if (uvid1 == uv1 || uvid1 == uv2) {
+          new_uv_index = 1;
+        } else {
+          uvids.push_back(1);
+        }
+        if (uvid2 == uv1 || uvid2 == uv2) {
+          new_uv_index = 2;
+        } else {
+          uvids.push_back(2);
+        }
+
+        float w_org = ugu::EdgeFunction(uv_tri[0], uv_tri[1], uv_tri[2]);
+
+        uv_tri[new_uv_index] = new_uv;
+
+        float w_update = ugu::EdgeFunction(uv_tri[0], uv_tri[1], uv_tri[2]);
+        float sign = w_org * w_update >= 0 ? 1.f : -1.f;
+
+        if (sign < 0 || std::abs(w_org) < 1e-6 || std::abs(w_update) < 1e-6) {
+          return false;
+        }
+
+        Eigen::Vector2f uv10 = (uv_tri[uvids[0]] - new_uv).normalized();
+        Eigen::Vector2f uv20 = (uv_tri[uvids[1]] - new_uv).normalized();
+
+      if (std::abs(uv10.dot(uv20)) > 0.999999f) {
+          return false;
+        }
+
+        sum_rad += sign * std::acos(uv10.dot(uv20));
+      }
+
+      if (ugu::radians(359.0) > sum_rad) {
+        return false;
+      }
+    }
+
 
     // Replace of B among the faces with A
     for (const auto& fid : to_keep_face_ids) {
@@ -563,10 +803,19 @@ struct DecimatedMesh {
 
         if (use_uv) {
           const int32_t& uvid1 = vid2uvid[v1][0];
+
+          // We ignore boundary uv
+          // So #uv should be always 1
+          if (vid2uvid[v1].size() != 1) {
+            throw std::runtime_error("");
+          }
           const int32_t& uvid2 = vid2uvid[v2][0];
+          if (vid2uvid[v2].size() != 1) {
+            throw std::runtime_error("");
+          }
           int32_t& uvid = uv_indices[fid][i];
           if (uvid == uvid2) {
-              uvid = uvid1;
+            uvid = uvid1;
           }
         }
       }
@@ -653,8 +902,8 @@ struct DecimatedMesh {
   }
 
   int RemoveVertices(const std::vector<bool>& valid_vertex_table,
-                     const std::vector<bool>& valid_face_table_, 
-                      const std::vector<bool>& valid_uv_table_,
+                     const std::vector<bool>& valid_face_table_,
+                     const std::vector<bool>& valid_uv_table_,
                      const std::vector<bool>& valid_uv_face_table_) {
     if (valid_vertex_table.size() != vertices.size()) {
       ugu::LOGE("valid_vertex_table must be same size to vertices");
@@ -666,7 +915,7 @@ struct DecimatedMesh {
     std::vector<Eigen::Vector3f> valid_vertices, valid_vertex_colors;
     std::vector<Eigen::Vector2f> valid_uv;
     std::vector<Eigen::Vector3i> valid_indices, valid_uv_indices;
-    //bool with_uv = !uv.empty() && !uv_indices.empty();
+    // bool with_uv = !uv.empty() && !uv_indices.empty();
     bool with_vertex_color = !vertex_colors.empty();
     int valid_count = 0;
     for (size_t i = 0; i < vertices.size(); i++) {
@@ -743,7 +992,6 @@ struct DecimatedMesh {
         valid_uv_face_count++;
       }
     }
-
 
     mesh->set_vertices(valid_vertices);
     mesh->set_vertex_indices(valid_indices);
@@ -887,6 +1135,17 @@ std::pair<std::set<QSlimEdge>, std::unordered_set<int32_t>> PrepareValidEdges(
     for (const auto& uv_vid : unified_boundary_uv_ids) {
       invalid_vids.insert(uvid2vid.at(uv_vid));
     }
+#if 0
+    std::unordered_set<int32_t> neigbor_vids;
+    for (const auto& uv_vid : unified_boundary_uv_ids) {
+      for (const auto& fid : v2f.at(vid)) {
+        neigbor_vids.insert(faces[fid][0]);
+        neigbor_vids.insert(faces[fid][1]);
+        neigbor_vids.insert(faces[fid][2]);
+      }
+    }
+    invalid_vids.insert(neigbor_vids.begin(), neigbor_vids.end());
+#endif
   }
 
   for (const auto& f : faces) {
@@ -941,7 +1200,13 @@ std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
   // Update topology
   Eigen::Vector3f new_pos =
       handler.vert_attrs->at(v1).block(0, 0, 3, 1).cast<float>();
-  bool ret = mesh.CollapseEdge(v1, v2, new_pos);
+  Eigen::Vector2f new_uv;
+  if (mesh.use_uv) {
+    if (type == ugu::QSlimType::XYZ_UV) {
+      new_uv = handler.vert_attrs->at(v1).block(3, 0, 2, 1).cast<float>();
+    }
+  }
+  bool ret = mesh.CollapseEdge(v1, v2, new_pos, new_uv);
   if (!ret) {
     return {false, new_edges};
   }
@@ -1042,8 +1307,8 @@ bool RandomDecimation(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     new_pos =
         0.5f * (decimated_mesh.vertices[vid1] + decimated_mesh.vertices[vid2]);
 
-    decimated_mesh.CollapseEdge(vid1, vid2, new_pos, true, new_normal,
-                                new_color, new_uv);
+    decimated_mesh.CollapseEdge(vid1, vid2, new_pos, new_uv, true, new_normal,
+                                new_color);
 
     std::cout << decimated_mesh.FaceNum() << " " << decimated_mesh.VertexNum()
               << std::endl;
@@ -1072,7 +1337,6 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
       decimated_mesh.ignore_uv_ids.insert(uvid);
     }
   }
-
 
   // Initialize quadrics
   QSlimHandler handler;
@@ -1173,7 +1437,7 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
   }
 
 #if 1
-				  // Recover
+  // Recover
   for (const auto& vid : decimated_mesh.ignore_vids) {
     decimated_mesh.valid_vertices[vid] = true;
   }
