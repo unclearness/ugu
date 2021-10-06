@@ -466,11 +466,11 @@ struct DecimatedMesh {
 
     for (size_t i = 0; i <vid2uvid[vid].size(); i++) {
       auto uvid = vid2uvid[vid][i];
-      if (ignore_uv_ids.count(uvid) != 0) { // only uv boundary
+     // if (ignore_uv_ids.count(uvid) != 0) { // only uv boundary
      //   if (ignore_uv_ids.count(uvid) == 0) { // collapse
         valid_uvs[uvid] = false;
-        uv[uvid].setConstant(99999);
-      }
+       // uv[uvid].setConstant(99999);
+     // }
     }
 
     // Clear v2f
@@ -555,11 +555,20 @@ struct DecimatedMesh {
     // Replace of B among the faces with A
     for (const auto& fid : to_keep_face_ids) {
       for (int32_t i = 0; i < 3; i++) {
-        int32_t vid = vertex_indices[fid][i];
+        int32_t& vid = vertex_indices[fid][i];
         if (vid == v2) {
-          vertex_indices[fid][i] = v1;
+          vid = v1;
         }
         assert(valid_faces[fid]);
+
+        if (use_uv) {
+          const int32_t& uvid1 = vid2uvid[v1][0];
+          const int32_t& uvid2 = vid2uvid[v2][0];
+          int32_t& uvid = uv_indices[fid][i];
+          if (uvid == uvid2) {
+              uvid = uvid1;
+          }
+        }
       }
     }
 
@@ -597,7 +606,7 @@ struct DecimatedMesh {
     ConvertVertexAttrs2Vectors(vert_attrs, vertices, normals, vertex_colors,
                                mesh->uv(), uv, vid2uvid, type);
 
-#if 1
+#if 0
     for (size_t i = 0; i < valid_vertices.size(); i++) {
       if (vid2uvid[i].size() > 1) {
         for (size_t j = 1; j < vid2uvid[i].size(); j++) {
@@ -1170,6 +1179,9 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
   }
   for (const auto& fid : decimated_mesh.ignore_fids) {
     decimated_mesh.valid_faces[fid] = true;
+  }
+  for (const auto& vid : decimated_mesh.ignore_uv_ids) {
+    decimated_mesh.valid_uvs[vid] = true;
   }
 
 #endif  // 0
