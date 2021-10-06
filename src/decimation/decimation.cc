@@ -488,7 +488,7 @@ struct DecimatedMesh {
 
   bool CollapseEdge(
       int32_t v1, int32_t v2, const Eigen::Vector3f& new_pos,
-      const Eigen::Vector2f& new_uv, bool update_vertex = false,
+      Eigen::Vector2f& new_uv, bool update_vertex = false,
       const Eigen::Vector3f& new_normal = Eigen::Vector3f::Zero(),
       const Eigen::Vector3f& new_color = Eigen::Vector3f::Zero()) {
     // std::cout << "decimate " << v1 << " " << v2 << std::endl;
@@ -509,6 +509,124 @@ struct DecimatedMesh {
 
     std::unordered_set<int32_t> to_remove_face_ids = std::move(intersection);
     std::unordered_set<int32_t> to_keep_face_ids = std::move(no_intersection);
+
+    if (use_uv) {
+#if 0
+      // Update new_uv
+      {
+
+     const int32_t uv1 = vid2uvid[v1][0];
+        const int32_t uv2 = vid2uvid[v2][0];
+        assert(vid2uvid[v1].size() == 1);
+        assert(vid2uvid[v2].size() == 1);
+        const int32_t fid = *to_remove_face_ids.begin();
+
+        // std::unordered_map<int32_t, std::array<Eigen::Vector3f, 3>> fid_v;
+        //  std::unordered_map<int32_t, std::array<Eigen::Vector2f, 3>> fid_uv;
+
+        int32_t vid0 = vertex_indices[fid][0];
+        int32_t vid1 = vertex_indices[fid][1];
+        int32_t vid2 = vertex_indices[fid][2];
+
+#if 0
+				        if (vid0 == v2) {
+          vid0 = v1;
+        }
+        if (vid1 == v2) {
+          vid1 = v1;
+        }
+        if (vid2 == v2) {
+          vid2 = v1;
+        }
+
+#endif  // 0
+
+
+        Eigen::Vector3f vpos0 = vertices[vid0];
+        Eigen::Vector3f vpos1 = vertices[vid1];
+        Eigen::Vector3f vpos2 = vertices[vid2];
+
+#if 0
+				        if (v1 == vid0) {
+          vpos0 = new_pos;
+        }
+
+        if (v1 == vid1) {
+          vpos1 = new_pos;
+        }
+
+        if (v1 == vid2) {
+          vpos2 = new_pos;
+        }
+#endif  // 0
+
+
+        int32_t uvid0 = uv_indices[fid][0];
+        int32_t uvid1 = uv_indices[fid][1];
+        int32_t uvid2 = uv_indices[fid][2];
+
+#if 0
+				        if (uvid0 == uv2) {
+          uvid0 = uv1;
+        }
+        if (uvid1 == uv2) {
+          uvid1 = uv1;
+        }
+        if (vid2 == uv2) {
+          uvid2 = uv1;
+        }
+
+#endif  // 0
+
+        Eigen::Vector2f uvpos0 = uv[uvid0];
+        Eigen::Vector2f uvpos1 = uv[uvid1];
+        Eigen::Vector2f uvpos2 = uv[uvid2];
+#if 0
+				
+        if (uv1 == uvid0) {
+          uvpos0 = new_uv;
+        }
+
+        if (uv1 == uvid1) {
+          uvpos1 = new_uv;
+        }
+
+        if (uv1 == uvid2) {
+          uvpos2 = new_uv;
+        }
+
+#endif  // 0
+
+        float area = ugu::TriArea(
+            vpos0, vpos1, vpos2);  // ugu::EdgeFunction(vpos0, vpos1, vpos2);
+        if (std::abs(area) < std::numeric_limits<float>::min()) {
+          area = area > 0 ? std::numeric_limits<float>::min()
+                          : -std::numeric_limits<float>::min();
+        }
+        float inv_area = 1.0f / area;
+
+        float w0 = ugu::TriArea(vpos1, vpos2, new_pos);
+        float w1 = ugu::TriArea(vpos2, vpos0, new_pos);
+        float w2 = ugu::TriArea(vpos0, vpos1, new_pos);
+
+        // Barycentric in the target triangle
+        w0 *= inv_area;
+        w1 *= inv_area;
+        w2 *= inv_area;
+
+        // Barycentric coordinate should be positive inside of the triangle
+        // Skip outside of the target triangle
+        if (w0 < 0 || w1 < 0 || w2 < 0) {
+          // continue;
+        }
+
+        // Barycentric to interpolate color
+      //std::cout << "before "  << new_uv << std::endl;
+       new_uv = w0 * uvpos0 + w1 * uvpos1 + w2 * uvpos2;
+      //std::cout << "after " << new_uv << std::endl << std::endl;
+      }
+#endif  // 0
+    }
 
     // Ensure normal is not flipped
     for (const auto& fid : to_keep_face_ids) {
@@ -719,8 +837,8 @@ struct DecimatedMesh {
       const int32_t uv2 = vid2uvid[v2][0];
       assert(vid2uvid[v1].size() == 1);
       assert(vid2uvid[v2].size() == 1);
-      for (const auto& fid : to_keep_face_ids) { 
-      
+
+      for (const auto& fid : to_keep_face_ids) {
 #if 0
 				        int32_t uvid0 = uv_indices[fid][0]; 
         int32_t uvid1 = uv_indices[fid][1];
@@ -772,25 +890,24 @@ struct DecimatedMesh {
         float w_update = ugu::EdgeFunction(uv_tri[0], uv_tri[1], uv_tri[2]);
         float sign = w_org * w_update >= 0 ? 1.f : -1.f;
 
-        if (sign < 0 || std::abs(w_org) < 1e-6 || std::abs(w_update) < 1e-6) {
-          return false;
+        if (sign < 0) {
+          // return false;
         }
 
         Eigen::Vector2f uv10 = (uv_tri[uvids[0]] - new_uv).normalized();
         Eigen::Vector2f uv20 = (uv_tri[uvids[1]] - new_uv).normalized();
 
-      if (std::abs(uv10.dot(uv20)) > 0.999999f) {
-          return false;
+        if (std::abs(uv10.dot(uv20)) > 0.999999f) {
+          // return false;
         }
 
         sum_rad += sign * std::acos(uv10.dot(uv20));
       }
 
       if (ugu::radians(359.0) > sum_rad) {
-        return false;
+        // return false;
       }
     }
-
 
     // Replace of B among the faces with A
     for (const auto& fid : to_keep_face_ids) {
@@ -1107,6 +1224,7 @@ struct QSlimHandler {
 };
 
 std::pair<std::set<QSlimEdge>, std::unordered_set<int32_t>> PrepareValidEdges(
+    //  const DecimatedMesh& mesh,
     const std::vector<Eigen::Vector3i>& faces,
     const std::unordered_set<int>& unified_boundary_vertex_ids,
     const std::unordered_set<int>& unified_boundary_uv_ids,
@@ -1135,10 +1253,10 @@ std::pair<std::set<QSlimEdge>, std::unordered_set<int32_t>> PrepareValidEdges(
     for (const auto& uv_vid : unified_boundary_uv_ids) {
       invalid_vids.insert(uvid2vid.at(uv_vid));
     }
-#if 0
+#if 1
     std::unordered_set<int32_t> neigbor_vids;
     for (const auto& uv_vid : unified_boundary_uv_ids) {
-      for (const auto& fid : v2f.at(vid)) {
+      for (const auto& fid : v2f.at(uvid2vid[uv_vid])) {
         neigbor_vids.insert(faces[fid][0]);
         neigbor_vids.insert(faces[fid][1]);
         neigbor_vids.insert(faces[fid][2]);
@@ -1201,15 +1319,51 @@ std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
   Eigen::Vector3f new_pos =
       handler.vert_attrs->at(v1).block(0, 0, 3, 1).cast<float>();
   Eigen::Vector2f new_uv;
-  if (mesh.use_uv) {
+#if 0
+				  if (mesh.use_uv) {
     if (type == ugu::QSlimType::XYZ_UV) {
       new_uv = handler.vert_attrs->at(v1).block(3, 0, 2, 1).cast<float>();
+
+      auto uv1 = mesh.vid2uvid[v1][0];
+
+      float area =
+          ugu::EdgeFunction(target_tri[0], target_tri[1], target_tri[2]);
+      if (std::abs(area) < std::numeric_limits<float>::min()) {
+        area = area > 0 ? std::numeric_limits<float>::min()
+                        : -std::numeric_limits<float>::min();
+      }
+      float inv_area = 1.0f / area;
+
+      float w0 = ugu::EdgeFunction(target_tri[1], target_tri[2], new_uv);
+      float w1 = ugu::EdgeFunction(target_tri[2], target_tri[0], new_uv);
+      float w2 = ugu::EdgeFunction(target_tri[0], target_tri[1], new_uv);
+      // Barycentric in the target triangle
+      w0 *= inv_area;
+      w1 *= inv_area;
+      w2 *= inv_area;
+
+      // Barycentric coordinate should be positive inside of the triangle
+      // Skip outside of the target triangle
+      if (w0 < 0 || w1 < 0 || w2 < 0) {
+        continue;
+      }
+
+      // Barycentric to interpolate color
+      new_uv = w0 * src_uv[0] + w1 * src_uv[1] + w2 * src_uv[2];
+
+      handler.vert_attrs->at(v1).block(3, 0, 2, 1) = new_uv;
     }
   }
+#endif  // 0
+  if (mesh.use_uv) {
+    new_uv = handler.vert_attrs->at(v1).block(3, 0, 2, 1).cast<float>();
+  }
+
   bool ret = mesh.CollapseEdge(v1, v2, new_pos, new_uv);
   if (!ret) {
     return {false, new_edges};
   }
+  handler.vert_attrs->at(v1).block(3, 0, 2, 1) = new_uv.cast<double>();
 
   // Update vertex attributes and quadrics
   handler.quadrics->at(v1) =

@@ -15,6 +15,12 @@ float EdgeFunction(const T& a, const T& b, const T& c) {
   return (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
 }
 
+
+template <typename T>
+float TriArea(const T& a, const T& b, const T& c) {
+  return 0.5f * ((b - a).cross(c - a)).norm();
+}
+
 template <typename T>
 bool RasterizeTriangle(const std::array<Eigen::Vector3f, 3>& src_vetex_color,
                        const std::array<Eigen::Vector2f, 3>& target_tri,
