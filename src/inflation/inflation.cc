@@ -180,8 +180,8 @@ bool Inflation(const Image1b& mask, Image1f& height, Mesh& mesh,
   }
 
   // Find boundary loops to connect
-  auto [boundary_edges_list, boundary_vertex_ids_list] =
-      ugu::FindBoundaryLoops(mesh);
+  auto [boundary_edges_list, boundary_vertex_ids_list] = ugu::FindBoundaryLoops(
+      mesh.vertex_indices(), static_cast<int32_t>(mesh.vertices().size()));
 
   ugu::Mesh front = ugu::Mesh(mesh);
   ugu::Mesh back = ugu::Mesh(mesh);

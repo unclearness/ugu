@@ -197,13 +197,12 @@ bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged) {
 
 std::tuple<std::vector<std::vector<std::pair<int, int>>>,
            std::vector<std::vector<int>>>
-FindBoundaryLoops(const Mesh& mesh) {
+FindBoundaryLoops(const std::vector<Eigen::Vector3i>& indices, int32_t vnum) {
   std::vector<std::vector<std::pair<int, int>>> boundary_edges_list;
   std::vector<std::vector<int>> boundary_vertex_ids_list;
 
   ugu::FaceAdjacency face_adjacency;
-  face_adjacency.Init(static_cast<int>(mesh.vertices().size()),
-                      mesh.vertex_indices());
+  face_adjacency.Init(vnum, indices);
 
   auto [boundary_edges, boundary_vertex_ids] =
       face_adjacency.GetBoundaryEdges();

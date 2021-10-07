@@ -29,8 +29,8 @@ int main(int argc, char* argv[]) {
   std::shared_ptr<ugu::Mesh> mesh = std::make_shared<ugu::Mesh>();
   mesh->LoadObj(obj_path, data_dir);
 
-  auto [boundary_edges_list, boundary_vertex_ids_list] =
-      ugu::FindBoundaryLoops(*mesh);
+  auto [boundary_edges_list, boundary_vertex_ids_list] = ugu::FindBoundaryLoops(
+      mesh->vertex_indices(), static_cast<int32_t>(mesh->vertices().size()));
 
   for (auto i = 0; i < boundary_edges_list.size(); i++) {
     ugu::LOGI("%d th boundary\n", i);

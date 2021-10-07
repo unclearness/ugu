@@ -318,7 +318,8 @@ struct DecimatedMesh {
                                       mesh->vertices().size());
 
     auto [boundary_edges_list, boundary_vertex_ids_list] =
-        ugu::FindBoundaryLoops(*mesh);
+        ugu::FindBoundaryLoops(mesh->vertex_indices(),
+                               static_cast<int32_t>(mesh->vertices().size()));
 
     for (const auto& list : boundary_vertex_ids_list) {
       for (const auto& id : list) {
