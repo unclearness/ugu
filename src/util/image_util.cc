@@ -611,6 +611,18 @@ void Not(const Image1b& src, Image1b* dst) {
   }
 }
 
+std::vector<Eigen::Vector3f> GenRandomColors(int32_t num, float min_val,
+                                             float max_val, size_t seed) {
+  std::vector<Eigen::Vector3f> colors;
+  std::uniform_real_distribution<float> dist(min_val, max_val);
+  std::default_random_engine engine(seed);
+
+  for (int32_t i = 0; i < num; i++) {
+    colors.emplace_back(dist(engine), dist(engine), dist(engine));
+  }
+  return colors;
+}
+
 #ifdef UGU_USE_TINYCOLORMAP
 void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
                  float max_d, tinycolormap::ColormapType type) {

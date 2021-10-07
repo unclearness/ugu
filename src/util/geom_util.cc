@@ -282,6 +282,73 @@ FindBoundaryLoops(const std::vector<Eigen::Vector3i>& indices, int32_t vnum) {
   return {boundary_edges_list, boundary_vertex_ids_list};
 }
 
+std::tuple<std::vector<std::set<int32_t>>, std::set<int32_t>, std::set<int32_t>,
+           std::vector<std::set<int32_t>>>
+ClusterByConnectivity(const std::vector<Eigen::Vector3i>& indices,
+                      int32_t vnum) {
+  std::vector<std::set<int32_t>> clusters;
+  std::vector<std::set<int32_t>> clusters_f;
+
+  auto [boundary_edges_list, boundary_vertex_ids_list] =
+      FindBoundaryLoops(indices, vnum);
+
+  clusters.resize(boundary_vertex_ids_list.size());
+  clusters_f.resize(boundary_vertex_ids_list.size());
+
+  auto v2f = ugu::GenerateVertex2FaceMap(indices, vnum);
+
+  std::set<int32_t> non_orphans;
+
+  for (size_t i = 0; i < boundary_vertex_ids_list.size(); i++) {
+    auto& cluster = clusters[i];
+
+    for (const auto& vid : boundary_vertex_ids_list[i]) {
+      cluster.insert(vid);
+    }
+
+    while (true) {
+      std::set<int32_t> new_vids;
+      for (const auto& vid : cluster) {
+        const auto& f_list = v2f[vid];
+
+        for (const auto& f : f_list) {
+          for (int32_t j = 0; j < 3; j++) {
+            const auto& new_vid = indices[f][j];
+
+            if (cluster.count(new_vid) == 0) {
+              new_vids.insert(new_vid);
+            }
+          }
+        }
+      }
+
+      if (new_vids.empty()) {
+        break;
+      }
+
+      cluster.insert(new_vids.begin(), new_vids.end());
+    }
+
+    non_orphans.insert(cluster.begin(), cluster.end());
+    for (const auto& vid : cluster) {
+      const auto& f_list = v2f[vid];
+      for (const auto& f : f_list) {
+        clusters_f[i].insert(f);
+      }
+    }
+  }
+
+  std::set<int32_t> orphans, all_vids;
+  for (int32_t i = 0; i < vnum; i++) {
+    all_vids.insert(i);
+  }
+
+  std::set_difference(all_vids.begin(), all_vids.end(), non_orphans.begin(),
+                      non_orphans.end(), std::inserter(orphans, orphans.end()));
+
+  return {clusters, non_orphans, orphans, clusters_f};
+}
+
 MeshPtr MakeCube(const Eigen::Vector3f& length, const Eigen::Matrix3f& R,
                  const Eigen::Vector3f& t) {
   MeshPtr cube(new Mesh);

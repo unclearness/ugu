@@ -260,4 +260,33 @@ inline std::unordered_map<int, std::vector<int>> GenerateVertex2FaceMap(
   return v2f;
 }
 
+inline std::pair<std::vector<std::vector<int32_t>>, std::vector<int32_t>>
+GenerateVertex2UvMap(const std::vector<Eigen::Vector3i>& vertex_indices,
+                     size_t num_v,
+                     const std::vector<Eigen::Vector3i>& uv_indices,
+                     size_t num_uv) {
+  std::vector<std::vector<int32_t>> vid2uvid;
+  std::vector<int32_t> uvid2vid;
+
+  vid2uvid.resize(num_v);
+  uvid2vid.resize(num_uv);
+  for (size_t i = 0; i < vertex_indices.size(); i++) {
+    const auto& f = vertex_indices[i];
+    const auto& uv_f = uv_indices[i];
+    for (int j = 0; j < 3; j++) {
+      int32_t vid = f[j];
+      int32_t uv_id = uv_f[j];
+      vid2uvid[vid].push_back(uv_id);
+      uvid2vid[uv_id] = vid;
+    }
+  }
+  for (size_t i = 0; i < num_v; i++) {
+    std::sort(vid2uvid[i].begin(), vid2uvid[i].end());
+    auto res = std::unique(vid2uvid[i].begin(), vid2uvid[i].end());
+    vid2uvid[i].erase(res, vid2uvid[i].end());
+  }
+
+  return {vid2uvid, uvid2vid};
+}
+
 }  // namespace ugu

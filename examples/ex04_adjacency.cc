@@ -8,6 +8,7 @@
 #include "ugu/face_adjacency.h"
 #include "ugu/mesh.h"
 #include "ugu/util/geom_util.h"
+#include "ugu/util/image_util.h"
 
 // test by bunny data with 6 views
 int main(int argc, char* argv[]) {
@@ -26,8 +27,30 @@ int main(int argc, char* argv[]) {
   }
 
   // load mesh
-  std::shared_ptr<ugu::Mesh> mesh = std::make_shared<ugu::Mesh>();
+  ugu::MeshPtr mesh = ugu::Mesh::Create();
   mesh->LoadObj(obj_path, data_dir);
+
+  auto [clusters, non_orphans, orphans, clusters_f] =
+      ugu::ClusterByConnectivity(mesh->uv_indices(),
+                                 static_cast<int32_t>(mesh->uv().size()));
+
+  ugu::Mesh cluster_colored = *mesh;
+  auto random_colors =
+      ugu::GenRandomColors(static_cast<int32_t>(clusters.size()));
+  auto [vid2uvid, uvid2vid] =
+      ugu::GenerateVertex2UvMap(mesh->vertex_indices(), mesh->vertices().size(),
+                                mesh->uv_indices(), mesh->uv().size());
+  std::vector<Eigen::Vector3f> colors(mesh->vertices().size());
+  for (size_t i = 0; i < clusters.size(); i++) {
+    const auto& cluster = clusters[i];
+    for (const auto& uvid : cluster) {
+      auto vid = uvid2vid[uvid];
+      colors[vid] = random_colors[i];
+    }
+  }
+
+  cluster_colored.set_vertex_colors(colors);
+  cluster_colored.WritePly(data_dir + "bunny_uv_cluster.ply");
 
   auto [boundary_edges_list, boundary_vertex_ids_list] = ugu::FindBoundaryLoops(
       mesh->vertex_indices(), static_cast<int32_t>(mesh->vertices().size()));

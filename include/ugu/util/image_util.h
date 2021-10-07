@@ -173,6 +173,10 @@ void Dilate(const Image1b& src, Image1b* dst, int kernel);
 void Diff(const Image1b& src1, const Image1b& src2, Image1b* dst);
 void Not(const Image1b& src, Image1b* dst);
 
+std::vector<Eigen::Vector3f> GenRandomColors(int32_t num, float min_val = 0.f,
+                                             float max_val = 255.f,
+                                             size_t seed = 0);
+
 template <typename T>
 float NormL2(const T& src) {
   return static_cast<float>(

@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <set>
+
 #include "ugu/line.h"
 #include "ugu/mesh.h"
 
@@ -17,6 +19,11 @@ bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged);
 std::tuple<std::vector<std::vector<std::pair<int, int>>>,
            std::vector<std::vector<int>>>
 FindBoundaryLoops(const std::vector<Eigen::Vector3i>& indices, int32_t vnum);
+
+std::tuple<std::vector<std::set<int32_t>>, std::set<int32_t>, std::set<int32_t>,
+           std::vector<std::set<int32_t>>>
+ClusterByConnectivity(const std::vector<Eigen::Vector3i>& indices,
+                      int32_t vnum);
 
 // make cube with 24 vertices
 MeshPtr MakeCube(const Eigen::Vector3f& length, const Eigen::Matrix3f& R,
@@ -33,8 +40,5 @@ MeshPtr MakePlane(float length,
 void SetRandomVertexColor(MeshPtr mesh, int seed = 0);
 
 int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane = true);
-
-// std::vector<std::vector<int32_t>> ClusterByConnectivity(const
-// std::vector<Eigen::Vector3i>& indices, );
 
 }  // namespace ugu
