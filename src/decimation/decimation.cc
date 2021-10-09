@@ -36,20 +36,27 @@ using VertexAttrListPtr = std::shared_ptr<VertexAttrList>;
 struct UniqueVertex {
   int32_t vid = -1;
   int32_t uvid = -1;
+  int32_t fid = -1;
   UniqueVertex() {}
   ~UniqueVertex() {}
 
-  UniqueVertex(int32_t vid, int32_t uvid) : vid(vid), uvid(uvid) {}
+  UniqueVertex(int32_t vid, int32_t uvid, int32_t fid)
+      : vid(vid), uvid(uvid), fid(fid) {}
 
   bool operator<(const UniqueVertex& obj) const {
     if (vid != obj.vid) {
       return vid < obj.vid;
     }
-    return uvid < obj.uvid;
+
+    if (uvid != obj.uvid) {
+      return uvid < obj.uvid;
+    }
+
+    return fid < obj.fid;
   }
 
   bool operator==(const UniqueVertex& obj) const {
-    return vid == obj.vid && uvid == obj.uvid;
+    return vid == obj.vid && uvid == obj.uvid && fid == obj.fid;
   }
 };
 
@@ -62,8 +69,8 @@ GenerateUniqueVertices(const std::vector<Eigen::Vector3i>& vertex_indices,
 
   for (size_t i = 0; i < vertex_indices.size(); i++) {
     for (int32_t j = 0; j < 3; j++) {
-      unique_vertices.push_back(
-          UniqueVertex(vertex_indices[i][j], uv_indices[i][j]));
+      unique_vertices.push_back(UniqueVertex(
+          vertex_indices[i][j], uv_indices[i][j], static_cast<int32_t>(i)));
     }
   }
 
@@ -397,7 +404,8 @@ struct DecimatedMesh {
           edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1]));
         }
       } else {
-        throw std::runtime_error("something wrong");
+        std::cout << vertex_indices[f] << std::endl; 
+        //throw std::runtime_error("something wrong");
       }
     }
 
@@ -405,9 +413,12 @@ struct DecimatedMesh {
   }
 
   auto FacesContactingEdges(int32_t v0, int32_t v1) {
+    //const auto& v0_f = uv_v2f[v0];
+    //const auto& v1_f = uv_v2f[v1];
     const auto& v0_f = v2f[v0];
-    std::unordered_set<int32_t> union_fids(v0_f.begin(), v0_f.end());
     const auto& v1_f = v2f[v1];
+    std::unordered_set<int32_t> union_fids(v0_f.begin(), v0_f.end());
+
     for (const auto& fid : v1_f) {
       union_fids.insert(fid);
     }
@@ -456,6 +467,16 @@ struct DecimatedMesh {
       v2f[vid].erase(result, v2f[vid].end());
     }
 
+    for (int32_t i = 0; i < 3; i++) {
+      int32_t uvid = uv_indices[fid][i];
+      if (!valid_uvs[uvid]) {
+        //assert(ignore_vids.count(vid) > 0);
+      }
+      auto result = std::remove(uv_v2f[uvid].begin(), uv_v2f[uvid].end(), fid);
+      uv_v2f[uvid].erase(result, uv_v2f[uvid].end());
+    }
+
+
     valid_faces[fid] = false;
     vertex_indices[fid].setConstant(99999);
 
@@ -472,21 +493,30 @@ struct DecimatedMesh {
     valid_vertices[vid] = false;
     vertices[vid].setConstant(99999);
 
-    for (size_t i = 0; i < vid2uvid[vid].size(); i++) {
-      auto uvid = vid2uvid[vid][i];
-      // if (ignore_uv_ids.count(uvid) != 0) { // only uv boundary
-      //   if (ignore_uv_ids.count(uvid) == 0) { // collapse
-      valid_uvs[uvid] = false;
-      // uv[uvid].setConstant(99999);
-      // }
-    }
-
     // Clear v2f
     v2f[vid].clear();
 
     // Remove from boundary
     // unified_boundary_vertex_ids.erase(vid);
   }
+
+  void RemoveUv(int32_t uvid) {
+    // Remove a vetex
+    if (!valid_uvs[uvid]) {
+      // If vertex is alreay invalid, something wrong
+      throw std::runtime_error("something wrong");
+    }
+    valid_uvs[uvid] = false;
+    uv[uvid].setConstant(99999);
+
+
+    // Clear v2f
+    uv_v2f[uvid].clear();
+
+    // Remove from boundary
+    // unified_boundary_vertex_ids.erase(vid);
+  }
+
 #if 0
 				
   bool PrepareCollapseEdge(int32_t v1, int32_t v2, const VertexAttr& vertattr,
@@ -629,9 +659,11 @@ struct DecimatedMesh {
 }
 #endif  // 0
 
-  bool CollapseEdge(int32_t v1, int32_t v2, const VertexAttr& vertattr,
+  bool CollapseEdge(int32_t v1, int32_t uv1, int32_t v2, int32_t uv2,
+             const VertexAttr& vertattr,
                     ugu::QSlimType type) {
-    // std::cout << "decimate " << v1 << " " << v2 << std::endl;
+    //std::cout << "decimate " << v1 << " " << v2 << " " << std::endl;
+
 
     // Get faces connecting the 2 vertices (A, B)
     auto [union_fids, intersection, no_intersection] =
@@ -640,41 +672,62 @@ struct DecimatedMesh {
     std::unordered_set<int32_t> to_remove_face_ids = std::move(intersection);
     std::unordered_set<int32_t> to_keep_face_ids = std::move(no_intersection);
 
-    assert(to_remove_face_ids.size() == 2);
-
     // Vertex attribute generation
     Eigen::Vector3f new_pos, new_color, new_normal;
     Eigen::Vector2f new_uv;
+    ConvertVertexAttr2Vectors(vertattr, new_pos, new_normal, new_color, new_uv,
+                              type);
+#if 0
+				
+    std::cout << "to_keep_face_ids" << std::endl;
+    for (auto id : to_keep_face_ids) {
+      std::cout << id << std::endl;
+    }
+    std::cout << std::endl;
+
+
+  std::cout << "to_remove_face_ids" << std::endl;
+    for (auto id : to_remove_face_ids) {
+      std::cout << id << std::endl;
+    }
+    std::cout << std::endl;
+#endif  // 0
+
+
+    // assert(to_remove_face_ids.size() == 2);
+
+   // assert(to_remove_face_ids.count(interp_fid) > 0);
+
+
+#if 1
     int32_t interp_fid = -1;  // *to_remove_face_ids.begin();
     int32_t v1_index_pos = -1;
     bool uv_suc = false;
     for (int32_t interp_fid_ : to_remove_face_ids) {
-      int32_t vid0 = vertex_indices[interp_fid_][0];
-      int32_t vid1 = vertex_indices[interp_fid_][1];
-      int32_t vid2 = vertex_indices[interp_fid_][2];
-      int32_t v1_index_pos_ = -1;
-      if (vid0 == v1) {
-        v1_index_pos_ = 0;
-      } else if (vid1 == v1) {
-        v1_index_pos_ = 1;
-      } else if (vid2 == v1) {
-        v1_index_pos_ = 2;
-      }
+    int32_t vid0 = vertex_indices[interp_fid_][0];
+    int32_t vid1 = vertex_indices[interp_fid_][1];
+    int32_t vid2 = vertex_indices[interp_fid_][2];
+    int32_t v1_index_pos_ = -1;
+    if (vid0 == v1) {
+      v1_index_pos_ = 0;
+    } else if (vid1 == v1) {
+      v1_index_pos_ = 1;
+    } else if (vid2 == v1) {
+      v1_index_pos_ = 2;
+    }
 
-      int32_t v2_index_pos = -1;
-      if (vid0 == v2) {
-        v2_index_pos = 0;
-      } else if (vid1 == v2) {
-        v2_index_pos = 1;
-      } else if (vid2 == v2) {
-        v2_index_pos = 2;
-      }
+    int32_t v2_index_pos = -1;
+    if (vid0 == v2) {
+      v2_index_pos = 0;
+    } else if (vid1 == v2) {
+      v2_index_pos = 1;
+    } else if (vid2 == v2) {
+      v2_index_pos = 2;
+    }
 
-      assert(v1_index_pos_ >= 0);
-      assert(v2_index_pos >= 0);
+    assert(v1_index_pos_ >= 0);
+    assert(v2_index_pos >= 0);
 
-      ConvertVertexAttr2Vectors(vertattr, new_pos, new_normal, new_color,
-                                new_uv, type);
 #if 0
     // auto [u, v, w] = ugu::Barycentric(new_pos, vertices[vid0],
     // vertices[vid1],
@@ -708,66 +761,65 @@ struct DecimatedMesh {
     }
 #endif  // 0
 
-      // Validation before collapse
-      // Ensure normal is not flipped
-      for (const auto& fid : to_keep_face_ids) {
-        int32_t vid0 = vertex_indices[fid][0];
-        int32_t vid1 = vertex_indices[fid][1];
-        int32_t vid2 = vertex_indices[fid][2];
-        // Replace v2
-        // This is a test before real replacing
-        if (vid0 == v2) {
-          vid0 = v1;
-        } else if (vid1 == v2) {
-          vid1 = v1;
-        } else if (vid2 == v2) {
-          vid2 = v1;
-        } else {
-          // throw std::runtime_error("");
-        }
+    // Validation before collapse
+    // Ensure normal is not flipped
+    for (const auto& fid : to_keep_face_ids) {
+      int32_t vid0 = vertex_indices[fid][0];
+      int32_t vid1 = vertex_indices[fid][1];
+      int32_t vid2 = vertex_indices[fid][2];
+      // Replace v2
+      // This is a test before real replacing
+#if 1
+      if (vid0 == v2) {
+        vid0 = v1;
+      } else if (vid1 == v2) {
+        vid1 = v1;
+      } else if (vid2 == v2) {
+        vid2 = v1;
+      } else {
+        // throw std::runtime_error("");
+      }
+#endif  // 0
 
-        Eigen::Vector3f vpos0 = vertices[vid0];
-        Eigen::Vector3f vpos1 = vertices[vid1];
-        Eigen::Vector3f vpos2 = vertices[vid2];
+      Eigen::Vector3f vpos0 = vertices[vid0];
+      Eigen::Vector3f vpos1 = vertices[vid1];
+      Eigen::Vector3f vpos2 = vertices[vid2];
 
-        if (v1 == vid0) {
-          vpos0 = new_pos;
-        } else if (v1 == vid1) {
-          vpos1 = new_pos;
-        } else if (v1 == vid2) {
-          vpos2 = new_pos;
-        } else {
-          // throw std::runtime_error("");
-        }
-
-        Eigen::Vector3f v10 = (vpos1 - vpos0).normalized();
-        Eigen::Vector3f v20 = (vpos2 - vpos0).normalized();
-
-        // Skip if it becomes one line
-        if (std::abs(v10.dot(v20)) > 0.999) {
-          return false;
-        }
-        // Skip if normal is fiipped
-        Eigen::Vector3f face_n = v10.cross(v20).normalized();
-        if (face_n.dot(normals[v1]) < 0.0) {
-          // Why is this condition not required?
-          // return false;
-        }
+      if (v1 == vid0) {
+        vpos0 = new_pos;
+      } else if (v1 == vid1) {
+        vpos1 = new_pos;
+      } else if (v1 == vid2) {
+        vpos2 = new_pos;
+      } else {
+        throw std::runtime_error("");
       }
 
-      if (use_uv) {
-        int32_t uv1 = uv_indices[interp_fid_][v1_index_pos_];
-        int32_t uv2 = uv_indices[interp_fid_][v2_index_pos];
+      Eigen::Vector3f v10 = (vpos1 - vpos0).normalized();
+      Eigen::Vector3f v20 = (vpos2 - vpos0).normalized();
 
-        bool uv_suc_ = true;
-        for (const auto& fid : to_keep_face_ids) {
-          int32_t uvid0 = uv_indices[fid][0];
-          int32_t uvid1 = uv_indices[fid][1];
-          int32_t uvid2 = uv_indices[fid][2];
-          Eigen::Vector2f uvpos0 = uv[uvid0];
-          Eigen::Vector2f uvpos1 = uv[uvid1];
-          Eigen::Vector2f uvpos2 = uv[uvid2];
-          float area = ugu::EdgeFunction(uvpos0, uvpos1, uvpos2);
+      // Skip if it becomes one line
+      if (std::abs(v10.dot(v20)) > 0.99999) {
+        return false;
+      }
+      // Skip if normal is fiipped
+      Eigen::Vector3f face_n = v10.cross(v20).normalized();
+      if (face_n.dot(normals[v1]) < 0.0) {
+        // Why is this condition not required?
+        // return false;
+      }
+    }
+
+    if (use_uv) {
+      bool uv_suc_ = true;
+      for (const auto& fid : to_keep_face_ids) {
+        int32_t uvid0 = uv_indices[fid][0];
+        int32_t uvid1 = uv_indices[fid][1];
+        int32_t uvid2 = uv_indices[fid][2];
+        Eigen::Vector2f uvpos0 = uv[uvid0];
+        Eigen::Vector2f uvpos1 = uv[uvid1];
+        Eigen::Vector2f uvpos2 = uv[uvid2];
+        float area = ugu::EdgeFunction(uvpos0, uvpos1, uvpos2);
 #if 0
 				        if (v1_index_pos == 0) {
           uvpos0 = new_uv;
@@ -782,46 +834,172 @@ struct DecimatedMesh {
         }
 #endif  // 0
 
-          if (uvid0 == uv1 || uvid0 == uv2) {
-            uvpos0 = new_uv;
-          } else if (uvid1 == uv1 || uvid1 == uv2) {
-            uvpos1 = new_uv;
-          } else if (uvid2 == uv1 || uvid2 == uv2) {
-            uvpos2 = new_uv;
-          } else {
-            // throw std::runtime_error("");
-            // return false;
-            uv_suc_ = false;
-          }
-
-          float area_update = ugu::EdgeFunction(uvpos0, uvpos1, uvpos2);
-          if (area * area_update < 0) {
-            // return false;
-            uv_suc_ = false;
-          }
-        }
-        uv_suc = uv_suc_;
-        if (uv_suc) {
-          interp_fid = interp_fid_;
-          v1_index_pos = v1_index_pos_;
-          break;
+        if (uvid0 == uv1 || uvid0 == uv2) {
+          uvpos0 = new_uv;
+        } else if (uvid1 == uv1 || uvid1 == uv2) {
+          uvpos1 = new_uv;
+        } else if (uvid2 == uv1 || uvid2 == uv2) {
+          uvpos2 = new_uv;
+        } else {
+          //throw std::runtime_error("");
+          // return false;
+          //std::cout << fid << " " << uvid0 << " " << uvid1 << " " << uvid2 << " " << new_uv << std::endl;
+          uv_suc_ = false;
         }
 
-      } else {
-        uv_suc = true;
+        float area_update = ugu::EdgeFunction(uvpos0, uvpos1, uvpos2);
+        if (area * area_update < 0) {
+          // return false;
+          uv_suc_ = false;
+        }
+
+        if (!uv_suc_) {
+            break;
+        }
+
+      }
+      uv_suc = uv_suc_;
+      if (uv_suc) {
+        v1_index_pos = v1_index_pos_;
+        interp_fid = interp_fid_;
         break;
       }
+
+    } else {
+     uv_suc = true;
+     break;
+    }
     }
 
     if (!uv_suc) {
       return false;
     }
 
+#endif  // 0
+
+#if 0
+				    // Validation before collapse
+    // Ensure normal is not flipped
+    bool uv_suc = false;
+    for (const auto& fid : to_keep_face_ids) {
+      int32_t vid0 = vertex_indices[fid][0];
+      int32_t vid1 = vertex_indices[fid][1];
+      int32_t vid2 = vertex_indices[fid][2];
+      // Replace v2
+      // This is a test before real replacing
+#if 1
+      if (vid0 == v2) {
+        vid0 = v1;
+      } else if (vid1 == v2) {
+        vid1 = v1;
+      } else if (vid2 == v2) {
+        vid2 = v1;
+      } else {
+        //throw std::runtime_error("");
+      }
+#endif  // 0
+
+      Eigen::Vector3f vpos0 = vertices[vid0];
+      Eigen::Vector3f vpos1 = vertices[vid1];
+      Eigen::Vector3f vpos2 = vertices[vid2];
+
+      if (v1 == vid0) {
+        vpos0 = new_pos;
+      } else if (v1 == vid1) {
+        vpos1 = new_pos;
+      } else if (v1 == vid2) {
+        vpos2 = new_pos;
+      } else {
+        throw std::runtime_error("");
+      }
+
+      Eigen::Vector3f v10 = (vpos1 - vpos0).normalized();
+      Eigen::Vector3f v20 = (vpos2 - vpos0).normalized();
+
+      // Skip if it becomes one line
+      if (std::abs(v10.dot(v20)) > 0.99999) {
+        return false;
+      }
+      // Skip if normal is fiipped
+      Eigen::Vector3f face_n = v10.cross(v20).normalized();
+      if (face_n.dot(normals[v1]) < 0.0) {
+        // Why is this condition not required?
+        // return false;
+      }
+
+      if (use_uv) {
+        bool uv_suc_ = true;
+        // for (const auto& fid : to_keep_face_ids) {
+        int32_t uvid0 = uv_indices[fid][0];
+        int32_t uvid1 = uv_indices[fid][1];
+        int32_t uvid2 = uv_indices[fid][2];
+        Eigen::Vector2f uvpos0 = uv[uvid0];
+        Eigen::Vector2f uvpos1 = uv[uvid1];
+        Eigen::Vector2f uvpos2 = uv[uvid2];
+        float area = ugu::EdgeFunction(uvpos0, uvpos1, uvpos2);
+#if 0
+				        if (v1_index_pos == 0) {
+          uvpos0 = new_uv;
+        }
+
+        else if (v1_index_pos == 1) {
+          uvpos1 = new_uv;
+        }
+
+        else if (v1_index_pos == 2) {
+          uvpos2 = new_uv;
+        }
+#endif  // 0
+
+        if (uvid0 == uv1 || uvid0 == uv2) {
+          uvpos0 = new_uv;
+        } else if (uvid1 == uv1 || uvid1 == uv2) {
+          uvpos1 = new_uv;
+        } else if (uvid2 == uv1 || uvid2 == uv2) {
+          uvpos2 = new_uv;
+        } else {
+          // throw std::runtime_error("");
+          // return false;
+          std::cout << fid << " " << uvid0 << " " << uvid1 << " " << uvid2
+                    << " " << new_uv << std::endl;
+          uv_suc_ = false;
+        }
+
+        float area_update = ugu::EdgeFunction(uvpos0, uvpos1, uvpos2);
+        if (area * area_update < 0) {
+          // return false;
+          uv_suc_ = false;
+        }
+
+        if (!uv_suc_) {
+          //break;
+        }
+
+        uv_suc = uv_suc_;
+        if (uv_suc) {
+          //v1_index_pos = v1_index_pos_;
+          //interp_fid = interp_fid_;
+         // break;
+        }
+
+      } else {
+        uv_suc = true;
+        //break;
+      }
+
+    }
+
+    if (!uv_suc) {
+      return false;
+    }
+#endif  // 0
+
+
     // Update vertex attributes
     vertex_colors[v1] = new_color;
     normals[v1] = new_normal;
     vertices[v1] = new_pos;
-    uv[uv_indices[interp_fid][v1_index_pos]] = new_uv;
+    uv[uv1] = new_uv;
 
     // Update vertex/uv id in face
     {
@@ -835,20 +1013,17 @@ struct DecimatedMesh {
           assert(valid_faces[fid]);
 
           if (use_uv) {
-            const int32_t& uvid1 = vid2uvid[v1][0];
-
             // We ignore boundary uv
             // So #uv should be always 1
             if (vid2uvid[v1].size() != 1) {
-              throw std::runtime_error("");
+              //   throw std::runtime_error("");
             }
-            const int32_t& uvid2 = vid2uvid[v2][0];
             if (vid2uvid[v2].size() != 1) {
-              throw std::runtime_error("");
+              //   throw std::runtime_error("");
             }
             int32_t& uvid = uv_indices[fid][i];
-            if (uvid == uvid2) {
-              uvid = uvid1;
+            if (uvid == uv2) {
+              uvid = uv1;
             }
           }
         }
@@ -859,6 +1034,7 @@ struct DecimatedMesh {
     {
       // Remove 2 faces which share edge A-B from the faces
       for (const auto& fid : to_remove_face_ids) {
+        //std::cout << "hoge " << fid << " " << interp_fid << std::endl;
         RemoveFace(fid);
       }
 
@@ -868,8 +1044,17 @@ struct DecimatedMesh {
       auto result = std::unique(v2f[v1].begin(), v2f[v1].end());
       v2f[v1].erase(result, v2f[v1].end());
 
+      {
+        std::copy(uv_v2f[uv2].begin(), uv_v2f[uv2].end(),
+                  std::back_inserter(uv_v2f[uv1]));
+        std::sort(uv_v2f[uv1].begin(), uv_v2f[uv1].end());
+        auto result = std::unique(uv_v2f[uv1].begin(), uv_v2f[uv1].end());
+        uv_v2f[uv1].erase(result, uv_v2f[uv1].end());
+      }
+
       // Remove the vertex B with older id
       RemoveVertex(v2);
+      RemoveUv(uv2);
     }
 
     return true;
@@ -1128,9 +1313,14 @@ struct QSlimHandler {
       q.setZero();
     }
 
-    for (size_t i = 0; i < vert_attrs->size(); i++) {
-      ComputeInitialQuadric(i, unique_vertices[i].vid,
-                            v2f.at(unique_vertices[i].vid),
+#pragma omp parallel for
+    for (int64_t i = 0; i < static_cast<int64_t>(vert_attrs->size()); i++) {
+      // v2f.at(unique_vertices[i].vid);
+      std::vector<int> adjacent_face_ids;
+      mesh.uv_face_adjacency.GetAdjacentFaces(unique_vertices[i].fid,
+                                              &adjacent_face_ids);
+
+      ComputeInitialQuadric(i, unique_vertices[i].vid, adjacent_face_ids,
                             mesh.vertex_indices);
     }
   }
@@ -1240,9 +1430,11 @@ std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
 
 #endif  // 0
 
-  bool ret =
-      mesh.CollapseEdge(handler.unique_vertices[v1].vid,
-                        handler.unique_vertices[v2].vid, e.decimated_v, type);
+  assert(handler.unique_vertices[v1].fid == handler.unique_vertices[v2].fid);
+
+  bool ret = mesh.CollapseEdge(
+      handler.unique_vertices[v1].vid, handler.unique_vertices[v1].uvid,
+      handler.unique_vertices[v2].vid, handler.unique_vertices[v2].uvid, e.decimated_v, type);
   if (!ret) {
     return {false, new_edges};
   }
@@ -1271,10 +1463,11 @@ std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
     const std::vector<int32_t>& uniq1_list = handler.vid2unique[e.first];
     const std::vector<int32_t>& uniq2_list = handler.vid2unique[e.second];
     for (const auto& uniq1 : uniq1_list) {
-      const auto& uvf1 = mesh.uv_v2f[handler.unique_vertices[uniq1].uvid];
+      // const auto& uvf1 = mesh.uv_v2f[handler.unique_vertices[uniq1].uvid];
 
       for (const auto& uniq2 : uniq2_list) {
-        const auto& uvf2 = mesh.uv_v2f[handler.unique_vertices[uniq1].uvid];
+#if 0
+				        const auto& uvf2 = mesh.uv_v2f[handler.unique_vertices[uniq2].uvid];
         if (mesh.use_uv) {
           std::vector<int32_t> intersection;
           std::set_intersection(uvf1.begin(), uvf1.end(), uvf2.begin(),
@@ -1284,6 +1477,13 @@ std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
             continue;
           }
         }
+#endif  // 0
+
+        if (handler.unique_vertices[uniq1].fid !=
+            handler.unique_vertices[uniq2].fid) {
+          continue;
+        }
+
         auto new_edge =
             QSlimEdgeInfo(MakeQSlimEdge(uniq1, uniq2), handler.vert_attrs,
                           handler.quadrics, keep_this_edge);
@@ -1421,17 +1621,25 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
           decimated_mesh.uv_v2f[handler.unique_vertices[uniq1].uvid];
 
       for (const auto& uniq2 : uniq2_list) {
-        const auto& uvf2 =
-            decimated_mesh.uv_v2f[handler.unique_vertices[uniq1].uvid];
+        // const auto& uvf2 =
+        //    decimated_mesh.uv_v2f[handler.unique_vertices[uniq2].uvid];
         if (decimated_mesh.use_uv) {
-          std::vector<int32_t> intersection;
+#if 0
+				          std::vector<int32_t> intersection;
           std::set_intersection(uvf1.begin(), uvf1.end(), uvf2.begin(),
                                 uvf2.end(), std::back_inserter(intersection));
           // Check connection in uv
           if (intersection.empty()) {
             continue;
           }
+#endif  // 0
         }
+
+        if (handler.unique_vertices[uniq1].fid !=
+            handler.unique_vertices[uniq2].fid) {
+          continue;
+        }
+
         auto new_edge =
             QSlimEdgeInfo(MakeQSlimEdge(uniq1, uniq2), handler.vert_attrs,
                           handler.quadrics, false);
@@ -1443,7 +1651,8 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
   }
 
   std::unordered_set<int32_t> removed_vids;
-  ;
+  std::unordered_set<int32_t> removed_uvids;
+
 #if 0
 				  for (const auto& vid : decimated_mesh.ignore_vids) {
     decimated_mesh.valid_vertices[vid] = false;
@@ -1504,6 +1713,13 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
       continue;
     }
 
+   if (removed_uvids.count(handler.unique_vertices[min_e.edge.first].uvid) >
+            0 ||
+        removed_uvids.count(handler.unique_vertices[min_e.edge.second].uvid) >
+            0) {
+     // continue;
+  }
+
     // std::cout << "decimate " << min_e.edge.first << ", " << min_e.edge.second
     //         << " " << min_e.error << std::endl;
 
@@ -1517,6 +1733,8 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
 
     // Memory removed vid
     removed_vids.insert(min_e.edge.second);
+
+    removed_uvids.insert(handler.unique_vertices[min_e.edge.second].uvid);
 
     // Add new pairs
     for (const auto& e : new_edges) {
