@@ -15,10 +15,27 @@ float EdgeFunction(const T& a, const T& b, const T& c) {
   return (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
 }
 
-
 template <typename T>
 float TriArea(const T& a, const T& b, const T& c) {
   return 0.5f * ((b - a).cross(c - a)).norm();
+}
+
+template <typename T>
+std::tuple<double, double, double> Barycentric(const T& p, const T& a,
+                                               const T& b, const T& c) {
+  T v0 = b - a;
+  T v1 = c - a;
+  T v2 = p - a;
+  double d00 = v0.dot(v0);
+  double d01 = v0.dot(v1);
+  double d11 = v1.dot(v1);
+  double d20 = v2.dot(v0);
+  double d21 = v2.dot(v1);
+  double denom = d00 * d11 - d01 * d01;
+  double v = (d11 * d20 - d01 * d21) / denom;
+  double w = (d00 * d21 - d01 * d20) / denom;
+  double u = 1.0 - v - w;
+  return {u, v, w};
 }
 
 template <typename T>

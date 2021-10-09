@@ -17,55 +17,6 @@
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
 
-#if 0
-				struct QSlimUvEdge {
-  QSlimEdge edge;
-  QSlimEdge uv_edge;
-
-  QSlimUvEdge(int32_t e1, int32_t e2, int32_t uv_e1, int32_t uv_e2) {
-    bool flipped = false;
-
-    if (e1 < e2) {
-      edge.first = e1;
-      edge.second = e2;
-    } else {
-      edge.first = e2;
-      edge.second = e1;
-      flipped = true;
-    }
-
-    if (!flipped) {
-      uv_edge.first = uv_e1;
-      uv_edge.second = uv_e2;
-    } else {
-      uv_edge.first = uv_e2;
-      uv_edge.second = uv_e1;
-    }
-  }
-
-  bool operator==(const QSlimUvEdge& value) const {
-    return edge.first == value.edge.first && edge.second == value.edge.second;
-  }
-};
-
-}  // namespace
-
-namespace std {
-
-template <>
-struct hash<QSlimUvEdge> {
-  std::size_t operator()(const QSlimUvEdge& k) const {
-    const auto hash1 = std::hash<int>()(k.edge.first);
-    const auto hash2 = std::hash<int>()(k.edge.second);
-
-    return hash1 ^ (hash2 << 1);
-  }
-};
-
-}  // namespace std
-
-#endif  // 0
-
 namespace {
 
 using QSlimEdge = std::pair<int32_t, int32_t>;
@@ -78,105 +29,37 @@ QSlimEdge MakeQSlimEdge(int32_t v0, int32_t v1) {
   return QSlimEdge(v1, v0);
 }
 
-using VertexAttr = Eigen::VectorXd;
-using VertexAttrs = std::vector<VertexAttr>;
-using VertexAttrsPtr = std::shared_ptr<VertexAttrs>;
+using VertexPos = Eigen::Vector3d;
+using VertexPosList = std::vector<VertexPos>;
+using VertexPosListPtr = std::shared_ptr<VertexPosList>;
 
-void ConvertVertexAttr2Vectors(const VertexAttr& attr, Eigen::Vector3f& new_pos,
-                               Eigen::Vector3f& new_normal,
-                               Eigen::Vector3f& new_color,
-                               Eigen::Vector2f& new_uv, ugu::QSlimType type) {
-  if (type == ugu::QSlimType::XYZ) {
-    new_pos[0] = attr[0];
-    new_pos[1] = attr[1];
-    new_pos[2] = attr[2];
-
-  } else if (type == ugu::QSlimType::XYZ_UV) {
-    new_pos[0] = attr[0];
-    new_pos[1] = attr[1];
-    new_pos[2] = attr[2];
-
-    new_uv[0] = attr[3];
-    new_uv[1] = attr[4];
-  }
-}
-
-void ConvertVertexAttrs2Vectors(
-    const VertexAttrsPtr attrs, std::vector<Eigen::Vector3f>& vertices,
-    std::vector<Eigen::Vector3f>& normals,
-    std::vector<Eigen::Vector3f>& vertex_colors,
-    const std::vector<Eigen::Vector2f>& org_uv,
-    std::vector<Eigen::Vector2f>& uv,
-    const std::vector<std::vector<int32_t>>& vid2uvid, ugu::QSlimType type) {
-  uv = org_uv;
-  size_t vnum = attrs->size();
-  for (size_t i = 0; i < vnum; i++) {
-    ConvertVertexAttr2Vectors(attrs->at(i), vertices[i], normals[i],
-                              vertex_colors[i], uv[vid2uvid[i][0]], type);
-  }
-}
-
-void ConvertVectors2VertexAttr(VertexAttr& attr, const Eigen::Vector3f& pos,
-                               const Eigen::Vector3f& normal,
-                               const Eigen::Vector3f& color,
-                               const Eigen::Vector2f& uv, ugu::QSlimType type) {
-  if (type == ugu::QSlimType::XYZ) {
-    attr.resize(3, 1);
-    attr[0] = pos[0];
-    attr[1] = pos[1];
-    attr[2] = pos[2];
-
-  } else if (type == ugu::QSlimType::XYZ_UV) {
-    attr.resize(5, 1);
-    attr[0] = pos[0];
-    attr[1] = pos[1];
-    attr[2] = pos[2];
-
-    attr[3] = uv[0];
-    attr[4] = uv[1];
-  }
-}
-
-void ConvertVectors2VertexAttrs(
-    VertexAttrsPtr attrs, const std::vector<Eigen::Vector3f>& vertices,
-    const std::vector<Eigen::Vector3f>& normals,
-    const std::vector<Eigen::Vector3f>& vertex_colors,
-    const std::vector<Eigen::Vector2f>& uv,
-    const std::vector<std::vector<int32_t>>& vid2uvid, ugu::QSlimType type) {
-  size_t vnum = attrs->size();
-  for (size_t i = 0; i < vnum; i++) {
-    ConvertVectors2VertexAttr(attrs->at(i), vertices[i], normals[i],
-                              vertex_colors[i], uv[vid2uvid[i][0]], type);
-  }
-}
-
-using Quadric = Eigen::MatrixXd;
+using Quadric = Eigen::Matrix4d;
 using Quadrics = std::vector<Quadric>;
 using QuadricPtr = std::shared_ptr<Quadric>;
 using QuadricsPtr = std::shared_ptr<Quadrics>;
 
-bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
-                                const VertexAttr& v2, const Quadric& q2,
-                                VertexAttr& v, double& error) {
+bool ComputeOptimalConstraction(const VertexPos& v1, const Quadric& q1,
+                                const VertexPos& v2, const Quadric& q2,
+                                VertexPos& v, double& error) {
   auto org_size = v1.rows();
-  // VertexAttr zero(org_size  + 1);
+  // VertexPos zero(org_size  + 1);
   // zero.setZero();
   // zero[zero.size() - 1] = 1.0;
 
   bool ret = true;
 
   const Quadric q = q1 + q2;
-  const Eigen::MatrixXd& A = q.topLeftCorner(org_size, org_size);
-  const VertexAttr& b = q.topRightCorner(org_size, 1);
+  const Eigen::Matrix3d& A = q.topLeftCorner(org_size, org_size);
+  const Eigen::Vector3d& b = q.topRightCorner(org_size, 1);
   const double c = q(org_size, org_size);
   if (std::abs(q.determinant()) < 0.00001) {
     // Not ivertible case
     ret = false;
 
     // Select best one from v1, v2 and (v1+v2)/2
-    std::array<VertexAttr, 3> candidates = {v1, v2, (v1 + v2) * 0.5};
+    std::array<VertexPos, 3> candidates = {v1, v2, (v1 + v2) * 0.5};
     double min_error = std::numeric_limits<double>::max();
-    VertexAttr min_vert = v1;
+    VertexPos min_vert = v1;
 
     for (int i = 0; i < 3; i++) {
       double vav = candidates[i].transpose() * A * candidates[i];
@@ -213,10 +96,10 @@ struct QSlimEdgeInfo {
   // QSlimEdge org_edge = {-1, -1};
   double error = std::numeric_limits<double>::max();
   QuadricsPtr quadrics;
-  VertexAttrsPtr vert_attrs;
-  VertexAttr decimated_v;
+  VertexPosListPtr vert_attrs;
+  VertexPos decimated_v;
   bool keep_this_edge = false;
-  QSlimEdgeInfo(QSlimEdge edge_, VertexAttrsPtr vert_attrs_,
+  QSlimEdgeInfo(QSlimEdge edge_, VertexPosListPtr vert_attrs_,
                 QuadricsPtr quadrics_, bool keep_this_edge_) {
     edge = edge_;
     // org_vid = org_vid_;
@@ -487,148 +370,52 @@ struct DecimatedMesh {
     // unified_boundary_vertex_ids.erase(vid);
   }
 
-  bool CollapseEdge(
-      int32_t v1, int32_t v2, const Eigen::Vector3f& new_pos,
-      Eigen::Vector2f& new_uv, bool update_vertex = false,
-      const Eigen::Vector3f& new_normal = Eigen::Vector3f::Zero(),
-      const Eigen::Vector3f& new_color = Eigen::Vector3f::Zero()) {
+  bool CollapseEdge(int32_t v1, int32_t v2, const Eigen::Vector3f& new_pos) {
     // std::cout << "decimate " << v1 << " " << v2 << std::endl;
 
     // Get faces connecting the 2 vertices (A, B)
     auto [union_fids, intersection, no_intersection] =
         FacesContactingEdges(v1, v2);
 
-#if 0
-				    // Ignore some vids
-    for (const auto& vid : ignore_vids) {
-      union_fids.erase(vid);
-      intersection.erase(vid);
-      no_intersection.erase(vid);
-    }
-
-#endif  // 0
-
     std::unordered_set<int32_t> to_remove_face_ids = std::move(intersection);
     std::unordered_set<int32_t> to_keep_face_ids = std::move(no_intersection);
 
+    assert(to_remove_face_ids.size() == 2);
+
+    // Vertex attribute generation
+    Eigen::Vector3f new_color;
+    Eigen::Vector3f new_normal;
+    Eigen::Vector2f new_uv;
+    int32_t interp_fid = *to_remove_face_ids.begin();
+    int32_t vid0 = vertex_indices[interp_fid][0];
+    int32_t vid1 = vertex_indices[interp_fid][1];
+    int32_t vid2 = vertex_indices[interp_fid][2];
+    int32_t v1_index_pos = -1;
+    if (vid0 == v1) {
+      v1_index_pos = 0;
+    } else if (vid1 == v1) {
+      v1_index_pos = 1;
+    } else if (vid2 == v1) {
+      v1_index_pos = 2;
+    }
+    assert(v1_index_pos >= 0);
+
+    auto [u, v, w] = ugu::Barycentric(new_pos, vertices[vid0], vertices[vid1],
+                                      vertices[vid2]);
+
+    new_color = u * vertex_colors[vid0] + v * vertex_colors[vid1] +
+                w * vertex_colors[vid2];
+    new_normal = (u * normals[vid0] + v * normals[vid1] + w * normals[vid2])
+                     .normalized();
     if (use_uv) {
-#if 0
-      // Update new_uv
-      {
+      int32_t uvid0 = uv_indices[interp_fid][0];
+      int32_t uvid1 = uv_indices[interp_fid][1];
+      int32_t uvid2 = uv_indices[interp_fid][2];
 
-     const int32_t uv1 = vid2uvid[v1][0];
-        const int32_t uv2 = vid2uvid[v2][0];
-        assert(vid2uvid[v1].size() == 1);
-        assert(vid2uvid[v2].size() == 1);
-        const int32_t fid = *to_remove_face_ids.begin();
-
-        // std::unordered_map<int32_t, std::array<Eigen::Vector3f, 3>> fid_v;
-        //  std::unordered_map<int32_t, std::array<Eigen::Vector2f, 3>> fid_uv;
-
-        int32_t vid0 = vertex_indices[fid][0];
-        int32_t vid1 = vertex_indices[fid][1];
-        int32_t vid2 = vertex_indices[fid][2];
-
-#if 0
-				        if (vid0 == v2) {
-          vid0 = v1;
-        }
-        if (vid1 == v2) {
-          vid1 = v1;
-        }
-        if (vid2 == v2) {
-          vid2 = v1;
-        }
-
-#endif  // 0
-
-
-        Eigen::Vector3f vpos0 = vertices[vid0];
-        Eigen::Vector3f vpos1 = vertices[vid1];
-        Eigen::Vector3f vpos2 = vertices[vid2];
-
-#if 0
-				        if (v1 == vid0) {
-          vpos0 = new_pos;
-        }
-
-        if (v1 == vid1) {
-          vpos1 = new_pos;
-        }
-
-        if (v1 == vid2) {
-          vpos2 = new_pos;
-        }
-#endif  // 0
-
-
-        int32_t uvid0 = uv_indices[fid][0];
-        int32_t uvid1 = uv_indices[fid][1];
-        int32_t uvid2 = uv_indices[fid][2];
-
-#if 0
-				        if (uvid0 == uv2) {
-          uvid0 = uv1;
-        }
-        if (uvid1 == uv2) {
-          uvid1 = uv1;
-        }
-        if (vid2 == uv2) {
-          uvid2 = uv1;
-        }
-
-#endif  // 0
-
-        Eigen::Vector2f uvpos0 = uv[uvid0];
-        Eigen::Vector2f uvpos1 = uv[uvid1];
-        Eigen::Vector2f uvpos2 = uv[uvid2];
-#if 0
-				
-        if (uv1 == uvid0) {
-          uvpos0 = new_uv;
-        }
-
-        if (uv1 == uvid1) {
-          uvpos1 = new_uv;
-        }
-
-        if (uv1 == uvid2) {
-          uvpos2 = new_uv;
-        }
-
-#endif  // 0
-
-        float area = ugu::TriArea(
-            vpos0, vpos1, vpos2);  // ugu::EdgeFunction(vpos0, vpos1, vpos2);
-        if (std::abs(area) < std::numeric_limits<float>::min()) {
-          area = area > 0 ? std::numeric_limits<float>::min()
-                          : -std::numeric_limits<float>::min();
-        }
-        float inv_area = 1.0f / area;
-
-        float w0 = ugu::TriArea(vpos1, vpos2, new_pos);
-        float w1 = ugu::TriArea(vpos2, vpos0, new_pos);
-        float w2 = ugu::TriArea(vpos0, vpos1, new_pos);
-
-        // Barycentric in the target triangle
-        w0 *= inv_area;
-        w1 *= inv_area;
-        w2 *= inv_area;
-
-        // Barycentric coordinate should be positive inside of the triangle
-        // Skip outside of the target triangle
-        if (w0 < 0 || w1 < 0 || w2 < 0) {
-          // continue;
-        }
-
-        // Barycentric to interpolate color
-      //std::cout << "before "  << new_uv << std::endl;
-       new_uv = w0 * uvpos0 + w1 * uvpos1 + w2 * uvpos2;
-      //std::cout << "after " << new_uv << std::endl << std::endl;
-      }
-#endif  // 0
+      new_uv = u * uv[uvid0] + v * uv[uvid1] + w * uv[uvid2];
     }
 
+    // Validation before collapse
     // Ensure normal is not flipped
     for (const auto& fid : to_keep_face_ids) {
       int32_t vid0 = vertex_indices[fid][0];
@@ -672,324 +459,73 @@ struct DecimatedMesh {
       // Skip if normal is fiipped
       Eigen::Vector3f face_n = v10.cross(v20).normalized();
       if (face_n.dot(normals[v1]) < 0.0) {
-        // std::swap(vertex_indices[fid][1], vertex_indices[fid][2]);
         return false;
       }
-
-#if 0
-				      if (use_uv) {
-#if 1
-				        const int32_t uv1 = vid2uvid[v1][0];
-        const int32_t uv2 = vid2uvid[v2][0];
-        assert(vid2uvid[v1].size() == 1);
-        assert(vid2uvid[v2].size() == 1);
-        int32_t uvid0 = uv_indices[fid][0];  // uv[vid2uvid[vid0][0]];
-        int32_t uvid1 = uv_indices[fid][1];
-        int32_t uvid2 = uv_indices[fid][2];
-
-#if 0
-				        float w0 = ugu::EdgeFunction(uv[uvid1], uv[uvid2], new_uv);
-        float w1 = ugu::EdgeFunction(uv[uvid2], uv[uvid0], new_uv);
-        float w2 = ugu::EdgeFunction(uv[uvid0], uv[uvid1], new_uv);
-        // Barycentric in the target triangle
-        // w0 *= inv_area;
-        // w1 *= inv_area;
-        // w2 *= inv_area;
-
-        // Barycentric coordinate should be positive inside of the triangle
-        // Skip outside of the target triangle
-        if (std::abs(w0) > 1e-3 && std::abs(w1) > 1e-3 && std::abs(w2) > 1e-3)
-        if ((w0 < 0 && w1 < 0 && w2 < 0) || (w0 > 0 && w1 > 0 && w2 > 0)) {
-          // return false;
-        } else {
-          std::cout << w0 << " " << w1 << " " << w2 << std::endl << std::endl;
-          return false;
-        }
-#endif  // 0
-
-
-
-        const float area = ugu::EdgeFunction(uv[uvid0], uv[uvid1], uv[uvid2]); 
-       // const float inv_area = 1.f / area;
-
-
-        if (uvid0 == uv2) {
-          uvid0 = uv1;
-        }
-        if (uvid1 == uv2) {
-          uvid1 = uv1;
-        }
-        if (uvid2 == uv2) {
-          uvid2 = uv1;
-        }
-
-        Eigen::Vector2f uvpos0 = uv[uvid0];
-        Eigen::Vector2f uvpos1 = uv[uvid1];
-        Eigen::Vector2f uvpos2 = uv[uvid2];
-
-
-        if (uv1 == uvid0) {
-          uvpos0 = new_uv;
-        }
-
-        if (uv1 == uvid1) {
-          uvpos1 = new_uv;
-        }
-
-        if (uv1 == uvid2) {
-          uvpos2 = new_uv;
-        }
-
-        Eigen::Vector2f uv10 = (uvpos1 - uvpos0).normalized();
-        Eigen::Vector2f uv20 = (uvpos2 - uvpos0).normalized();
-        if (std::abs(uv10.dot(uv20)) > 0.999999f) {
-            return false;
-        }
-
-#if 1
-				        float cross_update =
-            ugu::EdgeFunction(uvpos0, uvpos1, uvpos2);  // uv10.cross(uv20);
-       //if (cross_update < 0) {
-       //   return false;
-      // }
-        if ((area > 0 && cross_update < 0) ||
-            (area < 0 && cross_update > 0)) {
-          return false;
-        }
-#endif  // 0
-
-#endif  // 0
-
-
-      }
-#endif  // 0
     }
 
-#if 0
-				    if (use_uv) {
-#if 1
-      const int32_t uv1 = vid2uvid[v1][0];
-      const int32_t uv2 = vid2uvid[v2][0];
-      Eigen::Vector2f uvpos1 = uv[uv1];
-      Eigen::Vector2f uvpos2 = uv[uv2];
+    // Update vertex attributes
+    vertex_colors[v1] = new_color;
+    normals[v1] = new_normal;
+    vertices[v1] = new_pos;
+    uv[uv_indices[interp_fid][v1_index_pos]] = new_uv;
 
-      Eigen::Vector2f direc = (uvpos2 - uvpos1).normalized();
+    // Update vertex/uv id in face
+    {
+      // Replace of B among the faces with A
+      for (const auto& fid : to_keep_face_ids) {
+        for (int32_t i = 0; i < 3; i++) {
+          int32_t& vid = vertex_indices[fid][i];
+          if (vid == v2) {
+            vid = v1;
+          }
+          assert(valid_faces[fid]);
 
-      Eigen::Vector2f diff = (new_uv - uvpos1);
+          if (use_uv) {
+            const int32_t& uvid1 = vid2uvid[v1][0];
 
-      if (diff.norm() > 0.000001f) {
-        float tx = diff.x() / direc.x();
-        float ty = diff.y() / direc.y();
-
-        // if (std::abs(tx - ty) > 1e-3 ||(tx < 0 || 1 < tx) || (ty < 0 || 1 <
-        // ty)) {
-        // return false;
-        // }
-
-        bool on_line = (std::abs(tx - ty) < 1e-5) && (0 <= tx || tx <= 1);
-
-        if (!on_line) {
-          int32_t on_count = 0;
-          for (const auto& fid : to_remove_face_ids) {
-            // const int32_t uv1 = vid2uvid[v1][0];
-            // const int32_t uv2 = vid2uvid[v2][0];
-            // assert(vid2uvid[v1].size() == 1);
-            // assert(vid2uvid[v2].size() == 1);
-            int32_t uvid0 = uv_indices[fid][0];  // uv[vid2uvid[vid0][0]];
-            int32_t uvid1 = uv_indices[fid][1];
-            int32_t uvid2 = uv_indices[fid][2];
-
-            float w0 = ugu::EdgeFunction(uv[uvid1], uv[uvid2], new_uv);
-            float w1 = ugu::EdgeFunction(uv[uvid2], uv[uvid0], new_uv);
-            float w2 = ugu::EdgeFunction(uv[uvid0], uv[uvid1], new_uv);
-            // Barycentric in the target triangle
-            // w0 *= inv_area;
-            // w1 *= inv_area;
-            // w2 *= inv_area;
-
-            // Barycentric coordinate should be positive inside of the triangle
-            // Skip outside of the target triangle
-            // if (std::abs(w0) > 1e-3 && std::abs(w1) > 1e-3 && std::abs(w2) >
-            // 1e-3)
-            if ((w0 < 0 && w1 < 0 && w2 < 0) || (w0 > 0 && w1 > 0 && w2 > 0)) {
-              // return false;
-              on_count++;
-              break;
-            } else {
-              //   std::cout << w0 << " " << w1 << " " << w2 << std::endl <<
-              //   std::endl;
-              // return false;
-              // not_on_count++;
+            // We ignore boundary uv
+            // So #uv should be always 1
+            if (vid2uvid[v1].size() != 1) {
+              throw std::runtime_error("");
+            }
+            const int32_t& uvid2 = vid2uvid[v2][0];
+            if (vid2uvid[v2].size() != 1) {
+              throw std::runtime_error("");
+            }
+            int32_t& uvid = uv_indices[fid][i];
+            if (uvid == uvid2) {
+              uvid = uvid1;
             }
           }
-
-          if (on_count < 1) {
-            return false;
-          }
-        }
-      }
-#endif  // 1
-    }
-#endif  // 0
-
-    if (use_uv) {
-      double sum_rad = 0.0;
-      const int32_t uv1 = vid2uvid[v1][0];
-      const int32_t uv2 = vid2uvid[v2][0];
-      assert(vid2uvid[v1].size() == 1);
-      assert(vid2uvid[v2].size() == 1);
-
-      for (const auto& fid : to_keep_face_ids) {
-#if 0
-				        int32_t uvid0 = uv_indices[fid][0]; 
-        int32_t uvid1 = uv_indices[fid][1];
-        int32_t uvid2 = uv_indices[fid][2];
-        std::vector<int32_t> uvids;
-        int new_uv_index = 0;
-        if (uvid0 != uv1 && uvid0 != uv2) {
-          uvids.push_back(uvid0);
-        }
-        if (uvid1 != uv1 && uvid1 != uv2) {
-          uvids.push_back(uvid1);
-        }
-        if (uvid2 != uv1 && uvid2 != uv2) {
-          uvids.push_back(uvid2);
-        }
-
-        Eigen::Vector2f uvpos0 = uv[uvids[0]];
-        Eigen::Vector2f uvpos1 = uv[uvids[1]];
-#endif  // 0
-        int32_t uvid0 = uv_indices[fid][0];
-        int32_t uvid1 = uv_indices[fid][1];
-        int32_t uvid2 = uv_indices[fid][2];
-        Eigen::Vector2f uvpos0 = uv[uvid0];
-        Eigen::Vector2f uvpos1 = uv[uvid1];
-        Eigen::Vector2f uvpos2 = uv[uvid2];
-        std::array<Eigen::Vector2f, 3> uv_tri{uvpos0, uvpos1, uvpos2};
-        int32_t new_uv_index = 0;
-        std::vector<int32_t> uvids;
-        if (uvid0 == uv1 || uvid0 == uv2) {
-          new_uv_index = 0;
-        } else {
-          uvids.push_back(0);
-        }
-        if (uvid1 == uv1 || uvid1 == uv2) {
-          new_uv_index = 1;
-        } else {
-          uvids.push_back(1);
-        }
-        if (uvid2 == uv1 || uvid2 == uv2) {
-          new_uv_index = 2;
-        } else {
-          uvids.push_back(2);
-        }
-
-        float w_org = ugu::EdgeFunction(uv_tri[0], uv_tri[1], uv_tri[2]);
-
-        uv_tri[new_uv_index] = new_uv;
-
-        float w_update = ugu::EdgeFunction(uv_tri[0], uv_tri[1], uv_tri[2]);
-        float sign = w_org * w_update >= 0 ? 1.f : -1.f;
-
-        if (sign < 0) {
-          // return false;
-        }
-
-        Eigen::Vector2f uv10 = (uv_tri[uvids[0]] - new_uv).normalized();
-        Eigen::Vector2f uv20 = (uv_tri[uvids[1]] - new_uv).normalized();
-
-        if (std::abs(uv10.dot(uv20)) > 0.999999f) {
-          // return false;
-        }
-
-        sum_rad += sign * std::acos(uv10.dot(uv20));
-      }
-
-      if (ugu::radians(359.0) > sum_rad) {
-        // return false;
-      }
-    }
-
-    // Replace of B among the faces with A
-    for (const auto& fid : to_keep_face_ids) {
-      for (int32_t i = 0; i < 3; i++) {
-        int32_t& vid = vertex_indices[fid][i];
-        if (vid == v2) {
-          vid = v1;
-        }
-        assert(valid_faces[fid]);
-
-        if (use_uv) {
-          const int32_t& uvid1 = vid2uvid[v1][0];
-
-          // We ignore boundary uv
-          // So #uv should be always 1
-          if (vid2uvid[v1].size() != 1) {
-            throw std::runtime_error("");
-          }
-          const int32_t& uvid2 = vid2uvid[v2][0];
-          if (vid2uvid[v2].size() != 1) {
-            throw std::runtime_error("");
-          }
-          int32_t& uvid = uv_indices[fid][i];
-          if (uvid == uvid2) {
-            uvid = uvid1;
-          }
         }
       }
     }
 
-    // Update the vertex A's attribute by new ones
-    // valid_vertices[v1] = true;
-    if (update_vertex) {
-      vertices[v1] = new_pos;
-      normals[v1] = new_normal;
-      vertex_colors[v1] = new_color;
-      if (use_uv) {
-        uv[vid2uvid[v1][0]] = new_uv;
+    // Update topology
+    {
+      // Remove 2 faces which share edge A-B from the faces
+      for (const auto& fid : to_remove_face_ids) {
+        RemoveFace(fid);
       }
+
+      // Merge v2f of B to A
+      std::copy(v2f[v2].begin(), v2f[v2].end(), std::back_inserter(v2f[v1]));
+      std::sort(v2f[v1].begin(), v2f[v1].end());
+      auto result = std::unique(v2f[v1].begin(), v2f[v1].end());
+      v2f[v1].erase(result, v2f[v1].end());
+
+      // Remove the vertex B with older id
+      RemoveVertex(v2);
     }
-
-    // Remove 2 faces which share edge A-B from the faces
-    for (const auto& fid : to_remove_face_ids) {
-      RemoveFace(fid);
-    }
-
-    // Merge v2f of B to A
-    std::copy(v2f[v2].begin(), v2f[v2].end(), std::back_inserter(v2f[v1]));
-    std::sort(v2f[v1].begin(), v2f[v1].end());
-    auto result = std::unique(v2f[v1].begin(), v2f[v1].end());
-    v2f[v1].erase(result, v2f[v1].end());
-
-    // Remove the vertex B with older id
-    RemoveVertex(v2);
 
     return true;
   }
 
-  void Finalize(VertexAttrsPtr vert_attrs, ugu::QSlimType type) {
-    auto org_uv = mesh->uv();
-
-    ConvertVertexAttrs2Vectors(vert_attrs, vertices, normals, vertex_colors,
-                               mesh->uv(), uv, vid2uvid, type);
-
-#if 0
-    for (size_t i = 0; i < valid_vertices.size(); i++) {
-      if (vid2uvid[i].size() > 1) {
-        for (size_t j = 1; j < vid2uvid[i].size(); j++) {
-          const auto uvid = vid2uvid[i][j];
-          if (ignore_uv_ids.count(uvid) > 0) {
-            valid_uvs[uvid] = true;
-            uv[uvid] = org_uv[uvid];
-          }
-        }
-      }
-    }
-#endif  // 0
-
-    // std::fill(valid_uvs.begin(), valid_uvs.end(), true);
-
-    // std::fill(valid_uv_faces.begin(), valid_uv_faces.end(), true);
+  void Finalize(VertexPosListPtr vert_attrs, ugu::QSlimType type) {
+    vertices.clear();
+    std::transform(vert_attrs->begin(), vert_attrs->end(),
+                   std::back_inserter(vertices),
+                   [&](const VertexPos& p) { return p.cast<float>(); });
 
     Finalize();
   }
@@ -1149,22 +685,22 @@ struct DecimatedMesh {
 
 struct QSlimHandler {
   QuadricsPtr quadrics;
-  VertexAttrsPtr vert_attrs;
+  VertexPosListPtr vert_attrs;
   ugu::QSlimType type;
 
   Quadric ComputeInitialQuadric(int32_t vid0, int32_t vid1, int32_t vid2) {
     // Same notation to the paper
-    const VertexAttr& p = vert_attrs->at(vid0);
-    const VertexAttr& q = vert_attrs->at(vid1);
-    const VertexAttr& r = vert_attrs->at(vid2);
+    const VertexPos& p = vert_attrs->at(vid0);
+    const VertexPos& q = vert_attrs->at(vid1);
+    const VertexPos& r = vert_attrs->at(vid2);
 
-    VertexAttr e1 = (q - p).normalized();
-    VertexAttr e2 = (r - p - e1.dot(r - p) * e1).normalized();
+    VertexPos e1 = (q - p).normalized();
+    VertexPos e2 = (r - p - e1.dot(r - p) * e1).normalized();
 
     const Eigen::Index A_size = vert_attrs->at(vid0).rows();
     Eigen::MatrixXd A = Eigen::MatrixXd::Identity(A_size, A_size) -
                         e1 * e1.transpose() - e2 * e2.transpose();
-    const VertexAttr b = p.dot(e1) * e1 + p.dot(e2) * e2 - p;
+    const VertexPos b = p.dot(e1) * e1 + p.dot(e2) * e2 - p;
     const double pe1 = p.dot(e1);
     const double pe2 = p.dot(e2);
     const double c = p.dot(p) - pe1 * pe1 - pe2 * pe2;
@@ -1204,13 +740,14 @@ struct QSlimHandler {
                           ugu::QSlimType type) {
     this->type = type;
     quadrics = std::make_shared<Quadrics>();
-    vert_attrs = std::make_shared<VertexAttrs>();
+    vert_attrs = std::make_shared<VertexPosList>();
 
-    vert_attrs->resize(mesh.vertices.size());
+    // vert_attrs->resize(mesh.vertices.size());
     quadrics->resize(mesh.vertices.size());
 
-    ConvertVectors2VertexAttrs(vert_attrs, mesh.vertices, mesh.normals,
-                               mesh.vertex_colors, mesh.uv, vid2uvid, type);
+    std::transform(mesh.vertices.begin(), mesh.vertices.end(),
+                   std::back_inserter(*vert_attrs),
+                   [&](const Eigen::Vector3f& p) { return p.cast<double>(); });
 
     const Eigen::Index qsize = vert_attrs->at(0).rows() + 1;
     for (auto& q : *quadrics) {
@@ -1254,7 +791,7 @@ std::pair<std::set<QSlimEdge>, std::unordered_set<int32_t>> PrepareValidEdges(
     for (const auto& uv_vid : unified_boundary_uv_ids) {
       invalid_vids.insert(uvid2vid.at(uv_vid));
     }
-#if 1
+#if 0
     std::unordered_set<int32_t> neigbor_vids;
     for (const auto& uv_vid : unified_boundary_uv_ids) {
       for (const auto& fid : v2f.at(uvid2vid[uv_vid])) {
@@ -1317,54 +854,12 @@ std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
   int32_t v2 = e.edge.second;
   std::vector<QSlimEdgeInfo> new_edges;
   // Update topology
-  Eigen::Vector3f new_pos =
-      handler.vert_attrs->at(v1).block(0, 0, 3, 1).cast<float>();
-  Eigen::Vector2f new_uv;
-#if 0
-				  if (mesh.use_uv) {
-    if (type == ugu::QSlimType::XYZ_UV) {
-      new_uv = handler.vert_attrs->at(v1).block(3, 0, 2, 1).cast<float>();
+  VertexPos& new_pos = handler.vert_attrs->at(v1);
 
-      auto uv1 = mesh.vid2uvid[v1][0];
-
-      float area =
-          ugu::EdgeFunction(target_tri[0], target_tri[1], target_tri[2]);
-      if (std::abs(area) < std::numeric_limits<float>::min()) {
-        area = area > 0 ? std::numeric_limits<float>::min()
-                        : -std::numeric_limits<float>::min();
-      }
-      float inv_area = 1.0f / area;
-
-      float w0 = ugu::EdgeFunction(target_tri[1], target_tri[2], new_uv);
-      float w1 = ugu::EdgeFunction(target_tri[2], target_tri[0], new_uv);
-      float w2 = ugu::EdgeFunction(target_tri[0], target_tri[1], new_uv);
-      // Barycentric in the target triangle
-      w0 *= inv_area;
-      w1 *= inv_area;
-      w2 *= inv_area;
-
-      // Barycentric coordinate should be positive inside of the triangle
-      // Skip outside of the target triangle
-      if (w0 < 0 || w1 < 0 || w2 < 0) {
-        continue;
-      }
-
-      // Barycentric to interpolate color
-      new_uv = w0 * src_uv[0] + w1 * src_uv[1] + w2 * src_uv[2];
-
-      handler.vert_attrs->at(v1).block(3, 0, 2, 1) = new_uv;
-    }
-  }
-#endif  // 0
-  if (mesh.use_uv) {
-    new_uv = handler.vert_attrs->at(v1).block(3, 0, 2, 1).cast<float>();
-  }
-
-  bool ret = mesh.CollapseEdge(v1, v2, new_pos, new_uv);
+  bool ret = mesh.CollapseEdge(v1, v2, new_pos.cast<float>());
   if (!ret) {
     return {false, new_edges};
   }
-  handler.vert_attrs->at(v1).block(3, 0, 2, 1) = new_uv.cast<double>();
 
   // Update vertex attributes and quadrics
   handler.quadrics->at(v1) =
@@ -1462,8 +957,7 @@ bool RandomDecimation(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     new_pos =
         0.5f * (decimated_mesh.vertices[vid1] + decimated_mesh.vertices[vid2]);
 
-    decimated_mesh.CollapseEdge(vid1, vid2, new_pos, new_uv, true, new_normal,
-                                new_color);
+    decimated_mesh.CollapseEdge(vid1, vid2, new_pos);
 
     std::cout << decimated_mesh.FaceNum() << " " << decimated_mesh.VertexNum()
               << std::endl;
