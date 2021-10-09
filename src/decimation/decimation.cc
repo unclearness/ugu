@@ -29,37 +29,154 @@ QSlimEdge MakeQSlimEdge(int32_t v0, int32_t v1) {
   return QSlimEdge(v1, v0);
 }
 
-using VertexPos = Eigen::Vector3d;
-using VertexPosList = std::vector<VertexPos>;
-using VertexPosListPtr = std::shared_ptr<VertexPosList>;
+using VertexAttr = Eigen::VectorXd;
+using VertexAttrList = std::vector<VertexAttr>;
+using VertexAttrListPtr = std::shared_ptr<VertexAttrList>;
 
-using Quadric = Eigen::Matrix4d;
+struct UniqueVertex {
+  int32_t vid = -1;
+  int32_t uvid = -1;
+  UniqueVertex() {}
+  ~UniqueVertex() {}
+
+  UniqueVertex(int32_t vid, int32_t uvid) : vid(vid), uvid(uvid) {}
+
+  bool operator<(const UniqueVertex& obj) const {
+    if (vid != obj.vid) {
+      return vid < obj.vid;
+    }
+    return uvid != obj.uvid;
+  }
+
+  bool operator==(const UniqueVertex& obj) const {
+    return vid == obj.vid && uvid == obj.uvid;
+  }
+};
+
+std::pair<std::vector<UniqueVertex>,
+    std::unordered_map<int32_t, std::vector<int32_t>>> GenerateUniqueVertices(
+    const std::vector<Eigen::Vector3i>& vertex_indices,
+    const std::vector<Eigen::Vector3i>& uv_indices) {
+  std::vector<UniqueVertex> unique_vertices;
+  std::unordered_map<int32_t, std::vector<int32_t>> vid2unique;
+
+  for (size_t i = 0; i < vertex_indices.size(); i++) {
+    for (int32_t j = 0; j < 3; j++) {
+      unique_vertices.push_back(
+          UniqueVertex(vertex_indices[i][j], uv_indices[i][j]));
+    }
+  }
+
+  auto res = std::unique(unique_vertices.begin(), unique_vertices.end());
+  unique_vertices.erase(res, unique_vertices.end());
+  for (size_t i = 0; i < unique_vertices.size(); i++) {
+    const auto& u = unique_vertices[i];
+    vid2unique[u.vid].push_back(static_cast<int32_t>(i));
+  }
+
+  return {unique_vertices, vid2unique};
+}
+
+void ConvertVertexAttr2Vectors(const VertexAttr& attr, Eigen::Vector3f& new_pos,
+                               Eigen::Vector3f& new_normal,
+                               Eigen::Vector3f& new_color,
+                               Eigen::Vector2f& new_uv, ugu::QSlimType type) {
+  if (type == ugu::QSlimType::XYZ) {
+    new_pos[0] = attr[0];
+    new_pos[1] = attr[1];
+    new_pos[2] = attr[2];
+
+  } else if (type == ugu::QSlimType::XYZ_UV) {
+    new_pos[0] = attr[0];
+    new_pos[1] = attr[1];
+    new_pos[2] = attr[2];
+
+    new_uv[0] = attr[3];
+    new_uv[1] = attr[4];
+  }
+}
+
+void ConvertVertexAttrs2Vectors(
+    const VertexAttrListPtr attrs,
+    const std::vector<UniqueVertex>& unique_vertices,
+    std::vector<Eigen::Vector3f>& vertices,
+    std::vector<Eigen::Vector3f>& normals,
+    std::vector<Eigen::Vector3f>& vertex_colors,
+    std::vector<Eigen::Vector2f>& uv, ugu::QSlimType type) {
+  size_t vnum = attrs->size();
+  for (size_t i = 0; i < vnum; i++) {
+    auto unique_v = unique_vertices[i];
+    auto vid = unique_v.vid;
+    auto uvid = unique_v.uvid;
+    ConvertVertexAttr2Vectors(attrs->at(i), vertices[vid], normals[vid],
+                              vertex_colors[vid], uv[uvid], type);
+  }
+}
+
+void ConvertVectors2VertexAttr(VertexAttr& attr, const Eigen::Vector3f& pos,
+                               const Eigen::Vector3f& normal,
+                               const Eigen::Vector3f& color,
+                               const Eigen::Vector2f& uv, ugu::QSlimType type) {
+  if (type == ugu::QSlimType::XYZ) {
+    attr.resize(3, 1);
+    attr[0] = pos[0];
+    attr[1] = pos[1];
+    attr[2] = pos[2];
+
+  } else if (type == ugu::QSlimType::XYZ_UV) {
+    attr.resize(5, 1);
+    attr[0] = pos[0];
+    attr[1] = pos[1];
+    attr[2] = pos[2];
+
+    attr[3] = uv[0];
+    attr[4] = uv[1];
+  }
+}
+
+void ConvertVectors2VertexAttrs(
+    VertexAttrListPtr attrs, const std::vector<UniqueVertex>& unique_vertices,
+    const std::vector<Eigen::Vector3f>& vertices,
+    const std::vector<Eigen::Vector3f>& normals,
+    const std::vector<Eigen::Vector3f>& vertex_colors,
+    const std::vector<Eigen::Vector2f>& uv, ugu::QSlimType type) {
+  size_t vnum = attrs->size();
+  for (size_t i = 0; i < vnum; i++) {
+    auto unique_v = unique_vertices[i];
+    auto vid = unique_v.vid;
+    auto uvid = unique_v.uvid;
+    ConvertVectors2VertexAttr(attrs->at(i), vertices[vid], normals[vid],
+                              vertex_colors[vid], uv[uvid], type);
+  }
+}
+
+using Quadric = Eigen::MatrixXd;
 using Quadrics = std::vector<Quadric>;
 using QuadricPtr = std::shared_ptr<Quadric>;
 using QuadricsPtr = std::shared_ptr<Quadrics>;
 
-bool ComputeOptimalConstraction(const VertexPos& v1, const Quadric& q1,
-                                const VertexPos& v2, const Quadric& q2,
-                                VertexPos& v, double& error) {
+bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
+                                const VertexAttr& v2, const Quadric& q2,
+                                VertexAttr& v, double& error) {
   auto org_size = v1.rows();
-  // VertexPos zero(org_size  + 1);
+  // VertexAttr zero(org_size  + 1);
   // zero.setZero();
   // zero[zero.size() - 1] = 1.0;
 
   bool ret = true;
 
   const Quadric q = q1 + q2;
-  const Eigen::Matrix3d& A = q.topLeftCorner(org_size, org_size);
-  const Eigen::Vector3d& b = q.topRightCorner(org_size, 1);
+  const Eigen::MatrixXd& A = q.topLeftCorner(org_size, org_size);
+  const Eigen::VectorXd& b = q.topRightCorner(org_size, 1);
   const double c = q(org_size, org_size);
   if (std::abs(q.determinant()) < 0.00001) {
     // Not ivertible case
     ret = false;
 
     // Select best one from v1, v2 and (v1+v2)/2
-    std::array<VertexPos, 3> candidates = {v1, v2, (v1 + v2) * 0.5};
+    std::array<VertexAttr, 3> candidates = {v1, v2, (v1 + v2) * 0.5};
     double min_error = std::numeric_limits<double>::max();
-    VertexPos min_vert = v1;
+    VertexAttr min_vert = v1;
 
     for (int i = 0; i < 3; i++) {
       double vav = candidates[i].transpose() * A * candidates[i];
@@ -96,10 +213,10 @@ struct QSlimEdgeInfo {
   // QSlimEdge org_edge = {-1, -1};
   double error = std::numeric_limits<double>::max();
   QuadricsPtr quadrics;
-  VertexPosListPtr vert_attrs;
-  VertexPos decimated_v;
+  VertexAttrListPtr vert_attrs;
+  VertexAttr decimated_v;
   bool keep_this_edge = false;
-  QSlimEdgeInfo(QSlimEdge edge_, VertexPosListPtr vert_attrs_,
+  QSlimEdgeInfo(QSlimEdge edge_, VertexAttrListPtr vert_attrs_,
                 QuadricsPtr quadrics_, bool keep_this_edge_) {
     edge = edge_;
     // org_vid = org_vid_;
@@ -370,7 +487,7 @@ struct DecimatedMesh {
     // unified_boundary_vertex_ids.erase(vid);
   }
 
-  bool CollapseEdge(int32_t v1, int32_t v2, const Eigen::Vector3f& new_pos) {
+  bool CollapseEdge(int32_t v1, int32_t v2, const VertexAttr& vertattr, ugu::QSlimType type) {
     // std::cout << "decimate " << v1 << " " << v2 << std::endl;
 
     // Get faces connecting the 2 vertices (A, B)
@@ -383,8 +500,7 @@ struct DecimatedMesh {
     assert(to_remove_face_ids.size() == 2);
 
     // Vertex attribute generation
-    Eigen::Vector3f new_color;
-    Eigen::Vector3f new_normal;
+    Eigen::Vector3f new_pos, new_color, new_normal;
     Eigen::Vector2f new_uv;
     int32_t interp_fid = *to_remove_face_ids.begin();
     int32_t vid0 = vertex_indices[interp_fid][0];
@@ -411,8 +527,26 @@ struct DecimatedMesh {
     assert(v1_index_pos >= 0);
     assert(v2_index_pos >= 0);
 
-    auto [u, v, w] = ugu::Barycentric(new_pos, vertices[vid0], vertices[vid1],
-                                      vertices[vid2]);
+    ConvertVertexAttr2Vectors(vertattr, new_pos, new_normal, new_color, new_uv, type);
+#if 0
+    // auto [u, v, w] = ugu::Barycentric(new_pos, vertices[vid0],
+    // vertices[vid1],
+    //                                  vertices[vid2]);
+
+    float area = ugu::TriArea(vertices[vid0], vertices[vid1], vertices[vid2]);
+    if (std::abs(area) < std::numeric_limits<float>::min()) {
+      area = area > 0 ? std::numeric_limits<float>::min()
+                      : -std::numeric_limits<float>::min();
+    }
+    float inv_area = 1.0f / area;
+
+    float u = ugu::TriArea(vertices[vid1], vertices[vid2], new_pos);
+    float v = ugu::TriArea(vertices[vid2], vertices[vid0], new_pos);
+    float w = ugu::TriArea(vertices[vid0], vertices[vid1], new_pos);
+    // Barycentric in the target triangle
+    u *= inv_area;
+    v *= inv_area;
+    w *= inv_area;
 
     new_color = u * vertex_colors[vid0] + v * vertex_colors[vid1] +
                 w * vertex_colors[vid2];
@@ -425,6 +559,8 @@ struct DecimatedMesh {
 
       new_uv = u * uv[uvid0] + v * uv[uvid1] + w * uv[uvid2];
     }
+#endif  // 0
+
 
     // Validation before collapse
     // Ensure normal is not flipped
@@ -575,11 +711,11 @@ struct DecimatedMesh {
     return true;
   }
 
-  void Finalize(VertexPosListPtr vert_attrs, ugu::QSlimType type) {
-    vertices.clear();
-    std::transform(vert_attrs->begin(), vert_attrs->end(),
-                   std::back_inserter(vertices),
-                   [&](const VertexPos& p) { return p.cast<float>(); });
+  void Finalize(VertexAttrListPtr vert_attrs,
+                const std::vector<UniqueVertex>& unique_vertices,
+                ugu::QSlimType type) {
+    ConvertVertexAttrs2Vectors(vert_attrs, unique_vertices, vertices, normals,
+                               vertex_colors, uv, type);
 
     Finalize();
   }
@@ -739,22 +875,24 @@ struct DecimatedMesh {
 
 struct QSlimHandler {
   QuadricsPtr quadrics;
-  VertexPosListPtr vert_attrs;
+  VertexAttrListPtr vert_attrs;
   ugu::QSlimType type;
+  std::vector<UniqueVertex> unique_vertices;
+  std::unordered_map<int32_t, std::vector<int32_t>> vid2unique;
 
   Quadric ComputeInitialQuadric(int32_t vid0, int32_t vid1, int32_t vid2) {
     // Same notation to the paper
-    const VertexPos& p = vert_attrs->at(vid0);
-    const VertexPos& q = vert_attrs->at(vid1);
-    const VertexPos& r = vert_attrs->at(vid2);
+    const VertexAttr& p = vert_attrs->at(vid0);
+    const VertexAttr& q = vert_attrs->at(vid1);
+    const VertexAttr& r = vert_attrs->at(vid2);
 
-    VertexPos e1 = (q - p).normalized();
-    VertexPos e2 = (r - p - e1.dot(r - p) * e1).normalized();
+    VertexAttr e1 = (q - p).normalized();
+    VertexAttr e2 = (r - p - e1.dot(r - p) * e1).normalized();
 
     const Eigen::Index A_size = vert_attrs->at(vid0).rows();
     Eigen::MatrixXd A = Eigen::MatrixXd::Identity(A_size, A_size) -
                         e1 * e1.transpose() - e2 * e2.transpose();
-    const VertexPos b = p.dot(e1) * e1 + p.dot(e2) * e2 - p;
+    const VertexAttr b = p.dot(e1) * e1 + p.dot(e2) * e2 - p;
     const double pe1 = p.dot(e1);
     const double pe2 = p.dot(e2);
     const double c = p.dot(p) - pe1 * pe1 - pe2 * pe2;
@@ -771,20 +909,33 @@ struct QSlimHandler {
     return Q;
   }
 
-  void ComputeInitialQuadric(int32_t vid,
+  void ComputeInitialQuadric(int32_t uniqid,
+                             int32_t vid,
                              const std::vector<int32_t>& neighbor_fids,
                              const std::vector<Eigen::Vector3i>& faces) {
-    for (const auto& fid : neighbor_fids) {
-      const auto face = faces[fid];
-      std::vector<int32_t> dst_vids;
+    //for (const auto& vid : uni)
 
+    for (const auto& fid : neighbor_fids) {
+      const auto& face = faces[fid];
+      //std::vector<int32_t> dst_vids;
+      std::vector<std::vector<int32_t>> dst_uniqids;
+      int32_t count = 0;
       for (int32_t i = 0; i < 3; i++) {
         if (face[i] != vid) {
-          dst_vids.push_back(face[i]);
+          std::vector<int32_t> dst_uniq;
+          for (const auto& uniqid_ : vid2unique[face[i]]) {
+            dst_uniq.push_back(uniqid_);
+          }
+          dst_uniqids.push_back(dst_uniq);
         }
       }
       // Summation for all faces (planes) connecting to a vertex
-      quadrics->at(vid) += ComputeInitialQuadric(vid, dst_vids[0], dst_vids[1]);
+      for (size_t j = 0; j < dst_uniqids[0].size(); j++) {
+        for (size_t k = 0; k < dst_uniqids[1].size(); k++) {
+          quadrics->at(uniqid) += ComputeInitialQuadric(
+              uniqid, dst_uniqids[0][j], dst_uniqids[1][k]);
+        }
+      }
     }
   }
 
@@ -794,14 +945,19 @@ struct QSlimHandler {
                           ugu::QSlimType type) {
     this->type = type;
     quadrics = std::make_shared<Quadrics>();
-    vert_attrs = std::make_shared<VertexPosList>();
+    vert_attrs = std::make_shared<VertexAttrList>();
 
-    // vert_attrs->resize(mesh.vertices.size());
-    quadrics->resize(mesh.vertices.size());
+    auto [unique_vertices_, vid2unique_] =
+        GenerateUniqueVertices(mesh.vertex_indices, mesh.uv_indices);
 
-    std::transform(mesh.vertices.begin(), mesh.vertices.end(),
-                   std::back_inserter(*vert_attrs),
-                   [&](const Eigen::Vector3f& p) { return p.cast<double>(); });
+    unique_vertices = std::move(unique_vertices_);
+    vid2unique = std::move(vid2unique_);
+
+    vert_attrs->resize(unique_vertices.size());
+    quadrics->resize(unique_vertices.size());
+
+    ConvertVectors2VertexAttrs(vert_attrs, unique_vertices, mesh.vertices,
+                               mesh.normals, mesh.vertex_colors, mesh.uv, type);
 
     const Eigen::Index qsize = vert_attrs->at(0).rows() + 1;
     for (auto& q : *quadrics) {
@@ -809,8 +965,10 @@ struct QSlimHandler {
       q.setZero();
     }
 
-    for (size_t i = 0; i < mesh.vertices.size(); i++) {
-      ComputeInitialQuadric(i, v2f.at(i), mesh.vertex_indices);
+    for (size_t i = 0; i < vert_attrs->size(); i++) {
+      ComputeInitialQuadric(
+          i, unique_vertices[i].vid, v2f.at(unique_vertices[i].vid),
+          mesh.vertex_indices);
     }
   }
 };
@@ -907,10 +1065,7 @@ std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
   int32_t v1 = e.edge.first;
   int32_t v2 = e.edge.second;
   std::vector<QSlimEdgeInfo> new_edges;
-  // Update topology
-  VertexPos& new_pos = handler.vert_attrs->at(v1);
-
-  bool ret = mesh.CollapseEdge(v1, v2, new_pos.cast<float>());
+  bool ret = mesh.CollapseEdge(v1, v2, e.decimated_v, type);
   if (!ret) {
     return {false, new_edges};
   }
@@ -923,6 +1078,8 @@ std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
   // Construct edges to add heap
   auto raw_edges = mesh.ConnectingEdges(v1);
   bool keep_this_edge = false;
+
+  // TODO: make unique vids
   for (const auto& e : raw_edges) {
     auto new_edge =
         QSlimEdgeInfo(e, handler.vert_attrs, handler.quadrics, keep_this_edge);
@@ -1011,7 +1168,7 @@ bool RandomDecimation(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     new_pos =
         0.5f * (decimated_mesh.vertices[vid1] + decimated_mesh.vertices[vid2]);
 
-    decimated_mesh.CollapseEdge(vid1, vid2, new_pos);
+    decimated_mesh.CollapseEdge(vid1, vid2, new_pos, type);
 
     std::cout << decimated_mesh.FaceNum() << " " << decimated_mesh.VertexNum()
               << std::endl;
@@ -1153,7 +1310,7 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
 
 #endif  // 0
 
-  decimated_mesh.Finalize(handler.vert_attrs, type);
+  decimated_mesh.Finalize(handler.vert_attrs, handler.unique_vertices, type);
 
   return true;
 }
