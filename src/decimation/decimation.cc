@@ -398,7 +398,18 @@ struct DecimatedMesh {
     } else if (vid2 == v1) {
       v1_index_pos = 2;
     }
+
+    int32_t v2_index_pos = -1;
+    if (vid0 == v2) {
+      v2_index_pos = 0;
+    } else if (vid1 == v2) {
+      v2_index_pos = 1;
+    } else if (vid2 == v2) {
+      v2_index_pos = 2;
+    }
+
     assert(v1_index_pos >= 0);
+    assert(v2_index_pos >= 0);
 
     auto [u, v, w] = ugu::Barycentric(new_pos, vertices[vid0], vertices[vid1],
                                       vertices[vid2]);
@@ -460,6 +471,49 @@ struct DecimatedMesh {
       Eigen::Vector3f face_n = v10.cross(v20).normalized();
       if (face_n.dot(normals[v1]) < 0.0) {
         return false;
+      }
+    }
+
+    if (use_uv) {
+      int32_t uv1 = uv_indices[interp_fid][v1_index_pos];
+      int32_t uv2 = uv_indices[interp_fid][v2_index_pos];
+
+      for (const auto& fid : to_keep_face_ids) {
+        int32_t uvid0 = uv_indices[fid][0];
+        int32_t uvid1 = uv_indices[fid][1];
+        int32_t uvid2 = uv_indices[fid][2];
+        Eigen::Vector2f uvpos0 = uv[uvid0];
+        Eigen::Vector2f uvpos1 = uv[uvid1];
+        Eigen::Vector2f uvpos2 = uv[uvid2];
+        float area = ugu::EdgeFunction(uvpos0, uvpos1, uvpos2);
+#if 0
+				        if (v1_index_pos == 0) {
+          uvpos0 = new_uv;
+        }
+
+        else if (v1_index_pos == 1) {
+          uvpos1 = new_uv;
+        }
+
+        else if (v1_index_pos == 2) {
+          uvpos2 = new_uv;
+        }
+#endif  // 0
+
+        if (uvid0 == uv1 || uvid0 == uv2) {
+          uvpos0 = new_uv;
+        } else if (uvid1 == uv1 || uvid1 == uv2) {
+          uvpos1 = new_uv;
+        } else if (uvid2 == uv1 || uvid2 == uv2) {
+          uvpos2 = new_uv;
+        } else {
+          throw std::runtime_error("");
+        }
+
+        float area_update = ugu::EdgeFunction(uvpos0, uvpos1, uvpos2);
+        if (area * area_update < 0) {
+          return false;
+        }
       }
     }
 
