@@ -19,14 +19,14 @@
 
 namespace {
 
-using QSlimEdge = std::pair<int32_t, int32_t>;
+using QSlimEdge = std::tuple<int32_t, int32_t, int32_t>;
 
-QSlimEdge MakeQSlimEdge(int32_t v0, int32_t v1) {
+QSlimEdge MakeQSlimEdge(int32_t v0, int32_t v1, int32_t fid) {
   if (v0 < v1) {
-    return QSlimEdge(v0, v1);
+    return QSlimEdge(v0, v1, fid);
   }
 
-  return QSlimEdge(v1, v0);
+  return QSlimEdge(v1, v0, fid);
 }
 
 using VertexAttr = Eigen::VectorXd;
@@ -81,6 +81,13 @@ GenerateUniqueVertices(const std::vector<Eigen::Vector3i>& vertex_indices,
     const auto& u = unique_vertices[i];
     vid2unique[u.vid].push_back(static_cast<int32_t>(i));
   }
+
+  for (auto& p : vid2unique) {
+    std::sort(p.second.begin(), p.second.end());
+    auto res = std::unique(p.second.begin(), p.second.end());
+    p.second.erase(res, p.second.end());
+  }
+
 
   return {unique_vertices, vid2unique};
 }
@@ -215,7 +222,7 @@ bool ComputeOptimalConstraction(const VertexAttr& v1, const Quadric& q1,
 }
 
 struct QSlimEdgeInfo {
-  QSlimEdge edge = {-1, -1};
+  QSlimEdge edge = {-1, -1, -1};
   // QSlimEdge edge_uv = {-1, -1};
   // int org_vid = -1;
   // QSlimEdge org_edge = {-1, -1};
@@ -241,8 +248,8 @@ struct QSlimEdgeInfo {
     if (keep_this_edge) {
       error = std::numeric_limits<double>::max();
     } else {
-      int v0 = edge.first;
-      int v1 = edge.second;
+      int v0 = std::get<0>(edge);
+      int v1 = std::get<1>(edge);
       ComputeOptimalConstraction(vert_attrs->at(v0), quadrics->at(v0),
                                  vert_attrs->at(v1), quadrics->at(v1),
                                  decimated_v, error);
@@ -384,28 +391,28 @@ struct DecimatedMesh {
 
       if (vertex_indices[f][0] == vid) {
         if (!ignore_v1) {
-          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1]));
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1], f));
         }
         if (!ignore_v2) {
-          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][2]));
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][2], f));
         }
       } else if (vertex_indices[f][1] == vid) {
         if (!ignore_v0) {
-          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][0]));
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][0], f));
         }
         if (!ignore_v2) {
-          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][2]));
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][2], f));
         }
       } else if (vertex_indices[f][2] == vid) {
         if (!ignore_v0) {
-          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][0]));
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][0], f));
         }
         if (!ignore_v1) {
-          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1]));
+          edges.emplace(MakeQSlimEdge(vid, vertex_indices[f][1], f));
         }
       } else {
         std::cout << vertex_indices[f] << std::endl; 
-        //throw std::runtime_error("something wrong");
+        throw std::runtime_error("something wrong");
       }
     }
 
@@ -1369,7 +1376,8 @@ std::pair<std::set<QSlimEdge>, std::unordered_set<int32_t>> PrepareValidEdges(
 #endif
   }
 
-  for (const auto& f : faces) {
+  for (int32_t i = 0; i < static_cast<int32_t>(faces.size()); i++) {
+    const auto& f = faces[i];
 #if 0
 	  size_t v0c = invalid_vids.count(f[0]);
     size_t v1c = invalid_vids.count(f[1]);
@@ -1405,9 +1413,9 @@ std::pair<std::set<QSlimEdge>, std::unordered_set<int32_t>> PrepareValidEdges(
       continue;
     }
 
-    valid_edges.emplace(MakeQSlimEdge(f[0], f[1]));
-    valid_edges.emplace(MakeQSlimEdge(f[1], f[2]));
-    valid_edges.emplace(MakeQSlimEdge(f[2], f[0]));
+    valid_edges.emplace(MakeQSlimEdge(f[0], f[1], i));
+    valid_edges.emplace(MakeQSlimEdge(f[1], f[2], i));
+    valid_edges.emplace(MakeQSlimEdge(f[2], f[0], i));
   }
   return {valid_edges, invalid_vids};
 }
@@ -1415,8 +1423,8 @@ std::pair<std::set<QSlimEdge>, std::unordered_set<int32_t>> PrepareValidEdges(
 std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
     DecimatedMesh& mesh, QSlimHandler& handler, QSlimEdgeInfo& e,
     ugu::QSlimType type) {
-  int32_t v1 = e.edge.first;
-  int32_t v2 = e.edge.second;
+  int32_t v1 = std::get<0>(e.edge);
+  int32_t v2 = std::get<1>(e.edge);
   std::vector<QSlimEdgeInfo> new_edges;
 
 #if 0
@@ -1460,14 +1468,25 @@ std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
 #endif  // 0
 
   for (const auto& e : raw_edges) {
-    const std::vector<int32_t>& uniq1_list = handler.vid2unique[e.first];
-    const std::vector<int32_t>& uniq2_list = handler.vid2unique[e.second];
+    const std::vector<int32_t>& uniq1_list =
+        handler.vid2unique[std::get<0>(e)];
+    const std::vector<int32_t>& uniq2_list =
+        handler.vid2unique[std::get<1>(e)];
     for (const auto& uniq1 : uniq1_list) {
-      // const auto& uvf1 = mesh.uv_v2f[handler.unique_vertices[uniq1].uvid];
-
+      const auto& uvf1 = mesh.uv_v2f[handler.unique_vertices[uniq1].uvid];
+      if (std::find(uvf1.begin(), uvf1.end(), std::get<2>(e)) == uvf1.end()) {
+        continue;
+      }
       for (const auto& uniq2 : uniq2_list) {
-#if 0
+#if 1
 				        const auto& uvf2 = mesh.uv_v2f[handler.unique_vertices[uniq2].uvid];
+
+
+      if (std::find(uvf2.begin(), uvf2.end(),
+                                                      std::get<2>(e)) ==
+                                            uvf2.end()) {
+                                          continue;
+                                        }
         if (mesh.use_uv) {
           std::vector<int32_t> intersection;
           std::set_intersection(uvf1.begin(), uvf1.end(), uvf2.begin(),
@@ -1477,15 +1496,18 @@ std::pair<bool, std::vector<QSlimEdgeInfo>> CollapseEdgeAndUpdateQuadrics(
             continue;
           }
         }
-#endif  // 0
+#endif  // 
 
-        if (handler.unique_vertices[uniq1].fid !=
+#if 0
+				        if (handler.unique_vertices[uniq1].fid !=
             handler.unique_vertices[uniq2].fid) {
           continue;
         }
+#endif  // 0
+
 
         auto new_edge =
-            QSlimEdgeInfo(MakeQSlimEdge(uniq1, uniq2), handler.vert_attrs,
+            QSlimEdgeInfo(MakeQSlimEdge(uniq1, uniq2, std::get<2>(e)), handler.vert_attrs,
                           handler.quadrics, keep_this_edge);
         new_edges.emplace_back(new_edge);
       }
@@ -1614,17 +1636,27 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
 
   // Add the valid pairs  to heap
   for (const auto& p : valid_edges) {
-    const std::vector<int32_t>& uniq1_list = handler.vid2unique[p.first];
-    const std::vector<int32_t>& uniq2_list = handler.vid2unique[p.second];
+    const std::vector<int32_t>& uniq1_list = handler.vid2unique[std::get<0>(p)];
+    const std::vector<int32_t>& uniq2_list = handler.vid2unique[std::get<1>(p)];
     for (const auto& uniq1 : uniq1_list) {
       const auto& uvf1 =
           decimated_mesh.uv_v2f[handler.unique_vertices[uniq1].uvid];
 
+      assert(std::find(uvf1.begin(), uvf1.end(),std::get<2>(p)) != uvf1.end() );
+
+      if (std::find(uvf1.begin(), uvf1.end(), std::get<2>(p)) == uvf1.end()) {
+          continue;
+      }
+
       for (const auto& uniq2 : uniq2_list) {
-        // const auto& uvf2 =
-        //    decimated_mesh.uv_v2f[handler.unique_vertices[uniq2].uvid];
+        const auto& uvf2 =
+            decimated_mesh.uv_v2f[handler.unique_vertices[uniq2].uvid];
+        if (std::find(uvf2.begin(), uvf2.end(), std::get<2>(p)) == uvf2.end()) {
+          continue;
+        }
+
         if (decimated_mesh.use_uv) {
-#if 0
+#if 1
 				          std::vector<int32_t> intersection;
           std::set_intersection(uvf1.begin(), uvf1.end(), uvf2.begin(),
                                 uvf2.end(), std::back_inserter(intersection));
@@ -1634,14 +1666,17 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
           }
 #endif  // 0
         }
-
+#if 0
+				
         if (handler.unique_vertices[uniq1].fid !=
             handler.unique_vertices[uniq2].fid) {
           continue;
         }
+#endif  // 0
+
 
         auto new_edge =
-            QSlimEdgeInfo(MakeQSlimEdge(uniq1, uniq2), handler.vert_attrs,
+            QSlimEdgeInfo(MakeQSlimEdge(uniq1, uniq2, std::get<2>(p)), handler.vert_attrs,
                           handler.quadrics, false);
         heap.push(new_edge);
       }
@@ -1700,22 +1735,22 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
 #endif  // 0
 
     // Skip if it has been decimated
-    if (removed_vids.count(min_e.edge.first) > 0 ||
-        removed_vids.count(min_e.edge.second) > 0) {
-      if (removed_vids.count(min_e.edge.first) > 0) {
-        assert(!decimated_mesh.valid_vertices
-                    [handler.unique_vertices[min_e.edge.first].vid]);
+    if (removed_vids.count(std::get<0>(min_e.edge)) > 0 ||
+        removed_vids.count(std::get<1>(min_e.edge)) > 0) {
+      if (removed_vids.count(std::get<0>(min_e.edge)) > 0) {
+   //     assert(!decimated_mesh.valid_vertices
+    //                [handler.unique_vertices[min_e.edge.first].vid]);
       }
-      if (removed_vids.count(min_e.edge.second) > 0) {
-        assert(!decimated_mesh.valid_vertices
-                    [handler.unique_vertices[min_e.edge.second].vid]);
+      if (removed_vids.count(std::get<1>(min_e.edge)) > 0) {
+//        assert(!decimated_mesh.valid_vertices
+ //                   [handler.unique_vertices[min_e.edge.second].vid]);
       }
       continue;
     }
 
-   if (removed_uvids.count(handler.unique_vertices[min_e.edge.first].uvid) >
+   if (removed_uvids.count(handler.unique_vertices[std::get<0>(min_e.edge)].uvid) >
             0 ||
-        removed_uvids.count(handler.unique_vertices[min_e.edge.second].uvid) >
+        removed_uvids.count(handler.unique_vertices[std::get<1>(min_e.edge)].uvid) >
             0) {
      // continue;
   }
@@ -1732,9 +1767,9 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
     }
 
     // Memory removed vid
-    removed_vids.insert(min_e.edge.second);
+    removed_vids.insert(std::get<1>(min_e.edge));
 
-    removed_uvids.insert(handler.unique_vertices[min_e.edge.second].uvid);
+    //removed_uvids.insert(handler.unique_vertices[min_e.edge.second].uvid);
 
     // Add new pairs
     for (const auto& e : new_edges) {
