@@ -202,7 +202,7 @@ if(UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION)
   add_definitions(-DUGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION)
 endif()
 
-option(UGU_USE_MVS_TEXTURING "Use mvs-texturing" ON)
+option(UGU_USE_MVS_TEXTURING "Use mvs-texturing" OFF)
 message("UGU_USE_MVS_TEXTURING: ${UGU_USE_MVS_TEXTURING}")
 if(UGU_USE_MVS_TEXTURING)
   add_subdirectory(${MVS_TEXTURING_INSTALL_DIR})
@@ -315,6 +315,9 @@ set(
   include/ugu/decimation/decimation.h
   src/decimation/decimation.cc
 
+  include/ugu/textrans/texture_transfer.h
+  src/textrans/texture_transfer.cc
+
   include/ugu/external/external.h
   src/external/fast_quadric_mesh_simplification.cc
   src/external/mvs_texturing.cc
@@ -376,6 +379,7 @@ if (NOT hasParent)
   setup_exe(ex13_clustering examples/ex13_clustering.cc)
   setup_exe(ex14_thread examples/ex14_thread.cc)
   setup_exe(ex15_optimizer examples/ex15_optimizer.cc)
+  setup_exe(ex16_textrans examples/ex16_textrans.cc)
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})
