@@ -146,9 +146,12 @@ auto IsPoint3dInsideTriangle(const Eigen::Vector3f& p,
   float w1 = ugu::TriArea(v2, v0, p) * inv_area;
   float w2 = ugu::TriArea(v0, v1, p) * inv_area;
   Eigen::Vector3f bary(w0, w1, w2);
-  if (w0 < 0 || w1 < 0 || w2 < 0 || 1 < w0 || 1 < w1 || 1 < w2) {
+#if 0
+				  if (w0 < 0 || w1 < 0 || w2 < 0 || 1 < w0 || 1 < w1 || 1 < w2) {
     return std::make_tuple(false, bary);
   }
+#endif  // 0
+
   if (std::abs(w0 + w1 + w2 - 1.0) > eps) {
     return std::make_tuple(false, bary);
   }
@@ -156,7 +159,6 @@ auto IsPoint3dInsideTriangle(const Eigen::Vector3f& p,
 }
 
 auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
-
                             const std::vector<Eigen::Vector3f>& src_verts,
                             const std::vector<Eigen::Vector3i>& src_verts_faces,
                             const std::vector<Eigen::Vector4f>& src_face_planes,
@@ -164,12 +166,13 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
   // Get the closest src face
   // Roughly get candidates.NN for face center points.
   auto [indices, distance_sq] = QueryKdTree(dst_pos, tree, nn_num);
-  // #Check point - plane distance and get the smallest
+  // Check point - plane distance and get the smallest
   float min_dist = std::numeric_limits<float>::max();
   float min_signed_dist = std::numeric_limits<float>::infinity();
   int32_t min_index = -1;
   Eigen::Vector3f min_bary(99.f, 99.f, 99.f);
   Eigen::Vector3f min_foot;
+  float min_angle = std::numeric_limits<float>::max();
 
   for (const auto& index : indices) {
     const auto& svface = src_verts_faces[index];
@@ -193,12 +196,13 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
 
     auto [isInside, bary] = IsPoint3dInsideTriangle(foot, sv0, sv1, sv2);
 
-    if (dist < min_dist && isInside) {
+    if (min_angle >= 0.f && dist < min_dist && isInside) {
       min_dist = dist;
       min_signed_dist = signed_dist;
       min_index = index;
       min_bary = bary;
       min_foot = foot;
+      min_angle = 0.f;
       // No need to check boundary lines
       continue;
     } else if (isInside) {
@@ -217,13 +221,15 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
       bary[0] = std::clamp(bary[0], 0.f, 1.f);
       bary[1] = std::clamp(bary[1], 0.f, 1.f);
     }
-    if (ldist < min_dist) {
+    float langle = std::acos(normal.dot((dst_pos - lfoot).normalized()));
+    if (langle < min_angle) {
       min_dist = ldist;
       // TODO: Add sign
       min_signed_dist = ldist;
       min_index = index;
       min_bary = lbary;
       min_foot = lfoot;
+      min_angle = langle;
     }
   }
 
