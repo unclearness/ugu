@@ -197,7 +197,7 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
 
     auto [isInside, bary] = IsPoint3dInsideTriangle(foot, sv0, sv1, sv2);
 
-    //dist = dist * (1.f - normal.dot(dst_normal));
+    // dist = dist * (1.f - normal.dot(dst_normal));
 
     if (dist < min_dist && isInside) {
       min_dist = dist;
@@ -249,8 +249,8 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
         tmp = lfoot - dst_pos;
       }
       float ldot = dst_normal.dot(tmp.normalized());
-     
-// ldist = ldist * (1.f - ldot);
+
+      // ldist = ldist * (1.f - ldot);
 
       // float ldot = normal.dot(dst_pos - lfoot);
       //  if (langle < min_angle && ldist < min_dist) {
@@ -268,6 +268,9 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
 #endif  // 0
     }
   }
+
+  // IMPORTANT: Without this line, unexpectable noises may appear...
+  min_bary[2] = 1.f - min_bary[0] - min_bary[1];
 
   return std::make_tuple(min_foot, min_signed_dist, min_dist, min_index,
                          min_bary);
@@ -351,7 +354,6 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
            bb_x <= static_cast<int32_t>(std::ceil(bb_max_x)); bb_x++) {
         Eigen::Vector2f pix_uv(X2U(bb_x, dst_tex_w), Y2V(bb_y, dst_tex_h));
 
-
         float w0 = ugu::EdgeFunction(duv1, duv2, pix_uv) * inv_area;
         float w1 = ugu::EdgeFunction(duv2, duv0, pix_uv) * inv_area;
         float w2 = ugu::EdgeFunction(duv0, duv1, pix_uv) * inv_area;
@@ -390,9 +392,7 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
         float sy = std::clamp(V2Y(suv[1], src_h), 0.f, src_h - 1.f - 0.001f);
         // Fetch and copy to dst tex
         ugu::Vec3f src_color = ugu::BilinearInterpolation(sx, sy, src_tex);
-        //ugu::Vec3f src_color =
-        //    src_tex.at<ugu::Vec3f>(int(std::round(sy)), int(std::round(sx)));
-        // src_color = np.clip(src_color, 0, 255)
+
         output.dst_tex.at<ugu::Vec3f>(bb_y, bb_x) = src_color;
         output.dst_mask.at<uint8_t>(bb_y, bb_x) = 255;
       }
