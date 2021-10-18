@@ -5,6 +5,7 @@
 
 #include <iostream>
 
+#include "ugu/inpaint/inpaint.h"
 #include "ugu/textrans/texture_transfer.h"
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
@@ -27,7 +28,7 @@ int main(int argc, char* argv[]) {
   ugu::TexTransNoCorrespOutput output;
 
   timer.Start();
-  ugu::TexTransNoCorresp(src_tex, src_mesh, dst_mesh, 1024, 1024, output);
+  ugu::TexTransNoCorresp(src_tex, src_mesh, dst_mesh, 1024, 1024, output, 10);
   timer.End();
   ugu::LOGI("TexTransNoCorresp: %f ms", timer.elapsed_msec());
 
@@ -37,12 +38,17 @@ int main(int argc, char* argv[]) {
   ugu::imwrite(out_basename + "_org.png", dst_tex_vis);
   ugu::imwrite(out_basename + "_mask.png", output.dst_mask);
 
+  ugu::Image1b inpaint_mask;
+  ugu::Not(output.dst_mask, &inpaint_mask);
+  // ugu::Dilate(inpaint_mask.clone(), &inpaint_mask, 3);
+  ugu::Image3b dst_tex_vis_inpainted = dst_tex_vis.clone();
+  ugu::Inpaint(inpaint_mask, dst_tex_vis_inpainted, 3.f);
+  ugu::imwrite(out_basename + ".png", dst_tex_vis_inpainted);
+
   ugu::Image3b nn_fid_tex_vis;
   ugu::FaceId2Color(output.nn_fid_tex, &nn_fid_tex_vis);
   ugu::imwrite(out_basename + "_fid.png", nn_fid_tex_vis);
 
-  // double minVal, maxVal;
-  // ugu::minMaxLoc(output.nn_pos_tex, &minVal, &maxVal);
   std::array<float, 3> pos_min = {std::numeric_limits<float>::max(),
                                   std::numeric_limits<float>::max(),
                                   std::numeric_limits<float>::max()};

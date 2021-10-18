@@ -6,8 +6,6 @@
 
 #include "ugu/textrans/texture_transfer.h"
 
-#include <unordered_set>
-
 #include "nanoflann.hpp"
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
@@ -149,14 +147,14 @@ auto IsPoint3dInsideTriangle(const Eigen::Vector3f& p,
   if (w0 < 0 || w1 < 0 || w2 < 0 || 1 < w0 || 1 < w1 || 1 < w2) {
     return std::make_tuple(false, bary);
   }
-  if (std::abs(w0 + w1 + w2 - 1.0) > eps) {
+
+  if (std::abs(w0 + w1 + w2 - 1.f) > eps) {
     return std::make_tuple(false, bary);
   }
   return std::make_tuple(true, bary);
 }
 
 auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
-
                             const std::vector<Eigen::Vector3f>& src_verts,
                             const std::vector<Eigen::Vector3i>& src_verts_faces,
                             const std::vector<Eigen::Vector4f>& src_face_planes,
@@ -164,13 +162,12 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
   // Get the closest src face
   // Roughly get candidates.NN for face center points.
   auto [indices, distance_sq] = QueryKdTree(dst_pos, tree, nn_num);
-  // #Check point - plane distance and get the smallest
+  // Check point - plane distance and get the smallest
   float min_dist = std::numeric_limits<float>::max();
   float min_signed_dist = std::numeric_limits<float>::infinity();
   int32_t min_index = -1;
   Eigen::Vector3f min_bary(99.f, 99.f, 99.f);
   Eigen::Vector3f min_foot;
-
   for (const auto& index : indices) {
     const auto& svface = src_verts_faces[index];
     const auto& sv0 = src_verts[svface[0]];
@@ -187,8 +184,8 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
     Eigen::Vector3f foot = -signed_dist * normal + dst_pos;
     float foot_dist = foot.dot(normal) + plane[3];
     if (std::abs(foot_dist) > 0.0001f) {
-      ugu::LOGE("wrong dist %f %f", foot, foot_dist);
-      throw std::runtime_error("");
+      // ugu::LOGE("wrong dist %f %f\n", foot, foot_dist);
+      throw std::runtime_error("wrong dist");
     }
 
     auto [isInside, bary] = IsPoint3dInsideTriangle(foot, sv0, sv1, sv2);
@@ -196,36 +193,46 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
     if (dist < min_dist && isInside) {
       min_dist = dist;
       min_signed_dist = signed_dist;
-      min_index = index;
+      min_index = static_cast<int32_t>(index);
       min_bary = bary;
       min_foot = foot;
-      // No need to check boundary lines
-      continue;
-    } else if (isInside) {
-      // foot should be shortest path to plane.
-      // No need to check lines further
-      continue;
-    }
-
-    // Case 2: foot of perpendicular line is outside of the triangle
-    // Check distance to boundary line segments of triangle
-    auto [ldist, lfoot] = ugu::PointTriangleDistance(dst_pos, sv0, sv1, sv2);
-    auto [lIsInside, lbary] = IsPoint3dInsideTriangle(lfoot, sv0, sv1, sv2);
-    if (!lIsInside) {
-      // By numerical reason, sometimes becomes little over [0, 1]
-      // So just clip
-      bary[0] = std::clamp(bary[0], 0.f, 1.f);
-      bary[1] = std::clamp(bary[1], 0.f, 1.f);
-    }
-    if (ldist < min_dist) {
-      min_dist = ldist;
-      // TODO: Add sign
-      min_signed_dist = ldist;
-      min_index = index;
-      min_bary = lbary;
-      min_foot = lfoot;
     }
   }
+
+  // Case 2: foot of perpendicular line is outside of the triangle
+  if (min_index < 0) {
+    for (const auto& index : indices) {
+      const auto& svface = src_verts_faces[index];
+      const auto& sv0 = src_verts[svface[0]];
+      const auto& sv1 = src_verts[svface[1]];
+      const auto& sv2 = src_verts[svface[2]];
+
+      const auto& plane = src_face_planes[index];
+      const Eigen::Vector3f normal = Extract3f(plane);
+
+      // Check distance to boundary line segments of triangle
+      auto [ldist, lfoot] = ugu::PointTriangleDistance(dst_pos, sv0, sv1, sv2);
+      auto [lIsInside, lbary] = IsPoint3dInsideTriangle(lfoot, sv0, sv1, sv2);
+      if (!lIsInside) {
+        // By numerical reason, sometimes becomes little over [0, 1]
+        // So just clip
+        lbary[0] = std::clamp(lbary[0], 0.f, 1.f);
+        lbary[1] = std::clamp(lbary[1], 0.f, 1.f);
+      }
+
+      if (ldist < min_dist) {
+        min_dist = ldist;
+        // TODO: Add sign
+        min_signed_dist = ldist;
+        min_index = static_cast<int32_t>(index);
+        min_bary = lbary;
+        min_foot = lfoot;
+      }
+    }
+  }
+
+  // IMPORTANT: Without this line, unexpectable noises may appear...
+  min_bary[2] = 1.f - min_bary[0] - min_bary[1];
 
   return std::make_tuple(min_foot, min_signed_dist, min_dist, min_index,
                          min_bary);
@@ -263,7 +270,9 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
   tree.index->buildIndex();
 
   assert(dst_uv_faces.size() == dst_vert_faces.size());
-  for (size_t df_idx = 0; df_idx < dst_uv_faces.size(); df_idx++) {
+#pragma omp parallel for
+  for (int64_t df_idx = 0; df_idx < static_cast<int64_t>(dst_uv_faces.size());
+       df_idx++) {
     const auto& duvface = dst_uv_faces[df_idx];
     const auto& dvface = dst_vert_faces[df_idx];
 
@@ -294,7 +303,8 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
          bb_y <= static_cast<int32_t>(std::ceil(bb_max_y)); bb_y++) {
       for (int32_t bb_x = static_cast<int32_t>(bb_min_x);
            bb_x <= static_cast<int32_t>(std::ceil(bb_max_x)); bb_x++) {
-        Eigen::Vector2f pix_uv(X2U(bb_x, dst_tex_w), Y2V(bb_y, dst_tex_h));
+        Eigen::Vector2f pix_uv(X2U(static_cast<float>(bb_x), dst_tex_w),
+                               Y2V(static_cast<float>(bb_y), dst_tex_h));
 
         float w0 = ugu::EdgeFunction(duv1, duv2, pix_uv) * inv_area;
         float w1 = ugu::EdgeFunction(duv2, duv0, pix_uv) * inv_area;
@@ -312,8 +322,6 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
             CalcClosestSurfaceInfo(tree, dpos, src_verts, src_verts_faces,
                                    src_face_planes, nn_num);
         if (min_index < 0) {
-          // output.dst_tex.at<ugu::Vec3f>(bb_y, bb_x) = [ 255, 0, 0 ];
-          //    dst_mask[j, i] = 125
           ugu::LOGE("min_index is None %d %d\n", bb_y, bb_x);
           continue;
         }
@@ -330,12 +338,13 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
         Eigen::Vector2f suv = bary[0] * suv0 + bary[1] * suv1 + bary[2] * suv2;
 
         // Calc pixel pos in src tex
-        float sx = std::clamp(U2X(suv[0], src_w), 0.f, src_w - 1.f - 0.001f);
-        float sy = std::clamp(V2Y(suv[1], src_h), 0.f, src_h - 1.f - 0.001f);
+        float sx = std::clamp(U2X(suv[0], static_cast<int32_t>(src_w)), 0.f,
+                              src_w - 1.f - 0.001f);
+        float sy = std::clamp(V2Y(suv[1], static_cast<int32_t>(src_h)), 0.f,
+                              src_h - 1.f - 0.001f);
         // Fetch and copy to dst tex
         ugu::Vec3f src_color = ugu::BilinearInterpolation(sx, sy, src_tex);
-        // src_color = src_tex[int(np.round(sy)), int(np.round(sx))]
-        // src_color = np.clip(src_color, 0, 255)
+
         output.dst_tex.at<ugu::Vec3f>(bb_y, bb_x) = src_color;
         output.dst_mask.at<uint8_t>(bb_y, bb_x) = 255;
       }
