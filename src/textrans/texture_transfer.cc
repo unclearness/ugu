@@ -146,11 +146,9 @@ auto IsPoint3dInsideTriangle(const Eigen::Vector3f& p,
   float w1 = ugu::TriArea(v2, v0, p) * inv_area;
   float w2 = ugu::TriArea(v0, v1, p) * inv_area;
   Eigen::Vector3f bary(w0, w1, w2);
-#if 0
-				  if (w0 < 0 || w1 < 0 || w2 < 0 || 1 < w0 || 1 < w1 || 1 < w2) {
+  if (w0 < 0 || w1 < 0 || w2 < 0 || 1,00001 < w0 || 1.00001 < w1 || 1.00001 < w2) {
     return std::make_tuple(false, bary);
   }
-#endif  // 0
 
   if (std::abs(w0 + w1 + w2 - 1.0) > eps) {
     return std::make_tuple(false, bary);
@@ -196,7 +194,7 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
 
     auto [isInside, bary] = IsPoint3dInsideTriangle(foot, sv0, sv1, sv2);
 
-    if (min_angle >= 0.f && dist < min_dist && isInside) {
+    if (dist < min_dist && isInside) {
       min_dist = dist;
       min_signed_dist = signed_dist;
       min_index = index;
@@ -205,13 +203,18 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
       min_angle = 0.f;
       // No need to check boundary lines
       continue;
-    } else if (isInside) {
+    }
+#if 1
+				    if (isInside) {
       // foot should be shortest path to plane.
       // No need to check lines further
       continue;
     }
 
-    // Case 2: foot of perpendicular line is outside of the triangle
+#endif  // 0
+
+#if 1
+				    // Case 2: foot of perpendicular line is outside of the triangle
     // Check distance to boundary line segments of triangle
     auto [ldist, lfoot] = ugu::PointTriangleDistance(dst_pos, sv0, sv1, sv2);
     auto [lIsInside, lbary] = IsPoint3dInsideTriangle(lfoot, sv0, sv1, sv2);
@@ -221,8 +224,8 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
       bary[0] = std::clamp(bary[0], 0.f, 1.f);
       bary[1] = std::clamp(bary[1], 0.f, 1.f);
     }
-    float langle = std::acos(normal.dot((dst_pos - lfoot).normalized()));
-    if (langle < min_angle) {
+    float langle = std::acos(normal.dot((lfoot - dst_pos).normalized()));
+    if (langle < min_angle && ldist < min_dist) {
       min_dist = ldist;
       // TODO: Add sign
       min_signed_dist = ldist;
@@ -231,7 +234,10 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
       min_foot = lfoot;
       min_angle = langle;
     }
+#endif  // 0
   }
+
+
 
   return std::make_tuple(min_foot, min_signed_dist, min_dist, min_index,
                          min_bary);

@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
   ugu::TexTransNoCorrespOutput output;
 
   timer.Start();
-  ugu::TexTransNoCorresp(src_tex, src_mesh, dst_mesh, 1024, 1024, output);
+  ugu::TexTransNoCorresp(src_tex, src_mesh, dst_mesh, 1024, 1024, output, 10);
   timer.End();
   ugu::LOGI("TexTransNoCorresp: %f ms", timer.elapsed_msec());
 
