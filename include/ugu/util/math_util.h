@@ -140,4 +140,38 @@ Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
 Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
     const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst);
 
+// https://github.com/facebookresearch/pytorch3d/blob/14dd2611eeda6d0f4b43a3cadf90ef3c64eb1d0f/pytorch3d/renderer/mesh/rasterize_meshes.py#L755
+template <typename T>
+std::tuple<float, T> PointLineSegmentDistance(const T& p, const T& v0,
+                                              const T& v1,
+                                              bool limit_segment = true,
+                                              float eps = 1e-8f) {
+  T v1v0 = v1 - v0;
+  float l2 = v1v0.dot(v1v0);  // |v1 - v0|^2
+  if (l2 <= eps) {
+    return std::tuple((p - v1).dot(p - v1), (v0 + v1) * 0.5f);  // v0 == v1
+  }
+  float t = v1v0.dot(p - v0) / l2;
+  // Limit to segment
+  if (limit_segment) {
+    t = std::clamp(t, 0.f, 1.f);
+  }
+  T p_proj = v0 + t * v1v0;
+  T delta_p = p_proj - p;
+  return std::tuple(delta_p.dot(delta_p), p_proj);
+}
+
+template <typename T>
+std::tuple<float, T> PointTriangleDistance(const T& p, const T& v0, const T& v1,
+                                           const T& v2) {
+  auto [e01_dist, p_proj01] = PointLineSegmentDistance(p, v0, v1);
+  auto [e02_dist, p_proj02] = PointLineSegmentDistance(p, v0, v2);
+  auto [e12_dist, p_proj12] = PointLineSegmentDistance(p, v1, v2);
+  std::array<float, 3> dists = {e01_dist, e02_dist, e12_dist};
+  std::array<T, 3> projs = {p_proj01, p_proj02, p_proj12};
+  size_t min_index = std::distance(
+      dists.begin(), std::min_element(dists.begin(), dists.end()));
+  return std::tuple(dists[min_index], projs[min_index]);
+}
+
 }  // namespace ugu
