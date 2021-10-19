@@ -18,6 +18,7 @@ struct TexTransNoCorrespOutput {
   ugu::Image1i nn_fid_tex;
   ugu::Image3f nn_pos_tex;
   ugu::Image3f nn_bary_tex;
+  ugu::Image2f srcpos_tex;
 };
 
 bool TexTransNoCorresp(const ugu::Image3f& src_tex,
@@ -30,11 +31,14 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
                        const std::vector<Eigen::Vector3f>& dst_verts,
                        const std::vector<Eigen::Vector3i>& dst_vert_faces,
                        int32_t dst_tex_h, int32_t dst_tex_w,
-                       TexTransNoCorrespOutput& output, int32_t nn_num = 10);
+                       TexTransNoCorrespOutput& output,
+                       int32_t interp = InterpolationFlags::INTER_LINEAR,
+                       int32_t nn_num = 10);
 
 bool TexTransNoCorresp(const ugu::Image3f& src_tex, const ugu::Mesh& src_mesh,
                        const ugu::Mesh& dst_mesh, int32_t dst_tex_h,
                        int32_t dst_tex_w, TexTransNoCorrespOutput& output,
+                       int32_t interp = InterpolationFlags::INTER_LINEAR,
                        int32_t nn_num = 10);
 
 }  // namespace ugu

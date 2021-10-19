@@ -28,7 +28,7 @@ int main(int argc, char* argv[]) {
   ugu::TexTransNoCorrespOutput output;
 
   timer.Start();
-  ugu::TexTransNoCorresp(src_tex, src_mesh, dst_mesh, 1024, 1024, output, 10);
+  ugu::TexTransNoCorresp(src_tex, src_mesh, dst_mesh, 1024, 1024, output);
   timer.End();
   ugu::LOGI("TexTransNoCorresp: %f ms", timer.elapsed_msec());
 
@@ -37,6 +37,26 @@ int main(int argc, char* argv[]) {
   ugu::ConvertTo(output.dst_tex, &dst_tex_vis);
   ugu::imwrite(out_basename + "_org.png", dst_tex_vis);
   ugu::imwrite(out_basename + "_mask.png", output.dst_mask);
+
+  ugu::Image3b srcpos_tex_vis =
+      ugu::Image3b::zeros(output.srcpos_tex.rows, output.srcpos_tex.cols);
+  for (int y = 0; y < srcpos_tex_vis.rows; y++) {
+    for (int x = 0; x < srcpos_tex_vis.cols; x++) {
+      auto& color = srcpos_tex_vis.at<ugu::Vec3b>(y, x);
+      const auto& spos = output.srcpos_tex.at<ugu::Vec2f>(y, x);
+
+      color[0] = static_cast<uint8_t>(spos[0] / src_tex.cols * 255);
+
+      color[1] = static_cast<uint8_t>(spos[1] / src_tex.rows * 255);
+    }
+  }
+  ugu::imwrite(out_basename + "_srcpos.png", srcpos_tex_vis);
+
+  ugu::Image3f remaped;
+  ugu::Remap(src_tex, output.srcpos_tex, output.dst_mask, remaped);
+  ugu::Image3b remaped_vis;
+  ugu::ConvertTo(remaped, &remaped_vis);
+  ugu::imwrite(out_basename + "_remap.png", remaped_vis);
 
   ugu::Image1b inpaint_mask;
   ugu::Not(output.dst_mask, &inpaint_mask);

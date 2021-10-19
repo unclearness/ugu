@@ -5,14 +5,15 @@
 
 #ifdef UGU_USE_OPENCV
 
-#include <thread>
+#include <fstream>
 #include <memory>
+#include <thread>
 
 #include "opencv2/highgui.hpp"
 #include "ugu/renderer/rasterizer.h"
 #include "ugu/renderer/raytracer.h"
 #include "ugu/timer.h"
-#include "ugu/util.h"
+#include "ugu/util/image_util.h"
 
 // #define USE_RASTERIZER
 

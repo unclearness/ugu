@@ -252,12 +252,25 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
                        const std::vector<Eigen::Vector3f>& dst_verts,
                        const std::vector<Eigen::Vector3i>& dst_vert_faces,
                        int32_t dst_tex_h, int32_t dst_tex_w,
-                       TexTransNoCorrespOutput& output, int32_t nn_num) {
+                       TexTransNoCorrespOutput& output, int32_t interp,
+                       int32_t nn_num) {
+  if (interp != InterpolationFlags::INTER_LINEAR &&
+      interp != InterpolationFlags::INTER_NEAREST) {
+    ugu::LOGE("interp is not supported\n");
+    return false;
+  }
+
+  if (nn_num < 1) {
+    ugu::LOGE("nn_num must be larger than 1\n");
+    return false;
+  }
+
   output.dst_tex = ugu::Image3f::zeros(dst_tex_h, dst_tex_w);
   output.dst_mask = ugu::Image1b::zeros(dst_tex_h, dst_tex_w);
   output.nn_pos_tex = ugu::Image3f::zeros(dst_tex_h, dst_tex_w);
   output.nn_bary_tex = ugu::Image3f::zeros(dst_tex_h, dst_tex_w);
   output.nn_fid_tex = ugu::Image1i::zeros(dst_tex_h, dst_tex_w);
+  output.srcpos_tex = ugu::Image2f::zeros(dst_tex_h, dst_tex_w);
 
   float src_w = static_cast<float>(src_tex.cols);
   float src_h = static_cast<float>(src_tex.rows);
@@ -342,10 +355,23 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
                               src_w - 1.f - 0.001f);
         float sy = std::clamp(V2Y(suv[1], static_cast<int32_t>(src_h)), 0.f,
                               src_h - 1.f - 0.001f);
-        // Fetch and copy to dst tex
-        ugu::Vec3f src_color = ugu::BilinearInterpolation(sx, sy, src_tex);
 
-        output.dst_tex.at<ugu::Vec3f>(bb_y, bb_x) = src_color;
+        ugu::Vec2f& srcpos = output.srcpos_tex.at<ugu::Vec2f>(bb_y, bb_x);
+        srcpos[0] = sx;
+        srcpos[1] = sy;
+
+        // Fetch and copy to dst tex
+        ugu::Vec3f& src_color = output.dst_tex.at<ugu::Vec3f>(bb_y, bb_x);
+        if (interp == InterpolationFlags::INTER_LINEAR) {
+          src_color = ugu::BilinearInterpolation(sx, sy, src_tex);
+        } else if (interp == InterpolationFlags::INTER_NEAREST) {
+          src_color =
+              src_tex.at<ugu::Vec3f>(static_cast<int32_t>(std::round(sy)),
+                                     static_cast<int32_t>(std::round(sx)));
+        } else {
+          ugu::LOGE("interp is not supported\n");
+        }
+
         output.dst_mask.at<uint8_t>(bb_y, bb_x) = 255;
       }
     }
@@ -357,12 +383,12 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
 bool TexTransNoCorresp(const ugu::Image3f& src_tex, const ugu::Mesh& src_mesh,
                        const ugu::Mesh& dst_mesh, int32_t dst_tex_h,
                        int32_t dst_tex_w, TexTransNoCorrespOutput& output,
-                       int32_t nn_num) {
+                       int32_t interp, int32_t nn_num) {
   return TexTransNoCorresp(src_tex, src_mesh.uv(), src_mesh.uv_indices(),
                            src_mesh.vertices(), src_mesh.vertex_indices(),
                            dst_mesh.uv(), dst_mesh.uv_indices(),
                            dst_mesh.vertices(), dst_mesh.vertex_indices(),
-                           dst_tex_h, dst_tex_w, output, nn_num);
+                           dst_tex_h, dst_tex_w, output, interp, nn_num);
 }
 
 }  // namespace ugu

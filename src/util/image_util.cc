@@ -10,6 +10,8 @@
 #include <random>
 #include <unordered_map>
 
+#include "ugu/util/thread_util.h"
+
 #if defined(UGU_USE_STB) && !defined(UGU_USE_OPENCV)
 #ifdef _WIN32
 #pragma warning(push)
@@ -621,6 +623,48 @@ std::vector<Eigen::Vector3f> GenRandomColors(int32_t num, float min_val,
     colors.emplace_back(dist(engine), dist(engine), dist(engine));
   }
   return colors;
+}
+
+bool Remap(const Image3f& src, const Image2f& map, const Image1b& mask,
+           Image3f& dst, int32_t interp, const ugu::Vec3f& bkg_val) {
+  if (interp != InterpolationFlags::INTER_LINEAR &&
+      interp != InterpolationFlags::INTER_NEAREST) {
+    ugu::LOGE("interp is not supported\n");
+    return false;
+  }
+
+  if (map.rows != dst.rows || map.cols != dst.cols) {
+    dst = Image3f::zeros(map.rows, map.cols);
+    for (int j = 0; j < dst.rows; j++) {
+      for (int i = 0; i < dst.cols; i++) {
+        dst.at<ugu::Vec3f>(j, i) = bkg_val;
+      }
+    }
+  }
+
+  auto loop_body = [&](int j) {
+    for (int i = 0; i < map.cols; i++) {
+      if (mask.at<uint8_t>(j, i) == 0) {
+        continue;
+      }
+
+      const Vec2f& spos = map.at<Vec2f>(j, i);
+
+      Vec3f& src_color = dst.at<Vec3f>(j, i);
+      if (interp == InterpolationFlags::INTER_LINEAR) {
+        src_color = ugu::BilinearInterpolation(spos[0], spos[1], src);
+      } else if (interp == InterpolationFlags::INTER_NEAREST) {
+        src_color =
+            src.at<ugu::Vec3f>(static_cast<int32_t>(std::round(spos[1])),
+                               static_cast<int32_t>(std::round(spos[0])));
+      } else {
+        ugu::LOGE("interp is not supported\n");
+      }
+    }
+  };
+  ugu::parallel_for(0, map.rows, loop_body);
+
+  return true;
 }
 
 #ifdef UGU_USE_TINYCOLORMAP
