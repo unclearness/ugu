@@ -14,7 +14,7 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::string data_dir = "../data/find_correspondence/";
+  std::string data_dir = "../data/spot/";
   std::string src_obj_path = data_dir + "spot_triangulated.obj";
   std::string dst_obj_path = data_dir + "spot_remesh.obj";
   ugu::Timer<> timer;
