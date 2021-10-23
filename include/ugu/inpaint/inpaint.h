@@ -15,12 +15,14 @@ namespace ugu {
 // smooth. Telea, Alexandru. "An image inpainting technique based on the fast
 // marching method." Journal of graphics tools 9.1 (2004): 23-34.
 void FastMarchingMethod(const Image1b& mask, Image1f& dist,
-                         float illegal_val = 0.f, float terminate_dist = -1.f);
+                        float illegal_val = 0.f, float terminate_dist = -1.f);
 
 enum class InpaintMethod { NAIVE, TELEA };
 
 void Inpaint(const Image1b& mask, Image3b& color, float inpaint_radius = 5.0f,
              InpaintMethod method = InpaintMethod::TELEA);
 
-}  // namespace ugu
+void Inpaint(const Image1b& mask, Image3f& color, float inpaint_radius = 5.0f,
+             InpaintMethod method = InpaintMethod::TELEA);
 
+}  // namespace ugu

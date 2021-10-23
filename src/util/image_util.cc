@@ -625,7 +625,7 @@ std::vector<Eigen::Vector3f> GenRandomColors(int32_t num, float min_val,
   return colors;
 }
 
-bool Remap(const Image3f& src, const Image2f& map, const Image1b& mask,
+bool Remap(const Image3f& src, const Image3f& map, const Image1b& mask,
            Image3f& dst, int32_t interp, const ugu::Vec3f& bkg_val) {
   if (interp != InterpolationFlags::INTER_LINEAR &&
       interp != InterpolationFlags::INTER_NEAREST) {
@@ -648,7 +648,7 @@ bool Remap(const Image3f& src, const Image2f& map, const Image1b& mask,
         continue;
       }
 
-      const Vec2f& spos = map.at<Vec2f>(j, i);
+      const Vec3f& spos = map.at<Vec3f>(j, i);
 
       Vec3f& src_color = dst.at<Vec3f>(j, i);
       if (interp == InterpolationFlags::INTER_LINEAR) {

@@ -200,7 +200,7 @@ float NormL2Squared(const T& src) {
                             src[2] * src[2]);
 }
 
-bool Remap(const Image3f& src, const Image2f& map, const Image1b& mask,
+bool Remap(const Image3f& src, const Image3f& map, const Image1b& mask,
            Image3f& dst, int32_t interp = InterpolationFlags::INTER_LINEAR,
            const Vec3f& bkg_val = Vec3f({0.f, 0.f, 0.f}));
 

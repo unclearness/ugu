@@ -134,4 +134,11 @@ inline void UndistortPixelOpencv(float* u, float* v, float fx, float fy,
   *v = static_cast<float>(y * fy + cy);
 }
 
+template <typename T, typename TT>
+T saturate_cast(const TT& v) {
+  return static_cast<T>(
+      std::clamp(v, static_cast<TT>(std::numeric_limits<T>::lowest()),
+                 static_cast<TT>(std::numeric_limits<T>::max())));
+}
+
 }  // namespace ugu
