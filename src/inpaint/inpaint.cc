@@ -31,7 +31,7 @@ void InpaintNaive(const ugu::Image1b& mask, ugu::Image<T>& color,
         ave_color += s[c];
       }
       ave_color /= sources.size();
-      blended_pix[c] = ugu::saturate_cast<T::value_type>(ave_color);
+      blended_pix[c] = ugu::saturate_cast<typename T::value_type>(ave_color);
     }
     return;
   };
@@ -368,7 +368,7 @@ void InpaintTeleaPixel(int i, int j, const ugu::Image1b& mask,
     double weighted_val =
         ((Ia / w_sum + (Jx + Jy) / (std::sqrt(Jx * Jx + Jy * Jy) + eps) + 0.5));
     color.template at<T>(j, i)[c] =
-        ugu::saturate_cast<T::value_type>(weighted_val);
+        ugu::saturate_cast<typename T::value_type>(weighted_val);
   }
 }
 
