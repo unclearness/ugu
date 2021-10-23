@@ -80,7 +80,7 @@ void InpaintNaive(const ugu::Image1b& mask, ugu::Image<T>& color,
                 continue;
               }
               if (not_visited_mask.at<unsigned char>(j + jj, i + ii) == 0) {
-                sources.push_back(color.at<T>(j + jj, i + ii));
+                sources.push_back(color.template at<T>(j + jj, i + ii));
               }
             }
           }
@@ -91,7 +91,7 @@ void InpaintNaive(const ugu::Image1b& mask, ugu::Image<T>& color,
           }
 
           // Make inpainted color
-          auto& inpainted_pix = color.at<T>(j, i);
+          auto& inpainted_pix = color.template at<T>(j, i);
           blend_color(inpainted_pix, sources);
 
           // Update not_visited flags
@@ -327,34 +327,36 @@ void InpaintTeleaPixel(int i, int j, const ugu::Image1b& mask,
         if (0 <= ii - 1 && flags.at<unsigned char>(jj, ii - 1) == KNOWN &&
             ii + 1 < flags.cols &&
             flags.at<unsigned char>(jj, ii + 1) == KNOWN) {
-          grad_I[0] =
-              (color.at<T>(jj, ii + 1)[c] - color.at<T>(jj, ii - 1)[c]) * 0.5f;
+          grad_I[0] = (color.template at<T>(jj, ii + 1)[c] -
+                       color.template at<T>(jj, ii - 1)[c]) *
+                      0.5f;
         } else if (ii + 1 < flags.cols &&
                    flags.at<unsigned char>(jj, ii + 1) == KNOWN) {
-          grad_I[0] = static_cast<float>(color.at<T>(jj, ii + 1)[c]) -
-                      static_cast<float>(color.at<T>(jj, ii)[c]);
+          grad_I[0] = static_cast<float>(color.template at<T>(jj, ii + 1)[c]) -
+                      static_cast<float>(color.template at<T>(jj, ii)[c]);
         } else if (0 <= ii - 1 &&
                    flags.at<unsigned char>(jj, ii - 1) == KNOWN) {
-          grad_I[0] = static_cast<float>(color.at<T>(jj, ii)[c]) -
-                      static_cast<float>(color.at<T>(jj, ii - 1)[c]);
+          grad_I[0] = static_cast<float>(color.template at<T>(jj, ii)[c]) -
+                      static_cast<float>(color.template at<T>(jj, ii - 1)[c]);
         }
 
         if (0 <= jj - 1 && flags.at<unsigned char>(jj - 1, ii) == KNOWN &&
             jj + 1 < flags.rows &&
             flags.at<unsigned char>(jj + 1, ii) == KNOWN) {
-          grad_I[1] =
-              (color.at<T>(jj + 1, ii)[c] - color.at<T>(jj - 1, ii)[c]) * 0.5f;
+          grad_I[1] = (color.template at<T>(jj + 1, ii)[c] -
+                       color.template at<T>(jj - 1, ii)[c]) *
+                      0.5f;
         } else if (jj + 1 < flags.rows &&
                    flags.at<unsigned char>(jj + 1, ii) == KNOWN) {
-          grad_I[1] = static_cast<float>(color.at<T>(jj + 1, ii)[c]) -
-                      static_cast<float>(color.at<T>(jj, ii)[c]);
+          grad_I[1] = static_cast<float>(color.template at<T>(jj + 1, ii)[c]) -
+                      static_cast<float>(color.template at<T>(jj, ii)[c]);
         } else if (0 <= jj - 1 &&
                    flags.at<unsigned char>(jj - 1, ii) == KNOWN) {
-          grad_I[1] = static_cast<float>(color.at<T>(jj, ii)[c]) -
-                      static_cast<float>(color.at<T>(jj - 1, ii)[c]);
+          grad_I[1] = static_cast<float>(color.template at<T>(jj, ii)[c]) -
+                      static_cast<float>(color.template at<T>(jj - 1, ii)[c]);
         }
 
-        Ia += weight * color.at<T>(jj, ii)[c];
+        Ia += weight * color.template at<T>(jj, ii)[c];
         Jx -= weight *
               (static_cast<double>(grad_I[0]) * static_cast<double>(vec[0]));
         Jy -= weight *
@@ -365,7 +367,8 @@ void InpaintTeleaPixel(int i, int j, const ugu::Image1b& mask,
 
     double weighted_val =
         ((Ia / w_sum + (Jx + Jy) / (std::sqrt(Jx * Jx + Jy * Jy) + eps) + 0.5));
-    color.at<T>(j, i)[c] = ugu::saturate_cast<T::value_type>(weighted_val);
+    color.template at<T>(j, i)[c] =
+        ugu::saturate_cast<T::value_type>(weighted_val);
   }
 }
 
