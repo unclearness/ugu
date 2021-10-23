@@ -270,7 +270,7 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
   output.nn_pos_tex = ugu::Image3f::zeros(dst_tex_h, dst_tex_w);
   output.nn_bary_tex = ugu::Image3f::zeros(dst_tex_h, dst_tex_w);
   output.nn_fid_tex = ugu::Image1i::zeros(dst_tex_h, dst_tex_w);
-  output.srcpos_tex = ugu::Image2f::zeros(dst_tex_h, dst_tex_w);
+  output.srcpos_tex = ugu::Image3f::zeros(dst_tex_h, dst_tex_w);
 
   float src_w = static_cast<float>(src_tex.cols);
   float src_h = static_cast<float>(src_tex.rows);
@@ -356,7 +356,7 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
         float sy = std::clamp(V2Y(suv[1], static_cast<int32_t>(src_h)), 0.f,
                               src_h - 1.f - 0.001f);
 
-        ugu::Vec2f& srcpos = output.srcpos_tex.at<ugu::Vec2f>(bb_y, bb_x);
+        ugu::Vec3f& srcpos = output.srcpos_tex.at<ugu::Vec3f>(bb_y, bb_x);
         srcpos[0] = sx;
         srcpos[1] = sy;
 

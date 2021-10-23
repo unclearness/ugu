@@ -667,6 +667,68 @@ bool Remap(const Image3f& src, const Image2f& map, const Image1b& mask,
   return true;
 }
 
+ugu::Image3b ColorizeImagePosMap(const ugu::Image3f& srcpos_tex, int32_t src_w,
+                                 int32_t src_h) {
+  ugu::Image3b srcpos_tex_vis =
+      ugu::Image3b::zeros(srcpos_tex.rows, srcpos_tex.cols);
+  for (int y = 0; y < srcpos_tex_vis.rows; y++) {
+    for (int x = 0; x < srcpos_tex_vis.cols; x++) {
+      auto& color = srcpos_tex_vis.at<ugu::Vec3b>(y, x);
+      const auto& spos = srcpos_tex.at<ugu::Vec3f>(y, x);
+
+      color[0] = static_cast<uint8_t>(spos[0] / src_w * 255);
+
+      color[1] = static_cast<uint8_t>(spos[1] / src_h * 255);
+    }
+  }
+  return srcpos_tex_vis;
+}
+
+ugu::Image3b ColorizePosMap(const ugu::Image3f& pos_tex,
+                            Eigen::Vector3f pos_min, Eigen::Vector3f pos_max) {
+  ugu::Image3b pos_tex_vis = ugu::Image3b::zeros(pos_tex.rows, pos_tex.cols);
+
+  if (pos_max[0] <= pos_min[0] || pos_max[1] <= pos_min[1] ||
+      pos_max[2] <= pos_min[2]) {
+    for (int y = 0; y < pos_tex_vis.rows; y++) {
+      for (int x = 0; x < pos_tex_vis.cols; x++) {
+        const auto& pos = pos_tex.at<ugu::Vec3f>(y, x);
+        for (int c = 0; c < 3; c++) {
+          if (pos[c] < pos_min[c]) {
+            pos_min[c] = pos[c];
+          }
+          if (pos_max[c] < pos[c]) {
+            pos_max[c] = pos[c];
+          }
+        }
+      }
+    }
+  }
+
+  for (int y = 0; y < pos_tex_vis.rows; y++) {
+    for (int x = 0; x < pos_tex_vis.cols; x++) {
+      auto& color = pos_tex_vis.at<ugu::Vec3b>(y, x);
+      const auto& pos = pos_tex.at<ugu::Vec3f>(y, x);
+      for (int c = 0; c < 3; c++) {
+        color[c] = static_cast<uint8_t>((pos[c] - pos_min[c]) /
+                                        (pos_max[c] - pos_min[c]) * 255);
+      }
+    }
+  }
+  return pos_tex_vis;
+}
+
+ugu::Image3b ColorizeBarycentric(const ugu::Image3f& bary_tex) {
+  ugu::Image3b bary_tex_vis = ugu::Image3b::zeros(bary_tex.rows, bary_tex.cols);
+  ugu::ConvertTo(bary_tex, &bary_tex_vis, 255);
+  for (int y = 0; y < bary_tex_vis.rows; y++) {
+    for (int x = 0; x < bary_tex_vis.cols; x++) {
+      bary_tex_vis.at<ugu::Vec3b>(y, x)[2] = 0;
+    }
+  }
+  return bary_tex_vis;
+}
+
 #ifdef UGU_USE_TINYCOLORMAP
 void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
                  float max_d, tinycolormap::ColormapType type) {
