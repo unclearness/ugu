@@ -8,6 +8,7 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -42,7 +43,15 @@
 
 namespace ugu {
 
-bool WriteBinary(const std::string& path, void* data, size_t size);
+inline bool WriteBinary(const std::string& path, void* data, size_t size) {
+  std::ofstream ofs(path, std::ios::binary);
+  ofs.write(reinterpret_cast<char*>(data), size);
+
+  if (ofs.bad()) {
+    return false;
+  }
+  return true;
+}
 
 #ifdef UGU_USE_OPENCV
 
@@ -351,7 +360,7 @@ class Image {
 #endif
 
   bool WriteBinary(const std::string& path) const {
-    return ugu::WriteBinary(path, data, bit_depth_ * channels_ * cols * rows);
+    return ugu::WriteBinary(path, data, bit_depth_ * cols * rows);
   }
 
   void copyTo(Image<T>& dst) const {  // NOLINT

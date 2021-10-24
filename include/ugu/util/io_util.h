@@ -13,16 +13,6 @@ namespace ugu {
 
 void WriteFaceIdAsText(const Image1i& face_id, const std::string& path);
 
-inline bool WriteBinary(const std::string& path, void* data, size_t size) {
-  std::ofstream ofs(path, std::ios::binary);
-  ofs.write(reinterpret_cast<char*>(data), size);
-
-  if (ofs.bad()) {
-    return false;
-  }
-  return true;
-}
-
 inline bool LoadBinaryBase(const std::string& path, std::vector<char>* data) {
   std::ifstream ifs(path, std::ios::binary);
 
