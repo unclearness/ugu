@@ -42,6 +42,8 @@
 
 namespace ugu {
 
+bool WriteBinary(const std::string& path, void* data, size_t size);
+
 #ifdef UGU_USE_OPENCV
 
 template <typename T>
@@ -348,6 +350,10 @@ class Image {
   }
 #endif
 
+  bool WriteBinary(const std::string& path) const {
+    return ugu::WriteBinary(path, data, bit_depth_ * channels_ * cols * rows);
+  }
+
   void copyTo(Image<T>& dst) const {  // NOLINT
     if (dst.cols != cols || dst.rows != rows) {
       // dst = Image<T>::zeros(rows, cols);
@@ -447,6 +453,8 @@ inline bool imwrite(const std::string& filename, const T& img,
   } else if (extname == ".jpg" || extname == ".jpeg" || extname == ".JPG" ||
              extname == ".JPEG") {
     return img.WriteJpg(filename);
+  } else if (extname == ".bin" || extname == ".BIN") {
+    return img.WriteBinary(filename);
   }
 
   LOGE(
