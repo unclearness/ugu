@@ -20,6 +20,25 @@ float TriArea(const T& a, const T& b, const T& c) {
   return 0.5f * ((b - a).cross(c - a)).norm();
 }
 
+inline std::tuple<bool, Eigen::Vector3f> IsPoint3dInsideTriangle(
+    const Eigen::Vector3f& p, const Eigen::Vector3f& v0,
+    const Eigen::Vector3f& v1, const Eigen::Vector3f& v2, float eps = 0.01f) {
+  float area = ugu::TriArea(v0, v1, v2);
+  float inv_area = 1.f / area;
+  float w0 = ugu::TriArea(v1, v2, p) * inv_area;
+  float w1 = ugu::TriArea(v2, v0, p) * inv_area;
+  float w2 = ugu::TriArea(v0, v1, p) * inv_area;
+  Eigen::Vector3f bary(w0, w1, w2);
+  if (w0 < 0 || w1 < 0 || w2 < 0 || 1 < w0 || 1 < w1 || 1 < w2) {
+    return std::make_tuple(false, bary);
+  }
+
+  if (std::abs(w0 + w1 + w2 - 1.f) > eps) {
+    return std::make_tuple(false, bary);
+  }
+  return std::make_tuple(true, bary);
+}
+
 template <typename T>
 std::tuple<double, double, double> Barycentric(const T& p, const T& a,
                                                const T& b, const T& c) {

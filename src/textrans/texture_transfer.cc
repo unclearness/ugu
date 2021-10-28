@@ -26,12 +26,23 @@ struct KDTreeVectorOfVectorsAdaptor {
   index_t* index;  //! The kd-tree index for the user to call its methods as
                    //! usual with any other FLANN index.
 
+  KDTreeVectorOfVectorsAdaptor(){};
+
   /// Constructor: takes a const ref to the vector of vectors object with the
   /// data points
   KDTreeVectorOfVectorsAdaptor(const size_t /* dimensionality */,
                                const VectorOfVectorsType& mat,
                                const int leaf_max_size = 10)
       : m_data(mat) {
+    init();
+  }
+
+  ~KDTreeVectorOfVectorsAdaptor() { delete index; }
+
+  void init(const size_t /* dimensionality */, const VectorOfVectorsType& mat,
+            const int leaf_max_size = 10) {
+    m_data = mat;
+
     assert(mat.size() != 0 && mat[0].size() != 0);
     const size_t dims = mat[0].size();
     if (DIM > 0 && static_cast<int>(dims) != DIM)
@@ -43,9 +54,7 @@ struct KDTreeVectorOfVectorsAdaptor {
     index->buildIndex();
   }
 
-  ~KDTreeVectorOfVectorsAdaptor() { delete index; }
-
-  const VectorOfVectorsType& m_data;
+  VectorOfVectorsType m_data;
 
   /** Query for the \a num_closest closest points to a given point (entered as
    * query_point[0:dim-1]). Note that this is a short-cut method for
@@ -120,7 +129,7 @@ using my_vector_of_vectors_t = std::vector<Eigen::Vector3f>;
 using ugu_kdtree_t =
     KDTreeVectorOfVectorsAdaptor<my_vector_of_vectors_t, float>;
 
-auto QueryKdTree(const Eigen::Vector3f& p, ugu_kdtree_t& index,
+auto QueryKdTree(const Eigen::Vector3f& p, const ugu_kdtree_t& index,
                  int32_t nn_num) {
   std::vector<std::pair<Eigen::Index, float>> ret_matches;
   std::vector<size_t> out_indices(nn_num);
@@ -134,34 +143,58 @@ inline Eigen::Vector3f Extract3f(const Eigen::Vector4f& v) {
   return Eigen::Vector3f(v[0], v[1], v[2]);
 }
 
-auto IsPoint3dInsideTriangle(const Eigen::Vector3f& p,
-                             const Eigen::Vector3f& v0,
-                             const Eigen::Vector3f& v1,
-                             const Eigen::Vector3f& v2, float eps = 0.01f) {
-  float area = ugu::TriArea(v0, v1, v2);
-  float inv_area = 1.f / area;
-  float w0 = ugu::TriArea(v1, v2, p) * inv_area;
-  float w1 = ugu::TriArea(v2, v0, p) * inv_area;
-  float w2 = ugu::TriArea(v0, v1, p) * inv_area;
-  Eigen::Vector3f bary(w0, w1, w2);
-  if (w0 < 0 || w1 < 0 || w2 < 0 || 1 < w0 || 1 < w1 || 1 < w2) {
-    return std::make_tuple(false, bary);
+class KDTreeCorrespFinder : public ugu::CorrespFinder {
+ public:
+  KDTreeCorrespFinder(){};
+  KDTreeCorrespFinder(uint32_t nn_num) { SetNnNum(nn_num); };
+  template <class... Args>
+  static std::shared_ptr<KDTreeCorrespFinder> Create(Args... args) {
+    return std::make_shared<KDTreeCorrespFinder>(args...);
   }
+  bool Init(const std::vector<Eigen::Vector3f>& verts,
+            const std::vector<Eigen::Vector3i>& verts_faces) override;
+  ugu::Corresp Find(const Eigen::Vector3f& src_p,
+                    const Eigen::Vector3f& src_n) const override;
 
-  if (std::abs(w0 + w1 + w2 - 1.f) > eps) {
-    return std::make_tuple(false, bary);
-  }
-  return std::make_tuple(true, bary);
+  void SetNnNum(uint32_t nn_num);
+
+ private:
+  ugu_kdtree_t m_tree;
+  uint32_t m_nn_num = 10;
+
+  std::vector<Eigen::Vector3f> m_verts;
+  std::vector<Eigen::Vector3i> m_verts_faces;
+  std::vector<Eigen::Vector3f> m_face_centroids;
+  // ax + by + cz + d = 0
+  std::vector<Eigen::Vector4f> m_face_planes;
+};
+using KDTreeCorrespFinderPtr = std::shared_ptr<KDTreeCorrespFinder>;
+
+bool KDTreeCorrespFinder::Init(
+    const std::vector<Eigen::Vector3f>& verts,
+    const std::vector<Eigen::Vector3i>& verts_faces) {
+  auto [face_centroids, face_planes] = ComputeFaceInfo(verts, verts_faces);
+
+  m_verts = verts;
+  m_verts_faces = verts_faces;
+
+  m_face_centroids = std::move(face_centroids);
+  m_face_planes = std::move(face_planes);
+
+  m_tree.init(verts_faces.size(), m_face_centroids, 10 /* max leaf */);
+
+  return true;
 }
 
-auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
-                            const std::vector<Eigen::Vector3f>& src_verts,
-                            const std::vector<Eigen::Vector3i>& src_verts_faces,
-                            const std::vector<Eigen::Vector4f>& src_face_planes,
-                            int32_t nn_num) {
+void KDTreeCorrespFinder::SetNnNum(uint32_t nn_num) { m_nn_num = nn_num; }
+
+ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
+                                       const Eigen::Vector3f& src_n) const {
+  (void)src_n;
+
   // Get the closest src face
   // Roughly get candidates.NN for face center points.
-  auto [indices, distance_sq] = QueryKdTree(dst_pos, tree, nn_num);
+  auto [indices, distance_sq] = QueryKdTree(src_p, m_tree, m_nn_num);
   // Check point - plane distance and get the smallest
   float min_dist = std::numeric_limits<float>::max();
   float min_signed_dist = std::numeric_limits<float>::infinity();
@@ -169,26 +202,26 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
   Eigen::Vector3f min_bary(99.f, 99.f, 99.f);
   Eigen::Vector3f min_foot;
   for (const auto& index : indices) {
-    const auto& svface = src_verts_faces[index];
-    const auto& sv0 = src_verts[svface[0]];
-    const auto& sv1 = src_verts[svface[1]];
-    const auto& sv2 = src_verts[svface[2]];
+    const auto& vface = m_verts_faces[index];
+    const auto& v0 = m_verts[vface[0]];
+    const auto& v1 = m_verts[vface[1]];
+    const auto& v2 = m_verts[vface[2]];
 
     // Case 1: foot of perpendicular line is inside of target triangle
-    const auto& plane = src_face_planes[index];
+    const auto& plane = m_face_planes[index];
     const Eigen::Vector3f normal = Extract3f(plane);
     // point-plane distance |ax'+by'+cz'+d|
-    const float signed_dist = dst_pos.dot(normal) + plane[3];
+    const float signed_dist = src_p.dot(normal) + plane[3];
 
     float dist = std::abs(signed_dist);
-    Eigen::Vector3f foot = -signed_dist * normal + dst_pos;
+    Eigen::Vector3f foot = -signed_dist * normal + src_p;
     float foot_dist = foot.dot(normal) + plane[3];
     if (std::abs(foot_dist) > 0.0001f) {
       // ugu::LOGE("wrong dist %f %f\n", foot, foot_dist);
       throw std::runtime_error("wrong dist");
     }
 
-    auto [isInside, bary] = IsPoint3dInsideTriangle(foot, sv0, sv1, sv2);
+    auto [isInside, bary] = ugu::IsPoint3dInsideTriangle(foot, v0, v1, v2);
 
     if (dist < min_dist && isInside) {
       min_dist = dist;
@@ -202,17 +235,17 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
   // Case 2: foot of perpendicular line is outside of the triangle
   if (min_index < 0) {
     for (const auto& index : indices) {
-      const auto& svface = src_verts_faces[index];
-      const auto& sv0 = src_verts[svface[0]];
-      const auto& sv1 = src_verts[svface[1]];
-      const auto& sv2 = src_verts[svface[2]];
+      const auto& vface = m_verts_faces[index];
+      const auto& v0 = m_verts[vface[0]];
+      const auto& v1 = m_verts[vface[1]];
+      const auto& v2 = m_verts[vface[2]];
 
-      const auto& plane = src_face_planes[index];
+      const auto& plane = m_face_planes[index];
       const Eigen::Vector3f normal = Extract3f(plane);
 
       // Check distance to boundary line segments of triangle
-      auto [ldist, lfoot] = ugu::PointTriangleDistance(dst_pos, sv0, sv1, sv2);
-      auto [lIsInside, lbary] = IsPoint3dInsideTriangle(lfoot, sv0, sv1, sv2);
+      auto [ldist, lfoot] = ugu::PointTriangleDistance(src_p, v0, v1, v2);
+      auto [lIsInside, lbary] = ugu::IsPoint3dInsideTriangle(lfoot, v0, v1, v2);
       if (!lIsInside) {
         // By numerical reason, sometimes becomes little over [0, 1]
         // So just clip
@@ -234,8 +267,14 @@ auto CalcClosestSurfaceInfo(ugu_kdtree_t& tree, const Eigen::Vector3f& dst_pos,
   // IMPORTANT: Without this line, unexpectable noises may appear...
   min_bary[2] = 1.f - min_bary[0] - min_bary[1];
 
-  return std::make_tuple(min_foot, min_signed_dist, min_dist, min_index,
-                         min_bary);
+  ugu::Corresp corresp;
+  corresp.fid = min_index;
+  corresp.p = min_foot;
+  corresp.singed_dist = min_signed_dist;
+  corresp.abs_dist = min_dist;
+  corresp.uv = min_bary;
+
+  return corresp;
 }
 
 }  // namespace
@@ -275,12 +314,8 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
   float src_w = static_cast<float>(src_tex.cols);
   float src_h = static_cast<float>(src_tex.rows);
 
-  auto [src_face_centroids, src_face_planes] =
-      ComputeFaceInfo(src_verts, src_verts_faces);
-
-  ugu_kdtree_t tree(src_verts_faces.size(), src_face_centroids,
-                    10 /* max leaf */);
-  tree.index->buildIndex();
+  CorrespFinderPtr coresp_finder = KDTreeCorrespFinder::Create(nn_num);
+  coresp_finder->Init(src_verts, src_verts_faces);
 
   assert(dst_uv_faces.size() == dst_vert_faces.size());
 #pragma omp parallel for
@@ -331,24 +366,27 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
         Eigen::Vector3f dpos = w0 * dv0 + w1 * dv1 + w2 * dv2;
 
         // Get the closest src face info
-        auto [foot, min_signed_dist, min_dist, min_index, bary] =
-            CalcClosestSurfaceInfo(tree, dpos, src_verts, src_verts_faces,
-                                   src_face_planes, nn_num);
-        if (min_index < 0) {
+        // auto [foot, min_signed_dist, min_dist, min_index, bary] =
+        //   CalcClosestSurfaceInfo(tree, dpos, src_verts, src_verts_faces,
+        //                          src_face_planes, nn_num);
+        Corresp corresp = coresp_finder->Find(dpos, Eigen::Vector3f::Ones());
+
+        if (corresp.fid < 0) {
           ugu::LOGE("min_index is None %d %d\n", bb_y, bb_x);
           continue;
         }
-        output.nn_fid_tex.at<int>(bb_y, bb_x) = min_index;
+        output.nn_fid_tex.at<int>(bb_y, bb_x) = corresp.fid;
         output.nn_pos_tex.at<ugu::Vec3f>(bb_y, bb_x) =
-            ugu::Vec3f({foot[0], foot[1], foot[2]});
+            ugu::Vec3f({corresp.p[0], corresp.p[1], corresp.p[2]});
         output.nn_bary_tex.at<ugu::Vec3f>(bb_y, bb_x) =
-            ugu::Vec3f({bary[0], bary[1], bary[2]});
-        const auto& suvface = src_uv_faces[min_index];
+            ugu::Vec3f({corresp.uv[0], corresp.uv[1], corresp.uv[2]});
+        const auto& suvface = src_uv_faces[corresp.fid];
         const auto& suv0 = src_uvs[suvface[0]];
         const auto& suv1 = src_uvs[suvface[1]];
         const auto& suv2 = src_uvs[suvface[2]];
 
-        Eigen::Vector2f suv = bary[0] * suv0 + bary[1] * suv1 + bary[2] * suv2;
+        Eigen::Vector2f suv =
+            corresp.uv[0] * suv0 + corresp.uv[1] * suv1 + corresp.uv[2] * suv2;
 
         // Calc pixel pos in src tex
         float sx = std::clamp(U2X(suv[0], static_cast<int32_t>(src_w)), 0.f,
