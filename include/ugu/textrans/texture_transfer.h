@@ -12,24 +12,6 @@
 
 namespace ugu {
 
-struct Corresp {
-  int32_t fid = -1;
-  Eigen::Vector3f uv = Eigen::Vector3f::Zero();
-  Eigen::Vector3f p =
-      Eigen::Vector3f::Constant(std::numeric_limits<float>::lowest());
-  float singed_dist = std::numeric_limits<float>::lowest();
-  float abs_dist = std::numeric_limits<float>::max();
-};
-
-class CorrespFinder {
- public:
-  virtual ~CorrespFinder() {}
-  virtual bool Init(const std::vector<Eigen::Vector3f>& verts,
-                    const std::vector<Eigen::Vector3i>& verts_faces) = 0;
-  virtual Corresp Find(const Eigen::Vector3f& src_p,
-                       const Eigen::Vector3f& src_n) const = 0;
-};
-using CorrespFinderPtr = std::shared_ptr<CorrespFinder>;
 
 struct TexTransNoCorrespOutput {
   Image3f dst_tex;

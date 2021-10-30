@@ -174,4 +174,8 @@ std::tuple<float, T> PointTriangleDistance(const T& p, const T& v0, const T& v1,
   return std::tuple(dists[min_index], projs[min_index]);
 }
 
+inline Eigen::Vector3f Extract3f(const Eigen::Vector4f& v) {
+  return Eigen::Vector3f(v[0], v[1], v[2]);
+}
+
 }  // namespace ugu

@@ -315,7 +315,9 @@ set(
   include/ugu/decimation/decimation.h
   src/decimation/decimation.cc
 
+  include/ugu/textrans/correspondence_finder.h
   include/ugu/textrans/texture_transfer.h
+  src/textrans/correspondence_finder.cc
   src/textrans/texture_transfer.cc
 
   include/ugu/external/external.h
