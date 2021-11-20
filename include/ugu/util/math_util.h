@@ -158,12 +158,13 @@ std::tuple<float, T> PointLineSegmentDistance(const T& p, const T& v0,
   }
   T p_proj = v0 + t * v1v0;
   T delta_p = p_proj - p;
-  return std::tuple(delta_p.dot(delta_p), p_proj);
+
+  return std::tuple(delta_p.norm(), p_proj);
 }
 
 template <typename T>
-std::tuple<float, T> PointTriangleDistance(const T& p, const T& v0, const T& v1,
-                                           const T& v2) {
+std::tuple<float, T> PointTriangleEdgeDistance(const T& p, const T& v0,
+                                               const T& v1, const T& v2) {
   auto [e01_dist, p_proj01] = PointLineSegmentDistance(p, v0, v1);
   auto [e02_dist, p_proj02] = PointLineSegmentDistance(p, v0, v2);
   auto [e12_dist, p_proj12] = PointLineSegmentDistance(p, v1, v2);
@@ -171,7 +172,66 @@ std::tuple<float, T> PointTriangleDistance(const T& p, const T& v0, const T& v1,
   std::array<T, 3> projs = {p_proj01, p_proj02, p_proj12};
   size_t min_index = std::distance(
       dists.begin(), std::min_element(dists.begin(), dists.end()));
+
   return std::tuple(dists[min_index], projs[min_index]);
+}
+
+template <typename T, typename TT>
+std::tuple<TT, T> PointPlaneDistance(const T& p, const TT& a, const TT& b,
+                                     const TT& c, const TT& d) {
+  const T normal(a, b, c);
+  // point-plane distance |ax'+by'+cz'+d|
+  const TT signed_dist = p.dot(normal) + d;
+
+  T foot = -signed_dist * normal + p;
+
+  return std::tuple(signed_dist, foot);
+}
+
+template <typename T, typename TT>
+std::tuple<float, T, Eigen::Vector2f> PointTriangleDistance(
+    const T& p, const T& v0, const T& v1, const T& v2, const TT& a, const TT& b,
+    const TT& c, const TT& d) {
+  // Case 1: foot of perpendicular line is inside of target triangle
+  auto [signed_dist_plane, plane_foot] = PointPlaneDistance(p, a, b, c, d);
+
+  auto [is_foot_inside, foot_uv] =
+      IsPoint3dInsideTriangle(plane_foot, v0, v1, v2);
+
+  if (is_foot_inside) {
+    return std::tuple(signed_dist_plane, plane_foot, foot_uv);
+  }
+
+  // Case 2: foot of perpendicular line is outside of the triangle
+  // Check distance to boundary line segments of triangle
+  auto [edge_abs_dist, edge_foot] = PointTriangleEdgeDistance(p, v0, v1, v2);
+
+  auto [is_edge_inside, edge_uv] =
+      IsPoint3dInsideTriangle(edge_foot, v0, v1, v2);
+
+  if (!is_edge_inside) {
+    // By numerical reason, sometimes becomes little over [0, 1]
+    // So just clip
+    edge_uv[0] = std::clamp(edge_uv[0], 0.f, 1.f);
+    edge_uv[1] = std::clamp(edge_uv[1], 0.f, 1.f);
+  }
+
+  float signed_edge_dist =
+      signed_dist_plane >= 0 ? edge_abs_dist : -edge_abs_dist;
+
+  return std::tuple(signed_edge_dist, edge_foot, edge_uv);
+}
+
+template <typename T>
+std::tuple<float, T, Eigen::Vector2f> PointTriangleDistance(const T& p,
+                                                            const T& v0,
+                                                            const T& v1,
+                                                            const T& v2) {
+  T normal = (v1 - v0).cross(v2 - v0).normalized();
+  T::Scalar d = -normal.dot(v0);
+
+  return PointTriangleDistance(p, v0, v1, v2, normal[0], normal[1], normal[2],
+                               d);
 }
 
 inline Eigen::Vector3f Extract3f(const Eigen::Vector4f& v) {

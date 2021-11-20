@@ -5,11 +5,10 @@
 #ifdef UGU_USE_NANOFLANN
 
 #include "ugu/textrans/texture_transfer.h"
-#include "ugu/textrans/correspondence_finder.h"
 
+#include "ugu/textrans/correspondence_finder.h"
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
-
 
 namespace ugu {
 
@@ -111,14 +110,15 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
         output.nn_pos_tex.at<ugu::Vec3f>(bb_y, bb_x) =
             ugu::Vec3f({corresp.p[0], corresp.p[1], corresp.p[2]});
         output.nn_bary_tex.at<ugu::Vec3f>(bb_y, bb_x) =
-            ugu::Vec3f({corresp.uv[0], corresp.uv[1], corresp.uv[2]});
+            ugu::Vec3f({corresp.uv[0], corresp.uv[1],
+                        (1.f - corresp.uv[0] - corresp.uv[1])});
         const auto& suvface = src_uv_faces[corresp.fid];
         const auto& suv0 = src_uvs[suvface[0]];
         const auto& suv1 = src_uvs[suvface[1]];
         const auto& suv2 = src_uvs[suvface[2]];
 
-        Eigen::Vector2f suv =
-            corresp.uv[0] * suv0 + corresp.uv[1] * suv1 + corresp.uv[2] * suv2;
+        Eigen::Vector2f suv = corresp.uv[0] * suv0 + corresp.uv[1] * suv1 +
+                              (1.f - corresp.uv[0] - corresp.uv[1]) * suv2;
 
         // Calc pixel pos in src tex
         float sx = std::clamp(U2X(suv[0], static_cast<int32_t>(src_w)), 0.f,

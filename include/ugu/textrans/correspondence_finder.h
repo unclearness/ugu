@@ -18,7 +18,7 @@ namespace ugu {
 
 struct Corresp {
   int32_t fid = -1;
-  Eigen::Vector3f uv = Eigen::Vector3f::Zero();
+  Eigen::Vector2f uv = Eigen::Vector2f::Zero();
   Eigen::Vector3f p =
       Eigen::Vector3f::Constant(std::numeric_limits<float>::lowest());
   float singed_dist = std::numeric_limits<float>::lowest();

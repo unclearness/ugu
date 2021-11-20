@@ -63,8 +63,8 @@ bool Depth2PointCloudImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
       vertices.push_back(camera_p);
 
       if (with_texture) {
-        Eigen::Vector2f uv(ugu::X2U(x, depth.cols),
-                           ugu::Y2V(y, depth.rows, false));
+        Eigen::Vector2f uv(ugu::X2U(static_cast<float>(x), depth.cols),
+                           ugu::Y2V(static_cast<float>(y), depth.rows, false));
 
         // nearest neighbor
         // todo: bilinear
@@ -170,8 +170,8 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
 
       vid2xy.push_back(std::make_pair(x, y));
 
-      Eigen::Vector2f uv(ugu::X2U(x, depth.cols),
-                         ugu::Y2V(y, depth.rows, false));
+      Eigen::Vector2f uv(ugu::X2U(static_cast<float>(x), depth.cols),
+                         ugu::Y2V(static_cast<float>(y), depth.rows, false));
 
       if (with_vertex_color) {
         // nearest neighbor

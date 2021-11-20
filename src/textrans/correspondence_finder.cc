@@ -48,7 +48,6 @@ std::tuple<std::vector<size_t>, std::vector<float>> QueryKdTree(
   return std::make_tuple(out_indices, out_distance_sq);
 }
 
-
 bool KDTreeCorrespFinder::Init(
     const std::vector<Eigen::Vector3f>& verts,
     const std::vector<Eigen::Vector3i>& verts_faces) {
@@ -79,7 +78,7 @@ ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
   float min_dist = std::numeric_limits<float>::max();
   float min_signed_dist = std::numeric_limits<float>::infinity();
   int32_t min_index = -1;
-  Eigen::Vector3f min_bary(99.f, 99.f, 99.f);
+  Eigen::Vector2f min_bary(99.f, 99.f);
   Eigen::Vector3f min_foot;
   for (const auto& index : indices) {
     const auto& vface = m_verts_faces[index];
@@ -87,65 +86,20 @@ ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
     const auto& v1 = m_verts[vface[1]];
     const auto& v2 = m_verts[vface[2]];
 
-    // Case 1: foot of perpendicular line is inside of target triangle
     const auto& plane = m_face_planes[index];
-    const Eigen::Vector3f normal = Extract3f(plane);
-    // point-plane distance |ax'+by'+cz'+d|
-    const float signed_dist = src_p.dot(normal) + plane[3];
 
-    float dist = std::abs(signed_dist);
-    Eigen::Vector3f foot = -signed_dist * normal + src_p;
-    float foot_dist = foot.dot(normal) + plane[3];
-    if (std::abs(foot_dist) > 0.0001f) {
-      // ugu::LOGE("wrong dist %f %f\n", foot, foot_dist);
-      throw std::runtime_error("wrong dist");
-    }
+    auto [signed_dist, foot, uv] = PointTriangleDistance(
+        src_p, v0, v1, v2, plane[0], plane[1], plane[2], plane[3]);
+    float abs_dist = std::abs(signed_dist);
 
-    auto [isInside, bary] = ugu::IsPoint3dInsideTriangle(foot, v0, v1, v2);
-
-    if (dist < min_dist && isInside) {
-      min_dist = dist;
+    if (abs_dist < min_dist) {
+      min_dist = abs_dist;
       min_signed_dist = signed_dist;
       min_index = static_cast<int32_t>(index);
-      min_bary = bary;
+      min_bary = uv;
       min_foot = foot;
     }
   }
-
-  // Case 2: foot of perpendicular line is outside of the triangle
-  if (min_index < 0) {
-    for (const auto& index : indices) {
-      const auto& vface = m_verts_faces[index];
-      const auto& v0 = m_verts[vface[0]];
-      const auto& v1 = m_verts[vface[1]];
-      const auto& v2 = m_verts[vface[2]];
-
-      const auto& plane = m_face_planes[index];
-      const Eigen::Vector3f normal = Extract3f(plane);
-
-      // Check distance to boundary line segments of triangle
-      auto [ldist, lfoot] = ugu::PointTriangleDistance(src_p, v0, v1, v2);
-      auto [lIsInside, lbary] = ugu::IsPoint3dInsideTriangle(lfoot, v0, v1, v2);
-      if (!lIsInside) {
-        // By numerical reason, sometimes becomes little over [0, 1]
-        // So just clip
-        lbary[0] = std::clamp(lbary[0], 0.f, 1.f);
-        lbary[1] = std::clamp(lbary[1], 0.f, 1.f);
-      }
-
-      if (ldist < min_dist) {
-        min_dist = ldist;
-        // TODO: Add sign
-        min_signed_dist = ldist;
-        min_index = static_cast<int32_t>(index);
-        min_bary = lbary;
-        min_foot = lfoot;
-      }
-    }
-  }
-
-  // IMPORTANT: Without this line, unexpectable noises may appear...
-  min_bary[2] = 1.f - min_bary[0] - min_bary[1];
 
   ugu::Corresp corresp;
   corresp.fid = min_index;
