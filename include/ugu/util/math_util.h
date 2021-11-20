@@ -228,7 +228,7 @@ std::tuple<float, T, Eigen::Vector2f> PointTriangleDistance(const T& p,
                                                             const T& v1,
                                                             const T& v2) {
   T normal = (v1 - v0).cross(v2 - v0).normalized();
-  T::Scalar d = -normal.dot(v0);
+  typename T::Scalar d = -normal.dot(v0);
 
   return PointTriangleDistance(p, v0, v1, v2, normal[0], normal[1], normal[2],
                                d);
