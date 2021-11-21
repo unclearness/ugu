@@ -36,7 +36,8 @@ T BilinearInterpolation(float x, float y, const ugu::Image<T>& image) {
   float local_v = y - pos_min[1];
 
   // bilinear interpolation
-  T color{T::value_type(0), T::value_type(0), T::value_type(0)};
+  typename T::value_type zero(0);
+  T color{zero};
   for (int i = 0; i < image.channels(); i++) {
     float colorf =
         (1.0f - local_u) * (1.0f - local_v) *
