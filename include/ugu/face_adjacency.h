@@ -191,7 +191,7 @@ class FaceAdjacency {
   GetBoundaryEdges() {
     std::vector<std::pair<int, int>> boundary_edges;
 
-    for (auto face_id = 0; face_id < vertex_indices_.size(); face_id++) {
+    for (size_t face_id = 0; face_id < vertex_indices_.size(); face_id++) {
       const Eigen::Vector3i& face = vertex_indices_[face_id];
       // boundary_edges should not be shared with other faces.
       // So it should be unique, no need to check duplication
@@ -222,7 +222,7 @@ class FaceAdjacency {
     const auto vertex_num = mat_.rows();
     VertexAdjacency vertex_adjacency(vertex_num);
 
-    for (auto face_id = 0; face_id < vertex_indices_.size(); face_id++) {
+    for (size_t face_id = 0; face_id < vertex_indices_.size(); face_id++) {
       const Eigen::Vector3i& face = vertex_indices_[face_id];
 
       vertex_adjacency[face[0]].insert(face[1]);

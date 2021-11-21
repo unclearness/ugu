@@ -147,7 +147,8 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
 
   std::vector<std::pair<int, int>> vid2xy;
 
-  std::vector<int> added_table(depth.cols * depth.rows, -1);
+  std::vector<int> added_table(static_cast<size_t>(depth.cols * depth.rows),
+                               -1);
   int vertex_id{0};
   for (int y = y_step; y < camera.height(); y += y_step) {
     for (int x = x_step; x < camera.width(); x += x_step) {
@@ -198,13 +199,22 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
         uvs.emplace_back(uv);
       }
 
-      added_table[y * camera.width() + x] = vertex_id;
+      added_table[static_cast<size_t>(y) * static_cast<size_t>(camera.width()) +
+                  static_cast<size_t>(x)] = vertex_id;
 
       const int& current_index = vertex_id;
       const int& upper_left_index =
-          added_table[(y - y_step) * camera.width() + (x - x_step)];
-      const int& upper_index = added_table[(y - y_step) * camera.width() + x];
-      const int& left_index = added_table[y * camera.width() + (x - x_step)];
+          added_table[(static_cast<size_t>(y) - static_cast<size_t>(y_step)) *
+                          static_cast<size_t>(camera.width()) +
+                      (static_cast<size_t>(x) - static_cast<size_t>(x_step))];
+      const int& upper_index =
+          added_table[(static_cast<size_t>(y) - static_cast<size_t>(y_step)) *
+                          static_cast<size_t>(camera.width()) +
+                      static_cast<size_t>(x)];
+      const int& left_index =
+          added_table[static_cast<size_t>(y) *
+                          static_cast<size_t>(camera.width()) +
+                      (static_cast<size_t>(x) - static_cast<size_t>(x_step))];
 
       const float upper_left_diff =
           std::abs(depth.at<float>(y - y_step, x - x_step) - d);

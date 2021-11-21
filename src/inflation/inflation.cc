@@ -19,9 +19,9 @@ namespace {
 bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
                     bool inverse) {
   // '''
-  // We have observed that solving the Poisson equation ∇2h(x, y) = −4,
-  // subject to h(∂Ω) = 0 and setting z = √ h produces very nice results(Figure
-  // 1) and is relatively fast and easy to compute.
+  // We have observed that solving the Poisson equation \nabla2h(x, y) = -4,
+  // subject to h(\partial\Omega) = 0 and setting z = \sqrt{h} produces very
+  // nice results(Figure 1) and is relatively fast and easy to compute.
   // '''
 
   height = ugu::Image1f::zeros(mask.rows, mask.cols);
@@ -54,7 +54,7 @@ bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
 
           // Skip if a neighbor is not on mask (not an unknown parameter to
           // estimate). This means setting 0 for the neighbor as known boundary
-          // condition. So that this skipping formualtes h(∂Ω) = 0
+          // condition. So that this skipping formualtes h(\partinal\Omega) = 0
           if (mask.at<unsigned char>(j, i - 1) != 0) {
             triplets.push_back({cur_row, img2prm_idx[get_idx(i - 1, j)], 1.0});
           }
@@ -83,7 +83,7 @@ bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
   Eigen::VectorXd b(num_param);
   b.setZero();
 
-  constexpr double rhs = -4.0;  //  ∇2h(x, y) = −4
+  constexpr double rhs = -4.0;  //  \nabla2h(x, y) = -4
   {
     int cur_row = 0;
     for (int j = 1; j < mask.rows - 1; j++) {
@@ -105,7 +105,7 @@ bool InflationBaran(const ugu::Image1b& mask, ugu::Image1f& height,
       if (mask.at<unsigned char>(j, i) != 0) {
         auto idx = img2prm_idx[get_idx(i, j)];
         auto& h = height.at<float>(j, i);
-        h = static_cast<float>(std::sqrt(x[idx]));  // setting z = √ h
+        h = static_cast<float>(std::sqrt(x[idx]));  // setting z = \sqrt{h}
         if (h > max_h) {
           max_h = h;
         }

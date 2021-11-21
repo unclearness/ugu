@@ -465,6 +465,11 @@ MeshPtr MakePlane(float length, const Eigen::Matrix3f& R,
   vertices[1] = Eigen::Vector3f(-h_x, h_y, 0.f);
   vertices[2] = Eigen::Vector3f(h_x, -h_y, 0.f);
   vertices[3] = Eigen::Vector3f(-h_x, -h_y, 0.f);
+
+  for (auto& v : vertices) {
+    v = R * v + t;
+  }
+
   vertex_indices[0] = Eigen::Vector3i(0, 1, 2);
   vertex_indices[1] = Eigen::Vector3i(2, 1, 3);
 

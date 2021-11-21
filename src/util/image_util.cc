@@ -617,7 +617,7 @@ std::vector<Eigen::Vector3f> GenRandomColors(int32_t num, float min_val,
                                              float max_val, size_t seed) {
   std::vector<Eigen::Vector3f> colors;
   std::uniform_real_distribution<float> dist(min_val, max_val);
-  std::default_random_engine engine(seed);
+  std::default_random_engine engine(static_cast<unsigned int>(seed));
 
   for (int32_t i = 0; i < num; i++) {
     colors.emplace_back(dist(engine), dist(engine), dist(engine));

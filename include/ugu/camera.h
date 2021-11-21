@@ -440,14 +440,16 @@ inline void PinholeCamera::org_ray_c(int x, int y, Eigen::Vector3f* org) const {
     InitRayTable();
     need_init_ray_table_ = false;
   }
-  *org = org_ray_c_table_[y * width_ + x];
+  *org = org_ray_c_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) +
+                          x];
 }
 inline void PinholeCamera::org_ray_w(int x, int y, Eigen::Vector3f* org) const {
   if (need_init_ray_table_) {
     InitRayTable();
     need_init_ray_table_ = false;
   }
-  *org = org_ray_w_table_[y * width_ + x];
+  *org = org_ray_w_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) +
+                          x];
 }
 
 inline void PinholeCamera::ray_c(int x, int y, Eigen::Vector3f* dir) const {
@@ -455,35 +457,45 @@ inline void PinholeCamera::ray_c(int x, int y, Eigen::Vector3f* dir) const {
     InitRayTable();
     need_init_ray_table_ = false;
   }
-  *dir = ray_c_table_[y * width_ + x];
+  *dir = ray_c_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) + x];
 }
 inline void PinholeCamera::ray_w(int x, int y, Eigen::Vector3f* dir) const {
   if (need_init_ray_table_) {
     InitRayTable();
     need_init_ray_table_ = false;
   }
-  *dir = ray_w_table_[y * width_ + x];
+  *dir = ray_w_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) + x];
 }
 
 inline void PinholeCamera::InitRayTable() const {
-  org_ray_c_table_.resize(width_ * height_);
-  org_ray_w_table_.resize(width_ * height_);
-  ray_c_table_.resize(width_ * height_);
-  ray_w_table_.resize(width_ * height_);
+  org_ray_c_table_.resize(static_cast<size_t>(width_) *
+                          static_cast<size_t>(height_));
+  org_ray_w_table_.resize(static_cast<size_t>(width_) *
+                          static_cast<size_t>(height_));
+  ray_c_table_.resize(static_cast<size_t>(width_) *
+                      static_cast<size_t>(height_));
+  ray_w_table_.resize(static_cast<size_t>(width_) *
+                      static_cast<size_t>(height_));
 #if defined(_OPENMP) && defined(UGU_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int y = 0; y < height_; y++) {
     for (int x = 0; x < width_; x++) {
       org_ray_c(static_cast<float>(x), static_cast<float>(y),
-                &org_ray_c_table_[y * width_ + x]);
+                &org_ray_c_table_[static_cast<size_t>(y) *
+                                      static_cast<size_t>(width_) +
+                                  x]);
       org_ray_w(static_cast<float>(x), static_cast<float>(y),
-                &org_ray_w_table_[y * width_ + x]);
+                &org_ray_w_table_[static_cast<size_t>(y) *
+                                      static_cast<size_t>(width_) +
+                                  x]);
 
       ray_c(static_cast<float>(x), static_cast<float>(y),
-            &ray_c_table_[y * width_ + x]);
+            &ray_c_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) +
+                          x]);
       ray_w(static_cast<float>(x), static_cast<float>(y),
-            &ray_w_table_[y * width_ + x]);
+            &ray_w_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) +
+                          x]);
     }
   }
 }
@@ -696,39 +708,51 @@ inline void OrthoCamera::ray_w(float x, float y, Eigen::Vector3f* dir) const {
 }
 
 inline void OrthoCamera::org_ray_c(int x, int y, Eigen::Vector3f* org) const {
-  *org = org_ray_c_table_[y * width_ + x];
+  *org = org_ray_c_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) +
+                          x];
 }
 
 inline void OrthoCamera::org_ray_w(int x, int y, Eigen::Vector3f* org) const {
-  *org = org_ray_w_table_[y * width_ + x];
+  *org = org_ray_w_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) +
+                          x];
 }
 
 inline void OrthoCamera::ray_c(int x, int y, Eigen::Vector3f* dir) const {
-  *dir = ray_c_table_[y * width_ + x];
+  *dir = ray_c_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) + x];
 }
 inline void OrthoCamera::ray_w(int x, int y, Eigen::Vector3f* dir) const {
-  *dir = ray_w_table_[y * width_ + x];
+  *dir = ray_w_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) + x];
 }
 
 inline void OrthoCamera::InitRayTable() {
-  org_ray_c_table_.resize(width_ * height_);
-  org_ray_w_table_.resize(width_ * height_);
-  ray_c_table_.resize(width_ * height_);
-  ray_w_table_.resize(width_ * height_);
+  org_ray_c_table_.resize(static_cast<size_t>(width_) *
+                          static_cast<size_t>(height_));
+  org_ray_w_table_.resize(static_cast<size_t>(width_) *
+                          static_cast<size_t>(height_));
+  ray_c_table_.resize(static_cast<size_t>(width_) *
+                      static_cast<size_t>(height_));
+  ray_w_table_.resize(static_cast<size_t>(width_) *
+                      static_cast<size_t>(height_));
 #if defined(_OPENMP) && defined(UGU_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int y = 0; y < height_; y++) {
     for (int x = 0; x < width_; x++) {
       org_ray_c(static_cast<float>(x), static_cast<float>(y),
-                &org_ray_c_table_[y * width_ + x]);
+                &org_ray_c_table_[static_cast<size_t>(y) *
+                                      static_cast<size_t>(width_) +
+                                  x]);
       org_ray_w(static_cast<float>(x), static_cast<float>(y),
-                &org_ray_w_table_[y * width_ + x]);
+                &org_ray_w_table_[static_cast<size_t>(y) *
+                                      static_cast<size_t>(width_) +
+                                  x]);
 
       ray_c(static_cast<float>(x), static_cast<float>(y),
-            &ray_c_table_[y * width_ + x]);
+            &ray_c_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) +
+                          x]);
       ray_w(static_cast<float>(x), static_cast<float>(y),
-            &ray_w_table_[y * width_ + x]);
+            &ray_w_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) +
+                          x]);
     }
   }
 }

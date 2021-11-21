@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "Eigen/Geometry"
+#include "ugu/util/raster_util.h"
 
 namespace ugu {
 
