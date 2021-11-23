@@ -239,7 +239,7 @@ FindBoundaryLoops(const std::vector<Eigen::Vector3i>& indices, int32_t vnum) {
       // May be the end of loop
 #if 0
       bool loop_closed = false;
-      for (auto i = 0; i < cur_edges.size(); i++) {
+      for (size_t i = 0; i < cur_edges.size(); i++) {
         const auto& e = cur_edges[i];
         if (cur_edge.second == e.first) {
           loop_closed = true;

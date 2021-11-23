@@ -102,7 +102,7 @@ struct Correspondence {
 
   void Update(const Image1f& disparity2, const int half_patch_size) {
     // Init
-    if (first2second.size() != disparity2.rows) {
+    if (first2second.size() != static_cast<size_t>(disparity2.rows)) {
       first2second.clear();
       first2second.resize(disparity2.rows);
       std::for_each(first2second.begin(), first2second.end(),

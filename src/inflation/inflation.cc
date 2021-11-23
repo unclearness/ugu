@@ -282,7 +282,7 @@ bool Inflation(const Image1b& mask, Image1f& height, Mesh& mesh,
   std::vector<Eigen::Vector3i> side_faces;
   const auto f2b_voffset = front.vertices().size();
   for (const auto& boundary_edges : boundary_edges_list) {
-    for (auto i = 0; i < boundary_edges.size(); i++) {
+    for (size_t i = 0; i < boundary_edges.size(); i++) {
       const auto& front_edge = boundary_edges[i];
       const auto back_edge = std::make_pair<int, int>(
           static_cast<int>(front_edge.first + f2b_voffset),

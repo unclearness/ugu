@@ -55,10 +55,10 @@ int main(int argc, char* argv[]) {
   auto [boundary_edges_list, boundary_vertex_ids_list] = ugu::FindBoundaryLoops(
       mesh->vertex_indices(), static_cast<int32_t>(mesh->vertices().size()));
 
-  for (auto i = 0; i < boundary_edges_list.size(); i++) {
+  for (size_t i = 0; i < boundary_edges_list.size(); i++) {
     ugu::LOGI("%d th boundary\n", i);
     std::vector<Eigen::Vector3f> boundary_vertices;
-    for (auto j = 0; j < boundary_edges_list[i].size(); j++) {
+    for (size_t j = 0; j < boundary_edges_list[i].size(); j++) {
       ugu::LOGI("%d th vertex id %d\n", j, boundary_vertex_ids_list[i][j]);
       boundary_vertices.push_back(
           mesh->vertices()[boundary_vertex_ids_list[i][j]]);

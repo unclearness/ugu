@@ -76,7 +76,7 @@ void SaveGeodesicDistance(const std::string& data_dir,
   auto& geodesic_tex = distance_mat.diffuse_tex;
 
   ugu::Image1b mask = ugu::Image1b::zeros(tex_len, tex_len);
-  for (auto i = 0; i < mesh.vertex_indices().size(); i++) {
+  for (size_t i = 0; i < mesh.vertex_indices().size(); i++) {
     const auto& f = mesh.vertex_indices()[i];
 
     std::array<Eigen::Vector2f, 3> target_tri;

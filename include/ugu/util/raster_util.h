@@ -152,7 +152,7 @@ bool RasterizeVertexAttributeToTexture(
   }
 
   auto face_num = vertex_color_indices.size();
-  for (auto i = 0; i < face_num; i++) {
+  for (size_t i = 0; i < face_num; i++) {
     const auto vc_face = vertex_color_indices[i];
     const auto uv_face = uv_indices[i];
 

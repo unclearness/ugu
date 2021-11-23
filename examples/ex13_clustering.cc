@@ -32,7 +32,7 @@ void SavePoints(const std::string& ply_path,
   std::vector<Eigen::Vector3f> label_colors;
   std::uniform_real_distribution<float> color_dstr(0.f, 255.f);
   // Random color for each cluster
-  for (size_t i = 0; i < num_clusters; i++) {
+  for (int i = 0; i < num_clusters; i++) {
     label_colors.emplace_back(color_dstr(engine), color_dstr(engine),
                               color_dstr(engine));
   }
@@ -44,7 +44,7 @@ void SavePoints(const std::string& ply_path,
       point_colors.emplace_back(0.f, 0.f, 0.f);
     }
   }
-  for (size_t i = 0; i < num_clusters; i++) {
+  for (int i = 0; i < num_clusters; i++) {
     // Red for cluster centroids
     point_colors.emplace_back(255.f, 0.f, 0.f);
   }

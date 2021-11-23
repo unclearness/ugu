@@ -50,7 +50,8 @@ void InpaintNaive(const ugu::Image1b& mask, ugu::Image<T>& color,
   // Distance transform
   ugu::Image1f dist;
   ugu::DistanceTransformL1(mask, &dist);
-  double minDist, maxDist;
+  double minDist = std::numeric_limits<double>::max(),
+         maxDist = std::numeric_limits<double>::lowest();
   ugu::minMaxLoc(dist, &minDist, &maxDist);
   std::vector<std::vector<std::pair<int, int>>> dist_pix_table(
       static_cast<size_t>(std::ceil(maxDist)) + 1);

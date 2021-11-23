@@ -201,7 +201,7 @@ bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
             std::vector<std::vector<Eigen::VectorXf>>& clustered_points,
             int term_max_iter, float term_unchanged_ratio, bool init_plus_plus,
             int random_seed) {
-  if (num_clusters <= 1 || points.size() < 2 || points.size() < num_clusters) {
+  if (num_clusters <= 1 || points.size() < 2 || points.size() < static_cast<size_t>(num_clusters)) {
     return false;
   }
 

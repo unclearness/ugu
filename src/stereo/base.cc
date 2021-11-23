@@ -14,7 +14,7 @@ namespace {
 // all_cost[j][i][d]: cost of disparity d at (i, j)
 using AllDisparityCost = std::vector<std::vector<std::vector<float>>>;
 struct Path8Cost {
-  int x, y;
+  int x = -1, y = -1;
   AllDisparityCost cost;
 };
 using Path8Costs = std::array<Path8Cost, 8>;
@@ -145,7 +145,8 @@ bool Disparity2Depth(const Image1f& disparity, Image1f* depth, float baseline,
 bool VisualizeCost(const Image1f& cost, Image3b* vis_cost, float minc,
                    float maxc) {
   if (minc < 0.0 || maxc < 0 || minc > maxc) {
-    double minVal, maxVal;
+    double minVal = std::numeric_limits<double>::max(),
+           maxVal = std::numeric_limits<double>::lowest();
     ugu::minMaxLoc(cost, &minVal, &maxVal);
     minc = static_cast<float>(minVal);
     maxc = static_cast<float>(maxVal);
@@ -243,7 +244,7 @@ bool ComputeStereoBruteForceCensusImpl(
   }
   cost->setTo(std::numeric_limits<float>::max());
 
-  if (keep_all_cost && all_cost->size() != h) {
+  if (keep_all_cost && all_cost->size() != static_cast<size_t>(h)) {
     all_cost->clear();
     all_cost->resize(h);
     for (auto& row : *all_cost) {
@@ -271,7 +272,7 @@ bool ComputeStereoBruteForceCensusImpl(
     for (int i = hk; i < w - hk; i++) {
       float& disp = disparity->at<float>(j, i);
       float& c = cost->at<float>(j, i);
-      int mink = 0;
+      // int mink = 0;
       // Find the best match in the same row
       // Integer pixel (not sub-pixel) accuracy
       int d_range = std::min(max_disparity_i, i);
@@ -285,7 +286,7 @@ bool ComputeStereoBruteForceCensusImpl(
         if (current_cost < c) {
           c = static_cast<float>(current_cost);
           disp = static_cast<float>(k);
-          mink = k;
+          // mink = k;
           if (c == 0 && !keep_all_cost) {
             // if cost is 0, prefer to smaller disparity
             break;
@@ -383,7 +384,7 @@ bool ComputeStereoBruteForceImpl(const Image<T>& left, const Image<T>& right,
     for (int i = hk; i < w - hk; i++) {
       float& disp = disparity->at<float>(j, i);
       float& c = best_cost->at<float>(j, i);
-      int mink = 0;
+      // int mink = 0;
       // Find the best match in the same row
       // Integer pixel (not sub-pixel) accuracy
       int d_range = std::min(max_disparity_i, i);
@@ -396,7 +397,7 @@ bool ComputeStereoBruteForceImpl(const Image<T>& left, const Image<T>& right,
         if (current_cost < c) {
           c = static_cast<float>(current_cost);
           disp = static_cast<float>(k);
-          mink = k;
+          // mink = k;
         }
       }
 
@@ -450,7 +451,8 @@ float AggregateCost(int x, int y, int now_d, int path_num,
 
   // Search disparity
   for (int d = 0; d <= max_disparity; d++) {
-    const float& prev_cost = all_cost[y + offsety][x + offsetx][d];
+    const float& prev_cost = all_cost[static_cast<int64_t>(y) + offsety]
+                                     [static_cast<int64_t>(x) + offsetx][d];
 
     if (now_d == d) {
       v0 = prev_cost;

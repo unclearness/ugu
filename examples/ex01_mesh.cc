@@ -197,7 +197,7 @@ void TestAlignment() {
   std::normal_distribution<float> gauss(0.0f, sigma);
   auto org_vertices = bunny.vertices();
   auto noised_vertices = org_vertices;
-  for (auto i = 0; i < noised_vertices.size(); i++) {
+  for (size_t i = 0; i < noised_vertices.size(); i++) {
     auto& v = noised_vertices[i];
     auto& n = bunny.normals()[i];
     v += gauss(engine) * n;

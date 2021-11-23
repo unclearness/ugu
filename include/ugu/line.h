@@ -160,29 +160,29 @@ FindBestLineCrossingPointLeastSquares(const std::vector<Line3<T>>& lines) {
 
   Eigen::MatrixXd lhs = lines.size() * Eigen::MatrixXd::Identity(
                                            lines.size() + 3, lines.size() + 3);
-  for (auto i = 0; i < lines.size(); i++) {
+  for (size_t i = 0; i < lines.size(); i++) {
     lhs(i, i) = lines[i].d.dot(lines[i].d);
   }
 
-  for (auto i = 0; i < lines.size(); i++) {
-    for (auto j = lines.size(); j < lines.size() + 3; j++) {
+  for (size_t i = 0; i < lines.size(); i++) {
+    for (size_t j = lines.size(); j < lines.size() + 3; j++) {
       lhs(i, j) = -lines[i].d[j - lines.size()];
     }
   }
 
-  for (auto j = 0; j < lines.size(); j++) {
-    for (auto i = lines.size(); i < lines.size() + 3; i++) {
+  for (size_t j = 0; j < lines.size(); j++) {
+    for (size_t i = lines.size(); i < lines.size() + 3; i++) {
       lhs(i, j) = -lines[j].d[i - lines.size()];
     }
   }
 
   Eigen::VectorXd rhs = Eigen::VectorXd(lines.size() + 3);
-  for (auto i = 0; i < lines.size(); i++) {
+  for (size_t i = 0; i < lines.size(); i++) {
     rhs(i) = -lines[i].d.dot(lines[i].a);
   }
-  for (auto i = lines.size(); i < lines.size() + 3; i++) {
+  for (size_t i = lines.size(); i < lines.size() + 3; i++) {
     double sum = 0.0;
-    for (auto j = 0; j < lines.size(); j++) {
+    for (size_t j = 0; j < lines.size(); j++) {
       sum += lines[j].a[i - lines.size()];
     }
     rhs(i) = sum;
@@ -195,10 +195,10 @@ FindBestLineCrossingPointLeastSquares(const std::vector<Line3<T>>& lines) {
   p.y() = ans.cast<T>()[lines.size() + 1];
   p.z() = ans.cast<T>()[lines.size() + 2];
 
-  for (auto i = 0; i < lines.size(); i++) {
-      auto a = (p.template cast<T>() - lines[i].a);
+  for (size_t i = 0; i < lines.size(); i++) {
+    auto a = (p.template cast<T>() - lines[i].a);
     auto perpendiculer = lines[i].a + a.dot(lines[i].d) * lines[i].d;
-      auto error = (p.template cast<T>() - perpendiculer).norm();
+    auto error = (p.template cast<T>() - perpendiculer).norm();
 
     errors.push_back(error);
   }
