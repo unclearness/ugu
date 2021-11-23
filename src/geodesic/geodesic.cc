@@ -208,7 +208,7 @@ bool ComputeGeodesicDistanceDijkstraBase(const ugu::Mesh& mesh, int src_vid,
   {
     std::vector<Eigen::Triplet<float>> triplet_list;
     triplet_list.reserve(mesh.vertices().size() * 2);
-    for (auto i = 0; i < mesh.vertex_indices().size(); i++) {
+    for (size_t i = 0; i < mesh.vertex_indices().size(); i++) {
       const Eigen::Vector3i& face = mesh.vertex_indices()[i];
       const Eigen::Vector3f& v0 = mesh.vertices()[face[0]];
       const Eigen::Vector3f& v1 = mesh.vertices()[face[1]];
