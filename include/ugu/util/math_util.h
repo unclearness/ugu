@@ -46,7 +46,7 @@ Eigen::Matrix<T, 3, 1> WeightedAverage(
   std::vector<float> normalized_weights;
   NormalizeWeights(weights, &normalized_weights);
 
-  double weighted_average[3];
+  double weighted_average[3] = {0.0, 0.0, 0.0};
   for (size_t i = 0; i < data.size(); i++) {
     weighted_average[0] += (data[i][0] * normalized_weights[i]);
     weighted_average[1] += (data[i][1] * normalized_weights[i]);

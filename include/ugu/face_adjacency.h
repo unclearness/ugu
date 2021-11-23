@@ -162,6 +162,7 @@ class FaceAdjacency {
     m0 = face_id + 1;
     m1 = face_id + 1;
     m2 = face_id + 1;
+    return true;
   }
 
   bool HasBoundaryEdge(int face_id,

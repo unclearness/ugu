@@ -400,12 +400,12 @@ Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
   dst_centroid /= static_cast<double>(dst.size());
 
   Eigen::MatrixXd normed_src(3, src.size());
-  for (auto i = 0; i < src.size(); i++) {
+  for (size_t i = 0; i < src.size(); i++) {
     normed_src.col(i) = src[i] - src_centroid;
   }
 
   Eigen::MatrixXd normed_dst(3, dst.size());
-  for (auto i = 0; i < dst.size(); i++) {
+  for (size_t i = 0; i < dst.size(); i++) {
     normed_dst.col(i) = dst[i] - dst_centroid;
   }
 
@@ -462,11 +462,11 @@ Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
     const std::vector<Eigen::Vector3d>& src,
     const std::vector<Eigen::Vector3d>& dst) {
   Eigen::MatrixXd src_(src.size(), 3);
-  for (auto i = 0; i < src.size(); i++) {
+  for (size_t i = 0; i < src.size(); i++) {
     src_.row(i) = src[i];
   }
   Eigen::MatrixXd dst_(dst.size(), 3);
-  for (auto i = 0; i < dst.size(); i++) {
+  for (size_t i = 0; i < dst.size(); i++) {
     dst_.row(i) = dst[i];
   }
   return FindSimilarityTransformFrom3dCorrespondences(src_, dst_);
@@ -476,11 +476,11 @@ Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
     const std::vector<Eigen::Vector3f>& src,
     const std::vector<Eigen::Vector3f>& dst) {
   Eigen::MatrixXd src_(src.size(), 3);
-  for (auto i = 0; i < src.size(); i++) {
+  for (size_t i = 0; i < src.size(); i++) {
     src_.row(i) = src[i].cast<double>();
   }
   Eigen::MatrixXd dst_(dst.size(), 3);
-  for (auto i = 0; i < dst.size(); i++) {
+  for (size_t i = 0; i < dst.size(); i++) {
     dst_.row(i) = dst[i].cast<double>();
   }
   return FindSimilarityTransformFrom3dCorrespondences(src_, dst_);

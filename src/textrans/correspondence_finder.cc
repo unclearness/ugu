@@ -79,7 +79,7 @@ ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
   float min_signed_dist = std::numeric_limits<float>::infinity();
   int32_t min_index = -1;
   Eigen::Vector2f min_bary(99.f, 99.f);
-  Eigen::Vector3f min_foot;
+  Eigen::Vector3f min_foot(99.f, 99.f, 99.f);
   for (const auto& index : indices) {
     const auto& vface = m_verts_faces[index];
     const auto& v0 = m_verts[vface[0]];

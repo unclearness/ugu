@@ -76,8 +76,8 @@ void SaveFloatAndUint8Image(const std::string& out_basename,
   std::string out_path = out_basename + ".png";
   if (is_float_input) {
     ugu::imwrite(out_basename + ext, org);
-    std::string out_path = out_basename + "_vis.png";
-    ugu::imwrite(out_path, vis);
+    std::string out_path2 = out_basename + "_vis.png";
+    ugu::imwrite(out_path2, vis);
   } else {
     ugu::imwrite(out_path, vis);
   }
@@ -182,7 +182,6 @@ int main(int argc, char* argv[]) {
     ugu::imwrite(out_basename + "_remap.png", remaped_vis);
   }
 
- 
   // ugu::Image3b dst_tex_vis;
   // ugu::ConvertTo(output.dst_tex, &dst_tex_vis);
   // ugu::imwrite(out_basename + src_ext, output.dst_tex);
@@ -229,7 +228,6 @@ int main(int argc, char* argv[]) {
         ugu::ColorizeImagePosMap(output.srcpos_tex, src_tex.cols, src_tex.rows);
     SaveFloatAndUint8Image(out_basename + "_srcpos", additional_info_raw_ext,
                            output.srcpos_tex, true, srcpos_tex_vis);
-
 
     ugu::Image3b nn_fid_tex_vis;
     ugu::FaceId2Color(output.nn_fid_tex, &nn_fid_tex_vis);

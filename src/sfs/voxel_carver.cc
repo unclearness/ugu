@@ -258,7 +258,8 @@ bool VoxelCarver::Carve(const Camera& camera, const Image1b& silhouette,
   }
 
   timer.Start();
-  double min_sdf, max_sdf;
+  double min_sdf = std::numeric_limits<double>::max(),
+         max_sdf = std::numeric_limits<double>::lowest();
   ugu::minMaxLoc(*sdf, &min_sdf, &max_sdf);
   const Eigen::Vector3i& voxel_num = voxel_grid_->voxel_num();
   const Eigen::Affine3f& w2c = camera.w2c().cast<float>();

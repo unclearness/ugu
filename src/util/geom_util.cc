@@ -222,7 +222,7 @@ FindBoundaryLoops(const std::vector<Eigen::Vector3i>& indices, int32_t vnum) {
     // Find connecting vertex
     bool found_connected = false;
     int connected_index = -1;
-    for (auto i = 0; i < boundary_edges.size(); i++) {
+    for (size_t i = 0; i < boundary_edges.size(); i++) {
       const auto& e = boundary_edges[i];
       if (cur_edge.second == e.first) {
         found_connected = true;
