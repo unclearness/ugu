@@ -31,3 +31,6 @@
 [submodule "third_party/mvs-texturing"]
 	path = third_party/mvs-texturing
 	url = https://github.com/unclearness/mvs-texturing.git
+[submodule "third_party/cxxopts"]
+	path = third_party/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git

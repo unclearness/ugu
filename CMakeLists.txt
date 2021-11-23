@@ -94,6 +94,10 @@ if(NOT DEFINED FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR)
 endif()
 message("FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR: ${FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR}") 
 
+if(NOT DEFINED CXXOPTS_INSTALL_DIR)
+  set_with_parent(CXXOPTS_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/cxxopts/include" "cxxopts installed directory")
+endif()
+message("CXXOPTS_INSTALL_DIR: ${CXXOPTS_INSTALL_DIR}")
 
 if(NOT DEFINED MVS_TEXTURING_INSTALL_DIR)
   set_with_parent(MVS_TEXTURING_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/mvs-texturing" "mvs-texturing installed directory")
@@ -194,6 +198,14 @@ if(UGU_USE_NANOFLANN)
   set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${NANOFLANN_INSTALL_DIR})
   add_definitions(-DUGU_USE_NANOFLANN)
 endif()
+
+option(UGU_USE_CXXOPTS "Use cxxopts" ON)
+message("UGU_USE_CXXOPTS: ${UGU_USE_CXXOPTS}")
+if(UGU_USE_CXXOPTS)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${CXXOPTS_INSTALL_DIR})
+  add_definitions(-DUGU_USE_CXXOPTS)
+endif()
+
 
 option(UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION "Use Fast-Quadric-Mesh-Simplification" ON)
 message("UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION: ${UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION}")
@@ -382,6 +394,8 @@ if (NOT hasParent)
   setup_exe(ex14_thread examples/ex14_thread.cc)
   setup_exe(ex15_optimizer examples/ex15_optimizer.cc)
   setup_exe(ex16_textrans examples/ex16_textrans.cc)
+
+  setup_exe(textrans_cmd app/textrans.cc)
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})
