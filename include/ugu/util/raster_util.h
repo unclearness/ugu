@@ -33,7 +33,7 @@ inline std::tuple<bool, Eigen::Vector2f> IsPoint3dInsideTriangle(
     return std::make_tuple(false, bary);
   }
 
-  if (std::abs(w0 + w1 + w2 - 1.f) > eps) {
+  if (std::abs(w0 + w1 + w2 - 1.f) > eps || w0 + w1 > 1.f) {
     return std::make_tuple(false, bary);
   }
   return std::make_tuple(true, bary);
