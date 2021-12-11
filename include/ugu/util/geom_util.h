@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <optional>
 #include <set>
 
 #include "ugu/line.h"
@@ -40,5 +41,28 @@ MeshPtr MakePlane(float length,
 void SetRandomVertexColor(MeshPtr mesh, int seed = 0);
 
 int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane = true);
+
+// Success: Vector3(t, u, v), Fail: std::nullopt
+std::optional<Eigen::Vector3f> Intersect(const Eigen::Vector3f& origin,
+                                         const Eigen::Vector3f& ray,
+                                         const Eigen::Vector3f& v0,
+                                         const Eigen::Vector3f& v1,
+                                         const Eigen::Vector3f& v2,
+                                         const float kEpsilon = 1e-6f);
+
+// u, v and t are defined as follows:
+// origin + ray * t ==  (1-u-v)*v0 + u*v1+v*v2
+struct IntersectResult {
+  float t = -1.f;
+  float u = -1.f;
+  float v = -1.f;
+  uint32_t fid = uint32_t(~0);
+};
+
+std::vector<IntersectResult> Intersect(
+    const Eigen::Vector3f& origin, const Eigen::Vector3f& ray,
+    const std::vector<Eigen::Vector3f>& vertices,
+    const std::vector<Eigen::Vector3i>& faces, int num_threads = 1,
+    const float kEpsilon = 1e-6f);
 
 }  // namespace ugu

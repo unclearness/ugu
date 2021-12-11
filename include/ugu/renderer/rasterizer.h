@@ -53,7 +53,3 @@ class Rasterizer : public Renderer {
 };
 
 }  // namespace ugu
-
-#ifndef UGU_STATIC_LIBRARY
-#include "rasterizer.cc"
-#endif

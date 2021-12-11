@@ -10,6 +10,7 @@
 #include "ugu/decimation/decimation.h"
 #include "ugu/external/external.h"
 #include "ugu/mesh.h"
+#include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
@@ -336,7 +337,41 @@ void TestDecimation() {
   }
 }
 
+void TestRayInteresection() {
+  std::string data_dir = "../data/bunny/";
+  std::string in_obj_path = data_dir + "bunny.obj";
+  auto bunny = ugu::Mesh::Create();
+  bunny->LoadObj(in_obj_path, data_dir);
+
+  Eigen::Vector3f origin(0.f, 0.f, 700.f);
+  Eigen::Vector3f ray(0.f, 0.f, -1.f);
+  ugu::Timer timer;
+  timer.Start();
+  auto results =
+      ugu::Intersect(origin, ray, bunny->vertices(), bunny->vertex_indices(), 1);
+  timer.End();
+  ugu::LOGI("ugu::Intersect took %f ms\n", timer.elapsed_msec());
+  std::vector<Eigen::Vector3f> intersected_points;
+  for (auto result : results) {
+    auto pos_t = origin + ray * result.t;
+    const auto& face = bunny->vertex_indices()[result.fid];
+    auto pos_uv = (1.f - (result.u + result.v)) * bunny->vertices()[face[0]] +
+                  result.u * bunny->vertices()[face[1]] +
+                  result.v * bunny->vertices()[face[2]];
+    ugu::LOGI("%d (%f, %f), %f, (%f, %f, %f) (%f, %f, %f)\n", result.fid,
+              result.u, result.v, result.t, pos_t.x(), pos_t.y(), pos_t.z(),
+              pos_uv.x(), pos_uv.y(), pos_uv.z());
+    intersected_points.push_back(pos_t);
+  }
+
+  auto tmp = ugu::Mesh::Create();
+  tmp->set_vertices(intersected_points);
+  tmp->WritePly("intersected.ply");
+}
+
 int main() {
+  TestRayInteresection();
+
   TestDecimation();
 
   TestCut();

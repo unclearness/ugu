@@ -9,6 +9,7 @@
 
 #include "ugu/face_adjacency.h"
 #include "ugu/util/math_util.h"
+#include "ugu/util/thread_util.h"
 
 namespace {
 
@@ -45,6 +46,58 @@ Eigen::Vector3i GenerateFace(int vid1, int vid2, int vid3, bool flipped) {
   }
 
   return f;
+}
+
+// A implementation of Möller-Trumbore algorithm
+// https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/moller-trumbore-ray-triangle-intersection
+// https://pheema.hatenablog.jp/entry/ray-triangle-intersection#%E4%B8%89%E8%A7%92%E5%BD%A2%E3%81%AE%E5%86%85%E9%83%A8%E3%81%AB%E5%AD%98%E5%9C%A8%E3%81%99%E3%82%8B%E7%82%B9%E3%81%AE%E8%A1%A8%E7%8F%BE
+template <typename T>
+std::optional<T> IntersectImpl(const T& origin, const T& ray, const T& v0,
+                               const T& v1, const T& v2,
+                               const typename T::Scalar kEpsilon) {
+  using scalar = typename T::Scalar;
+
+  T e1 = v1 - v0;
+  T e2 = v2 - v0;
+
+  T alpha = ray.cross(e2);
+  scalar det = e1.dot(alpha);
+
+  // if det == 0, ray is parallel to triangle
+  // Let's ignore this numerically unstable case
+  if (-kEpsilon < det && det < kEpsilon) {
+    return std::nullopt;
+  }
+
+  scalar invDet = scalar(1.0) / det;
+  T r = origin - v0;
+
+  // u, v and t are defined as follows:
+  // origin + ray * t == (1−u−v)*v0 + u*v1 +v*v2
+
+  // Must be 0 <= u <= 1
+  scalar u = alpha.dot(r) * invDet;
+  if (u < 0.0f || u > 1.0f) {
+    return std::nullopt;
+  }
+
+  T beta = r.cross(e1);
+
+  // Must be 0 <= v <= 1 and u + v <= 1
+  // Thus, 0 <= v <= 1 - u
+  scalar v = ray.dot(beta) * invDet;
+  if (v < 0.0f || u + v > 1.0f) {
+    return std::nullopt;
+  }
+
+  // The triangle is in the front of ray
+  // So, 0 <= t
+  scalar t = e2.dot(beta) * invDet;
+  if (t < 0.0f) {
+    return std::nullopt;
+  }
+
+  return T(t, u, v);
 }
 
 }  // namespace
@@ -226,7 +279,7 @@ FindBoundaryLoops(const std::vector<Eigen::Vector3i>& indices, int32_t vnum) {
       const auto& e = boundary_edges[i];
       if (cur_edge.second == e.first) {
         found_connected = true;
-        connected_index = i;
+        connected_index = static_cast<int>(i);
         cur_edge = e;
         cur_edges.push_back(cur_edge);
         break;
@@ -747,6 +800,69 @@ int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane) {
   }
 
   return num_removed;
+}
+
+std::optional<Eigen::Vector3f> Intersect(const Eigen::Vector3f& origin,
+                                         const Eigen::Vector3f& ray,
+                                         const Eigen::Vector3f& v0,
+                                         const Eigen::Vector3f& v1,
+                                         const Eigen::Vector3f& v2,
+                                         const float kEpsilon) {
+  return IntersectImpl(origin, ray, v0, v1, v2, kEpsilon);
+}
+
+std::vector<IntersectResult> Intersect(
+    const Eigen::Vector3f& origin, const Eigen::Vector3f& ray,
+    const std::vector<Eigen::Vector3f>& vertices,
+    const std::vector<Eigen::Vector3i>& faces, int num_threads,
+    const float kEpsilon) {
+  std::vector<IntersectResult> results;
+
+  if (num_threads != 1) {
+    // Multi-thread version with mutex
+    //  Slower for bunny(#face=30k) but can become faster if geometry is pretty
+    //  large?
+    std::mutex mtx;
+    auto func = [&](size_t i) {
+      const auto& f = faces[i];
+      const auto& v0 = vertices[f[0]];
+      const auto& v1 = vertices[f[1]];
+      const auto& v2 = vertices[f[2]];
+      auto ret = Intersect(origin, ray, v0, v1, v2, kEpsilon);
+      if (ret) {
+        const auto& tuv = ret.value();
+        std::lock_guard<std::mutex> lock(mtx);
+        IntersectResult result;
+        result.fid = static_cast<uint32_t>(i);
+        result.t = tuv[0];
+        result.u = tuv[1];
+        result.v = tuv[2];
+        results.emplace_back(result);
+      }
+    };
+    parallel_for(size_t(0), faces.size(), func, num_threads);
+  } else {
+    // Single thead version without mutex
+    // Faster for bunny(#face=30k) and can be parallelized on the upper level.
+    for (size_t i = 0; i < faces.size(); i++) {
+      const auto& f = faces[i];
+      const auto& v0 = vertices[f[0]];
+      const auto& v1 = vertices[f[1]];
+      const auto& v2 = vertices[f[2]];
+      auto ret = Intersect(origin, ray, v0, v1, v2, kEpsilon);
+      if (ret) {
+        const auto& tuv = ret.value();
+        IntersectResult result;
+        result.fid = static_cast<uint32_t>(i);
+        result.t = tuv[0];
+        result.u = tuv[1];
+        result.v = tuv[2];
+        results.emplace_back(result);
+      }
+    }
+  }
+
+  return results;
 }
 
 }  // namespace ugu

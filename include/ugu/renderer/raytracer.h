@@ -56,8 +56,4 @@ class Raytracer : public Renderer {
 
 }  // namespace ugu
 
-#ifndef UGU_STATIC_LIBRARY
-#include "raytracer.cc"
-#endif
-
 #endif
