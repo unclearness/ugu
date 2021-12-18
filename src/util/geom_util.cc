@@ -48,7 +48,7 @@ Eigen::Vector3i GenerateFace(int vid1, int vid2, int vid3, bool flipped) {
   return f;
 }
 
-// A implementation of Möller-Trumbore algorithm
+// An implementation of Möller-Trumbore algorithm
 // https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/moller-trumbore-ray-triangle-intersection
 // https://pheema.hatenablog.jp/entry/ray-triangle-intersection#%E4%B8%89%E8%A7%92%E5%BD%A2%E3%81%AE%E5%86%85%E9%83%A8%E3%81%AB%E5%AD%98%E5%9C%A8%E3%81%99%E3%82%8B%E7%82%B9%E3%81%AE%E8%A1%A8%E7%8F%BE
 template <typename T>
