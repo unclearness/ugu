@@ -10,6 +10,22 @@
 
 namespace ugu {
 
+// +0.5f comes from mapping 0~1 to -0.5~width(or height)+0.5
+// since uv 0 and 1 is pixel boundary at ends while pixel position is
+// the center of pixel
+
+inline float U2X(float u, int w) { return u * w - 0.5f; }
+inline float V2Y(float v, int h, bool flip = true) {
+  return flip ? (1.f - v) * h - 0.5f : v * h - 0.5f;
+}
+inline float X2U(float x, int w) {
+  return static_cast<float>(x + 0.5f) / static_cast<float>(w);
+}
+inline float Y2V(float y, int h, bool flip = true) {
+  float v = static_cast<float>(y + 0.5f) / static_cast<float>(h);
+  return flip ? 1.f - v : v;
+}
+
 template <typename T>
 float EdgeFunction(const T& a, const T& b, const T& c) {
   return (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
@@ -171,22 +187,6 @@ bool RasterizeVertexAttributeToTexture(
   }
 
   return true;
-}
-
-// +0.5f comes from mapping 0~1 to -0.5~width(or height)+0.5
-// since uv 0 and 1 is pixel boundary at ends while pixel position is
-// the center of pixel
-
-inline float U2X(float u, int w) { return u * w - 0.5f; }
-inline float V2Y(float v, int h, bool flip = true) {
-  return flip ? (1.f - v) * h - 0.5f : v * h - 0.5f;
-}
-inline float X2U(float x, int w) {
-  return static_cast<float>(x + 0.5f) / static_cast<float>(w);
-}
-inline float Y2V(float y, int h, bool flip = true) {
-  float v = static_cast<float>(y + 0.5f) / static_cast<float>(h);
-  return flip ? 1.f - v : v;
 }
 
 template <typename T>
