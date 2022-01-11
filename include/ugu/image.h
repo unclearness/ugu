@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "ugu/common.h"
+#include "ugu/util/thread_util.h"
 
 #if defined(UGU_USE_STB) && !defined(UGU_USE_OPENCV)
 #include "stb_image.h"
@@ -376,6 +377,21 @@ class Image {
     Image<T> dst;
     this->copyTo(dst);
     return dst;
+  }
+
+  template <typename TT>
+  void forEach(std::function<void(TT&, const int[2])> f) {
+    if (empty()) {
+      return;
+    }
+    size_t st(0);
+    size_t ed = static_cast<size_t>(cols * rows * sizeof(T) / sizeof(TT));
+    auto f2 = [&](const size_t& i) {
+      const int xy[2] = {static_cast<int32_t>(i) % rows,
+                         static_cast<int32_t>(i) / rows};
+      f(reinterpret_cast<TT*>(data)[i], xy);
+    };
+    ugu::parallel_for(st, ed, f2);
   }
 };
 
