@@ -396,6 +396,7 @@ if (NOT hasParent)
   setup_exe(ex16_textrans examples/ex16_textrans.cc)
 
   setup_exe(textrans_cmd app/textrans.cc)
+  setup_exe(vc2tex_cmd app/vc2tex.cc)
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})

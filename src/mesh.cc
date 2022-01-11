@@ -733,6 +733,15 @@ bool Mesh::LoadPly(const std::string& ply_path) {
         static_cast<float>(std::atof(splitted[1].c_str()));
     vertices_[vertex_count][2] =
         static_cast<float>(std::atof(splitted[2].c_str()));
+
+    // TODO
+    if (splitted.size() >= 9) {
+      auto vc = Eigen::Vector3f();
+      vc[0] = static_cast<float>(std::atof(splitted[6].c_str()));
+      vc[1] = static_cast<float>(std::atof(splitted[7].c_str()));
+      vc[2] = static_cast<float>(std::atof(splitted[8].c_str()));
+      vertex_colors_.push_back(vc);
+    }
     vertex_count++;
     if (vertex_count >= vertex_num) {
       break;
