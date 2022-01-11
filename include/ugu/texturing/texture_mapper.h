@@ -34,6 +34,16 @@ bool TextureMapping(const std::vector<std::shared_ptr<Keyframe>>& keyframes,
                     const VisibilityInfo& info, Mesh* mesh,
                     const TextureMappingOption& option);
 
+bool Parameterize(Mesh& mesh, int tex_w = 1024, int tex_h = 1024,
+                  OutputUvType type = OutputUvType::kGenerateSimpleTriangles);
+
+bool Parameterize(const std::vector<Eigen::Vector3f>& vertices,
+                  const std::vector<Eigen::Vector3i>& faces,
+                  std::vector<Eigen::Vector2f>& uvs,
+                  std::vector<Eigen::Vector3i>& uv_faces, int tex_w = 1024,
+                  int tex_h = 1024,
+                  OutputUvType type = OutputUvType::kGenerateSimpleTriangles);
+
 }  // namespace ugu
 
 #endif

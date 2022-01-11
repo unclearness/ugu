@@ -9,6 +9,7 @@
 
 #include "ugu/decimation/decimation.h"
 #include "ugu/external/external.h"
+#include "ugu/inpaint/inpaint.h"
 #include "ugu/mesh.h"
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
@@ -276,6 +277,24 @@ void TestTexture() {
   bunny.set_vertex_colors(vertex_colors);
 
   bunny.WritePly(data_dir + "fetched_vertex_color.ply");
+
+  ugu::Parameterize(bunny);
+
+  ugu::Image1b mask = ugu::Image1b::zeros(1024, 1024);
+  auto rerasterized = bunny.materials()[0].diffuse_tex.clone();
+  ugu::RasterizeVertexAttributeToTexture(vertex_colors, bunny.vertex_indices(),
+                                         bunny.uv(), bunny.uv_indices(),
+                                         rerasterized, 1024, 1024, &mask);
+  ugu::Image1b inv_mask = mask.clone();
+  ugu::Not(mask, &inv_mask);
+  ugu::Inpaint(inv_mask, rerasterized, 3.f, ugu::InpaintMethod::TELEA);
+  auto mat = bunny.materials();
+  mat[0].diffuse_tex = rerasterized;
+  mat[0].diffuse_texname = "rerasterized.jpg";
+
+  bunny.set_materials(mat);
+
+  bunny.WriteObj(data_dir, "rerasterized");
 }
 
 void TestCut() {
@@ -347,8 +366,8 @@ void TestRayInteresection() {
   Eigen::Vector3f ray(0.f, 0.f, -1.f);
   ugu::Timer timer;
   timer.Start();
-  auto results =
-      ugu::Intersect(origin, ray, bunny->vertices(), bunny->vertex_indices(), 1);
+  auto results = ugu::Intersect(origin, ray, bunny->vertices(),
+                                bunny->vertex_indices(), 1);
   timer.End();
   ugu::LOGI("ugu::Intersect took %f ms\n", timer.elapsed_msec());
   std::vector<Eigen::Vector3f> intersected_points;

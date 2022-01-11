@@ -1010,6 +1010,113 @@ bool TextureMapping(const std::vector<std::shared_ptr<Keyframe>>& keyframes,
   return false;
 }
 
+bool Parameterize(Mesh& mesh, int tex_w, int tex_h, OutputUvType type) {
+  std::vector<Eigen::Vector2f> uvs;
+  std::vector<Eigen::Vector3i> uv_faces;
+  bool ret = Parameterize(mesh.vertices(), mesh.vertex_indices(), uvs, uv_faces,
+                          tex_w, tex_h, type);
+  if (ret) {
+    mesh.set_uv(uvs);
+    mesh.set_uv_indices(uv_faces);
+  }
+
+  return ret;
+}
+
+bool Parameterize(const std::vector<Eigen::Vector3f>& vertices,
+                  const std::vector<Eigen::Vector3i>& faces,
+                  std::vector<Eigen::Vector2f>& uvs,
+                  std::vector<Eigen::Vector3i>& uv_faces, int tex_w, int tex_h,
+                  OutputUvType type) {
+  if (type != OutputUvType::kGenerateSimpleTriangles) {
+    ugu::LOGE("OutputUvType %d is not implemented\n", type);
+    return false;
+  }
+
+  (void)vertices;
+
+  // Padding must be at least 2
+  // to pad right/left and up/down
+  const int padding_tri = 2;
+
+  int rect_num = static_cast<int>((faces.size() + 1) / 2);
+  int pix_per_rect = tex_h * tex_w / rect_num;
+  if (pix_per_rect < 6) {
+    return false;
+  }
+  int max_rect_edge_len = 100;
+  int sq_len =
+      std::min(static_cast<int>(std::sqrt(pix_per_rect)), max_rect_edge_len);
+  /*
+   * example. rect_w = 4
+   * * is padding on diagonal (fixed)
+   * + is upper triangle, - is lower triangle
+   * ++++**
+   * +++**-
+   * ++**--
+   * +**---
+   * **----
+   *
+   */
+
+  int max_rect_num = (tex_w / (sq_len + 2 + padding_tri)) *
+                     (tex_h / (sq_len + 1 + padding_tri));
+  while (max_rect_num < rect_num) {
+    sq_len--;
+    if (sq_len < 3) {
+      return false;
+    }
+    max_rect_num = (tex_w / (sq_len + 2 + padding_tri)) *
+                   (tex_h / (sq_len + 1 + padding_tri));
+  }
+
+  int rect_w = sq_len + 2;
+  int rect_h = sq_len + 1;
+
+  // Loop per face
+  int rect_w_num = tex_w / (rect_w + padding_tri);
+  for (int i = 0; i < static_cast<int>(faces.size()); i++) {
+    int rect_id = i / 2;
+    int rect_x = rect_id % rect_w_num;
+    int rect_y = rect_id / rect_w_num;
+
+    std::array<Eigen::Vector2f, 3> target_tri, target_tri_uv;
+    bool lower = i % 2 == 0;
+    if (lower) {
+      int rect_x_min = (rect_w + padding_tri) * rect_x + 2;
+      int rect_x_max = rect_x_min + sq_len - 1;
+      int rect_y_min = (rect_h + padding_tri) * rect_y;
+      int rect_y_max = rect_y_min + sq_len - 1;
+
+      target_tri[0] = Eigen::Vector2f{rect_x_min, rect_y_min};
+      target_tri[1] = Eigen::Vector2f{rect_x_max, rect_y_min};
+      target_tri[2] = Eigen::Vector2f{rect_x_max, rect_y_max};
+    } else {
+      int rect_x_min = (rect_w + padding_tri) * rect_x;
+      int rect_x_max = rect_x_min + sq_len - 1;
+      int rect_y_min = (rect_h + padding_tri) * rect_y + 1;
+      int rect_y_max = rect_y_min + sq_len - 1;
+
+      target_tri[0] = Eigen::Vector2f{rect_x_min, rect_y_min};
+      target_tri[1] = Eigen::Vector2f{rect_x_min, rect_y_max};
+      target_tri[2] = Eigen::Vector2f{rect_x_max, rect_y_max};
+    }
+
+    for (int j = 0; j < 3; j++) {
+      target_tri_uv[j].x() = (target_tri[j].x() + 0.5f) / tex_w;
+      target_tri_uv[j].y() = 1.0f - ((target_tri[j].y() + 0.5f) / tex_h);
+    }
+
+    uvs.push_back(target_tri_uv[0]);
+    uvs.push_back(target_tri_uv[1]);
+    uvs.push_back(target_tri_uv[2]);
+    int uv_size = static_cast<int>(uvs.size());
+    uv_faces.push_back(Eigen::Vector3i(uv_size - 3, uv_size - 2, uv_size - 1));
+  }
+
+  return true;
+}
+
 }  // namespace ugu
 
 #endif
