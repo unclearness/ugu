@@ -163,8 +163,8 @@ bool RasterizeVertexAttributeToTexture(
                                               uvs[uv_face[2]]};
 
     for (auto& tri : target_tri) {
-      tri.x() = texture.cols * tri.x() - 0.5f;
-      tri.y() = texture.rows * (1.f - tri.y()) - 0.5f;
+      tri.x() = ugu::U2X(tri.x(), texture.cols);
+      tri.y() = ugu::V2Y(tri.y(), texture.rows);
     }
 
     RasterizeTriangle(src_vetex_color, target_tri, &texture, mask);
