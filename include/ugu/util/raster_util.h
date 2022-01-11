@@ -139,7 +139,7 @@ bool RasterizeVertexAttributeToTexture(
     const std::vector<Eigen::Vector3i>& vertex_color_indices,
     const std::vector<Eigen::Vector2f>& uvs,
     const std::vector<Eigen::Vector3i>& uv_indices, Image<T>& texture,
-    int width = 512, int height = 512) {
+    int width = 512, int height = 512, ugu::Image1b* mask = nullptr) {
   if (vertex_color_indices.empty() ||
       vertex_color_indices.size() != uv_indices.size()) {
     return false;
@@ -167,7 +167,7 @@ bool RasterizeVertexAttributeToTexture(
       tri.y() = texture.rows * (1.f - tri.y()) - 0.5f;
     }
 
-    RasterizeTriangle(src_vetex_color, target_tri, &texture, nullptr);
+    RasterizeTriangle(src_vetex_color, target_tri, &texture, mask);
   }
 
   return true;

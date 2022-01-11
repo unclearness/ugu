@@ -62,6 +62,9 @@ void SaveGeodesicDistance(const std::string& data_dir,
   int tex_len = 512;
   distance_mat.diffuse_tex = ugu::Image3b::zeros(tex_len, tex_len);
 
+  // This is rasterization for visualized colors.
+  // So this does not accurately interpolate distances and the corresponding
+  // colors and may have artifacts on blue border lines.
   ugu::RasterizeVertexAttributeToTexture(
       mesh.vertex_colors(), mesh.vertex_indices(), mesh.uv(), mesh.uv_indices(),
       distance_mat.diffuse_tex);
@@ -76,77 +79,27 @@ void SaveGeodesicDistance(const std::string& data_dir,
   auto& geodesic_tex = distance_mat.diffuse_tex;
 
   ugu::Image1b mask = ugu::Image1b::zeros(tex_len, tex_len);
-  for (size_t i = 0; i < mesh.vertex_indices().size(); i++) {
-    const auto& f = mesh.vertex_indices()[i];
 
-    std::array<Eigen::Vector2f, 3> target_tri;
-    for (int j = 0; j < 3; j++) {
-      auto uv_idx = mesh.uv_indices()[i][j];
-      auto uv = mesh.uv()[uv_idx];
-      target_tri[j][0] = uv[0] * tex_len - 0.5f;
-      target_tri[j][1] = (1.0f - uv[1]) * tex_len - 0.5f;
-    }
-
-    float area = ugu::EdgeFunction(target_tri[0], target_tri[1], target_tri[2]);
-    if (std::abs(area) < std::numeric_limits<float>::min()) {
-      area = area > 0 ? std::numeric_limits<float>::min()
-                      : -std::numeric_limits<float>::min();
-    }
-    float inv_area = 1.0f / area;
-
-    // Loop for bounding box of the target triangle
-    int xmin = static_cast<int>(
-        std::min({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) -
-        1);
-    xmin = std::max(0, std::min(xmin, geodesic_tex.cols - 1));
-    int xmax = static_cast<int>(
-        std::max({target_tri[0].x(), target_tri[1].x(), target_tri[2].x()}) +
-        1);
-    xmax = std::max(0, std::min(xmax, geodesic_tex.cols - 1));
-
-    int ymin = static_cast<int>(
-        std::min({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) -
-        1);
-    ymin = std::max(0, std::min(ymin, geodesic_tex.rows - 1));
-    int ymax = static_cast<int>(
-        std::max({target_tri[0].y(), target_tri[1].y(), target_tri[2].y()}) +
-        1);
-    ymax = std::max(0, std::min(ymax, geodesic_tex.rows - 1));
-
-    for (int y = ymin; y <= ymax; y++) {
-      for (int x = xmin; x <= xmax; x++) {
-        Eigen::Vector2f pixel_sample(static_cast<float>(x),
-                                     static_cast<float>(y));
-        float w0 =
-            ugu::EdgeFunction(target_tri[1], target_tri[2], pixel_sample);
-        float w1 =
-            ugu::EdgeFunction(target_tri[2], target_tri[0], pixel_sample);
-        float w2 =
-            ugu::EdgeFunction(target_tri[0], target_tri[1], pixel_sample);
-        // Barycentric coordinate
-        w0 *= inv_area;
-        w1 *= inv_area;
-        w2 *= inv_area;
-
-        auto& c = geodesic_tex.at<ugu::Vec3b>(y, x);
-        // Barycentric coordinate should be positive inside of the triangle
-        // Skip outside of the target triangle
-        if (w0 < 0 || w1 < 0 || w2 < 0) {
-          continue;
-        }
-
-        // Barycentric interpolation of geodesic distance
-        double d_interp =
-            w0 * dists[f[0]] + w1 * dists[f[1]] + w2 * dists[f[2]];
-        auto color = dist2color(d_interp);
-        c[0] = static_cast<unsigned char>(color[0]);
-        c[1] = static_cast<unsigned char>(color[1]);
-        c[2] = static_cast<unsigned char>(color[2]);
-
-        mask.at<unsigned char>(y, x) = 255;
-      }
-    }
-  }
+  ugu::Image3f geodesic_tex_f = ugu::Image3f::zeros(tex_len, tex_len);
+  std::vector<Eigen::Vector3f> dists3;
+  std::transform(dists.begin(), dists.end(), std::back_inserter(dists3),
+                 [&](const double& d) {
+                   float d_f = static_cast<float>(d);
+                   return Eigen::Vector3f(d_f, d_f, d_f);
+                 });
+  // Rasterize float distance to float texture
+  // This does not cause artifacts
+  ugu::RasterizeVertexAttributeToTexture(
+      dists3, mesh.vertex_indices(), mesh.uv(), mesh.uv_indices(),
+      geodesic_tex_f, tex_len, tex_len, &mask);
+  // Convert to uchar from float
+  geodesic_tex_f.forEach<ugu::Vec3f>([&](ugu::Vec3f& p, const int position[2]) {
+    auto& c = geodesic_tex.at<ugu::Vec3b>(position[1], position[0]);
+    auto color = dist2color(p[0]);
+    c[0] = static_cast<unsigned char>(color[0]);
+    c[1] = static_cast<unsigned char>(color[1]);
+    c[2] = static_cast<unsigned char>(color[2]);
+  });
 
   // Inpaint to avoid color bleeding
   ugu::Image1b inpaint_mask;
