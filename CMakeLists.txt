@@ -266,6 +266,7 @@ set(
   include/ugu/util/thread_util.h
   include/ugu/util/geom_util.h
   include/ugu/util/image_util.h
+  include/ugu/util/string_util.h
   include/ugu/timer.h
 
   src/camera.cc
@@ -275,6 +276,7 @@ set(
   src/util.cc
   src/util/geom_util.cc
   src/util/image_util.cc
+  src/util/string_util.cc
 
   include/ugu/renderer/base.h
   include/ugu/renderer/raytracer.h
