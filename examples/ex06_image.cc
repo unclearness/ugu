@@ -27,5 +27,9 @@ int main(int argc, char* argv[]) {
   ugu::SignedDistance2Color(sdf, &vis_sdf, -1.0f, 1.0f);
   ugu::imwrite(data_dir + "00000_sdf.png", vis_sdf);
 
+  ugu::circle(vis_sdf, {200, 200}, 20, {255, 0, 255}, 3);
+  ugu::circle(vis_sdf, {100, 100}, 10, {0, 0, 0}, -1);
+  ugu::imwrite(data_dir + "00000_sdf_circle.png", vis_sdf);
+
   return 0;
 }

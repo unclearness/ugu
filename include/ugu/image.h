@@ -433,6 +433,8 @@ enum InterpolationFlags {
   WARP_INVERSE_MAP = 16
 };
 
+enum LineTypes { FILLED = -1, LINE_4 = 4, LINE_8 = 8, LINE_AA = 16 };
+
 template <typename T>
 struct Size_ {
   T height = T(-1);
@@ -572,8 +574,8 @@ void minMaxLoc(const Image<T>& src, double* minVal, double* maxVal = nullptr,
 }
 
 template <typename T>
-void resize(const ugu::Image<T>& src, ugu::Image<T>& dst, Size dsize,
-            double fx = 0.0, double fy = 0.0,
+void resize(const Image<T>& src, Image<T>& dst, Size dsize, double fx = 0.0,
+            double fy = 0.0,
             int interpolation = InterpolationFlags::INTER_LINEAR) {
 #ifdef UGU_USE_STB
   (void)interpolation;
@@ -611,6 +613,36 @@ void resize(const ugu::Image<T>& src, ugu::Image<T>& dst, Size dsize,
   LOGE("can't resize image with this configuration\n");
   return;
 #endif
+}
+
+template <typename T>
+void circle(Image<T>& img, Point center, int radius, const T& color,
+            int thickness = 1, int lineType = LINE_8, int shift = 0) {
+  (void)lineType;
+  (void)shift;
+  auto min_x = std::max(0, std::min({center.x - radius, img.cols - 1}));
+  auto max_x = std::min(img.cols - 1, std::max({center.x + radius, 0}));
+  auto min_y = std::max(0, std::min({center.y - radius, img.rows - 1}));
+  auto max_y = std::min(img.rows - 1, std::max({center.y + radius, 0}));
+
+  float radius_f = static_cast<float>(radius);
+  float thickness_f = static_cast<float>(thickness);
+
+  for (int y = min_y; y <= max_y; y++) {
+    for (int x = min_x; x <= max_x; x++) {
+      float dist = std::sqrt(static_cast<float>(
+          (center.x - x) * (center.x - x) + (center.y - y) * (center.y - y)));
+      if (thickness < 0) {
+        if (dist <= radius_f) {
+          img.at<T>(y, x) = color;
+        }
+      } else {
+        if (dist < radius_f && radius_f - dist <= thickness_f) {
+          img.at<T>(y, x) = color;
+        }
+      }
+    }
+  }
 }
 
 #endif
