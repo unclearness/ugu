@@ -634,11 +634,11 @@ void circle(Image<T>& img, Point center, int radius, const T& color,
           (center.x - x) * (center.x - x) + (center.y - y) * (center.y - y)));
       if (thickness < 0) {
         if (dist <= radius_f) {
-          img.at<T>(y, x) = color;
+          img.at<typename T>(y, x) = color;
         }
       } else {
         if (dist < radius_f && radius_f - dist <= thickness_f) {
-          img.at<T>(y, x) = color;
+          img.at<typename T>(y, x) = color;
         }
       }
     }
