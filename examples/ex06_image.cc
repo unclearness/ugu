@@ -29,6 +29,8 @@ int main(int argc, char* argv[]) {
 
   ugu::circle(vis_sdf, {200, 200}, 20, {255, 0, 255}, 3);
   ugu::circle(vis_sdf, {100, 100}, 10, {0, 0, 0}, -1);
+  ugu::line(vis_sdf, {0, 0}, {50, 50}, {255, 0, 0}, 1);
+  ugu::line(vis_sdf, {10, 200}, {100, 200}, {0, 0, 255}, 5);
   ugu::imwrite(data_dir + "00000_sdf_circle.png", vis_sdf);
 
   return 0;

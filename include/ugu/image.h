@@ -645,6 +645,94 @@ void circle(Image<T>& img, Point center, int radius, const T& color,
   }
 }
 
+template <typename T>
+void line(Image<T>& img, Point pt1, Point pt2, const T& color,
+          int thickness = 1, int lineType = 8, int shift = 0) {
+  (void)lineType;
+  (void)shift;
+
+  // Naive implementation of "All cases"
+  // https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
+
+  thickness = std::max(1, thickness);
+
+  auto plotLineLow = [&](int x0, int y0, int x1, int y1) {
+    int dx = x1 - x0;
+    int dy = y1 - y0;
+    int yi = 1;
+    if (dy < 0) {
+      yi = -1;
+      dy = -dy;
+    }
+
+    int D = (2 * dy) - dx;
+    int y = y0;
+
+    x0 = std::clamp(x0, 0, img.cols - 1);
+    x1 = std::clamp(x1, 0, img.cols - 1);
+
+    for (int x = x0; x <= x1; x++) {
+      for (int t = 0; t < thickness; t++) {
+        int y_ = std::clamp(t + y, 0, img.rows - 1);
+        img.template at<T>(y_, x) = color;
+      }
+      if (D > 0) {
+        y = y + yi;
+        D = D + (2 * (dy - dx));
+      } else {
+        D = D + 2 * dy;
+      }
+    }
+  };
+
+  auto plotLineHigh = [&](int x0, int y0, int x1, int y1) {
+    int dx = x1 - x0;
+    int dy = y1 - y0;
+    int xi = 1;
+    if (dx < 0) {
+      xi = -1;
+      dx = -dx;
+    }
+
+    int D = (2 * dx) - dy;
+    int x = x0;
+
+    y0 = std::clamp(y0, 0, img.rows - 1);
+    y1 = std::clamp(y1, 0, img.rows - 1);
+
+    for (int y = y0; y <= y1; y++) {
+      for (int t = 0; t < thickness; t++) {
+        int x_ = std::clamp(t + x, 0, img.cols - 1);
+        img.template at<T>(y, x_) = color;
+      }
+      if (D > 0) {
+        x = x + xi;
+        D = D + (2 * (dx - dy));
+      } else {
+        D = D + 2 * dx;
+      }
+    }
+  };
+
+  int x1 = pt1.x;
+  int y1 = pt1.y;
+  int x2 = pt2.x;
+  int y2 = pt2.y;
+  if (std::abs(y2 - y1) < std::abs(x2 - x1)) {
+    if (x1 > x2) {
+      plotLineLow(x2, y2, x1, y1);
+    } else {
+      plotLineLow(x1, y1, x2, y2);
+    }
+  } else {
+    if (y1 > y2) {
+      plotLineHigh(x2, y2, x1, y1);
+    } else {
+      plotLineHigh(x1, y1, x2, y2);
+    }
+  }
+}
+
 #endif
 
 }  // namespace ugu
