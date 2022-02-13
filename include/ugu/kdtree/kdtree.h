@@ -47,9 +47,15 @@ class KdTree {
     if (m_axis_num < 0 || m_data.empty()) {
       return;
     }
+    m_indices.clear();
     m_indices.resize(m_data.size());
     std::iota(m_indices.begin(), m_indices.end(), 0);
     root = BuildImpl(0, m_indices.size(), 0);
+  }
+
+  void Clear() {
+    m_data.clear();
+    m_indices.clear();
   }
 
   KdTreeSearchResults SearchNn(const Point& query) const {
@@ -59,6 +65,12 @@ class KdTree {
   KdTreeSearchResults SearchKnn(const Point& query, const size_t& k) const {
     KdTreeSearchResults res;
     SearchKnnImpl(query, k, root, res);
+    return res;
+  }
+
+  KdTreeSearchResults SearchRadius(const Point& query, const double& r) const {
+    KdTreeSearchResults res;
+    SearchRadiusImpl(query, r, root, res);
     return res;
   }
 
@@ -75,7 +87,6 @@ class KdTree {
   std::vector<Point> m_data;
   std::vector<int> m_indices;
   int m_axis_num = -1;
-  int m_max_depth = -1;
   int m_max_leaf_data_num = -1;
 
   struct Node;
@@ -157,6 +168,29 @@ class KdTree {
     if (result.size() < k || diff < result.back().second) {
       NodePtr next2 = (next == node->right) ? node->left : node->right;
       SearchKnnImpl(query, k, next2, result);
+    }
+  }
+
+  void SearchRadiusImpl(const Point& query, const double& r, const NodePtr node,
+                        KdTreeSearchResults& result) const {
+    if (node == nullptr) {
+      return;
+    }
+    for (const auto& i : node->indices) {
+      const double dist = EuclidDist(query, m_data[i]);
+      if (dist <= r) {
+        UpdateKdTreeSearchResult(result, i, dist, 0);
+      }
+    }
+    const int axis = node->axis;
+    const auto& pivot = m_data[node->indices[0]][axis];
+    NodePtr next = query[axis] < pivot ? node->left : node->right;
+    SearchRadiusImpl(query, r, next, result);
+
+    const double diff = std::abs(query[axis] - pivot);
+    if (diff <= r) {
+      NodePtr next2 = (next == node->right) ? node->left : node->right;
+      SearchRadiusImpl(query, r, next2, result);
     }
   }
 };

@@ -11,6 +11,35 @@
 #include "ugu/mesh.h"
 #include "ugu/timer.h"
 
+namespace {
+
+template <typename T>
+ugu::Image3b DrawResult2d(const T& query2d, const std::vector<T>& points2d,
+                          const ugu::KdTreeSearchResults& res, int r = -1) {
+  ugu::Image3b out = ugu::Image3b::zeros(480, 480);
+  for (const auto& p : points2d) {
+    ugu::Point center{p.x() * out.cols, p.y() * out.rows};
+    ugu::circle(out, center, 2, {255, 255, 255}, -1);
+  }
+
+  {
+    ugu::Point center{query2d.x() * out.cols, query2d.y() * out.rows};
+    ugu::circle(out, center, 3, {0, 255, 0}, -1);
+    if (0 < r) {
+      ugu::circle(out, center, r, {255, 0, 0}, 2);
+    }
+  }
+  for (const auto& r : res) {
+    ugu::Point center{points2d[r.first].x() * out.cols,
+                      points2d[r.first].y() * out.rows};
+    ugu::circle(out, center, 3, {255, 0, 0}, -1);
+  }
+
+  return out;
+}
+
+}  // namespace
+
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
@@ -34,10 +63,12 @@ int main(int argc, char* argv[]) {
   timer.End();
   ugu::LOGI("KdTree.Build(): %f msec\n", timer.elapsed_msec());
 
+  ugu::KdTreeSearchResults res;
+
   Eigen::Vector2f query2d{0.4f, 0.6f};
   int k = 20;
   timer.Start();
-  auto res = kdtree.SearchKnn(query2d, k);
+  res = kdtree.SearchKnn(query2d, k);
   timer.End();
   ugu::LOGI("KdTree.SearchKnn(): %f msec\n", timer.elapsed_msec());
 
@@ -62,23 +93,15 @@ int main(int argc, char* argv[]) {
   timer.End();
   ugu::LOGI("BruteForce: %f msec\n", timer.elapsed_msec());
 
-  ugu::Image3b out = ugu::Image3b::zeros(480, 480);
-  for (const auto& p : points2d) {
-    ugu::Point center{p.x() * out.cols, p.y() * out.rows};
-    ugu::circle(out, center, 2, {255, 255, 255}, -1);
-  }
+  ugu::imwrite("kdtree2d_knn.png", DrawResult2d(query2d, points2d, res));
 
-  {
-    ugu::Point center{query2d.x() * out.cols, query2d.y() * out.rows};
-    ugu::circle(out, center, 3, {0, 255, 0}, -1);
-  }
-  for (const auto& r : res) {
-    ugu::Point center{points2d[r.first].x() * out.cols,
-                      points2d[r.first].y() * out.rows};
-    ugu::circle(out, center, 3, {255, 0, 0}, -1);
-  }
-
-  ugu::imwrite("kdtree2d.png", out);
+  timer.Start();
+  double r = 0.1;
+  res = kdtree.SearchRadius(query2d, r);
+  timer.End();
+  ugu::LOGI("KdTree.SearchRadius(): %f msec\n", timer.elapsed_msec());
+  ugu::imwrite("kdtree2d_radius.png",
+               DrawResult2d(query2d, points2d, res, static_cast<int>(r * 480)));
 
   return 0;
 }
