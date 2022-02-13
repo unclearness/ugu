@@ -34,6 +34,10 @@ MeshPtr MakeCube(float length, const Eigen::Matrix3f& R,
                  const Eigen::Vector3f& t);
 MeshPtr MakeCube(float length);
 
+MeshPtr MakeUvSphere(int n_stacks = 10, int n_slices = 10);
+MeshPtr MakeUvSphere(const Eigen::Vector3f& center, float r, int n_stacks = 10,
+                     int n_slices = 10);
+
 MeshPtr MakePlane(float length,
                   const Eigen::Matrix3f& R = Eigen::Matrix3f::Identity(),
                   const Eigen::Vector3f& t = Eigen::Vector3f::Zero());

@@ -504,6 +504,78 @@ MeshPtr MakeCube(float length) {
   return MakeCube(length, R, t);
 }
 
+MeshPtr MakeUvSphere(int n_stacks, int n_slices) {
+  // https://www.danielsieger.com/blog/2021/03/27/generating-spheres.html
+
+  std::vector<Eigen::Vector3f> vertices;
+  std::vector<Eigen::Vector3i> indices;
+  std::vector<Eigen::Vector2f> uvs;
+
+  // add top vertex
+  int v0 = 0;
+  auto v0_ = Eigen::Vector3f(0.f, 1.f, 0.f);
+  vertices.push_back(v0_);
+
+  // generate vertices per stack / slice
+  for (int i = 0; i < n_stacks - 1; i++) {
+    auto phi = ugu::pi * double(i + 1) / double(n_stacks);
+    for (int j = 0; j < n_slices; j++) {
+      auto theta = 2.0 * ugu::pi * double(j) / double(n_slices);
+      auto x = std::sin(phi) * std::cos(theta);
+      auto y = std::cos(phi);
+      auto z = std::sin(phi) * std::sin(theta);
+      vertices.push_back(Eigen::Vector3f(x, y, z));
+      uvs.push_back({x, y});
+    }
+  }
+
+  // add bottom vertex
+  int v1 = static_cast<int>(vertices.size());
+  auto v1_ = Eigen::Vector3f(0.f, -1.f, 0.f);
+  vertices.push_back(v1_);
+
+  // add top / bottom triangles
+  for (int i = 0; i < n_slices; ++i) {
+    auto i0 = i + 1;
+    auto i1 = (i + 1) % n_slices + 1;
+    indices.push_back({v0, i1, i0});
+    i0 = i + n_slices * (n_stacks - 2) + 1;
+    i1 = (i + 1) % n_slices + n_slices * (n_stacks - 2) + 1;
+    indices.push_back({v1, i0, i1});
+  }
+
+  // add triangles per stack / slice
+  for (int j = 0; j < n_stacks - 2; j++) {
+    auto j0 = j * n_slices + 1;
+    auto j1 = (j + 1) * n_slices + 1;
+    for (int i = 0; i < n_slices; i++) {
+      auto i0 = j0 + i;
+      auto i1 = j0 + (i + 1) % n_slices;
+      auto i2 = j1 + (i + 1) % n_slices;
+      auto i3 = j1 + i;
+      indices.push_back({i0, i1, i2});
+      indices.push_back({i0, i2, i3});
+    }
+  }
+
+  auto mesh = Mesh::Create();
+
+  mesh->set_vertices(vertices);
+  mesh->set_uv(uvs);
+  mesh->set_vertex_indices(indices);
+  mesh->set_uv_indices(indices);
+
+  return mesh;
+}
+
+MeshPtr MakeUvSphere(const Eigen::Vector3f& center, float r, int n_stacks,
+                     int n_slices) {
+  auto mesh = MakeUvSphere(n_stacks, n_slices);
+  mesh->Scale(r);
+  mesh->Translate(center);
+  return mesh;
+}
+
 MeshPtr MakePlane(float length, const Eigen::Matrix3f& R,
                   const Eigen::Vector3f& t) {
   MeshPtr plane = std::make_shared<Mesh>();
