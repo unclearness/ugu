@@ -15,23 +15,6 @@ namespace ugu {
 using KdTreeSearchResult = std::pair<size_t, double>;
 using KdTreeSearchResults = std::vector<KdTreeSearchResult>;
 
-void UpdateKdTreeSearchResult(KdTreeSearchResults& res, const size_t& index,
-                              const double& dist, const size_t& max_res_num) {
-  res.push_back({index, dist});
-  std::sort(res.begin(), res.end(),
-            [](const KdTreeSearchResult& lfs, const KdTreeSearchResult& rfs) {
-              return lfs.second < rfs.second;
-            });
-
-  if (max_res_num == 0 || res.size() < max_res_num) {
-    return;
-  }
-
-  res.resize(max_res_num);
-
-  return;
-}
-
 template <typename Point>
 class KdTree {
  public:
@@ -51,7 +34,7 @@ class KdTree {
 
  private:
   std::vector<Point> m_data;
-  std::vector<int> m_indices;
+  std::vector<size_t> m_indices;
   int m_axis_num = -1;
   int m_max_leaf_data_num = -1;
 
@@ -77,6 +60,10 @@ class KdTree {
                      KdTreeSearchResults& result) const;
   void SearchRadiusImpl(const Point& query, const double& r, const NodePtr node,
                         KdTreeSearchResults& result) const;
+
+  static void UpdateKdTreeSearchResult(KdTreeSearchResults& res,
+                                       const size_t& index, const double& dist,
+                                       const size_t& max_res_num);
 };
 
 template <typename Point>
@@ -241,6 +228,26 @@ void KdTree<Point>::SearchRadiusImpl(const Point& query, const double& r,
     NodePtr next2 = (next == node->right) ? node->left : node->right;
     SearchRadiusImpl(query, r, next2, result);
   }
+}
+
+template <typename Point>
+void KdTree<Point>::UpdateKdTreeSearchResult(KdTreeSearchResults& res,
+                                             const size_t& index,
+                                             const double& dist,
+                                             const size_t& max_res_num) {
+  res.push_back({index, dist});
+  std::sort(res.begin(), res.end(),
+            [](const KdTreeSearchResult& lfs, const KdTreeSearchResult& rfs) {
+              return lfs.second < rfs.second;
+            });
+
+  if (max_res_num == 0 || res.size() < max_res_num) {
+    return;
+  }
+
+  res.resize(max_res_num);
+
+  return;
 }
 
 }  // namespace ugu

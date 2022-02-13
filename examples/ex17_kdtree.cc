@@ -77,7 +77,6 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
     std::vector<Eigen::Vector3f> vc;
     vc.resize(sphere->vertices().size(), {255.f, 255.f, 255.f});
     sphere->set_vertex_colors(vc);
-    sphere->WritePly("tmp.ply");
     ugu::MeshPtr merged = ugu::Mesh::Create();
     ugu::MergeMeshes(*mesh, *sphere, merged.get());
     mesh = merged;
@@ -199,7 +198,7 @@ void Test3D() {
 
   {
     auto pc = VisualizeResult3d(query3d, points3d, res);
-    pc->WritePly("kdtree2d_knn.ply");
+    pc->WritePly("kdtree3d_knn.ply");
   }
 
   timer.Start();
@@ -209,7 +208,7 @@ void Test3D() {
   ugu::LOGI("KdTree.SearchRadius(): %f msec\n", timer.elapsed_msec());
   {
     auto pc = VisualizeResult3d(query3d, points3d, res, r);
-    pc->WritePly("kdtree2d_radius.ply");
+    pc->WritePly("kdtree3d_radius.ply");
   }
 }
 
