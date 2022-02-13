@@ -334,6 +334,8 @@ set(
   src/textrans/correspondence_finder.cc
   src/textrans/texture_transfer.cc
 
+  include/ugu/kdtree/kdtree.h
+
   include/ugu/external/external.h
   src/external/fast_quadric_mesh_simplification.cc
   src/external/mvs_texturing.cc
@@ -396,6 +398,7 @@ if (NOT hasParent)
   setup_exe(ex14_thread examples/ex14_thread.cc)
   setup_exe(ex15_optimizer examples/ex15_optimizer.cc)
   setup_exe(ex16_textrans examples/ex16_textrans.cc)
+  setup_exe(ex17_kdtree examples/ex17_kdtree.cc)
 
   setup_exe(textrans_cmd app/textrans.cc)
   setup_exe(vc2tex_cmd app/vc2tex.cc)
