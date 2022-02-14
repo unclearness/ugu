@@ -5,6 +5,8 @@
 
 #include "ugu/util/string_util.h"
 
+#include <algorithm>
+
 namespace ugu {
 
 std::string ExtractDir(const std::string& path) {
