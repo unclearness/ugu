@@ -28,6 +28,10 @@ int main(int argc, char* argv[]) {
   bvh.SetData(mesh->vertices(), mesh->vertex_indices());
 
   bvh.Build();
+  auto meshes = bvh.Visualize(8);
+  ugu::Mesh merged;
+  ugu::MergeMeshes(meshes, &merged);
+  merged.WriteObj("../data/bunny/", "bunny_bvh");
 
   return 0;
 }

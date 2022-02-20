@@ -42,6 +42,7 @@ MeshPtr MakePlane(float length,
                   const Eigen::Matrix3f& R = Eigen::Matrix3f::Identity(),
                   const Eigen::Vector3f& t = Eigen::Vector3f::Zero());
 
+void SetRandomUniformVertexColor(MeshPtr mesh, int seed = 0);
 void SetRandomVertexColor(MeshPtr mesh, int seed = 0);
 
 int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane = true);
@@ -68,5 +69,26 @@ std::vector<IntersectResult> Intersect(
     const std::vector<Eigen::Vector3f>& vertices,
     const std::vector<Eigen::Vector3i>& faces, int num_threads = 1,
     const float kEpsilon = 1e-6f);
+
+// https://github.com/isl-org/Open3D/blob/ed30e3b61fbe031e106fa64030bec3f698b316b4/cpp/open3d/geometry/Geometry3D.cpp#L41
+template <typename T>
+T ComputeMinBound(const std::vector<T>& points) {
+  if (points.empty()) {
+    return T::Zero();
+  }
+  return std::accumulate(
+      points.begin(), points.end(), points[0],
+      [](const T& a, const T& b) { return a.array().min(b.array()).matrix(); });
+}
+
+template <typename T>
+T ComputeMaxBound(const std::vector<T>& points) {
+  if (points.empty()) {
+    return T::Zero();
+  }
+  return std::accumulate(
+      points.begin(), points.end(), points[0],
+      [](const T& a, const T& b) { return a.array().max(b.array()).matrix(); });
+}
 
 }  // namespace ugu

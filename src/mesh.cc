@@ -863,9 +863,18 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
         << "\n";
 
     // vertices
-    for (const auto& v : vertices_) {
-      ofs << "v " << v.x() << " " << v.y() << " " << v.z() << " 1.0"
-          << "\n";
+    if (!vertex_colors_.empty() && vertex_colors_.size() == vertices_.size()) {
+      for (size_t i = 0; i < vertices_.size(); i++) {
+        const auto& v = vertices_[i];
+        const auto& vc = vertex_colors_[i] / 255.f;
+        ofs << "v " << v.x() << " " << v.y() << " " << v.z() << " " << vc.x()
+            << " " << vc.y() << " " << vc.z() << "\n";
+      }
+    } else {
+      for (const auto& v : vertices_) {
+        ofs << "v " << v.x() << " " << v.y() << " " << v.z() << " 1.0"
+            << "\n";
+      }
     }
 
     // uv

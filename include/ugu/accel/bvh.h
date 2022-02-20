@@ -91,8 +91,41 @@ class Bvh {
     if (m_axis_num < 0 || m_vertices.empty() || m_indices.empty()) {
       return false;
     }
-    root = BuildImpl(m_indices, 0);
+    m_root = BuildImpl(m_indices, 0);
     return true;
+  }
+
+  std::vector<MeshPtr> Visualize(int depth_limit = 10) const {
+    std::vector<NodePtr> q{m_root};
+
+    std::vector<MeshPtr> meshes;
+
+    auto bbox_to_mesh = [&](const Aabb<T>& bbox) -> ugu::MeshPtr {
+      Eigen::Vector3f length = bbox.length.cast<float>();
+      ugu::MeshPtr mesh = ugu::MakeCube(length);
+      mesh->Translate(bbox.center.cast<float>());
+      return mesh;
+    };
+
+    int loop_cnt = 0;
+    while (!q.empty()) {
+      auto b = q.back();
+      q.pop_back();
+
+      auto mesh = bbox_to_mesh(b->bbox);
+      SetRandomUniformVertexColor(mesh, loop_cnt);
+
+      for (const auto& c : b->children) {
+        if (c != nullptr && c->depth <= depth_limit) {
+          q.push_back(c);
+        }
+      }
+
+      meshes.push_back(mesh);
+
+      loop_cnt++;
+    }
+    return meshes;
   }
 
  private:
@@ -113,7 +146,7 @@ class Bvh {
     int depth = -1;
     int axis = -1;
   };
-  NodePtr root = nullptr;
+  NodePtr m_root = nullptr;
 
   NodePtr BuildImpl(const std::vector<TT>& indices, int depth) {
     const size_t poly_num = indices.size();

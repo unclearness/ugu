@@ -620,6 +620,18 @@ void SetRandomVertexColor(MeshPtr mesh, int seed) {
   mesh->set_vertex_colors(vertex_colors);
 }
 
+void SetRandomUniformVertexColor(MeshPtr mesh, int seed) {
+  std::mt19937 mt(seed);
+  std::uniform_int_distribution<int> random_color(0, 255);
+
+  std::vector<Eigen::Vector3f> vertex_colors(
+      mesh->vertices().size(), {static_cast<float>(random_color(mt)),
+                                static_cast<float>(random_color(mt)),
+                                static_cast<float>(random_color(mt))});
+
+  mesh->set_vertex_colors(vertex_colors);
+}
+
 int32_t CutByPlane(MeshPtr mesh, const Planef& plane, bool fill_plane) {
   int32_t num_removed{0};
 
