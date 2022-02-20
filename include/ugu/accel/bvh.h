@@ -85,6 +85,7 @@ struct Aabb {
     Init(max_v, min_v);
   }
 
+#if 0
   template <typename TT>
   Aabb(const std::vector<T>& vertices, const std::vector<TT>& indices) {
     std::vector<T> points;
@@ -97,6 +98,7 @@ struct Aabb {
     min_v = ComputeMinBound(points);
     Init(max_v, min_v);
   }
+#endif
 
   static double SurfaceArea(const Aabb& x) {
     double sum = 0.0;
@@ -161,7 +163,10 @@ class Bvh {
     if (m_axis_num < 0 || m_vertices.empty() || m_indices.empty()) {
       return false;
     }
-    m_root = BuildImpl(m_indices, 0);
+    m_face_ids.clear();
+    m_face_ids.resize(m_indices.size());
+    std::iota(m_face_ids.begin(), m_face_ids.end(), 0);
+    m_root = BuildImpl(m_face_ids, 0);
     return true;
   }
 
@@ -220,6 +225,7 @@ class Bvh {
  private:
   std::vector<T> m_vertices;
   std::vector<TT> m_indices;
+  std::vector<size_t> m_face_ids;
   int m_axis_num = -1;
   int m_max_leaf_data_num = -1;
   kCostType m_cost_type = kCostType::NAIVE;
@@ -247,8 +253,8 @@ class Bvh {
   };
   NodePtr m_root = nullptr;
 
-  NodePtr BuildImpl(const std::vector<TT>& indices, int depth) {
-    const size_t poly_num = indices.size();
+  NodePtr BuildImpl(const std::vector<size_t>& face_ids, int depth) {
+    const size_t poly_num = face_ids.size();
     if (m_max_leaf_data_num <= 0) {
       if (poly_num <= 0) {
         return nullptr;
@@ -256,27 +262,36 @@ class Bvh {
     } else {
       if (static_cast<int>(poly_num) <= m_max_leaf_data_num) {
         NodePtr node = std::make_shared<Node>();
-        node->indices = indices;
+        node->face_ids = face_ids;
         node->depth = depth;
+        for (const auto& f : face_ids) {
+          node->indices.push_back(m_indices[f]);
+        }
         return node;
       }
     }
 
-    auto [left_indices, right_indices, axis] = Split(indices, depth);
+    auto [left_fids, right_fids, axis] = Split(face_ids, depth);
 
     NodePtr node = std::make_shared<Node>();
     node->axis = axis;
     node->depth = depth;
-    node->bbox = Aabb(m_vertices, indices);
-    node->children[0] = BuildImpl(left_indices, depth + 1);
-    node->children[1] = BuildImpl(right_indices, depth + 1);
+    std::vector<T> points;
+    for (const auto& f : face_ids) {
+      for (int i = 0; i < m_indices[f].rows(); i++) {
+        points.push_back(m_vertices[m_indices[f][i]]);
+      }
+    }
+    node->bbox = Aabb(points);
+    node->children[0] = BuildImpl(left_fids, depth + 1);
+    node->children[1] = BuildImpl(right_fids, depth + 1);
 
     return node;
   }
 
-  std::tuple<std::vector<TT>, std::vector<TT>, int> Split(
-      const std::vector<TT>& indices, int depth) {
-    std::vector<TT> left_indices, right_indices;
+  std::tuple<std::vector<size_t>, std::vector<size_t>, int> Split(
+      const std::vector<size_t>& face_ids, int depth) {
+    std::vector<size_t> left_fids, right_fids;
     int axis = -1;
     if (m_cost_type == kCostType::NAIVE) {
       auto calc_center = [&](const TT& index) {
@@ -297,28 +312,28 @@ class Bvh {
         return center;
       };
 
-      const size_t poly_num = indices.size();
+      const size_t poly_num = face_ids.size();
       axis = depth % m_axis_num;
 
       const size_t mid_index = poly_num / 2;
 
-      left_indices = indices;
+      left_fids = face_ids;
 
-      std::sort(left_indices.begin(), left_indices.end(),
-                [&](const TT& lhs, const TT& rhs) {
-                  auto center_lhs = calc_center(lhs);
-                  auto center_rhs = calc_center(rhs);
+      std::sort(left_fids.begin(), left_fids.end(),
+                [&](const size_t& lhs, const size_t& rhs) {
+                  auto center_lhs = calc_center(m_indices[lhs]);
+                  auto center_rhs = calc_center(m_indices[rhs]);
                   return center_lhs[axis] < center_rhs[axis];
                 });
 
-      std::copy(left_indices.begin() + mid_index, left_indices.end(),
-                std::back_inserter(right_indices));
-      left_indices.resize(left_indices.size() - mid_index);
+      std::copy(left_fids.begin() + mid_index, left_fids.end(),
+                std::back_inserter(right_fids));
+      left_fids.resize(left_fids.size() - mid_index);
 
     } else {
       throw std::exception();
     }
-    return {left_indices, right_indices, axis};
+    return {left_fids, right_fids, axis};
   }
 
   std::vector<IntersectResult> IntersectImpl(const Ray& ray,
@@ -326,6 +341,10 @@ class Bvh {
     if (node->isLeaf()) {
       auto cur = ugu::Intersect(ray.org, ray.dir, m_vertices, node->indices,
                                 m_num_threads, m_epsilon);
+      // Convert face id from node to original
+      for (auto& c : cur) {
+        c.fid = node->face_ids[c.fid];
+      }
       return cur;
     }
 
