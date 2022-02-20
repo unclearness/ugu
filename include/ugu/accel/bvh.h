@@ -22,12 +22,58 @@ struct Aabb {
   T min_v;
   T length;
   T center;
+  std::vector<Eigen::Vector3f> vertices;
+  std::vector<Eigen::Vector3i> indices;
 
   void Init(const T& max_v, const T& min_v) {
     this->max_v = max_v;
     this->min_v = min_v;
     length = max_v - min_v;
     center = (max_v + min_v) * 0.5;
+
+    vertices.resize(24);
+    indices.resize(12);
+    vertices[0] = Eigen::Vector3f(min_v[0], max_v[1], min_v[2]);
+    vertices[1] = Eigen::Vector3f(max_v[0], max_v[1], min_v[2]);
+    vertices[2] = Eigen::Vector3f(max_v[0], max_v[1], max_v[2]);
+    vertices[3] = Eigen::Vector3f(min_v[0], max_v[1], max_v[2]);
+    indices[0] = Eigen::Vector3i(0, 2, 1);
+    indices[1] = Eigen::Vector3i(0, 3, 2);
+
+    vertices[4] = Eigen::Vector3f(min_v[0], min_v[1], min_v[2]);
+    vertices[5] = Eigen::Vector3f(max_v[0], min_v[1], min_v[2]);
+    vertices[6] = Eigen::Vector3f(max_v[0], min_v[1], max_v[2]);
+    vertices[7] = Eigen::Vector3f(min_v[0], min_v[1], max_v[2]);
+    indices[2] = Eigen::Vector3i(4, 5, 6);
+    indices[3] = Eigen::Vector3i(4, 6, 7);
+
+    vertices[8] = vertices[1];
+    vertices[9] = vertices[2];
+    vertices[10] = vertices[6];
+    vertices[11] = vertices[5];
+    indices[4] = Eigen::Vector3i(8, 9, 10);
+    indices[5] = Eigen::Vector3i(8, 10, 11);
+
+    vertices[12] = vertices[0];
+    vertices[13] = vertices[3];
+    vertices[14] = vertices[7];
+    vertices[15] = vertices[4];
+    indices[6] = Eigen::Vector3i(12, 14, 13);
+    indices[7] = Eigen::Vector3i(12, 15, 14);
+
+    vertices[16] = vertices[0];
+    vertices[17] = vertices[1];
+    vertices[18] = vertices[5];
+    vertices[19] = vertices[4];
+    indices[8] = Eigen::Vector3i(16, 17, 18);
+    indices[9] = Eigen::Vector3i(16, 18, 19);
+
+    vertices[20] = vertices[3];
+    vertices[21] = vertices[2];
+    vertices[22] = vertices[6];
+    vertices[23] = vertices[7];
+    indices[10] = Eigen::Vector3i(20, 22, 21);
+    indices[11] = Eigen::Vector3i(20, 23, 22);
   };
 
   Aabb(){};
@@ -66,6 +112,30 @@ struct Aabb {
 
 using Aabb3f = Aabb<Eigen::Vector3f>;
 
+#if 0
+template <typename T = float>
+class Ray {
+ public:
+  Ray() : min_t(static_cast<T>(0.0)), max_t(std::numeric_limits<T>::max()) {
+    org[0] = static_cast<T>(0.0);
+    org[1] = static_cast<T>(0.0);
+    org[2] = static_cast<T>(0.0);
+    dir[0] = static_cast<T>(0.0);
+    dir[1] = static_cast<T>(0.0);
+    dir[2] = static_cast<T>(-1.0);
+  }
+
+  T org[3];  // must set
+  T dir[3];  // must set
+  T min_t;   // minimum ray hit distance.
+  T max_t;   // maximum ray hit distance.
+};
+#endif
+
+struct Ray {
+  Eigen::Vector3f org, dir;
+};
+
 template <typename T, typename TT>
 class Bvh {
  public:
@@ -101,9 +171,19 @@ class Bvh {
     std::vector<MeshPtr> meshes;
 
     auto bbox_to_mesh = [&](const Aabb<T>& bbox) -> ugu::MeshPtr {
-      Eigen::Vector3f length = bbox.length.cast<float>();
-      ugu::MeshPtr mesh = ugu::MakeCube(length);
-      mesh->Translate(bbox.center.cast<float>());
+      // Eigen::Vector3f length = bbox.length.cast<float>();
+      // ugu::MeshPtr mesh = ugu::MakeCube(length);
+      // mesh->Translate(bbox.center.cast<float>());
+      ugu::MeshPtr mesh = ugu::Mesh::Create();
+      mesh->set_vertices(bbox.vertices);
+      mesh->set_vertex_indices(bbox.indices);
+
+      std::vector<ugu::ObjMaterial> materials(1);
+      mesh->set_materials(materials);
+      std::vector<int> material_ids(bbox.indices.size(), 0);
+      mesh->set_material_ids(material_ids);
+      mesh->CalcNormal();
+
       return mesh;
     };
 
@@ -128,12 +208,24 @@ class Bvh {
     return meshes;
   }
 
+  bool Intersect(const Ray& ray, std::vector<IntersectResult>& results) const {
+    results = IntersectImpl(ray, m_root);
+    std::sort(results.begin(), results.end(),
+              [&](const IntersectResult& lhs, const IntersectResult& rhs) {
+                return lhs.t < rhs.t;
+              });
+    return !results.empty();
+  }
+
  private:
   std::vector<T> m_vertices;
   std::vector<TT> m_indices;
   int m_axis_num = -1;
   int m_max_leaf_data_num = -1;
   kCostType m_cost_type = kCostType::NAIVE;
+
+  int m_num_threads = 1;
+  float m_epsilon = 1e-6f;
 
   struct Node;
   using NodePtr = std::shared_ptr<Node>;
@@ -143,8 +235,15 @@ class Bvh {
     Aabb<T> bbox;
     std::array<NodePtr, 2> children{nullptr, nullptr};  // TODO
     std::vector<TT> indices;
+    std::vector<size_t> face_ids;
     int depth = -1;
     int axis = -1;
+    bool isLeaf() const {
+      if (children[0] == nullptr || children[1] == nullptr) {
+        return true;
+      }
+      return false;
+    }
   };
   NodePtr m_root = nullptr;
 
@@ -220,6 +319,29 @@ class Bvh {
       throw std::exception();
     }
     return {left_indices, right_indices, axis};
+  }
+
+  std::vector<IntersectResult> IntersectImpl(const Ray& ray,
+                                             NodePtr node) const {
+    if (node->isLeaf()) {
+      auto cur = ugu::Intersect(ray.org, ray.dir, m_vertices, node->indices,
+                                m_num_threads, m_epsilon);
+      return cur;
+    }
+
+    auto cur_bbox_res =
+        ugu::Intersect(ray.org, ray.dir, node->bbox.vertices,
+                       node->bbox.indices, m_num_threads, m_epsilon);
+    if (cur_bbox_res.empty()) {
+      return {};
+    }
+
+    auto child_res0 = IntersectImpl(ray, node->children[0]);
+    std::vector<IntersectResult> results = child_res0;
+    auto child_res1 = IntersectImpl(ray, node->children[1]);
+    std::copy(child_res1.begin(), child_res1.end(),
+              std::back_inserter(results));
+    return results;
   }
 };
 
