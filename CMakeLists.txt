@@ -273,7 +273,9 @@ set(
   src/mesh.cc
   src/gltf.h
   src/log.cc
-  src/util.cc
+  src/util/io_util.cc
+  src/util/math_util.cc
+  src/util/rgbd_util.cc
   src/util/geom_util.cc
   src/util/image_util.cc
   src/util/string_util.cc
