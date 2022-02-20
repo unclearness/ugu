@@ -109,7 +109,7 @@ struct Aabb {
     }
     return 2.0 * sum;
   }
-  double SurfaceArea() const { return ::SurfaceArea(*this); }
+  double SurfaceArea() const { return SurfaceArea(*this); }
 };
 
 using Aabb3f = Aabb<Eigen::Vector3f>;
