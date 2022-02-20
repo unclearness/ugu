@@ -27,7 +27,13 @@ int main(int argc, char* argv[]) {
   bvh.SetMaxLeafDataNum(5);
   bvh.SetData(mesh->vertices(), mesh->vertex_indices());
 
+  ugu::Timer timer;
+
+  timer.Start();
   bvh.Build();
+  timer.End();
+  ugu::LOGI("ugu::Bvh::Build() took %f ms\n", timer.elapsed_msec());
+
   auto meshes = bvh.Visualize(3);
   ugu::Mesh merged;
   ugu::MergeMeshes(meshes, &merged);
@@ -35,7 +41,6 @@ int main(int argc, char* argv[]) {
 
   Eigen::Vector3f origin(0.f, 0.f, 700.f);
   Eigen::Vector3f dir(0.f, 0.f, -1.f);
-  ugu::Timer timer;
 
   {
     timer.Start();

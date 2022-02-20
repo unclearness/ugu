@@ -112,28 +112,6 @@ struct Aabb {
   double SurfaceArea() const { return SurfaceArea(*this); }
 };
 
-using Aabb3f = Aabb<Eigen::Vector3f>;
-
-#if 0
-template <typename T = float>
-class Ray {
- public:
-  Ray() : min_t(static_cast<T>(0.0)), max_t(std::numeric_limits<T>::max()) {
-    org[0] = static_cast<T>(0.0);
-    org[1] = static_cast<T>(0.0);
-    org[2] = static_cast<T>(0.0);
-    dir[0] = static_cast<T>(0.0);
-    dir[1] = static_cast<T>(0.0);
-    dir[2] = static_cast<T>(-1.0);
-  }
-
-  T org[3];  // must set
-  T dir[3];  // must set
-  T min_t;   // minimum ray hit distance.
-  T max_t;   // maximum ray hit distance.
-};
-#endif
-
 struct Ray {
   Eigen::Vector3f org, dir;
 };
@@ -176,9 +154,11 @@ class Bvh {
     std::vector<MeshPtr> meshes;
 
     auto bbox_to_mesh = [&](const Aabb<T>& bbox) -> ugu::MeshPtr {
-      // Eigen::Vector3f length = bbox.length.cast<float>();
-      // ugu::MeshPtr mesh = ugu::MakeCube(length);
-      // mesh->Translate(bbox.center.cast<float>());
+#if 0
+      Eigen::Vector3f length = bbox.length.cast<float>();
+      ugu::MeshPtr mesh = ugu::MakeCube(length);
+      mesh->Translate(bbox.center.cast<float>());
+#else
       ugu::MeshPtr mesh = ugu::Mesh::Create();
       mesh->set_vertices(bbox.vertices);
       mesh->set_vertex_indices(bbox.indices);
@@ -188,7 +168,7 @@ class Bvh {
       std::vector<int> material_ids(bbox.indices.size(), 0);
       mesh->set_material_ids(material_ids);
       mesh->CalcNormal();
-
+#endif
       return mesh;
     };
 
@@ -296,19 +276,20 @@ class Bvh {
     if (m_cost_type == kCostType::NAIVE) {
       auto calc_center = [&](const TT& index) {
 #if 0
-        auto center = std::accumulate(
-                          index.data(), index.data() + index.rows(), T::Zero(),
-                          [&](const TT::Scalar& lhs, const TT::Scalar& rhs) {
-                            return m_vertices[lhs] + m_vertices[rhs];
-                          }) /
-                      index.rows();
-#endif
+        // Not smart...
+        std::vector<T> tmp;
+        std::transform(index.data(), index.data() + index.rows(),
+                       std::back_inserter(tmp),
+                       [&](const TT::Scalar& x) { return m_vertices[x]; });
+        T center = std::accumulate(tmp.begin(), tmp.end(), T::Zero().eval()) /
+                   tmp.size();
+#else
         T center = T::Zero();
         for (int i = 0; i < index.rows(); i++) {
           center += m_vertices[index[i]];
         }
         center /= index.rows();
-
+#endif
         return center;
       };
 

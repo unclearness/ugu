@@ -197,7 +197,8 @@ void KdTree<Point>::SearchKnnImpl(const Point& query, const size_t& k,
   SearchKnnImpl(query, k, next, result);
 
   // If (1) updated minimum distance is larger than difference of the axis OR
-  // (2) result contains less than k, search another child node
+  // (2) result contains less than k,
+  // search another child node because another one may meet the condition
   const double diff = std::abs(query[axis] - pivot);
   if (result.size() < k || diff < result.back().second) {
     NodePtr next2 = (next == node->right) ? node->left : node->right;
@@ -224,6 +225,9 @@ void KdTree<Point>::SearchRadiusImpl(const Point& query, const double& r,
   SearchRadiusImpl(query, r, next, result);
 
   const double diff = std::abs(query[axis] - pivot);
+  // If the current difference between the query and the pivot is less than r
+  // search another child node because another one may meet the condition.
+  // It is NOT guaranteed that another node does not have points within r.
   if (diff <= r) {
     NodePtr next2 = (next == node->right) ? node->left : node->right;
     SearchRadiusImpl(query, r, next2, result);
