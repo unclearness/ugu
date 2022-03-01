@@ -337,6 +337,7 @@ set(
   src/textrans/texture_transfer.cc
 
   include/ugu/accel/kdtree.h
+  include/ugu/accel/kdtree_nanoflann.h
   include/ugu/accel/bvh.h
 
   include/ugu/external/external.h

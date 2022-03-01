@@ -9,11 +9,9 @@
 #include <random>
 #include <unordered_set>
 
+#include "ugu/accel/kdtree.h"
+#include "ugu/accel/kdtree_nanoflann.h"
 #include "ugu/common.h"
-
-#ifdef UGU_USE_NANOFLANN
-#include "nanoflann.hpp"
-#endif
 
 namespace {
 
@@ -201,7 +199,8 @@ bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
             std::vector<std::vector<Eigen::VectorXf>>& clustered_points,
             int term_max_iter, float term_unchanged_ratio, bool init_plus_plus,
             int random_seed) {
-  if (num_clusters <= 1 || points.size() < 2 || points.size() < static_cast<size_t>(num_clusters)) {
+  if (num_clusters <= 1 || points.size() < 2 ||
+      points.size() < static_cast<size_t>(num_clusters)) {
     return false;
   }
 
@@ -428,26 +427,49 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
             std::vector<int32_t>& labels,
             std::vector<std::vector<Eigen::VectorXf>>& clustered_points,
             std::vector<Eigen::VectorXf>& noise_points, float epsilon,
-            size_t min_nn_points) {
+            size_t min_nn_points, bool use_kdtree) {
   constexpr size_t DBSCAN_MAX_SIZE = std::numeric_limits<int32_t>::max();
 
-  if (DBSCAN_MAX_SIZE < points.size()) {
+  if (points.empty() || DBSCAN_MAX_SIZE < points.size()) {
     return false;
   }
 
+  std::shared_ptr<KdTree<Eigen::VectorXf>> kdtree;
+  if (use_kdtree) {
 #ifdef UGU_USE_NANOFLANN
-  // TODO: Do not copy..
-  Eigen::MatrixXf mat(points.size(), points[0].rows());
-  for (size_t i = 0; i < points.size(); i++) {
-    for (Eigen::Index j = 0; j < points[0].rows(); j++) {
-      mat.coeffRef(i, j) = points[i][j];
+    kdtree = std::make_shared<KdTreeNanoflannEigenX<Eigen::VectorXf>>();
+#else
+    kdtree = std::make_shared<KdTreeNaive<Eigen::VectorXf>>();
+    std::dynamic_pointer_cast<KdTreeNaive<Eigen::VectorXf>>(kdtree)->SetAxisNum(
+        points[0].rows());
+#endif
+
+    kdtree->SetData(points);
+    if (!kdtree->Build()) {
+      return false;
     }
   }
 
-  ugu_kdtree_t mat_index(static_cast<size_t>(points[0].size()), mat,
-                         10 /* max leaf */);
-  mat_index.index->buildIndex();
-#endif
+  auto nn_search_func = [&](size_t i) {
+    if (use_kdtree) {
+      auto results =
+          kdtree->SearchRadius(points[i], static_cast<double>(epsilon));
+
+      std::unordered_set<int32_t> nn_set;
+      std::transform(results.begin(), results.end(),
+                     std::inserter(nn_set, nn_set.begin()),
+                     [&](const KdTreeSearchResult& res) {
+                       return static_cast<int32_t>(res.first);
+                     });
+
+      nn_set.erase(i);
+      return nn_set;
+    } else {
+      std::unordered_set<int32_t> nn_set;
+      nn_set = RangeQueryNaive(points, static_cast<int32_t>(i), epsilon);
+      return nn_set;
+    }
+  };
 
   num_clusters = 0;
   constexpr int32_t illegal = std::numeric_limits<int32_t>::lowest();
@@ -459,13 +481,7 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
       continue;
     }
 
-#ifdef UGU_USE_NANOFLANN
-    const std::unordered_set<int32_t> nn_ids_seed =
-        RangeQueryKdTree(points, mat_index, static_cast<int32_t>(i), epsilon);
-#else
-    const std::unordered_set<int32_t> nn_ids_seed =
-        RangeQueryNaive(points, static_cast<int32_t>(i), epsilon);
-#endif
+    std::unordered_set<int32_t> nn_ids_seed = nn_search_func(i);
 
     if (nn_ids_seed.size() < min_nn_points) {
       // Skip noise
@@ -495,13 +511,7 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
 
         labels[q] = c;
 
-#ifdef UGU_USE_NANOFLANN
-        const std::unordered_set<int32_t> nn_ids =
-            RangeQueryKdTree(points, mat_index, q, epsilon);
-#else
-        const std::unordered_set<int32_t> nn_ids =
-            RangeQueryNaive(points, q, epsilon);
-#endif
+        const std::unordered_set<int32_t> nn_ids = nn_search_func(q);
 
         if (min_nn_points <= nn_ids.size()) {
           expanded.insert(nn_ids.begin(), nn_ids.end());

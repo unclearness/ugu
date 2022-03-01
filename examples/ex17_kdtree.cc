@@ -93,7 +93,7 @@ void Test2D() {
   for (int i = 0; i < 500; i++) {
     points2d.push_back({dist2d(engine), dist2d(engine)});
   }
-  ugu::KdTree<Eigen::Vector2f> kdtree;
+  ugu::KdTreeNaive<Eigen::Vector2f> kdtree;
   kdtree.SetAxisNum(2);
   kdtree.SetData(points2d);
   kdtree.SetMaxLeafDataNum(10);
@@ -154,7 +154,7 @@ void Test3D() {
   for (int i = 0; i < 5000; i++) {
     points3d.push_back({dist3d(engine), dist3d(engine), dist3d(engine)});
   }
-  ugu::KdTree<Eigen::Vector3f> kdtree;
+  ugu::KdTreeNaive<Eigen::Vector3f> kdtree;
   kdtree.SetAxisNum(3);
   kdtree.SetData(points3d);
   kdtree.SetMaxLeafDataNum(10);

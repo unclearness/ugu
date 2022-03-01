@@ -40,6 +40,6 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
             std::vector<int32_t>& labels,
             std::vector<std::vector<Eigen::VectorXf>>& clustered_points,
             std::vector<Eigen::VectorXf>& noise_points, float epsilon,
-            size_t min_nn_points);
+            size_t min_nn_points, bool use_kdtree = true);
 
 }  // namespace ugu
