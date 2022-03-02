@@ -21,20 +21,22 @@ ugu::Image3b DrawResult2d(const T& query2d, const std::vector<T>& points2d,
                           const ugu::KdTreeSearchResults& res, int r = -1) {
   ugu::Image3b out = ugu::Image3b::zeros(480, 480);
   for (const auto& p : points2d) {
-    ugu::Point center{p.x() * out.cols, p.y() * out.rows};
+    ugu::Point center{static_cast<int>(p.x() * out.cols),
+                      static_cast<int>(p.y() * out.rows)};
     ugu::circle(out, center, 2, {255, 255, 255}, -1);
   }
 
   {
-    ugu::Point center{query2d.x() * out.cols, query2d.y() * out.rows};
+    ugu::Point center{static_cast<int>(query2d.x() * out.cols),
+                      static_cast<int>(query2d.y() * out.rows)};
     ugu::circle(out, center, 3, {0, 255, 0}, -1);
     if (0 < r) {
       ugu::circle(out, center, r, {255, 0, 0}, 2);
     }
   }
-  for (const auto& r : res) {
-    ugu::Point center{points2d[r.index].x() * out.cols,
-                      points2d[r.index].y() * out.rows};
+  for (const auto& r_ : res) {
+    ugu::Point center{static_cast<int>(points2d[r_.index].x() * out.cols),
+                      static_cast<int>(points2d[r_.index].y() * out.rows)};
     ugu::circle(out, center, 3, {255, 0, 0}, -1);
   }
 
@@ -49,8 +51,8 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
   std::vector<Eigen::Vector3f> vertices, vertex_colors;
 
   std::unordered_set<size_t> to_ignore;
-  for (const auto& r : res) {
-    to_ignore.insert(r.index);
+  for (const auto& r_ : res) {
+    to_ignore.insert(r_.index);
   }
   for (size_t i = 0; i < points3d.size(); i++) {
     if (to_ignore.count(i) != 0) {
@@ -72,7 +74,7 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
   mesh->set_vertex_colors(vertex_colors);
 
   if (0 < r) {
-    auto sphere = ugu::MakeUvSphere(query3d, r);
+    auto sphere = ugu::MakeUvSphere(query3d, static_cast<float>(r));
     sphere->set_uv({});
     sphere->set_uv_indices({});
     std::vector<Eigen::Vector3f> vc;
@@ -114,10 +116,11 @@ void Test2D() {
   res = kdtree.SearchKnn(query2d, k);
   timer.End();
   ugu::LOGI("KdTree.SearchKnn(): %f msec\n", timer.elapsed_msec());
+  ugu::imwrite("kdtree2d_knn.png", DrawResult2d(query2d, points2d, res));
 
   timer.Start();
   {
-    ugu::KdTreeSearchResults res;
+    res.clear();
     for (size_t i = 0; i < points2d.size(); i++) {
       const auto& p = points2d[i];
       const double dist = (p - query2d).norm();
@@ -135,8 +138,6 @@ void Test2D() {
   }
   timer.End();
   ugu::LOGI("BruteForce: %f msec\n", timer.elapsed_msec());
-
-  ugu::imwrite("kdtree2d_knn.png", DrawResult2d(query2d, points2d, res));
 
   timer.Start();
   double r = 0.1;

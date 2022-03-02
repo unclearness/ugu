@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
   int width = result["width"].as<int>();
   int height = result["height"].as<int>();
   bool inpaint = result["inpaint"].as<bool>();
-  bool verbose = result["verbose"].as<bool>();
+  //bool verbose = result["verbose"].as<bool>();
 
   ugu::Timer<> timer;
   ugu::Mesh src_mesh, dst_mesh;

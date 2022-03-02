@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
     ugu::Ray ray;
     ray.org = origin;
     ray.dir = dir;
-    auto ret = bvh.Intersect(ray, results);
+    bvh.Intersect(ray, results);
     timer.End();
     ugu::LOGI("bvh.Intersect took %f ms\n", timer.elapsed_msec());
     std::vector<Eigen::Vector3f> intersected_points;

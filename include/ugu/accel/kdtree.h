@@ -153,7 +153,7 @@ template <typename Point>
 double KdTreeNaive<Point>::EuclidDist(const Point& p1, const Point& p2) const {
   double d = 0.0;
   for (int i = 0; i < m_axis_num; i++) {
-    double diff = static_cast<double>(p1[i] - p2[i]);
+    double diff = static_cast<double>(double(p1[i]) - double(p2[i]));
     d += diff * diff;
   }
   return std::sqrt(d);

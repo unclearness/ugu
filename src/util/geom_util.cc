@@ -518,13 +518,14 @@ MeshPtr MakeUvSphere(int n_stacks, int n_slices) {
 
   // generate vertices per stack / slice
   for (int i = 0; i < n_stacks - 1; i++) {
-    auto phi = ugu::pi * double(i + 1) / double(n_stacks);
+    auto phi = ugu::pi * double(int64_t(i) + 1) / double(n_stacks);
     for (int j = 0; j < n_slices; j++) {
-      auto theta = 2.0 * ugu::pi * double(j) / double(n_slices);
-      auto x = std::sin(phi) * std::cos(theta);
-      auto y = std::cos(phi);
-      auto z = std::sin(phi) * std::sin(theta);
-      vertices.push_back(Eigen::Vector3f(x, y, z));
+      double theta = 2.0 * ugu::pi * double(j) / double(n_slices);
+      double x = std::sin(phi) * std::cos(theta);
+      double y = std::cos(phi);
+      double z = std::sin(phi) * std::sin(theta);
+      vertices.push_back(Eigen::Vector3f(
+          static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)));
       uvs.push_back({x, y});
     }
   }

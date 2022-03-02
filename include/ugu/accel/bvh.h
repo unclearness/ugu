@@ -25,9 +25,9 @@ struct Aabb {
   std::vector<Eigen::Vector3f> vertices;
   std::vector<Eigen::Vector3i> indices;
 
-  void Init(const T& max_v, const T& min_v) {
-    this->max_v = max_v;
-    this->min_v = min_v;
+  void Init(const T& max_v_, const T& min_v_) {
+    this->max_v = max_v_;
+    this->min_v = min_v_;
     length = max_v - min_v;
     center = (max_v + min_v) * 0.5;
 
