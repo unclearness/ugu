@@ -2,10 +2,10 @@
  * Copyright (C) 2021, unclearness
  * All rights reserved.
  */
-#ifdef UGU_USE_NANOFLANN
 
 #include "ugu/textrans/correspondence_finder.h"
 
+#include "ugu/accel/kdtree_nanoflann.h"
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
 
@@ -38,16 +38,6 @@ auto ComputeFaceInfo(const std::vector<Eigen::Vector3f>& verts,
 
 namespace ugu {
 
-std::tuple<std::vector<size_t>, std::vector<float>> QueryKdTree(
-    const Eigen::Vector3f& p, const ugu_kdtree_t& index, int32_t nn_num) {
-  std::vector<std::pair<Eigen::Index, float>> ret_matches;
-  std::vector<size_t> out_indices(nn_num);
-  std::vector<float> out_distance_sq(nn_num);
-  index.index->knnSearch(p.data(), nn_num, out_indices.data(),
-                         out_distance_sq.data());
-  return std::make_tuple(out_indices, out_distance_sq);
-}
-
 bool KDTreeCorrespFinder::Init(
     const std::vector<Eigen::Vector3f>& verts,
     const std::vector<Eigen::Vector3i>& verts_faces) {
@@ -59,10 +49,19 @@ bool KDTreeCorrespFinder::Init(
   m_face_centroids = std::move(face_centroids);
   m_face_planes = std::move(face_planes);
 
-  m_tree = std::make_shared<ugu_kdtree_t>();
-  m_tree->init(verts_faces.size(), m_face_centroids, 10 /* max leaf */);
+#ifdef UGU_USE_NANOFLANN
+  m_tree = std::make_unique<KdTreeNanoflannVector<Eigen::Vector3f>>();
+#else
+  auto tmp_tree = std::make_unique<KdTreeNaive<Eigen::Vector3f>>();
+  tmp_tree->SetAxisNum(3);
+  m_tree = std::move(tmp_tree);
+#endif
 
-  return true;
+  m_tree->SetData(m_face_centroids);
+
+  bool ret = m_tree->Build();
+
+  return ret;
 }
 
 void KDTreeCorrespFinder::SetNnNum(uint32_t nn_num) { m_nn_num = nn_num; }
@@ -73,7 +72,15 @@ ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
 
   // Get the closest src face
   // Roughly get candidates.NN for face center points.
-  auto [indices, distance_sq] = QueryKdTree(src_p, *m_tree, m_nn_num);
+  auto knn_results = m_tree->SearchKnn(src_p, m_nn_num);
+  std::vector<size_t> indices;
+  std::vector<double> distance_sq;
+  std::for_each(knn_results.begin(), knn_results.end(),
+                [&](const KdTreeSearchResult& r) {
+                  indices.push_back(r.index);
+                  distance_sq.push_back(r.dist * r.dist);
+                });
+
   // Check point - plane distance and get the smallest
   float min_dist = std::numeric_limits<float>::max();
   float min_signed_dist = std::numeric_limits<float>::infinity();
@@ -112,5 +119,3 @@ ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
 }
 
 }  // namespace ugu
-
-#endif

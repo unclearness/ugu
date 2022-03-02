@@ -13,7 +13,11 @@
 
 namespace ugu {
 
-using KdTreeSearchResult = std::pair<size_t, double>;
+struct KdTreeSearchResult {
+  size_t index;
+  double dist;
+};
+
 using KdTreeSearchResults = std::vector<KdTreeSearchResult>;
 
 template <typename Point>
@@ -221,7 +225,7 @@ void KdTreeNaive<Point>::SearchKnnImpl(const Point& query, const size_t& k,
   // (2) result contains less than k,
   // search another child node because another one may meet the condition
   const double diff = std::abs(query[axis] - pivot);
-  if (result.size() < k || diff < result.back().second) {
+  if (result.size() < k || diff < result.back().dist) {
     NodePtr next2 = (next == node->right) ? node->left : node->right;
     SearchKnnImpl(query, k, next2, result);
   }
@@ -263,7 +267,7 @@ void KdTreeNaive<Point>::UpdateKdTreeSearchResult(KdTreeSearchResults& res,
   res.push_back({index, dist});
   std::sort(res.begin(), res.end(),
             [](const KdTreeSearchResult& lfs, const KdTreeSearchResult& rfs) {
-              return lfs.second < rfs.second;
+              return lfs.dist < rfs.dist;
             });
 
   if (max_res_num == 0 || res.size() < max_res_num) {
