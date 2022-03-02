@@ -8,35 +8,59 @@
 
 #include <algorithm>
 #include <memory>
+#include <numeric>
 #include <vector>
 
 namespace ugu {
 
-using KdTreeSearchResult = std::pair<size_t, double>;
+struct KdTreeSearchResult {
+  size_t index;
+  double dist;
+};
+
 using KdTreeSearchResults = std::vector<KdTreeSearchResult>;
 
 template <typename Point>
 class KdTree {
  public:
-  KdTree() {}
-  ~KdTree() {}
-  void SetAxisNum(int axis_num);
-  void SetData(const std::vector<Point>& data);
-  void SetMaxLeafDataNum(int max_leaf_data_num);
-  const std::vector<Point>& Data() const;
-  void Build();
-  void Clear();
+  virtual ~KdTree() {}
+  virtual bool Build() = 0;
+  virtual void Clear() = 0;
+  virtual void SetData(const std::vector<Point>& data) = 0;
+  virtual void SetMaxLeafDataNum(int max_leaf_data_num) = 0;
 
-  KdTreeSearchResults SearchNn(const Point& query) const;
-  KdTreeSearchResults SearchKnn(const Point& query, const size_t& k) const;
-  KdTreeSearchResults SearchRadius(const Point& query, const double& r) const;
+  virtual KdTreeSearchResults SearchNn(const Point& query) const = 0;
+  virtual KdTreeSearchResults SearchKnn(const Point& query,
+                                        const size_t& k) const = 0;
+  virtual KdTreeSearchResults SearchRadius(const Point& query,
+                                           const double& r) const = 0;
+};
+
+template <typename Point>
+class KdTreeNaive : public KdTree<Point> {
+ public:
+  KdTreeNaive() {}
+  ~KdTreeNaive() {}
+  void SetAxisNum(int axis_num);
+  void SetData(const std::vector<Point>& data) override;
+  void SetMaxLeafDataNum(int max_leaf_data_num) override;
+
+  const std::vector<Point>& Data() const;
+  bool Build() override;
+  void Clear() override;
+
+  KdTreeSearchResults SearchNn(const Point& query) const override;
+  KdTreeSearchResults SearchKnn(const Point& query,
+                                const size_t& k) const override;
+  KdTreeSearchResults SearchRadius(const Point& query,
+                                   const double& r) const override;
   double EuclidDist(const Point& p1, const Point& p2) const;
 
  private:
   std::vector<Point> m_data;
   std::vector<size_t> m_indices;
   int m_axis_num = -1;
-  int m_max_leaf_data_num = -1;
+  int m_max_leaf_data_num = 10;
 
   struct Node;
   using NodePtr = std::shared_ptr<Node>;
@@ -67,65 +91,66 @@ class KdTree {
 };
 
 template <typename Point>
-void KdTree<Point>::SetAxisNum(int axis_num) {
+void KdTreeNaive<Point>::SetAxisNum(int axis_num) {
   m_axis_num = axis_num;
 }
 
 template <typename Point>
-void KdTree<Point>::SetData(const std::vector<Point>& data) {
+void KdTreeNaive<Point>::SetData(const std::vector<Point>& data) {
   m_data = data;
 }
 
 template <typename Point>
-void KdTree<Point>::SetMaxLeafDataNum(int max_leaf_data_num) {
+void KdTreeNaive<Point>::SetMaxLeafDataNum(int max_leaf_data_num) {
   m_max_leaf_data_num = max_leaf_data_num;
 }
 
 template <typename Point>
-const std::vector<Point>& KdTree<Point>::Data() const {
+const std::vector<Point>& KdTreeNaive<Point>::Data() const {
   return m_data;
 }
 
 template <typename Point>
-void KdTree<Point>::Build() {
+bool KdTreeNaive<Point>::Build() {
   if (m_axis_num < 0 || m_data.empty()) {
-    return;
+    return false;
   }
   m_indices.clear();
   m_indices.resize(m_data.size());
   std::iota(m_indices.begin(), m_indices.end(), 0);
   root = BuildImpl(0, m_indices.size(), 0);
+  return true;
 }
 
 template <typename Point>
-void KdTree<Point>::Clear() {
+void KdTreeNaive<Point>::Clear() {
   m_data.clear();
   m_indices.clear();
 }
 
 template <typename Point>
-KdTreeSearchResults KdTree<Point>::SearchNn(const Point& query) const {
+KdTreeSearchResults KdTreeNaive<Point>::SearchNn(const Point& query) const {
   return SearchKnn(query, 1);
 }
 
 template <typename Point>
-KdTreeSearchResults KdTree<Point>::SearchKnn(const Point& query,
-                                             const size_t& k) const {
+KdTreeSearchResults KdTreeNaive<Point>::SearchKnn(const Point& query,
+                                                  const size_t& k) const {
   KdTreeSearchResults res;
   SearchKnnImpl(query, k, root, res);
   return res;
 }
 
 template <typename Point>
-KdTreeSearchResults KdTree<Point>::SearchRadius(const Point& query,
-                                                const double& r) const {
+KdTreeSearchResults KdTreeNaive<Point>::SearchRadius(const Point& query,
+                                                     const double& r) const {
   KdTreeSearchResults res;
   SearchRadiusImpl(query, r, root, res);
   return res;
 }
 
 template <typename Point>
-double KdTree<Point>::EuclidDist(const Point& p1, const Point& p2) const {
+double KdTreeNaive<Point>::EuclidDist(const Point& p1, const Point& p2) const {
   double d = 0.0;
   for (int i = 0; i < m_axis_num; i++) {
     double diff = static_cast<double>(p1[i] - p2[i]);
@@ -135,9 +160,9 @@ double KdTree<Point>::EuclidDist(const Point& p1, const Point& p2) const {
 }
 
 template <typename Point>
-typename KdTree<Point>::NodePtr KdTree<Point>::BuildImpl(size_t start,
-                                                         size_t end,
-                                                         int depth) {
+typename KdTreeNaive<Point>::NodePtr KdTreeNaive<Point>::BuildImpl(size_t start,
+                                                                   size_t end,
+                                                                   int depth) {
   const size_t points_num = end - start + 1;
   const int axis = depth % m_axis_num;
 
@@ -181,9 +206,9 @@ typename KdTree<Point>::NodePtr KdTree<Point>::BuildImpl(size_t start,
 }
 
 template <typename Point>
-void KdTree<Point>::SearchKnnImpl(const Point& query, const size_t& k,
-                                  const NodePtr node,
-                                  KdTreeSearchResults& result) const {
+void KdTreeNaive<Point>::SearchKnnImpl(const Point& query, const size_t& k,
+                                       const NodePtr node,
+                                       KdTreeSearchResults& result) const {
   if (node == nullptr) {
     return;
   }
@@ -200,16 +225,16 @@ void KdTree<Point>::SearchKnnImpl(const Point& query, const size_t& k,
   // (2) result contains less than k,
   // search another child node because another one may meet the condition
   const double diff = std::abs(query[axis] - pivot);
-  if (result.size() < k || diff < result.back().second) {
+  if (result.size() < k || diff < result.back().dist) {
     NodePtr next2 = (next == node->right) ? node->left : node->right;
     SearchKnnImpl(query, k, next2, result);
   }
 }
 
 template <typename Point>
-void KdTree<Point>::SearchRadiusImpl(const Point& query, const double& r,
-                                     const NodePtr node,
-                                     KdTreeSearchResults& result) const {
+void KdTreeNaive<Point>::SearchRadiusImpl(const Point& query, const double& r,
+                                          const NodePtr node,
+                                          KdTreeSearchResults& result) const {
   if (node == nullptr) {
     return;
   }
@@ -235,14 +260,14 @@ void KdTree<Point>::SearchRadiusImpl(const Point& query, const double& r,
 }
 
 template <typename Point>
-void KdTree<Point>::UpdateKdTreeSearchResult(KdTreeSearchResults& res,
-                                             const size_t& index,
-                                             const double& dist,
-                                             const size_t& max_res_num) {
+void KdTreeNaive<Point>::UpdateKdTreeSearchResult(KdTreeSearchResults& res,
+                                                  const size_t& index,
+                                                  const double& dist,
+                                                  const size_t& max_res_num) {
   res.push_back({index, dist});
   std::sort(res.begin(), res.end(),
             [](const KdTreeSearchResult& lfs, const KdTreeSearchResult& rfs) {
-              return lfs.second < rfs.second;
+              return lfs.dist < rfs.dist;
             });
 
   if (max_res_num == 0 || res.size() < max_res_num) {

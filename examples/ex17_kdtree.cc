@@ -8,6 +8,7 @@
 #include <unordered_set>
 
 #include "ugu/accel/kdtree.h"
+#include "ugu/accel/kdtree_nanoflann.h"
 #include "ugu/image.h"
 #include "ugu/mesh.h"
 #include "ugu/timer.h"
@@ -32,8 +33,8 @@ ugu::Image3b DrawResult2d(const T& query2d, const std::vector<T>& points2d,
     }
   }
   for (const auto& r : res) {
-    ugu::Point center{points2d[r.first].x() * out.cols,
-                      points2d[r.first].y() * out.rows};
+    ugu::Point center{points2d[r.index].x() * out.cols,
+                      points2d[r.index].y() * out.rows};
     ugu::circle(out, center, 3, {255, 0, 0}, -1);
   }
 
@@ -49,7 +50,7 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
 
   std::unordered_set<size_t> to_ignore;
   for (const auto& r : res) {
-    to_ignore.insert(r.first);
+    to_ignore.insert(r.index);
   }
   for (size_t i = 0; i < points3d.size(); i++) {
     if (to_ignore.count(i) != 0) {
@@ -63,7 +64,7 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
   vertex_colors.push_back({0.f, 255.f, 0.f});
 
   for (const auto& r : res) {
-    vertices.push_back(points3d[r.first]);
+    vertices.push_back(points3d[r.index]);
     vertex_colors.push_back({255.f, 0.f, 0.f});
   }
 
@@ -93,7 +94,7 @@ void Test2D() {
   for (int i = 0; i < 500; i++) {
     points2d.push_back({dist2d(engine), dist2d(engine)});
   }
-  ugu::KdTree<Eigen::Vector2f> kdtree;
+  ugu::KdTreeNaive<Eigen::Vector2f> kdtree;
   kdtree.SetAxisNum(2);
   kdtree.SetData(points2d);
   kdtree.SetMaxLeafDataNum(10);
@@ -120,11 +121,11 @@ void Test2D() {
     for (size_t i = 0; i < points2d.size(); i++) {
       const auto& p = points2d[i];
       const double dist = (p - query2d).norm();
-      res.push_back({dist, i});
+      res.push_back({i, dist});
       std::sort(res.begin(), res.end(),
                 [](const ugu::KdTreeSearchResult& lfs,
                    const ugu::KdTreeSearchResult& rfs) {
-                  return lfs.second < rfs.second;
+                  return lfs.dist < rfs.dist;
                 });
       if (res.size() <= k) {
         continue;
@@ -154,7 +155,7 @@ void Test3D() {
   for (int i = 0; i < 5000; i++) {
     points3d.push_back({dist3d(engine), dist3d(engine), dist3d(engine)});
   }
-  ugu::KdTree<Eigen::Vector3f> kdtree;
+  ugu::KdTreeNaive<Eigen::Vector3f> kdtree;
   kdtree.SetAxisNum(3);
   kdtree.SetData(points3d);
   kdtree.SetMaxLeafDataNum(10);
@@ -181,11 +182,11 @@ void Test3D() {
     for (size_t i = 0; i < points3d.size(); i++) {
       const auto& p = points3d[i];
       const double dist = (p - query3d).norm();
-      res.push_back({dist, i});
+      res.push_back({i, dist});
       std::sort(res.begin(), res.end(),
                 [](const ugu::KdTreeSearchResult& lfs,
                    const ugu::KdTreeSearchResult& rfs) {
-                  return lfs.second < rfs.second;
+                  return lfs.dist < rfs.dist;
                 });
       if (res.size() <= k) {
         continue;
