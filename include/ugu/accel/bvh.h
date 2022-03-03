@@ -255,7 +255,7 @@ class BvhNaive : public Bvh<T, TT> {
   BvhBuildStatistics m_stats;
 
   int m_num_threads = 1;
-  float m_epsilon = 1e-6f;
+  float m_epsilon = 1e-8f;
 
   struct Node;
   using NodePtr = std::shared_ptr<Node>;

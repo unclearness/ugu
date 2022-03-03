@@ -4,13 +4,14 @@
  */
 
 #include <stdio.h>
+
 #include <fstream>
 
 #include "ugu/camera.h"
+#include "ugu/external/external.h"
 #include "ugu/texturing/texture_mapper.h"
 #include "ugu/texturing/vertex_colorizer.h"
 #include "ugu/texturing/visibility_tester.h"
-#include "ugu/external/external.h"
 
 // test by bunny data with 6 views
 int main(int argc, char* argv[]) {
@@ -113,9 +114,11 @@ int main(int argc, char* argv[]) {
 
   // mvs-texturing
   ugu::Mesh debug_mesh;
-  ugu::MvsTexturing(keyframes, output_mesh.get(), &debug_mesh);
-  output_mesh->WriteObj(data_dir, "bunny_mvs_texturing");
-  debug_mesh.WriteObj(data_dir, "bunny_mvs_texturing_debug");
+  bool ret = ugu::MvsTexturing(keyframes, output_mesh.get(), &debug_mesh);
+  if (ret) {
+    output_mesh->WriteObj(data_dir, "bunny_mvs_texturing");
+    debug_mesh.WriteObj(data_dir, "bunny_mvs_texturing_debug");
+  }
 
   return 0;
 }
