@@ -5,8 +5,6 @@
 
 #pragma once
 
-#ifdef UGU_USE_NANORT
-
 #include "visibility_tester.h"
 
 namespace ugu {
@@ -45,5 +43,3 @@ bool Parameterize(const std::vector<Eigen::Vector3f>& vertices,
                   OutputUvType type = OutputUvType::kGenerateSimpleTriangles);
 
 }  // namespace ugu
-
-#endif

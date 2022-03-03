@@ -160,7 +160,7 @@ struct VisibilityInfo {
 };
 
 struct Keyframe {
-  int id;
+  int id = -1;
 
   std::string color_path;
   Image3b color;

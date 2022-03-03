@@ -5,8 +5,6 @@
 
 #pragma once
 
-#ifdef UGU_USE_NANORT
-
 #include "visibility_tester.h"
 
 namespace ugu {
@@ -21,5 +19,3 @@ class VertexColorizer {
 };
 
 }  // namespace ugu
-
-#endif

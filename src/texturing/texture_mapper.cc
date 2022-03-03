@@ -2,7 +2,6 @@
  * Copyright (C) 2019, unclearness
  * All rights reserved.
  */
-#ifdef UGU_USE_NANORT
 
 #include "ugu/texturing/texture_mapper.h"
 
@@ -1118,5 +1117,3 @@ bool Parameterize(const std::vector<Eigen::Vector3f>& vertices,
 }
 
 }  // namespace ugu
-
-#endif
