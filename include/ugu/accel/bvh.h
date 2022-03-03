@@ -119,12 +119,24 @@ struct Ray {
 template <typename T, typename TT>
 class Bvh {
  public:
-  Bvh(){};
   ~Bvh(){};
 
-  enum kCostType { NAIVE, SAH };  // Surface Area Heuristics
+  virtual void SetData(const std::vector<T>& vertices,
+                       const std::vector<TT>& indices) = 0;
+  virtual bool Build() = 0;
+  virtual std::vector<IntersectResult> Intersect(const Ray& ray) const = 0;
+};
 
-  void SetData(const std::vector<T>& vertices, const std::vector<TT>& indices) {
+enum kBvhCostType { NAIVE, SAH };  // Surface Area Heuristics
+
+template <typename T, typename TT>
+class BvhNaive : public Bvh<T, TT> {
+ public:
+  BvhNaive(){};
+  ~BvhNaive(){};
+
+  void SetData(const std::vector<T>& vertices,
+               const std::vector<TT>& indices) override {
     m_vertices = vertices;
     m_indices = indices;
   }
@@ -135,9 +147,9 @@ class Bvh {
     m_max_leaf_data_num = max_leaf_data_num;
   }
 
-  void SetCostType(kCostType cost_type) { m_cost_type = cost_type; }
+  void SetCostType(kBvhCostType cost_type) { m_cost_type = cost_type; }
 
-  bool Build() {
+  bool Build() override {
     if (m_axis_num < 0 || m_vertices.empty() || m_indices.empty()) {
       return false;
     }
@@ -193,13 +205,13 @@ class Bvh {
     return meshes;
   }
 
-  bool Intersect(const Ray& ray, std::vector<IntersectResult>& results) const {
-    results = IntersectImpl(ray, m_root);
+  std::vector<IntersectResult> Intersect(const Ray& ray) const override {
+    std::vector<IntersectResult> results = IntersectImpl(ray, m_root);
     std::sort(results.begin(), results.end(),
               [&](const IntersectResult& lhs, const IntersectResult& rhs) {
                 return lhs.t < rhs.t;
               });
-    return !results.empty();
+    return results;
   }
 
  private:
@@ -208,7 +220,7 @@ class Bvh {
   std::vector<size_t> m_face_ids;
   int m_axis_num = -1;
   int m_max_leaf_data_num = -1;
-  kCostType m_cost_type = kCostType::NAIVE;
+  kBvhCostType m_cost_type = kBvhCostType::NAIVE;
 
   int m_num_threads = 1;
   float m_epsilon = 1e-6f;
@@ -273,7 +285,7 @@ class Bvh {
       const std::vector<size_t>& face_ids, int depth) {
     std::vector<size_t> left_fids, right_fids;
     int axis = -1;
-    if (m_cost_type == kCostType::NAIVE) {
+    if (m_cost_type == kBvhCostType::NAIVE) {
       auto calc_center = [&](const TT& index) {
 #if 0
         // Not smart...
