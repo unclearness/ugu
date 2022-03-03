@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
 
   ugu::BvhNaive<Eigen::Vector3f, Eigen::Vector3i> bvh;
   bvh.SetAxisNum(3);
-  bvh.SetMaxLeafDataNum(5);
+  bvh.SetMinLeafPrimitives(5);
   bvh.SetData(mesh->vertices(), mesh->vertex_indices());
 
   ugu::Timer timer;

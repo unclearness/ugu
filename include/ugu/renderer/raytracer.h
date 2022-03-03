@@ -5,8 +5,6 @@
 
 #pragma once
 
-#ifdef UGU_USE_NANORT
-
 #include <memory>
 
 #include "ugu/renderer/base.h"
@@ -55,5 +53,3 @@ class Raytracer : public Renderer {
 };
 
 }  // namespace ugu
-
-#endif
