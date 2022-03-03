@@ -4,31 +4,15 @@
  */
 
 #include "ugu/texturing/visibility_tester.h"
-#ifdef UGU_USE_NANORT
 
 #include <cassert>
 #include <iterator>
 
+#include "ugu/accel/bvh_nanort.h"
 #include "ugu/timer.h"
 #include "ugu/util/math_util.h"
 
 namespace {
-void PrepareRay(nanort::Ray<float>* ray, const Eigen::Vector3f& camera_pos_w,
-                const Eigen::Vector3f& ray_w) {
-  const float kFar = 1.0e+30f;
-  ray->min_t = 0.0001f;
-  ray->max_t = kFar;
-
-  // camera position in world coordinate
-  ray->org[0] = camera_pos_w[0];
-  ray->org[1] = camera_pos_w[1];
-  ray->org[2] = camera_pos_w[2];
-
-  // ray in world coordinate
-  ray->dir[0] = ray_w[0];
-  ray->dir[1] = ray_w[1];
-  ray->dir[2] = ray_w[2];
-}
 
 void BilinearInterpolation(float x, float y, const ugu::Image3b& image,
                            Eigen::Vector3f* color) {
@@ -304,12 +288,23 @@ std::string VisibilityInfo::SerializeAsJson() const {
 Keyframe::Keyframe() {}
 Keyframe::~Keyframe() {}
 
-VisibilityTester::VisibilityTester() {}
+void VisibilityTester::Init() {
+#ifdef UGU_USE_NANORT
+  bvh_ = std::make_unique<BvhNanort<Eigen::Vector3f, Eigen::Vector3i>>();
+#else
+  auto tmp = std::make_unique<BvhNaive<Eigen::Vector3f, Eigen::Vector3i>>();
+  tmp->SetAxisNum(3);
+  bvh_ = std::move(tmp);
+#endif
+}
+
+VisibilityTester::VisibilityTester() { Init(); }
 
 VisibilityTester::~VisibilityTester() {}
 
 VisibilityTester::VisibilityTester(const VisibilityTesterOption& option) {
   set_option(option);
+  Init();
 }
 
 void VisibilityTester::set_option(const VisibilityTesterOption& option) {
@@ -332,78 +327,24 @@ void VisibilityTester::set_mesh(std::shared_ptr<const Mesh> mesh) {
   if (mesh_->normals().empty()) {
     LOGW("vertex normal is empty. shading may not work\n");
   }
-
-  flatten_vertices_.clear();
-  flatten_faces_.clear();
-
-  const std::vector<Eigen::Vector3f>& vertices = mesh_->vertices();
-  flatten_vertices_.resize(vertices.size() * 3);
-  for (size_t i = 0; i < vertices.size(); i++) {
-    flatten_vertices_[i * 3 + 0] = vertices[i][0];
-    flatten_vertices_[i * 3 + 1] = vertices[i][1];
-    flatten_vertices_[i * 3 + 2] = vertices[i][2];
-  }
-
-  const std::vector<Eigen::Vector3i>& vertex_indices = mesh_->vertex_indices();
-  flatten_faces_.resize(vertex_indices.size() * 3);
-  for (size_t i = 0; i < vertex_indices.size(); i++) {
-    flatten_faces_[i * 3 + 0] = vertex_indices[i][0];
-    flatten_faces_[i * 3 + 1] = vertex_indices[i][1];
-    flatten_faces_[i * 3 + 2] = vertex_indices[i][2];
-  }
 }
+
 bool VisibilityTester::PrepareMesh() {
   if (mesh_ == nullptr) {
     LOGE("mesh has not been set\n");
     return false;
   }
 
-  if (flatten_vertices_.empty() || flatten_faces_.empty()) {
+  if (mesh_->vertices().empty() || mesh_->vertex_indices().empty()) {
     LOGE("mesh is empty\n");
     return false;
   }
 
-  bool ret = false;
-  build_options_.cache_bbox = false;
-
-  LOGI("  BVH build option:\n");
-  LOGI("    # of leaf primitives: %d\n", build_options_.min_leaf_primitives);
-  LOGI("    SAH binsize         : %d\n", build_options_.bin_size);
-
-  Timer<> timer;
-  timer.Start();
-
-  triangle_mesh_.reset(new nanort::TriangleMesh<float>(
-      &flatten_vertices_[0], &flatten_faces_[0], sizeof(float) * 3));
-
-  triangle_pred_.reset(new nanort::TriangleSAHPred<float>(
-      &flatten_vertices_[0], &flatten_faces_[0], sizeof(float) * 3));
-
-  LOGI("num_triangles = %llu\n",
-       static_cast<uint64_t>(mesh_->vertex_indices().size()));
-  // LOGI("faces = %p\n", mesh_->vertex_indices().size());
-
-  ret = accel_.Build(static_cast<unsigned int>(mesh_->vertex_indices().size()),
-                     *triangle_mesh_, *triangle_pred_, build_options_);
-
+  bvh_->SetData(mesh_->vertices(), mesh_->vertex_indices());
+  bool ret = bvh_->Build();
   if (!ret) {
-    LOGE("BVH building failed\n");
     return false;
   }
-
-  timer.End();
-  LOGI("  BVH build time: %.1f msecs\n", timer.elapsed_msec());
-
-  stats_ = accel_.GetStatistics();
-
-  LOGI("  BVH statistics:\n");
-  LOGI("    # of leaf   nodes: %d\n", stats_.num_leaf_nodes);
-  LOGI("    # of branch nodes: %d\n", stats_.num_branch_nodes);
-  LOGI("  Max tree depth     : %d\n", stats_.max_tree_depth);
-
-  accel_.BoundingBox(bmin_, bmax_);
-  LOGI("  Bmin               : %f, %f, %f\n", bmin_[0], bmin_[1], bmin_[2]);
-  LOGI("  Bmax               : %f, %f, %f\n", bmax_[0], bmax_[1], bmax_[2]);
 
   mesh_initialized_ = true;
 
@@ -518,8 +459,9 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
     Eigen::Vector3f ray_w, org_ray_w;
     keyframe_->camera->ray_w(image_p.x(), image_p.y(), &ray_w);
     keyframe_->camera->org_ray_w(image_p.x(), image_p.y(), &org_ray_w);
-    nanort::Ray<float> ray;
-    PrepareRay(&ray, org_ray_w, ray_w);
+    Ray ray;
+    ray.dir = ray_w;
+    ray.org = org_ray_w;
 
     // back-face culling
     float dot = -normals[i].dot(ray_w);
@@ -530,16 +472,14 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
     }
 
     // shoot ray
-    nanort::TriangleIntersector<> triangle_intersector(
-        &flatten_vertices_[0], &flatten_faces_[0], sizeof(float) * 3);
-    nanort::TriangleIntersection<> isect;
-    bool hit = accel_.Traverse(ray, triangle_intersector, &isect);
-
+    auto results = bvh_->Intersect(ray, false);
+    float distance = std::numeric_limits<float>::max();
     Eigen::Vector3f hit_pos_w;
-    if (hit) {
+    if (!results.empty()) {
+      distance = results[0].t;
       // if there is a large distance beween hit position and vertex position,
       // the vertex is occluded by another face and should be ignored
-      hit_pos_w = org_ray_w + ray_w * isect.t;
+      hit_pos_w = org_ray_w + ray_w * results[0].t;
       float dist = (hit_pos_w - vertices[i]).norm();
       if (dist > option_.eps) {
         continue;
@@ -572,7 +512,7 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
     vertex_info.kf_id = keyframe_->id;
     vertex_info.projected_pos = image_p;
     vertex_info.viewing_angle = viewing_angle;
-    vertex_info.distance = isect.t;
+    vertex_info.distance = distance;
 
     if (vertex_info.distance > option_.max_distance_from_camera_to_vertex ||
         vertex_info.viewing_angle > option_.max_viewing_angle) {
@@ -701,5 +641,3 @@ bool VisibilityTester::Test(std::vector<std::shared_ptr<Keyframe>> keyframes,
 }
 
 }  // namespace ugu
-
-#endif

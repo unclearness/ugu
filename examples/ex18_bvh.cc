@@ -22,9 +22,9 @@ int main(int argc, char* argv[]) {
   ugu::MeshPtr mesh = ugu::Mesh::Create();
   mesh->LoadObj("../data/bunny/bunny.obj", "../data/bunny/");
 
-  ugu::Bvh<Eigen::Vector3f, Eigen::Vector3i> bvh;
+  ugu::BvhNaive<Eigen::Vector3f, Eigen::Vector3i> bvh;
   bvh.SetAxisNum(3);
-  bvh.SetMaxLeafDataNum(5);
+  bvh.SetMinLeafPrimitives(5);
   bvh.SetData(mesh->vertices(), mesh->vertex_indices());
 
   ugu::Timer timer;
@@ -68,11 +68,10 @@ int main(int argc, char* argv[]) {
 
   {
     timer.Start();
-    std::vector<ugu::IntersectResult> results;
     ugu::Ray ray;
     ray.org = origin;
     ray.dir = dir;
-    bvh.Intersect(ray, results);
+    std::vector<ugu::IntersectResult> results = bvh.Intersect(ray);
     timer.End();
     ugu::LOGI("bvh.Intersect took %f ms\n", timer.elapsed_msec());
     std::vector<Eigen::Vector3f> intersected_points;

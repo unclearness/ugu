@@ -339,6 +339,7 @@ set(
   include/ugu/accel/kdtree.h
   include/ugu/accel/kdtree_nanoflann.h
   include/ugu/accel/bvh.h
+  include/ugu/accel/bvh_nanort.h
 
   include/ugu/external/external.h
   src/external/fast_quadric_mesh_simplification.cc

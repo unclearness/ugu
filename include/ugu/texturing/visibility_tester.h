@@ -5,19 +5,16 @@
 
 #pragma once
 
-#ifdef UGU_USE_NANORT
-
 #include <array>
 #include <limits>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "ugu/accel/bvh.h"
 #include "ugu/camera.h"
 #include "ugu/image.h"
 #include "ugu/mesh.h"
-
-#include "nanort.h"
 
 namespace ugu {
 
@@ -163,7 +160,7 @@ struct VisibilityInfo {
 };
 
 struct Keyframe {
-  int id;
+  int id = -1;
 
   std::string color_path;
   Image3b color;
@@ -184,20 +181,14 @@ class VisibilityTester {
   std::shared_ptr<const Mesh> mesh_{nullptr};
   VisibilityTesterOption option_;
 
-  std::vector<float> flatten_vertices_;
-  std::vector<unsigned int> flatten_faces_;
-
-  nanort::BVHBuildOptions<float> build_options_;
-  std::unique_ptr<nanort::TriangleMesh<float>> triangle_mesh_;
-  std::unique_ptr<nanort::TriangleSAHPred<float>> triangle_pred_;
-  nanort::BVHAccel<float> accel_;
-  nanort::BVHBuildStatistics stats_;
-  float bmin_[3], bmax_[3];
+  std::unique_ptr<Bvh<Eigen::Vector3f, Eigen::Vector3i>> bvh_;
 
   bool ValidateAndInitBeforeTest(VisibilityInfo* info) const;
 
   bool TestVertices(VisibilityInfo* info) const;
   bool TestFaces(VisibilityInfo* info) const;
+
+  void Init();
 
  public:
   VisibilityTester();
@@ -224,5 +215,3 @@ class VisibilityTester {
 };
 
 }  // namespace ugu
-
-#endif

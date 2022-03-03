@@ -112,6 +112,22 @@ struct Aabb {
   double SurfaceArea() const { return SurfaceArea(*this); }
 };
 
+class BvhBuildStatistics {
+ public:
+  unsigned int max_tree_depth;
+  unsigned int num_leaf_nodes;
+  unsigned int num_branch_nodes;
+  float build_secs;
+  Aabb<Eigen::Vector3d> bb;
+
+  // Set default value: Taabb = 0.2
+  BvhBuildStatistics()
+      : max_tree_depth(0),
+        num_leaf_nodes(0),
+        num_branch_nodes(0),
+        build_secs(0.0f) {}
+};
+
 struct Ray {
   Eigen::Vector3f org, dir;
 };
@@ -119,25 +135,39 @@ struct Ray {
 template <typename T, typename TT>
 class Bvh {
  public:
-  Bvh(){};
   ~Bvh(){};
 
-  enum kCostType { NAIVE, SAH };  // Surface Area Heuristics
+  virtual void SetData(const std::vector<T>& vertices,
+                       const std::vector<TT>& indices) = 0;
+  virtual bool Build() = 0;
+  virtual const BvhBuildStatistics& GetBuildStatistics() const = 0;
+  virtual std::vector<IntersectResult> Intersect(
+      const Ray& ray, bool test_all = true) const = 0;
+};
 
-  void SetData(const std::vector<T>& vertices, const std::vector<TT>& indices) {
+enum kBvhCostType { NAIVE, SAH };  // Surface Area Heuristics
+
+template <typename T, typename TT>
+class BvhNaive : public Bvh<T, TT> {
+ public:
+  BvhNaive(){};
+  ~BvhNaive(){};
+
+  void SetData(const std::vector<T>& vertices,
+               const std::vector<TT>& indices) override {
     m_vertices = vertices;
     m_indices = indices;
   }
 
   void SetAxisNum(int axis_num) { m_axis_num = axis_num; }
 
-  void SetMaxLeafDataNum(int max_leaf_data_num) {
-    m_max_leaf_data_num = max_leaf_data_num;
+  void SetMinLeafPrimitives(int min_leaf_primitives) {
+    m_min_leaf_primitives = min_leaf_primitives;
   }
 
-  void SetCostType(kCostType cost_type) { m_cost_type = cost_type; }
+  void SetCostType(kBvhCostType cost_type) { m_cost_type = cost_type; }
 
-  bool Build() {
+  bool Build() override {
     if (m_axis_num < 0 || m_vertices.empty() || m_indices.empty()) {
       return false;
     }
@@ -146,6 +176,11 @@ class Bvh {
     std::iota(m_face_ids.begin(), m_face_ids.end(), 0);
     m_root = BuildImpl(m_face_ids, 0);
     return true;
+  }
+
+  const BvhBuildStatistics& GetBuildStatistics() const override {
+    LOGW("Maybe not implemented...");
+    return m_stats;
   }
 
   std::vector<MeshPtr> Visualize(int depth_limit = 10) const {
@@ -193,13 +228,20 @@ class Bvh {
     return meshes;
   }
 
-  bool Intersect(const Ray& ray, std::vector<IntersectResult>& results) const {
-    results = IntersectImpl(ray, m_root);
+  std::vector<IntersectResult> Intersect(const Ray& ray,
+                                         bool test_all = true) const override {
+    // TODO: immediately return only 1 result if test_all = false
+    std::vector<IntersectResult> results = IntersectImpl(ray, m_root);
     std::sort(results.begin(), results.end(),
               [&](const IntersectResult& lhs, const IntersectResult& rhs) {
                 return lhs.t < rhs.t;
               });
-    return !results.empty();
+    // TODO:
+    if (!test_all && !results.empty()) {
+      results.resize(1);
+    }
+
+    return results;
   }
 
  private:
@@ -207,11 +249,13 @@ class Bvh {
   std::vector<TT> m_indices;
   std::vector<size_t> m_face_ids;
   int m_axis_num = -1;
-  int m_max_leaf_data_num = -1;
-  kCostType m_cost_type = kCostType::NAIVE;
+  unsigned int m_min_leaf_primitives = 4;
+  unsigned int m_max_tree_depth = 256;
+  kBvhCostType m_cost_type = kBvhCostType::NAIVE;
+  BvhBuildStatistics m_stats;
 
   int m_num_threads = 1;
-  float m_epsilon = 1e-6f;
+  float m_epsilon = 1e-8f;
 
   struct Node;
   using NodePtr = std::shared_ptr<Node>;
@@ -235,20 +279,16 @@ class Bvh {
 
   NodePtr BuildImpl(const std::vector<size_t>& face_ids, int depth) {
     const size_t poly_num = face_ids.size();
-    if (m_max_leaf_data_num <= 0) {
-      if (poly_num <= 0) {
-        return nullptr;
+
+    if (static_cast<int>(poly_num) <= m_min_leaf_primitives ||
+        m_max_tree_depth <= depth) {
+      NodePtr node = std::make_shared<Node>();
+      node->face_ids = face_ids;
+      node->depth = depth;
+      for (const auto& f : face_ids) {
+        node->indices.push_back(m_indices[f]);
       }
-    } else {
-      if (static_cast<int>(poly_num) <= m_max_leaf_data_num) {
-        NodePtr node = std::make_shared<Node>();
-        node->face_ids = face_ids;
-        node->depth = depth;
-        for (const auto& f : face_ids) {
-          node->indices.push_back(m_indices[f]);
-        }
-        return node;
-      }
+      return node;
     }
 
     auto [left_fids, right_fids, axis] = Split(face_ids, depth);
@@ -273,7 +313,7 @@ class Bvh {
       const std::vector<size_t>& face_ids, int depth) {
     std::vector<size_t> left_fids, right_fids;
     int axis = -1;
-    if (m_cost_type == kCostType::NAIVE) {
+    if (m_cost_type == kBvhCostType::NAIVE) {
       auto calc_center = [&](const TT& index) {
 #if 0
         // Not smart...
