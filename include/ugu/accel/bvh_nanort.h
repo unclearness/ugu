@@ -27,9 +27,9 @@ class BvhNanort : public Bvh<T, TT> {
     m_indices.clear();
 
     m_vertices = vertices;
-    std::transform(indices.begin(), indices.end(),
-                   std::back_inserter(m_indices),
-                   [&](const TT& i) { return i.cast<unsigned int>(); });
+    std::transform(
+        indices.begin(), indices.end(), std::back_inserter(m_indices),
+        [&](const TT& i) { return i.template cast<unsigned int>(); });
   }
 
   bool Build() override {
@@ -48,11 +48,13 @@ class BvhNanort : public Bvh<T, TT> {
 
     m_triangle_mesh =
         std::make_unique<nanort::TriangleMesh<typename T::Scalar>>(
-            m_vertices[0].data(), m_indices[0].data(), sizeof(T::Scalar) * 3);
+            m_vertices[0].data(), m_indices[0].data(),
+            sizeof(typename T::Scalar) * 3);
 
     m_triangle_pred =
         std::make_unique<nanort::TriangleSAHPred<typename T::Scalar>>(
-            m_vertices[0].data(), m_indices[0].data(), sizeof(T::Scalar) * 3);
+            m_vertices[0].data(), m_indices[0].data(),
+            sizeof(typename T::Scalar) * 3);
 
     // LOGI("num_triangles = %llu\n",
     //     static_cast<uint64_t>(mesh_->vertex_indices().size()));
@@ -106,7 +108,7 @@ class BvhNanort : public Bvh<T, TT> {
     }
 
     std::vector<IntersectResult> results;
-    nanort::Ray<T::Scalar> ray_nanort;
+    nanort::Ray<typename T::Scalar> ray_nanort;
 
     const float kFar = 1.0e+30f;
     ray_nanort.min_t = 0.0001f;
@@ -118,9 +120,10 @@ class BvhNanort : public Bvh<T, TT> {
 
     // shoot ray
     constexpr float epsilon = 1e-7;
-    nanort::TriangleIntersection<T::Scalar> isect;
-    nanort::TriangleIntersector<T::Scalar> m_triangle_intersector(
-        m_vertices[0].data(), m_indices[0].data(), sizeof(T::Scalar) * 3);
+    nanort::TriangleIntersection<typename T::Scalar> isect;
+    nanort::TriangleIntersector<typename T::Scalar> m_triangle_intersector(
+        m_vertices[0].data(), m_indices[0].data(),
+        sizeof(typename T::Scalar) * 3);
     bool hit = m_accel.Traverse(ray_nanort, m_triangle_intersector, &isect);
     while (hit) {
       IntersectResult res;
@@ -135,7 +138,8 @@ class BvhNanort : public Bvh<T, TT> {
       }
 
       for (int i = 0; i < 3; i++) {
-        T::Scalar hit_pos_i = ray_nanort.org[i] + ray_nanort.dir[i] * isect.t;
+        typename T::Scalar hit_pos_i =
+            ray_nanort.org[i] + ray_nanort.dir[i] * isect.t;
         ray_nanort.org[i] = hit_pos_i + epsilon * ray_nanort.dir[i];
       }
       hit = m_accel.Traverse(ray_nanort, m_triangle_intersector, &isect);
