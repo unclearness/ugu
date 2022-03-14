@@ -76,8 +76,9 @@ int main(int argc, char* argv[]) {
     keyframes[i]->color = ugu::imread<ugu::Image3b>(keyframes[i]->color_path);
   }
 
-  tester.set_mesh(input_mesh);
-  tester.PrepareMesh();
+  tester.set_data(input_mesh->vertices(), input_mesh->normals(),
+                  input_mesh->vertex_indices());
+  tester.PrepareData();
 
   info.vertex_info_list.resize(input_mesh->vertices().size());
   info.face_info_list.resize(input_mesh->vertex_indices().size());

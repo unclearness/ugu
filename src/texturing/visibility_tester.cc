@@ -9,6 +9,7 @@
 #include <iterator>
 
 #include "ugu/accel/bvh_nanort.h"
+#include "ugu/face_adjacency.h"
 #include "ugu/timer.h"
 #include "ugu/util/math_util.h"
 
@@ -345,36 +346,22 @@ void VisibilityTester::set_option(const VisibilityTesterOption& option) {
   option.CopyTo(&option_);
 }
 
-void VisibilityTester::set_mesh(std::shared_ptr<const Mesh> mesh) {
-  if (mesh == nullptr) {
-    LOGE("mesh is nullptr\n");
-    return;
-  }
-
+void VisibilityTester::set_data(const std::vector<Eigen::Vector3f>& vertices,
+                                const std::vector<Eigen::Vector3f>& normals,
+                                const std::vector<Eigen::Vector3i>& indices) {
   mesh_initialized_ = false;
-  mesh_ = mesh;
-
-  if (mesh_->face_normals().empty()) {
-    LOGW("face normal is empty. culling and shading may not work\n");
-  }
-
-  if (mesh_->normals().empty()) {
-    LOGW("vertex normal is empty. shading may not work\n");
-  }
+  vertices_ = vertices;
+  normals_ = normals;
+  indices_ = indices;
 }
 
-bool VisibilityTester::PrepareMesh() {
-  if (mesh_ == nullptr) {
-    LOGE("mesh has not been set\n");
-    return false;
-  }
-
-  if (mesh_->vertices().empty() || mesh_->vertex_indices().empty()) {
+bool VisibilityTester::PrepareData() {
+  if (vertices_.empty() || normals_.empty() || indices_.empty()) {
     LOGE("mesh is empty\n");
     return false;
   }
 
-  bvh_->SetData(mesh_->vertices(), mesh_->vertex_indices());
+  bvh_->SetData(vertices_, indices_);
   bool ret = bvh_->Build();
   if (!ret) {
     return false;
@@ -416,16 +403,24 @@ bool VisibilityTester::ValidateAndInitBeforeTest(VisibilityInfo* info) const {
     return false;
   }
 
-  if (info->vertex_info_list.size() != mesh_->vertices().size()) {
+  if (info->vertex_info_list.size() != vertices_.size()) {
     LOGE("info->vertex_info_list size %d is different from mesh %d\n",
          static_cast<int>(info->vertex_info_list.size()),
-         static_cast<int>(mesh_->vertices().size()));
+         static_cast<int>(vertices_.size()));
     return false;
   }
-  if (info->face_info_list.size() != mesh_->vertex_indices().size()) {
+
+  if (info->vertex_info_list.size() != normals_.size()) {
+    LOGE("info->vertex_info_list size %d is different from mesh normal %d\n",
+         static_cast<int>(info->vertex_info_list.size()),
+         static_cast<int>(normals_.size()));
+    return false;
+  }
+
+  if (info->face_info_list.size() != indices_.size()) {
     LOGE("info->face_info_list size %d is different from mesh %d\n",
          static_cast<int>(info->face_info_list.size()),
-         static_cast<int>(mesh_->vertex_indices().size()));
+         static_cast<int>(indices_.size()));
     return false;
   }
 
@@ -451,16 +446,14 @@ bool VisibilityTester::ValidateAndInitBeforeTest(VisibilityInfo* info) const {
 bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
   Timer<> timer;
   timer.Start();
-  const auto& vertices = mesh_->vertices();
-  const auto& normals = mesh_->normals();
-  int vertex_num = static_cast<int>(vertices.size());
+  int vertex_num = static_cast<int>(vertices_.size());
 
 #if defined(_OPENMP) && defined(UGU_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int i = 0; i < vertex_num; i++) {
     // convert vertex to camera space from world space
-    const Eigen::Vector3f& world_p = vertices[i];
+    const Eigen::Vector3f& world_p = vertices_[i];
     Eigen::Vector3f camera_p = keyframe_->camera->w2c().cast<float>() * world_p;
     // project vertex to image space
     Eigen::Vector2f image_p;
@@ -498,7 +491,7 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
     ray.org = org_ray_w;
 
     // back-face culling
-    float dot = -normals[i].dot(ray_w);
+    float dot = -normals_[i].dot(ray_w);
     float viewing_angle = std::acos(dot);
     // back-face if angle is larager than threshold
     if (option_.backface_culling_angle_rad_th < viewing_angle) {
@@ -514,7 +507,7 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
       // if there is a large distance beween hit position and vertex position,
       // the vertex is occluded by another face and should be ignored
       hit_pos_w = org_ray_w + ray_w * results[0].t;
-      float dist = (hit_pos_w - vertices[i]).norm();
+      float dist = (hit_pos_w - vertices_[i]).norm();
       if (dist > option_.eps) {
         continue;
       }
@@ -523,7 +516,7 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
       // but sometimes no hit...maybe numerical reason
       // in the case use original vertex position for hit_pos_w hoping it was
       // not occluded
-      hit_pos_w = vertices[i];
+      hit_pos_w = vertices_[i];
     }
 
     // check depth difference between hit position and input depth
@@ -573,7 +566,7 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
 bool VisibilityTester::TestFaces(VisibilityInfo* info) const {
   Timer<> timer;
   timer.Start();
-  const auto& faces = mesh_->vertex_indices();
+  const auto& faces = indices_;
   int face_num = static_cast<int>(faces.size());
 
 #if defined(_OPENMP) && defined(UGU_USE_OPENMP)

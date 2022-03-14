@@ -15,7 +15,6 @@
 #include "ugu/accel/bvh.h"
 #include "ugu/camera.h"
 #include "ugu/image.h"
-#include "ugu/mesh.h"
 
 namespace ugu {
 
@@ -184,9 +183,10 @@ struct Keyframe {
 class VisibilityTester {
   bool mesh_initialized_{false};
   std::shared_ptr<const Keyframe> keyframe_{nullptr};
-  std::shared_ptr<const Mesh> mesh_{nullptr};
   VisibilityTesterOption option_;
-
+  std::vector<Eigen::Vector3f> vertices_;
+  std::vector<Eigen::Vector3f> normals_;
+  std::vector<Eigen::Vector3i> indices_;
   std::unique_ptr<Bvh<Eigen::Vector3f, Eigen::Vector3i>> bvh_;
 
   bool ValidateAndInitBeforeTest(VisibilityInfo* info) const;
@@ -205,11 +205,12 @@ class VisibilityTester {
   void set_option(const VisibilityTesterOption& option);
 
   // Set mesh
-  void set_mesh(std::shared_ptr<const Mesh> mesh);
+  void set_data(const std::vector<Eigen::Vector3f>& vertices,
+                const std::vector<Eigen::Vector3f>& normals,
+                const std::vector<Eigen::Vector3i>& indices);
 
-  // Should call after set_mesh() and before Render()
-  // Don't modify mesh outside after calling PrepareMesh()
-  bool PrepareMesh();
+  // Should call after set_data() and before Test()
+  bool PrepareData();
 
   // Set keyframe
   void set_keyframe(std::shared_ptr<Keyframe> keyframe);
