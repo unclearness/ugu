@@ -9,9 +9,11 @@
 
 #include "ugu/camera.h"
 #include "ugu/external/external.h"
+#include "ugu/inpaint/inpaint.h"
 #include "ugu/texturing/texture_mapper.h"
 #include "ugu/texturing/vertex_colorizer.h"
 #include "ugu/texturing/visibility_tester.h"
+#include "ugu/util/raster_util.h"
 
 // test by bunny data with 6 views
 int main(int argc, char* argv[]) {
@@ -116,6 +118,23 @@ int main(int argc, char* argv[]) {
   tmoption.tex_h = 512;
   tmoption.tex_w = 512;
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
+
+  ugu::Image3b mask3b = ugu::Image3b::zeros(tmoption.tex_h, tmoption.tex_w);
+  ugu::GenerateUvMask(output_mesh->uv(), output_mesh->uv_indices(), mask3b,
+                      {255.f, 255.f, 255.f}, tmoption.tex_w, tmoption.tex_h);
+  auto mat = output_mesh->materials();
+  ugu::Image1b mask = ugu::Image1b::zeros(tmoption.tex_h, tmoption.tex_w);
+  for (int y = 0; y < mask.rows; y++) {
+    for (int x = 0; x < mask.cols; x++) {
+      mask.at<uint8_t>(y, x) = mask3b.at<ugu::Vec3b>(y, x)[0];
+    }
+  }
+  // ugu::imwrite("mask.png", mask);
+  ugu::Not(mask.clone(), &mask);
+  // ugu::Dilate(mask.clone(), &mask, 5);
+  ugu::Inpaint(mask, mat[0].diffuse_tex);
+  // ugu::imwrite("mask2.png", mask);
+  output_mesh->set_materials(mat);
   output_mesh->WriteObj(data_dir, "bunny_textured_charts");
 
 #ifdef UGU_USE_MVS_TEXTURING
