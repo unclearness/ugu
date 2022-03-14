@@ -119,6 +119,7 @@ class BvhNanort : public Bvh<T, TT> {
     }
 
     // shoot ray
+    float t_offset = 0.f;
     constexpr float epsilon = 1e-7;
     nanort::TriangleIntersection<typename T::Scalar> isect;
     nanort::TriangleIntersector<typename T::Scalar> m_triangle_intersector(
@@ -128,10 +129,12 @@ class BvhNanort : public Bvh<T, TT> {
     while (hit) {
       IntersectResult res;
       res.fid = isect.prim_id;
-      res.t = isect.t;
+      res.t = isect.t + t_offset;
       res.u = isect.u;
       res.v = isect.v;
       results.emplace_back(res);
+
+      t_offset += res.t;
 
       if (!test_all) {
         break;
