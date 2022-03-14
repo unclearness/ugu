@@ -753,7 +753,7 @@ bool VisibilityTester::Test(std::vector<std::shared_ptr<Keyframe>> keyframes,
 
   for (size_t i = 0; i < keyframes.size() - 1; i++) {
     set_keyframe(keyframes[i]);
-    if (!Test(info)) {
+    if (!Test(info, facewise)) {
       ret = false;
       break;
     }
