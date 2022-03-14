@@ -9,7 +9,9 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "ugu/accel/bvh.h"
@@ -93,12 +95,15 @@ struct VertexInfo {
   /**************************************/
 
   VertexInfo();
+  VertexInfo(const VertexInfo& src);
   ~VertexInfo();
   void Update(const VertexInfoPerKeyframe& info);
   void CalcStat();
   int VisibleFrom(int kf_id) const;
 
   friend std::ostream& operator<<(std::ostream& os, const VertexInfo& vi);
+
+  std::mutex mtx_;
 };
 
 struct FaceInfoPerKeyframe {

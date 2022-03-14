@@ -132,8 +132,13 @@ VertexInfoPerKeyframe::VertexInfoPerKeyframe() {}
 VertexInfoPerKeyframe::~VertexInfoPerKeyframe() {}
 
 VertexInfo::VertexInfo() {}
+VertexInfo::VertexInfo(const VertexInfo& src){
+    // TODO: implement
+    // Disable default copy constructor for mutex, which is cannot be copied.
+};
 VertexInfo::~VertexInfo() {}
 void VertexInfo::Update(const VertexInfoPerKeyframe& info) {
+  std::lock_guard<std::mutex> lock(mtx_);
   visible_keyframes.push_back(info);
 }
 void VertexInfo::CalcStat() {
@@ -312,7 +317,7 @@ std::string VisibilityInfo::SerializeAsJson() const {
   ss << "{";
   ss << "\"vertex_info_list\":[";
   for (size_t i = 0; i < vertex_info_list.size(); i++) {
-    const auto vi = vertex_info_list[i];
+    const auto& vi = vertex_info_list[i];
     ss << vi;
     if (i != vertex_info_list.size() - 1) {
       ss << ",";
@@ -442,7 +447,7 @@ bool VisibilityTester::ValidateAndInitBeforeTest(VisibilityInfo* info) const {
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int i = 0; i < vertex_info_list_num; i++) {
-    auto ii = info->vertex_info_list[i];
+    auto& ii = info->vertex_info_list[i];
     ii.min_viewing_angle_color = option_.invalid_color;
     ii.min_distance_color = option_.invalid_color;
     ii.mean_color = option_.invalid_color;
@@ -649,7 +654,7 @@ bool VisibilityTester::TestFacewiseVertices(VisibilityInfo* info) const {
   constexpr float kEpsilon = 1e-3f;
 
 #if defined(_OPENMP) && defined(UGU_USE_OPENMP)
-//#pragma omp parallel for schedule(dynamic, 1)
+#pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int i = 0; i < face_num; i++) {
     const auto& face = faces[i];
