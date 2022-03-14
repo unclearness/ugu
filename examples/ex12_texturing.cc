@@ -84,6 +84,11 @@ int main(int argc, char* argv[]) {
 
   tester.Test(keyframes, &info);
 
+  {
+    std::ofstream ofs("./keyframe_info.json");
+    ofs << info.SerializeAsJson();
+  }
+
   std::shared_ptr<ugu::Mesh> output_mesh =
       std::make_shared<ugu::Mesh>(*input_mesh.get());
 
@@ -112,6 +117,7 @@ int main(int argc, char* argv[]) {
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   output_mesh->WriteObj(data_dir, "bunny_textured_charts");
 
+#ifdef UGU_USE_MVS_TEXTURING
   // mvs-texturing
   ugu::Mesh debug_mesh;
   bool ret = ugu::MvsTexturing(keyframes, output_mesh.get(), &debug_mesh);
@@ -119,6 +125,7 @@ int main(int argc, char* argv[]) {
     output_mesh->WriteObj(data_dir, "bunny_mvs_texturing");
     debug_mesh.WriteObj(data_dir, "bunny_mvs_texturing_debug");
   }
+#endif
 
   return 0;
 }

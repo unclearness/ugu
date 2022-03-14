@@ -896,6 +896,15 @@ std::optional<Eigen::Vector3f> Intersect(const Eigen::Vector3f& origin,
   return IntersectImpl(origin, ray, v0, v1, v2, kEpsilon);
 }
 
+std::optional<Eigen::Vector3d> Intersect(const Eigen::Vector3d& origin,
+                                         const Eigen::Vector3d& ray,
+                                         const Eigen::Vector3d& v0,
+                                         const Eigen::Vector3d& v1,
+                                         const Eigen::Vector3d& v2,
+                                         const double kEpsilon) {
+  return IntersectImpl(origin, ray, v0, v1, v2, kEpsilon);
+}
+
 std::vector<IntersectResult> Intersect(
     const Eigen::Vector3f& origin, const Eigen::Vector3f& ray,
     const std::vector<Eigen::Vector3f>& vertices,
@@ -913,9 +922,12 @@ std::vector<IntersectResult> Intersect(
       const auto& v0 = vertices[f[0]];
       const auto& v1 = vertices[f[1]];
       const auto& v2 = vertices[f[2]];
-      auto ret = Intersect(origin, ray, v0, v1, v2, kEpsilon);
+      // Use double for numerical reason
+      auto ret = Intersect(origin.cast<double>(), ray.cast<double>(),
+                           v0.cast<double>(), v1.cast<double>(),
+                           v2.cast<double>(), double(kEpsilon));
       if (ret) {
-        const auto& tuv = ret.value();
+        const auto& tuv = ret.value().cast<float>();
         std::lock_guard<std::mutex> lock(mtx);
         IntersectResult result;
         result.fid = static_cast<uint32_t>(i);
@@ -934,9 +946,12 @@ std::vector<IntersectResult> Intersect(
       const auto& v0 = vertices[f[0]];
       const auto& v1 = vertices[f[1]];
       const auto& v2 = vertices[f[2]];
-      auto ret = Intersect(origin, ray, v0, v1, v2, kEpsilon);
+      // Use double for numerical reason
+      auto ret = Intersect(origin.cast<double>(), ray.cast<double>(),
+                           v0.cast<double>(), v1.cast<double>(),
+                           v2.cast<double>(), double(kEpsilon));
       if (ret) {
-        const auto& tuv = ret.value();
+        const auto& tuv = ret.value().cast<float>();
         IntersectResult result;
         result.fid = static_cast<uint32_t>(i);
         result.t = tuv[0];

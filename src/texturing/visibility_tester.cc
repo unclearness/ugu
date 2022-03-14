@@ -91,6 +91,28 @@ inline float EdgeFunction(const Eigen::Vector2f& a, const Eigen::Vector2f& b,
 
 namespace ugu {
 
+std::ostream& operator<<(std::ostream& os, const VertexInfoPerKeyframe& vi) {
+  os << "{ \"kf_id\": " << vi.kf_id << ", \"projected_pos\":["
+     << vi.projected_pos[0] << "," << vi.projected_pos[1] << "],"
+     << "\"viewing_angle\":" << vi.viewing_angle << ","
+     << "\"distance\":" << vi.distance << "}";
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const VertexInfo& vi) {
+  os << "{\"visible_keyframes\":[";
+  for (size_t i = 0; i < vi.visible_keyframes.size(); i++) {
+    const auto& kf = vi.visible_keyframes[i];
+    os << kf;
+    if (i != vi.visible_keyframes.size() - 1) {
+      os << ",";
+    }
+  }
+  os << "]";
+  os << "}";
+  return os;
+}
+
 VisibilityTesterOption::VisibilityTesterOption() {}
 
 VisibilityTesterOption::~VisibilityTesterOption() {}
@@ -281,8 +303,19 @@ void VisibilityInfo::Update(int face_id, const FaceInfoPerKeyframe& info) {
   face_info_list[face_id].Update(info);
 }
 std::string VisibilityInfo::SerializeAsJson() const {
-  // todo
-  return "";
+  std::stringstream ss;
+  ss << "{";
+  ss << "\"vertex_info_list\":[";
+  for (size_t i = 0; i < vertex_info_list.size(); i++) {
+    const auto vi = vertex_info_list[i];
+    ss << vi;
+    if (i != vertex_info_list.size() - 1) {
+      ss << ",";
+    }
+  }
+  ss << "]";
+  ss << "}";
+  return ss.str();
 }
 
 Keyframe::Keyframe() {}
@@ -294,6 +327,7 @@ void VisibilityTester::Init() {
 #else
   auto tmp = std::make_unique<BvhNaive<Eigen::Vector3f, Eigen::Vector3i>>();
   tmp->SetAxisNum(3);
+  tmp->SetMinLeafPrimitives(5);
   bvh_ = std::move(tmp);
 #endif
 }

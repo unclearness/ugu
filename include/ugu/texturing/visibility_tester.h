@@ -6,6 +6,7 @@
 #pragma once
 
 #include <array>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <string>
@@ -58,6 +59,9 @@ struct VertexInfoPerKeyframe {
 
   VertexInfoPerKeyframe();
   ~VertexInfoPerKeyframe();
+
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const VertexInfoPerKeyframe& vi);
 };
 
 struct VertexInfo {
@@ -94,6 +98,8 @@ struct VertexInfo {
   void Update(const VertexInfoPerKeyframe& info);
   void CalcStat();
   int VisibleFrom(int kf_id) const;
+
+  friend std::ostream& operator<<(std::ostream& os, const VertexInfo& vi);
 };
 
 struct FaceInfoPerKeyframe {

@@ -56,6 +56,13 @@ std::optional<Eigen::Vector3f> Intersect(const Eigen::Vector3f& origin,
                                          const Eigen::Vector3f& v2,
                                          const float kEpsilon = 1e-6f);
 
+std::optional<Eigen::Vector3d> Intersect(const Eigen::Vector3d& origin,
+                                         const Eigen::Vector3d& ray,
+                                         const Eigen::Vector3d& v0,
+                                         const Eigen::Vector3d& v1,
+                                         const Eigen::Vector3d& v2,
+                                         const double kEpsilon = 1e-20);
+
 // u, v and t are defined as follows:
 // origin + ray * t ==  (1-u-v)*v0 + u*v1+v*v2
 struct IntersectResult {
@@ -69,7 +76,7 @@ std::vector<IntersectResult> Intersect(
     const Eigen::Vector3f& origin, const Eigen::Vector3f& ray,
     const std::vector<Eigen::Vector3f>& vertices,
     const std::vector<Eigen::Vector3i>& faces, int num_threads = 1,
-    const float kEpsilon = 1e-6f);
+    const float kEpsilon = 1e-10f);
 
 // https://github.com/isl-org/Open3D/blob/ed30e3b61fbe031e106fa64030bec3f698b316b4/cpp/open3d/geometry/Geometry3D.cpp#L41
 template <typename T>
