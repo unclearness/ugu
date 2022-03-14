@@ -41,7 +41,7 @@ struct VisibilityTesterOption {
   float max_distance_from_camera_to_vertex{std::numeric_limits<float>::max()};
   float max_depth_difference{std::numeric_limits<float>::max()};
 
-  float eps = 0.001f;
+  float eps = 0.1f;
   Eigen::Vector3f invalid_color{0.0f, 0.0f, 0.0f};
 
   VisibilityTesterOption();
@@ -187,12 +187,19 @@ class VisibilityTester {
   std::vector<Eigen::Vector3f> vertices_;
   std::vector<Eigen::Vector3f> normals_;
   std::vector<Eigen::Vector3i> indices_;
+
+  std::vector<Eigen::Vector3f> face_centers_;
+
   std::unique_ptr<Bvh<Eigen::Vector3f, Eigen::Vector3i>> bvh_;
 
   bool ValidateAndInitBeforeTest(VisibilityInfo* info) const;
 
+  bool TestVertex(
+      VisibilityInfo* info, int vid, VertexInfoPerKeyframe& vertex_info,
+      const Eigen::Vector3f& v_offset = Eigen::Vector3f::Zero()) const;
   bool TestVertices(VisibilityInfo* info) const;
   bool TestFaces(VisibilityInfo* info) const;
+  bool TestFacewiseVertices(VisibilityInfo* info) const;
 
   void Init();
 
@@ -216,9 +223,10 @@ class VisibilityTester {
   void set_keyframe(std::shared_ptr<Keyframe> keyframe);
 
   // run visibility test
-  bool Test(VisibilityInfo* info) const;
+  // facewise=true: slow but more accurate on geometric boundaries
+  bool Test(VisibilityInfo* info, bool facewise = true) const;
   bool Test(std::vector<std::shared_ptr<Keyframe>> keyframes,
-            VisibilityInfo* info);
+            VisibilityInfo* info, bool facewise = true);
 };
 
 }  // namespace ugu

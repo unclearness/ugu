@@ -9,7 +9,6 @@
 #include <iterator>
 
 #include "ugu/accel/bvh_nanort.h"
-#include "ugu/face_adjacency.h"
 #include "ugu/timer.h"
 #include "ugu/util/math_util.h"
 
@@ -218,7 +217,10 @@ int VertexInfo::VisibleFrom(int kf_id) const {
   return index;
 }
 
-FaceInfoPerKeyframe::FaceInfoPerKeyframe() {}
+FaceInfoPerKeyframe::FaceInfoPerKeyframe()
+    : area(-1.f),
+      viewing_angle(-1.f),
+      distance(std::numeric_limits<float>::max()) {}
 FaceInfoPerKeyframe::~FaceInfoPerKeyframe() {}
 
 FaceInfo::FaceInfo() {}
@@ -300,9 +302,11 @@ void VisibilityInfo::CalcStatFaceInfo() {
 void VisibilityInfo::Update(int vertex_id, const VertexInfoPerKeyframe& info) {
   vertex_info_list[vertex_id].Update(info);
 }
+
 void VisibilityInfo::Update(int face_id, const FaceInfoPerKeyframe& info) {
   face_info_list[face_id].Update(info);
 }
+
 std::string VisibilityInfo::SerializeAsJson() const {
   std::stringstream ss;
   ss << "{";
@@ -365,6 +369,15 @@ bool VisibilityTester::PrepareData() {
   bool ret = bvh_->Build();
   if (!ret) {
     return false;
+  }
+
+  face_centers_.resize(indices_.size());
+  for (size_t fid = 0; fid < indices_.size(); fid++) {
+    face_centers_[fid].setZero();
+    for (int i = 0; i < 3; i++) {
+      face_centers_[fid] += vertices_[indices_[fid][i]];
+    }
+    face_centers_[fid] /= 3;
   }
 
   mesh_initialized_ = true;
@@ -443,6 +456,115 @@ bool VisibilityTester::ValidateAndInitBeforeTest(VisibilityInfo* info) const {
   return true;
 }
 
+bool VisibilityTester::TestVertex(VisibilityInfo* info, int vid,
+                                  VertexInfoPerKeyframe& vertex_info,
+                                  const Eigen::Vector3f& v_offset) const {
+  // convert vertex to camera space from world space
+  const Eigen::Vector3f& world_p = vertices_[vid] + v_offset;
+  Eigen::Vector3f camera_p = keyframe_->camera->w2c().cast<float>() * world_p;
+  // project vertex to image space
+  Eigen::Vector2f image_p;
+  float d;
+  keyframe_->camera->Project(camera_p, &image_p, &d);
+
+  // check if projected point is inside of image space of the current camera
+  if (d < 0 || image_p.x() < 0 || keyframe_->color.cols - 1 < image_p.x() ||
+      image_p.y() < 0 || keyframe_->color.rows - 1 < image_p.y()) {
+    return false;
+  }
+
+  // nearest integer pixel index
+  int nn_x = static_cast<int>(std::round(image_p.x()));
+  int nn_y = static_cast<int>(std::round(image_p.y()));
+
+  // mask and depth value check
+  // nearest mask pixel should be valid (255)
+  if (option_.use_mask &&
+      keyframe_->mask.at<unsigned char>(nn_y, nn_x) != 255) {
+    return false;
+  }
+  // nearest depth pixel should be valid (larger than 0)
+  if (option_.use_depth && keyframe_->depth.at<float>(nn_y, nn_x) <
+                               std::numeric_limits<float>::epsilon()) {
+    return false;
+  }
+
+  // ray from projected point in image space
+  Eigen::Vector3f ray_w, org_ray_w;
+  keyframe_->camera->ray_w(image_p.x(), image_p.y(), &ray_w);
+  keyframe_->camera->org_ray_w(image_p.x(), image_p.y(), &org_ray_w);
+  Ray ray;
+  ray.dir = ray_w;
+  ray.org = org_ray_w;
+
+  // back-face culling
+  float dot = -normals_[vid].dot(ray_w);
+  float viewing_angle = std::acos(dot);
+  // back-face if angle is larager than threshold
+  if (option_.backface_culling_angle_rad_th < viewing_angle) {
+    return false;
+  }
+
+  // shoot ray
+  auto results = bvh_->Intersect(ray, false);
+  float distance = std::numeric_limits<float>::max();
+  Eigen::Vector3f hit_pos_w;
+  if (!results.empty()) {
+    distance = results[0].t;
+    // if there is a large distance beween hit position and vertex position,
+    // the vertex is occluded by another face and should be ignored
+    hit_pos_w = org_ray_w + ray_w * results[0].t;
+    float dist = (hit_pos_w - vertices_[vid]).norm();
+    if (dist > option_.eps) {
+      return false;
+    }
+  } else {
+    // theoritically must hit somewhere because ray are emitted from vertex
+    // but sometimes no hit...maybe numerical reason
+    // in the case use original vertex position for hit_pos_w hoping it was
+    // not occluded
+    hit_pos_w = vertices_[vid];
+  }
+
+  // check depth difference between hit position and input depth
+  if (option_.use_depth) {
+    // convert hit position to camera coordinate to get
+    // depth value
+    Eigen::Vector3f hit_pos_c =
+        keyframe_->camera->w2c().cast<float>() * hit_pos_w;
+
+    assert(0.0f <= hit_pos_c[2]);  // depth should be positive
+    float diff =
+        std::abs(hit_pos_c[2] - keyframe_->depth.at<float>(nn_y, nn_x));
+    if (option_.max_depth_difference < diff) {
+      return false;
+    }
+  }
+
+  // update vertex info per keyframe;
+  vertex_info.kf_id = keyframe_->id;
+  vertex_info.projected_pos = image_p;
+  vertex_info.viewing_angle = viewing_angle;
+  vertex_info.distance = distance;
+
+  if (vertex_info.distance > option_.max_distance_from_camera_to_vertex ||
+      vertex_info.viewing_angle > option_.max_viewing_angle) {
+    return false;
+  }
+
+  if (option_.interp == ColorInterpolation::kNn) {
+    const ugu::Vec3b& color = keyframe_->color.at<ugu::Vec3b>(nn_y, nn_x);
+    vertex_info.color[0] = color[0];
+    vertex_info.color[1] = color[1];
+    vertex_info.color[2] = color[2];
+  } else if (option_.interp == ColorInterpolation::kBilinear) {
+    ::BilinearInterpolation(image_p.x(), image_p.y(), keyframe_->color,
+                            &vertex_info.color);
+  }
+
+  return true;
+}
+
 bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
   Timer<> timer;
   timer.Start();
@@ -452,110 +574,10 @@ bool VisibilityTester::TestVertices(VisibilityInfo* info) const {
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int i = 0; i < vertex_num; i++) {
-    // convert vertex to camera space from world space
-    const Eigen::Vector3f& world_p = vertices_[i];
-    Eigen::Vector3f camera_p = keyframe_->camera->w2c().cast<float>() * world_p;
-    // project vertex to image space
-    Eigen::Vector2f image_p;
-    float d;
-    keyframe_->camera->Project(camera_p, &image_p, &d);
-
-    // check if projected point is inside of image space of the current camera
-    if (d < 0 || image_p.x() < 0 || keyframe_->color.cols - 1 < image_p.x() ||
-        image_p.y() < 0 || keyframe_->color.rows - 1 < image_p.y()) {
-      continue;
-    }
-
-    // nearest integer pixel index
-    int nn_x = static_cast<int>(std::round(image_p.x()));
-    int nn_y = static_cast<int>(std::round(image_p.y()));
-
-    // mask and depth value check
-    // nearest mask pixel should be valid (255)
-    if (option_.use_mask &&
-        keyframe_->mask.at<unsigned char>(nn_y, nn_x) != 255) {
-      continue;
-    }
-    // nearest depth pixel should be valid (larger than 0)
-    if (option_.use_depth && keyframe_->depth.at<float>(nn_y, nn_x) <
-                                 std::numeric_limits<float>::epsilon()) {
-      continue;
-    }
-
-    // ray from projected point in image space
-    Eigen::Vector3f ray_w, org_ray_w;
-    keyframe_->camera->ray_w(image_p.x(), image_p.y(), &ray_w);
-    keyframe_->camera->org_ray_w(image_p.x(), image_p.y(), &org_ray_w);
-    Ray ray;
-    ray.dir = ray_w;
-    ray.org = org_ray_w;
-
-    // back-face culling
-    float dot = -normals_[i].dot(ray_w);
-    float viewing_angle = std::acos(dot);
-    // back-face if angle is larager than threshold
-    if (option_.backface_culling_angle_rad_th < viewing_angle) {
-      continue;
-    }
-
-    // shoot ray
-    auto results = bvh_->Intersect(ray, false);
-    float distance = std::numeric_limits<float>::max();
-    Eigen::Vector3f hit_pos_w;
-    if (!results.empty()) {
-      distance = results[0].t;
-      // if there is a large distance beween hit position and vertex position,
-      // the vertex is occluded by another face and should be ignored
-      hit_pos_w = org_ray_w + ray_w * results[0].t;
-      float dist = (hit_pos_w - vertices_[i]).norm();
-      if (dist > option_.eps) {
-        continue;
-      }
-    } else {
-      // theoritically must hit somewhere because ray are emitted from vertex
-      // but sometimes no hit...maybe numerical reason
-      // in the case use original vertex position for hit_pos_w hoping it was
-      // not occluded
-      hit_pos_w = vertices_[i];
-    }
-
-    // check depth difference between hit position and input depth
-    if (option_.use_depth) {
-      // convert hit position to camera coordinate to get
-      // depth value
-      Eigen::Vector3f hit_pos_c =
-          keyframe_->camera->w2c().cast<float>() * hit_pos_w;
-
-      assert(0.0f <= hit_pos_c[2]);  // depth should be positive
-      float diff =
-          std::abs(hit_pos_c[2] - keyframe_->depth.at<float>(nn_y, nn_x));
-      if (option_.max_depth_difference < diff) {
-        continue;
-      }
-    }
-
-    // update vertex info per keyframe
     VertexInfoPerKeyframe vertex_info;
-    vertex_info.kf_id = keyframe_->id;
-    vertex_info.projected_pos = image_p;
-    vertex_info.viewing_angle = viewing_angle;
-    vertex_info.distance = distance;
-
-    if (vertex_info.distance > option_.max_distance_from_camera_to_vertex ||
-        vertex_info.viewing_angle > option_.max_viewing_angle) {
-      continue;
+    if (TestVertex(info, i, vertex_info)) {
+      info->Update(i, vertex_info);
     }
-
-    if (option_.interp == ColorInterpolation::kNn) {
-      const ugu::Vec3b& color = keyframe_->color.at<ugu::Vec3b>(nn_y, nn_x);
-      vertex_info.color[0] = color[0];
-      vertex_info.color[1] = color[1];
-      vertex_info.color[2] = color[2];
-    } else if (option_.interp == ColorInterpolation::kBilinear) {
-      ::BilinearInterpolation(image_p.x(), image_p.y(), keyframe_->color,
-                              &vertex_info.color);
-    }
-    info->Update(i, vertex_info);
   }
   timer.End();
   LOGI("vertex information collection: %.1f msecs\n", timer.elapsed_msec());
@@ -618,29 +640,104 @@ bool VisibilityTester::TestFaces(VisibilityInfo* info) const {
   return true;
 }
 
-bool VisibilityTester::Test(VisibilityInfo* info) const {
+bool VisibilityTester::TestFacewiseVertices(VisibilityInfo* info) const {
+  Timer<> timer;
+  timer.Start();
+  const auto& faces = indices_;
+  int face_num = static_cast<int>(faces.size());
+  std::vector<bool> v_succeeded(vertices_.size(), false);
+  constexpr float kEpsilon = 1e-3f;
+
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
+//#pragma omp parallel for schedule(dynamic, 1)
+#endif
+  for (int i = 0; i < face_num; i++) {
+    const auto& face = faces[i];
+
+    // update face info per keyframe
+    FaceInfoPerKeyframe face_info;
+    face_info.kf_id = keyframe_->id;
+    face_info.face_id = i;
+    face_info.viewing_angle = 0.0f;
+    face_info.distance = 0.0f;
+    bool face_visible = true;
+    for (int j = 0; j < 3; j++) {
+      int vid = face[j];
+      VertexInfoPerKeyframe vertex_info;
+      Eigen::Vector3f diff = (face_centers_[i] - vertices_[vid]);
+      Eigen::Vector3f v_offset = diff * kEpsilon;
+      face_visible = TestVertex(info, vid, vertex_info, v_offset);
+      if (face_visible) {
+        if (!v_succeeded[vid]) {
+          // Update only once per vertex
+          v_succeeded[vid] = true;
+          // TODO: Handle multi-thread
+          info->Update(vid, vertex_info);
+        }
+      }
+      // Face is visible only if all 3 vertices are visible
+      if (!face_visible) {
+        break;
+      }
+      face_info.viewing_angle += vertex_info.viewing_angle;
+      face_info.distance += vertex_info.distance;
+      face_info.projected_tri[j] = vertex_info.projected_pos;
+    }
+    if (!face_visible) {
+      continue;
+    }
+
+    // Take average
+    face_info.viewing_angle /= 3;
+    face_info.distance /= 3;
+
+    // Calculate triangle area
+    face_info.area = 0.5f * std::abs(EdgeFunction(face_info.projected_tri[0],
+                                                  face_info.projected_tri[1],
+                                                  face_info.projected_tri[2]));
+
+    info->Update(i, face_info);
+  }
+
+  timer.End();
+  LOGI("face-wise information collection: %.1f msecs\n", timer.elapsed_msec());
+  return true;
+}
+
+bool VisibilityTester::Test(VisibilityInfo* info, bool facewise) const {
   if (!ValidateAndInitBeforeTest(info)) {
     return false;
   }
+
   LOGI("Test for keyframe id %d\n", keyframe_->id);
 
-  TestVertices(info);
-
-  if (option_.calc_stat_vertex_info) {
-    info->CalcStatVertexInfo();
-  }
-
-  if (option_.collect_face_info) {
-    TestFaces(info);
+  if (facewise) {
+    TestFacewiseVertices(info);
+    if (option_.calc_stat_vertex_info) {
+      info->CalcStatVertexInfo();
+    }
     if (option_.calc_stat_face_info) {
       info->CalcStatFaceInfo();
+    }
+  } else {
+    TestVertices(info);
+
+    if (option_.calc_stat_vertex_info) {
+      info->CalcStatVertexInfo();
+    }
+
+    if (option_.collect_face_info) {
+      TestFaces(info);
+      if (option_.calc_stat_face_info) {
+        info->CalcStatFaceInfo();
+      }
     }
   }
   return true;
 }
 
 bool VisibilityTester::Test(std::vector<std::shared_ptr<Keyframe>> keyframes,
-                            VisibilityInfo* info) {
+                            VisibilityInfo* info, bool facewise) {
   bool ret = true;
   VisibilityTesterOption org_option;
   option_.CopyTo(&org_option);
@@ -660,7 +757,7 @@ bool VisibilityTester::Test(std::vector<std::shared_ptr<Keyframe>> keyframes,
   // recover original option at the end
   set_option(org_option);
   set_keyframe(keyframes[keyframes.size() - 1]);
-  if (!Test(info)) {
+  if (!Test(info, facewise)) {
     ret = false;
   }
 
