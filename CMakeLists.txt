@@ -279,6 +279,7 @@ set(
   src/util/geom_util.cc
   src/util/image_util.cc
   src/util/string_util.cc
+  src/util/raster_util.cc
 
   include/ugu/renderer/base.h
   include/ugu/renderer/raytracer.h

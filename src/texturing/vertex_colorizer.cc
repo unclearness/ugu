@@ -20,22 +20,38 @@ bool VertexColorizer::Colorize(const VisibilityInfo& info, Mesh* mesh,
 
   std::vector<Eigen::Vector3f> vertex_colors;
 
+  std::function<Eigen::Vector3f(const VertexInfo& info)> select =
+      [&](const VertexInfo& info) -> Eigen::Vector3f {
+    return info.min_viewing_angle_color;
+  };
+  if (criteria == ViewSelectionCriteria::kMinViewingAngle) {
+    select = [&](const VertexInfo& info) {
+      return info.min_viewing_angle_color;
+    };
+  } else if (criteria == ViewSelectionCriteria::kMinDistance) {
+    select = [&](const VertexInfo& info) { return info.min_distance_color; };
+  } else if (criteria == ViewSelectionCriteria::kMeanViewingAngle) {
+    select = [&](const VertexInfo& info) {
+      return info.mean_viewing_angle_color;
+    };
+  } else if (criteria == ViewSelectionCriteria::kMedianViewingAngle) {
+    select = [&](const VertexInfo& info) {
+      return info.median_viewing_angle_color;
+    };
+  } else if (criteria == ViewSelectionCriteria::kMeanDistance) {
+    select = [&](const VertexInfo& info) { return info.median_distance_color; };
+  } else if (criteria == ViewSelectionCriteria::kMedianDistance) {
+    select = [&](const VertexInfo& info) { return info.median_distance_color; };
+  } else if (criteria == ViewSelectionCriteria::kMinIntensity) {
+    select = [&](const VertexInfo& info) { return info.min_intensity_color; };
+  } else if (criteria == ViewSelectionCriteria::kMedianIntensity) {
+    select = [&](const VertexInfo& info) {
+      return info.median_intensity_color;
+    };
+  }
+
   for (size_t i = 0; i < info.vertex_info_list.size(); i++) {
-    if (criteria == ViewSelectionCriteria::kMinViewingAngle) {
-      vertex_colors.push_back(info.vertex_info_list[i].min_viewing_angle_color);
-    } else if (criteria == ViewSelectionCriteria::kMinDistance) {
-      vertex_colors.push_back(info.vertex_info_list[i].min_distance_color);
-    } else if (criteria == ViewSelectionCriteria::kMeanViewingAngle) {
-      vertex_colors.push_back(
-          info.vertex_info_list[i].mean_viewing_angle_color);
-    } else if (criteria == ViewSelectionCriteria::kMedianViewingAngle) {
-      vertex_colors.push_back(
-          info.vertex_info_list[i].median_viewing_angle_color);
-    } else if (criteria == ViewSelectionCriteria::kMeanDistance) {
-      vertex_colors.push_back(info.vertex_info_list[i].mean_distance_color);
-    } else if (criteria == ViewSelectionCriteria::kMedianDistance) {
-      vertex_colors.push_back(info.vertex_info_list[i].median_distance_color);
-    }
+    vertex_colors.push_back(select(info.vertex_info_list[i]));
   }
 
   mesh->set_vertex_colors(vertex_colors);

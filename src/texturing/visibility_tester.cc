@@ -14,44 +14,15 @@
 
 namespace {
 
-void BilinearInterpolation(float x, float y, const ugu::Image3b& image,
-                           Eigen::Vector3f* color) {
-  int tex_pos_min[2] = {0, 0};
-  int tex_pos_max[2] = {0, 0};
-  tex_pos_min[0] = static_cast<int>(std::floor(x));
-  tex_pos_min[1] = static_cast<int>(std::floor(y));
-  tex_pos_max[0] = tex_pos_min[0] + 1;
-  tex_pos_max[1] = tex_pos_min[1] + 1;
-
-  float local_u = x - tex_pos_min[0];
-  float local_v = y - tex_pos_min[1];
-
-  for (int k = 0; k < 3; k++) {
-    // bilinear interpolation of pixel color
-    (*color)[k] = (1.0f - local_u) * (1.0f - local_v) *
-                      image.at<ugu::Vec3b>(tex_pos_min[1], tex_pos_min[0])[k] +
-                  local_u * (1.0f - local_v) *
-                      image.at<ugu::Vec3b>(tex_pos_min[1], tex_pos_max[0])[k] +
-                  (1.0f - local_u) * local_v *
-                      image.at<ugu::Vec3b>(tex_pos_max[1], tex_pos_min[0])[k] +
-                  local_u * local_v *
-                      image.at<ugu::Vec3b>(tex_pos_max[1], tex_pos_max[0])[k];
-
-    // assert(0.0f <= (*color)[k] && (*color)[k] <= 255.0f);
-    if (0.0f > (*color)[k]) {
-      (*color)[k] = 0.0f;
-    } else if (255.0f < (*color)[k]) {
-      (*color)[k] = 255.0f;
-    }
-  }
-}
-
 template <typename T>
-float Median(const std::vector<T>& data) {
+float Median(const std::vector<T>& data, bool force_org_val = false) {
   assert(data.size() > 0);
   if (data.size() == 1) {
     return data[0];
   } else if (data.size() == 2) {
+    if (force_org_val) {
+      return data[0];
+    }
     return (data[0] + data[1]) * 0.5f;
   }
 
@@ -59,7 +30,7 @@ float Median(const std::vector<T>& data) {
   std::copy(data.begin(), data.end(), std::back_inserter(data_tmp));
 
   size_t n = data_tmp.size() / 2;
-  if (data_tmp.size() % 2 == 0) {
+  if (force_org_val || data_tmp.size() % 2 == 0) {
     std::nth_element(data_tmp.begin(), data_tmp.begin() + n, data_tmp.end());
     return data_tmp[n];
   }
@@ -164,6 +135,7 @@ void VertexInfo::CalcStat() {
   std::vector<int> ids;
   std::vector<float> distances;
   std::vector<float> viewing_angles;
+  std::vector<float> intensities;
   std::vector<float> inv_distances;
   std::vector<float> inv_viewing_angles;
   for (auto& kf : visible_keyframes) {
@@ -171,6 +143,7 @@ void VertexInfo::CalcStat() {
     ids.push_back(kf.kf_id);
     distances.push_back(kf.distance);
     viewing_angles.push_back(kf.viewing_angle);
+    intensities.push_back(kf.intensity);
     inv_distances.push_back(1.0f / kf.distance);
     inv_viewing_angles.push_back(1.0f / kf.viewing_angle);
   }
@@ -201,6 +174,18 @@ void VertexInfo::CalcStat() {
   // weighted median
   median_viewing_angle_color = ugu::WeightedMedian(colors, inv_viewing_angles);
   median_distance_color = ugu::WeightedMedian(colors, inv_distances);
+
+  // Intensity
+  auto min_intensity_it = std::min_element(intensities.begin(), intensities.end());
+  min_intensity = *min_intensity_it;
+  min_intensity_color = colors[std::distance(intensities.begin(), min_intensity_it)];
+
+  median_intensity = Median(intensities, true);
+  auto median_viewing_it =
+      std::find(intensities.begin(), intensities.end(), median_intensity);
+  median_intensity_color =
+      colors[std::distance(intensities.begin(), median_viewing_it)];
+
 }
 
 int VertexInfo::VisibleFrom(int kf_id) const {
@@ -563,9 +548,14 @@ bool VisibilityTester::TestVertex(VisibilityInfo* info, int vid,
     vertex_info.color[1] = color[1];
     vertex_info.color[2] = color[2];
   } else if (option_.interp == ColorInterpolation::kBilinear) {
-    ::BilinearInterpolation(image_p.x(), image_p.y(), keyframe_->color,
-                            &vertex_info.color);
+    const ugu::Vec3b color =
+        BilinearInterpolation(image_p.x(), image_p.y(), keyframe_->color);
+    vertex_info.color[0] = color[0];
+    vertex_info.color[1] = color[1];
+    vertex_info.color[2] = color[2];
   }
+
+  vertex_info.intensity = Color2Gray(vertex_info.color);
 
   return true;
 }

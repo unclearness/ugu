@@ -27,7 +27,9 @@ enum class ViewSelectionCriteria {
   kMedianViewingAngle = 3,
   kMeanDistance = 4,
   kMedianDistance = 5,
-  kMaxArea = 6
+  kMaxArea = 6,
+  kMinIntensity = 7,
+  kMedianIntensity = 8
 };
 
 struct VisibilityTesterOption {
@@ -54,6 +56,7 @@ struct VisibilityTesterOption {
 struct VertexInfoPerKeyframe {
   int kf_id{-1};  // positive keyframe id
   Eigen::Vector3f color;
+  float intensity = -1.f;
   Eigen::Vector2f projected_pos;  // projected 2d image space position
   float viewing_angle{999.9f};    // radian
   float distance{-999.9f};  // distance along with ray from camera (not depth)
@@ -68,7 +71,7 @@ struct VertexInfoPerKeyframe {
 struct VertexInfo {
   std::vector<VertexInfoPerKeyframe> visible_keyframes;
 
-  /*** gotten by Finalize() **************/
+  /*** gotten by CalcStat() **************/
   Eigen::Vector3f mean_color;
   Eigen::Vector3f median_color;
   int min_viewing_angle_index{-1};
@@ -86,6 +89,11 @@ struct VertexInfo {
 
   Eigen::Vector3f mean_distance_color;  // weighted average by inverse distance
   Eigen::Vector3f median_distance_color;  // weighted median by inverse distance
+
+  float min_intensity = std::numeric_limits<float>::max();
+  float median_intensity = std::numeric_limits<float>::max();
+  Eigen::Vector3f median_intensity_color;
+  Eigen::Vector3f min_intensity_color;
 
   float mean_viewing_angle{-1.0f};
   float median_viewing_angle{-1.0f};

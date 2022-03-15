@@ -130,6 +130,25 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id);
 
 void Color2Gray(const Image3b& color, Image1b* gray);
 
+template <typename T>
+T Color2Gray(const T& r, const T& g, const T& b) {
+  return saturate_cast<T>(0.2989 * r + 0.5870 * g + 0.1140 * b);
+}
+
+template <typename T>
+typename T::Scalar Color2Gray(const T& color) {
+#ifdef UGU_USE_OPENCV
+  typename T::Scalar r = color[2];
+  typename T::Scalar g = color[1];
+  typename T::Scalar b = color[0];
+#else
+  typename T::Scalar r = color[0];
+  typename T::Scalar g = color[1];
+  typename T::Scalar b = color[2];
+#endif
+  return Color2Gray(r, g, b);
+}
+
 void Conv(const Image1b& src, Image1f* dst, float* filter, int kernel_size);
 void SobelX(const Image1b& gray, Image1f* gradx, bool scharr = false);
 void SobelY(const Image1b& gray, Image1f* grady, bool scharr = false);

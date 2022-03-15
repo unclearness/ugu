@@ -197,9 +197,15 @@ bool GenerateUvMask(const std::vector<Eigen::Vector2f>& uvs,
   std::vector<Eigen::Vector3f> vertex_colors{color};
   std::vector<Eigen::Vector3i> vertex_color_indices(uv_indices.size(),
                                                     Eigen::Vector3i::Zero());
-  RasterizeVertexAttributeToTexture(vertex_colors, vertex_color_indices, uvs,
-                                    uv_indices, mask, width, height);
+  return RasterizeVertexAttributeToTexture(vertex_colors, vertex_color_indices,
+                                           uvs, uv_indices, mask, width,
+                                           height);
 }
+
+bool GenerateUvMask(const std::vector<Eigen::Vector2f>& uvs,
+                    const std::vector<Eigen::Vector3i>& uv_indices,
+                    Image1b& mask, uint8_t color, int width = 512,
+                    int height = 512);
 
 template <typename T>
 bool FetchVertexAttributeFromTexture(const Image<T>& texture,

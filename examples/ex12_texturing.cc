@@ -102,6 +102,34 @@ int main(int argc, char* argv[]) {
   std::string output_ply_path = data_dir + "bunny_vertex_color.ply";
   output_mesh->WritePly(output_ply_path);
 
+  {
+    ugu::Image3b vc_rasterized;
+    ugu::RasterizeVertexAttributeToTexture(
+        output_mesh->vertex_colors(), output_mesh->vertex_indices(),
+        output_mesh->uv(), output_mesh->uv_indices(), vc_rasterized,
+        tmoption.tex_w, tmoption.tex_h);
+
+    auto mats = output_mesh->materials();
+    auto org_texname = mats[0].diffuse_texname;
+    mats[0].diffuse_tex = vc_rasterized;
+    mats[0].diffuse_texname = "bunny_vc_rasterized_orguv.png";
+
+    ugu::Image1b mask = ugu::Image1b::zeros(tmoption.tex_h, tmoption.tex_w);
+    ugu::GenerateUvMask(output_mesh->uv(), output_mesh->uv_indices(), mask, 255,
+                        tmoption.tex_w, tmoption.tex_h);
+    // ugu::imwrite("mask.png", mask);
+    ugu::Not(mask.clone(), &mask);
+    // ugu::Dilate(mask.clone(), &mask, 5);
+    ugu::Inpaint(mask, mats[0].diffuse_tex);
+
+    output_mesh->set_materials(mats);
+    output_mesh->WriteObj(data_dir, "bunny_vc_rasterized_orguv");
+
+    mats = output_mesh->materials();
+    mats[0].diffuse_texname = org_texname;
+    output_mesh->set_materials(mats);
+  }
+
   tmoption.uv_type = ugu::OutputUvType::kUseOriginalMeshUv;
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   output_mesh->WriteObj(data_dir, "bunny_textured_orguv");
@@ -114,28 +142,24 @@ int main(int argc, char* argv[]) {
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   output_mesh->WriteObj(data_dir, "bunny_textured_triuv");
 
-  tmoption.uv_type = ugu::OutputUvType::kGenerateSimpleCharts;
-  tmoption.tex_h = 512;
-  tmoption.tex_w = 512;
-  ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
+  {
+    tmoption.uv_type = ugu::OutputUvType::kGenerateSimpleCharts;
+    tmoption.tex_h = 512;
+    tmoption.tex_w = 512;
+    ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
 
-  ugu::Image3b mask3b = ugu::Image3b::zeros(tmoption.tex_h, tmoption.tex_w);
-  ugu::GenerateUvMask(output_mesh->uv(), output_mesh->uv_indices(), mask3b,
-                      {255.f, 255.f, 255.f}, tmoption.tex_w, tmoption.tex_h);
-  auto mat = output_mesh->materials();
-  ugu::Image1b mask = ugu::Image1b::zeros(tmoption.tex_h, tmoption.tex_w);
-  for (int y = 0; y < mask.rows; y++) {
-    for (int x = 0; x < mask.cols; x++) {
-      mask.at<uint8_t>(y, x) = mask3b.at<ugu::Vec3b>(y, x)[0];
-    }
+    ugu::Image1b mask = ugu::Image1b::zeros(tmoption.tex_h, tmoption.tex_w);
+    ugu::GenerateUvMask(output_mesh->uv(), output_mesh->uv_indices(), mask, 255,
+                        tmoption.tex_w, tmoption.tex_h);
+    auto mat = output_mesh->materials();
+    // ugu::imwrite("mask.png", mask);
+    ugu::Not(mask.clone(), &mask);
+    // ugu::Dilate(mask.clone(), &mask, 5);
+    ugu::Inpaint(mask, mat[0].diffuse_tex);
+    // ugu::imwrite("mask2.png", mask);
+    output_mesh->set_materials(mat);
+    output_mesh->WriteObj(data_dir, "bunny_textured_charts");
   }
-  // ugu::imwrite("mask.png", mask);
-  ugu::Not(mask.clone(), &mask);
-  // ugu::Dilate(mask.clone(), &mask, 5);
-  ugu::Inpaint(mask, mat[0].diffuse_tex);
-  // ugu::imwrite("mask2.png", mask);
-  output_mesh->set_materials(mat);
-  output_mesh->WriteObj(data_dir, "bunny_textured_charts");
 
 #ifdef UGU_USE_MVS_TEXTURING
   // mvs-texturing
