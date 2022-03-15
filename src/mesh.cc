@@ -561,6 +561,7 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
           normals_[idx.normal_index][0] = nx;
           normals_[idx.normal_index][1] = ny;
           normals_[idx.normal_index][2] = nz;
+          normals_[idx.normal_index].normalize();  // Fail safe
         }
 
         if (!attrib.texcoords.empty()) {
