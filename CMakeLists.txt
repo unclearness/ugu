@@ -378,12 +378,17 @@ set_target_properties(${Ugu_LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 set_property( GLOBAL PROPERTY USE_FOLDERS ON)
 
 function(setup_exe EXE_NAME EXE_SRC)
+  set(SETUP_EXE_FOLDER_NAME "examples")
+  if(ARGN)
+    cmake_parse_arguments(SETUP_EXE "" "FOLDER_NAME" "" ${ARGN})
+  endif()
   #SOURCE_GROUP("Source files\\examples\\" FILES ${EXE_SRC})
   add_executable(${EXE_NAME} ${EXE_SRC})
   target_include_directories(${EXE_NAME} PRIVATE ${Ugu_INCLUDE_DIRS})
   target_link_libraries(${EXE_NAME} ${Ugu_LIBS})
   #set(SOURCE_LIST ${SOURCE_LIST} ${EXE_SRC})
-  set_property(TARGET ${EXE_NAME} PROPERTY FOLDER "examples") 
+
+  set_property(TARGET ${EXE_NAME} PROPERTY FOLDER ${SETUP_EXE_FOLDER_NAME}) 
 endfunction(setup_exe)
 
 
@@ -407,8 +412,9 @@ if (NOT hasParent)
   setup_exe(ex17_kdtree examples/ex17_kdtree.cc)
   setup_exe(ex18_bvh examples/ex18_bvh.cc)
 
-  setup_exe(textrans_cmd app/textrans.cc)
-  setup_exe(vc2tex_cmd app/vc2tex.cc)
+  setup_exe(textrans_cmd app/textrans.cc FOLDER_NAME "app")
+  setup_exe(vc2tex_cmd app/vc2tex.cc FOLDER_NAME "app")
+  setup_exe(gif3d app/gif3d.cc FOLDER_NAME "app")
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})
