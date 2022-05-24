@@ -90,8 +90,12 @@ bool WriteTexture(const std::vector<ugu::ObjMaterial>& materials) {
   for (size_t i = 0; i < materials.size(); i++) {
     const ugu::ObjMaterial& material = materials[i];
     bool ret_write = false;
-    if (!material.diffuse_tex.empty()) {
+    if (!material.diffuse_tex.empty() && !material.diffuse_texpath.empty()) {
       ret_write = imwrite(material.diffuse_texpath, material.diffuse_tex);
+    }
+    if (!material.with_alpha_tex.empty() &&
+        !material.with_alpha_texpath.empty()) {
+      ret_write = imwrite(material.with_alpha_texpath, material.with_alpha_tex);
     }
     if (ret) {
       ret = ret_write;
@@ -1103,8 +1107,8 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
   // Update path
   for (auto& mat : this->materials_) {
     mat.diffuse_texpath = gltf_dir + mat.diffuse_texname;
+    mat.with_alpha_texpath = gltf_dir + mat.with_alpha_texname;
   }
-  WriteTexture(this->materials());
 
   // Update materials and textures of the model
   model.materials.resize(this->materials_.size());  // todo: update pbr params
@@ -1113,15 +1117,31 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
   }
 
   model.images.clear();
+  std::vector<ObjMaterial> to_write_mats;
   for (auto& mat : this->materials_) {
-    if (mat.diffuse_texname.empty()) {
+    to_write_mats.push_back(mat);
+    std::string tex_name = mat.with_alpha_texname;
+    std::string tex_path = mat.with_alpha_texpath;
+    if (tex_name.empty()) {
+      tex_name = mat.diffuse_texname;
+      tex_path = mat.diffuse_texpath;
+      // Kill with_alpha
+      to_write_mats.back().with_alpha_texpath = "";
+    } else {
+      // Kill diffuse
+      to_write_mats.back().diffuse_texpath = "";
+    }
+    if (tex_name.empty()) {
       continue;
     }
+
     gltf::Image image;
-    image.uri = mat.diffuse_texname;
-    image.name = ExtractPathWithoutExt(mat.diffuse_texname);
+    image.uri = tex_name;
+    image.name = ExtractPathWithoutExt(tex_name);
     model.images.push_back(image);
   }
+
+  WriteTexture(to_write_mats);
 
   // Write .gltf (json)
   gltf::WriteGltfJsonToFile(model, gltf_dir + gltf_basename + ".gltf");
@@ -1159,12 +1179,18 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
   }
   model.images.clear();
   for (auto& mat : this->materials_) {
-    if (mat.diffuse_texname.empty()) {
+    std::string tex_name = mat.with_alpha_texname;
+    std::string tex_path = mat.with_alpha_texpath;
+    if (tex_name.empty()) {
+      tex_name = mat.diffuse_texname;
+      tex_path = mat.diffuse_texpath;
+    }
+    if (tex_name.empty()) {
       continue;
     }
     gltf::Image image;
     image.is_glb = true;
-    std::string ext = ExtractPathExt(mat.diffuse_texpath);
+    std::string ext = ExtractPathExt(tex_path);
     if (ext == "jpg" || ext == "jpeg") {
       image.mimeType = "image/jpeg";
     } else if (ext == "png") {
@@ -1174,9 +1200,9 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
       continue;
     }
 
-    image.name = ExtractPathWithoutExt(mat.diffuse_texname);
+    image.name = ExtractPathWithoutExt(tex_name);
     // Read jpeg or png data
-    std::ifstream ifs(mat.diffuse_texpath, std::ios::in | std::ios::binary);
+    std::ifstream ifs(tex_path, std::ios::in | std::ios::binary);
     // Get size
     ifs.seekg(0, std::ios::end);
     long long int size = ifs.tellg();

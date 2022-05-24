@@ -215,6 +215,25 @@ inline void Diff(int width, int height, int channel, const unsigned char* src1,
   }
 }
 
+template <typename VT, typename VT2>
+void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
+  // static_assert(VT::value_type == VT2::value_type);
+  planes.resize(src.channels());
+  for (auto& p : planes) {
+    p = ugu::Image<typename VT2>::zeros(src.rows, src.cols);
+  }
+
+  auto copy_pix = [&](VT& val, const int* index) {
+    VT& src_val = src.at<typename VT>(index[1], index[0]);
+    for (int i = 0; i < src.channels(); i++) {
+      ugu::Image<VT2>& p = planes[i];
+      p.at<typename VT2>(index[1], index[0])[0] = src_val[i];
+    }
+  };
+
+  src.forEach<typename VT>(copy_pix);
+}
+
 }  // namespace
 
 namespace ugu {
@@ -828,6 +847,30 @@ bool AlignChannels(const Image4b& src, Image3b& dst) {
   };
   dst.forEach<Vec3b>(f);
   return true;
+}
+
+void Split(const Image3b& src, std::vector<Image1b>& planes) {
+  SplitImpl(const_cast<Image3b&>(src), planes);
+}
+void Split(const Image4b& src, std::vector<Image1b>& planes) {
+  SplitImpl(const_cast<Image4b&>(src), planes);
+}
+
+Image4b Merge(const Image3b& color, const Image1b& alpha) {
+  Image4b with_alpha = Image4b::zeros(color.rows, color.cols);
+  std::vector<Image1b> planes;
+  Split(color, planes);
+  planes.push_back(alpha);
+
+  auto f = [=](Vec4b& val, const int* index) {
+    for (int i = 0; i < with_alpha.channels(); i++) {
+      const auto& p = planes[i];
+      val[i] = p.at<uint8_t>(index[1], index[0]);
+    }
+  };
+  with_alpha.forEach<Vec4b>(f);
+
+  return with_alpha;
 }
 
 }  // namespace ugu

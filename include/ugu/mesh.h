@@ -39,6 +39,10 @@ struct ObjMaterial {
   std::string diffuse_texpath;
   Image3b diffuse_tex;
 
+  std::string with_alpha_texname;
+  std::string with_alpha_texpath;
+  Image4b with_alpha_tex;
+
   std::string ToString() const;
 };
 

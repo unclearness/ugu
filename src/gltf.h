@@ -90,12 +90,20 @@ struct Material {
   std::array<float, 3> emissiveFactor = {0, 0, 0};
   std::string name = "material_000";
   PbrMetallicRoughness pbrMetallicRoughness;
+
+  bool with_alpha = false;
+  float alphaCutoff = 0.1f;
+  std::string alphaMode = "MASK";
 };
 void to_json(json& j, const Material& obj) {
   j = json{{"doubleSided", obj.doubleSided},
            {"emissiveFactor", obj.emissiveFactor},
            {"name", obj.name},
            {"pbrMetallicRoughness", obj.pbrMetallicRoughness}};
+  if (obj.with_alpha) {
+    j["alphaCutoff"] = obj.alphaCutoff;
+    j["alphaMode"] = obj.alphaMode;
+  }
 }
 
 struct Primitive {
@@ -310,7 +318,7 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
     bool is_glb,
     const std::vector<std::vector<Eigen::Vector3f>>& blendshape_vertices,
     const std::vector<std::vector<Eigen::Vector3f>>& blendshape_normals,
-    Model& model) {
+    bool with_alpha, Model& model) {
   size_t total_size = 0;
   model.accessors.resize(4);
   model.bufferViews.resize(4);
@@ -471,6 +479,8 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
     combined_bytes.insert(combined_bytes.end(), bytes.begin(), bytes.end());
   }
 
+  model.materials[0].with_alpha = with_alpha;
+
   return combined_bytes;
 }
 
@@ -490,10 +500,12 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
     blendshape_normals.push_back(b.normals);
   }
 
+  bool with_alpha = !mesh.materials()[0].with_alpha_tex.empty();
+
   return MakeGltfBinAndUpdateModel(
       mesh.vertices(), mesh.stats().bb_max, mesh.stats().bb_min, mesh.normals(),
       gltf_uvs, mesh.vertex_indices(), bin_name, is_glb, blendshape_vertices,
-      blendshape_normals, model);
+      blendshape_normals, with_alpha, model);
 }
 
 }  // namespace gltf

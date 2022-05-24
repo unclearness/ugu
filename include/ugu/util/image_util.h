@@ -226,4 +226,9 @@ bool Remap(const Image3f& src, const Image3f& map, const Image1b& mask,
 
 bool AlignChannels(const Image4b& src, Image3b& dst);
 
+void Split(const Image3b& src, std::vector<Image1b>& planes);
+void Split(const Image4b& src, std::vector<Image1b>& planes);
+
+Image4b Merge(const Image3b& color, const Image1b& alpha);
+
 }  // namespace ugu

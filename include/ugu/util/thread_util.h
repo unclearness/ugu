@@ -11,12 +11,19 @@
 
 namespace ugu {
 
+// Used only if > 0
+inline uint32_t UGU_THREADS_NUM = 0;
+
 template <typename Index, class Func>
 void parallel_for(Index st, Index ed, Func func, int num_theads = -1) {
-  const unsigned int num_cpu =
-      num_theads > 0 ? std::min(static_cast<unsigned int>(num_theads),
-                                std::thread::hardware_concurrency())
-                     : std::thread::hardware_concurrency();
+  uint32_t num_cpu = num_theads > 0
+                         ? std::min(static_cast<unsigned int>(num_theads),
+                                    std::thread::hardware_concurrency())
+                         : std::thread::hardware_concurrency();
+  // Prefer to UGU_THREADS_NUM
+  if (UGU_THREADS_NUM > 0) {
+    num_cpu = UGU_THREADS_NUM;
+  }
 
   const Index jobs_per_thread =
       static_cast<Index>((ed - st + num_cpu - 1) / num_cpu);

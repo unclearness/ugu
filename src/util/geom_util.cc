@@ -587,7 +587,7 @@ MeshPtr MakeTexturedPlane(const Image3b& texture, float width_scale,
 
   ObjMaterial mat;
   mat.diffuse_tex = texture;
-  mat.diffuse_texname = "diffuse_tex";
+  mat.diffuse_texname = "diffuse_tex.png";
 
   mesh->set_single_material(mat);
 

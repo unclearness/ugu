@@ -14,23 +14,65 @@
 #include "ugu/util/path_util.h"
 #include "ugu/util/string_util.h"
 
+namespace {
+
+void LoadMask(const std::string& path, ugu::Image1b& mask) {
+  if (path.empty()) {
+    return;
+  }
+  auto ext = ugu::ExtractExt(path);
+  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  if (ext != "jpg" && ext != "jpeg" && ext != "png") {
+    ugu::LOGW("mask must be .jpg, .jpeg or .png but %s\n", path.c_str());
+    return;
+  }
+
+  ugu::Image3b tmp3b;
+  ugu::Image4b tmp4b;
+  std::vector<ugu::Image1b> planes;
+  if (ext == "png") {
+    mask = ugu::imread<ugu::Image1b>(path);
+    if (mask.empty()) {
+      tmp3b = ugu::imread<ugu::Image3b>(path);
+      if (tmp3b.empty()) {
+        tmp4b = ugu::imread<ugu::Image4b>(path);
+        if (tmp4b.empty()) {
+          return;
+        } else {
+          ugu::Split(tmp4b, planes);
+        }
+      } else {
+        ugu::Split(tmp3b, planes);
+      }
+    }
+  } else {
+    // jpeg is always 3 channel
+    tmp3b = ugu::imread<ugu::Image3b>(path);
+    ugu::Split(tmp3b, planes);
+  }
+
+  if (mask.empty()) {
+    mask = planes[0];
+  }
+}
+
+}  // namespace
+
 int main(int argc, char* argv[]) {
   cxxopts::Options options("image3d", "tmp");
   options.positional_help("[optional args]").show_positional_help();
 
-  options.add_options()("s,src", "Src image path (.png, .jpg, .jpeg)",
-                        cxxopts::value<std::string>())(
-      "o,out", "Output directory",
-      cxxopts::value<std::string>()->default_value("./"))(
-      "b,base", "Output basename",
-      cxxopts::value<std::string>()->default_value("out"))(
-      "w,width", "Output texture width",
-      cxxopts::value<int>()->default_value("-1"))(
-      "scale", "Output scale of width",
-      cxxopts::value<float>()->default_value("1.0"))(
-      "glb", "GLB output", cxxopts::value<bool>()->default_value("true"))(
-      "v,verbose", "Verbose", cxxopts::value<bool>()->default_value("false"))(
-      "h,help", "Print usage");
+  options.add_options()
+                ("s,src", "Src image path (.png, .jpg, .jpeg)", cxxopts::value<std::string>())
+                ("o,out", "Output directory",cxxopts::value<std::string>()->default_value("./"))
+                ("b,base", "Output basename",cxxopts::value<std::string>()->default_value("out"))
+                ("w,width", "Output texture width",cxxopts::value<int>()->default_value("-1"))
+                ("scale", "Output scale of width",cxxopts::value<float>()->default_value("1.0"))
+                ("m,mask", "Foreground mask path",cxxopts::value<std::string>()->default_value(""))
+                ("gltf", "GLTF output",cxxopts::value<bool>()->default_value("false"))
+                ("t,threads", "#Threads",cxxopts::value<int>()->default_value("-1"))
+                ("v,verbose", "Verbose", cxxopts::value<bool>()->default_value("false"))
+                ("h,help", "Print usage");
 
   options.parse_positional({"src"});
 
@@ -46,8 +88,14 @@ int main(int argc, char* argv[]) {
   const std::string& out_dir = result["out"].as<std::string>();
   int width = result["width"].as<int>();
   float scale = result["scale"].as<float>();
-  bool is_glb = result["glb"].as<bool>();
+  bool is_glb = !result["gltf"].as<bool>();
   bool verbose = result["verbose"].as<bool>();
+  std::string mask_path = result["mask"].as<std::string>();
+  int threads_num = result["threads"].as<int>();
+
+  if (threads_num > 0) {
+    ugu::UGU_THREADS_NUM = threads_num;
+  }
 
   ugu::Timer<> timer;
 
@@ -75,13 +123,17 @@ int main(int argc, char* argv[]) {
   }
 
   ugu::Image3b image;
-
+  ugu::Image4b alpha_image;
+  ugu::Image1b mask;
   if (ext == "png") {
     image = ugu::imread<ugu::Image3b>(src_path);
     if (image.empty()) {
-      auto image4b = ugu::imread<ugu::Image4b>(src_path);
-      if (!image4b.empty()) {
-        ugu::AlignChannels(image4b, image);
+      alpha_image = ugu::imread<ugu::Image4b>(src_path);
+      if (!alpha_image.empty()) {
+        ugu::AlignChannels(alpha_image, image);
+        std::vector<ugu::Image1b> planes;
+        ugu::Split(alpha_image, planes);
+        mask = planes[3];
       }
     }
   } else {
@@ -94,17 +146,26 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  if (mask.empty() && !mask_path.empty()) {
+    LoadMask(mask_path, mask);
+  }
+
   bool to_resize = width > 0 && image.cols != width;
   if (to_resize) {
     ugu::Size dsize;
     dsize.width = width;
     float r = static_cast<float>(image.rows) / static_cast<float>(image.cols);
     dsize.height = static_cast<int>(r * width);
-    ugu::resize(image.clone(), image, dsize);
     // Write tmp image & update path
+    ugu::resize(image.clone(), image, dsize);
     std::string tmp_path = out_dir + "/tmp.png";
     src_path = tmp_path;
     ugu::imwrite(src_path, image);
+
+    ugu::resize(mask.clone(), mask, dsize);
+    std::string tmp_mask_path = out_dir + "/tmp_mask.png";
+    mask_path = tmp_mask_path;
+    ugu::imwrite(mask_path, mask);
   }
   print_time("image load");
 
@@ -115,6 +176,16 @@ int main(int argc, char* argv[]) {
   // For gltf generation
   auto mats = mesh->materials();
   mats[0].diffuse_texpath = src_path;
+
+  bool with_alpha =
+      !mask.empty() && mask.cols == image.cols && mask.rows == image.rows;
+  if (with_alpha) {
+    mats[0].with_alpha_tex = ugu::Merge(image, mask);
+    mats[0].with_alpha_texname = "with_alpha_tex.png";
+    mats[0].with_alpha_texpath = out_dir + "/tmp_with_alpha.png";
+    ugu::imwrite(mats[0].with_alpha_texpath, mats[0].with_alpha_tex);
+  }
+
   mesh->set_single_material(mats[0]);
 
   if (is_glb) {
@@ -125,6 +196,11 @@ int main(int argc, char* argv[]) {
 
   if (to_resize) {
     ugu::RmFile(src_path);
+    ugu::RmFile(mask_path);
+  }
+
+  if (with_alpha) {
+    ugu::RmFile(mats[0].with_alpha_texpath);
   }
 
   print_time("write gltf");
