@@ -231,7 +231,7 @@ void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
     }
   };
 
-  src.forEach<VT>(copy_pix);
+  src.template forEach<VT>(copy_pix);
 }
 
 }  // namespace
