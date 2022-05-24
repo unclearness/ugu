@@ -624,6 +624,8 @@ MeshPtr MakePlane(const Eigen::Vector2f& length, const Eigen::Matrix3f& R,
 
   plane->CalcNormal();
 
+  plane->CalcStats();
+
   return plane;
 }
 

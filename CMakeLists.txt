@@ -416,7 +416,6 @@ if (NOT hasParent)
 
   setup_exe(textrans_cmd app/textrans.cc FOLDER_NAME "app")
   setup_exe(vc2tex_cmd app/vc2tex.cc FOLDER_NAME "app")
-  setup_exe(gif3d app/gif3d.cc FOLDER_NAME "app")
   setup_exe(image3d app/image3d.cc FOLDER_NAME "app")
 endif()
 

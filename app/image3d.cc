@@ -171,6 +171,10 @@ int main(int argc, char* argv[]) {
 
   auto mesh = ugu::MakeTexturedPlane(image, scale);
 
+  // Align bottum
+  const auto& stats = mesh->stats();
+  mesh->Translate({0.f, -stats.bb_min.y(), 0.f});
+
   print_time("mesh generation");
 
   // For gltf generation
