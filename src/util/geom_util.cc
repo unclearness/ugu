@@ -577,15 +577,33 @@ MeshPtr MakeUvSphere(const Eigen::Vector3f& center, float r, int n_stacks,
   return mesh;
 }
 
-MeshPtr MakePlane(float length, const Eigen::Matrix3f& R,
+MeshPtr MakeTexturedPlane(const Image3b& texture, float width_scale,
+                          const Eigen::Matrix3f& R, const Eigen::Vector3f& t) {
+  float x_length = width_scale;
+  float y_length = x_length * static_cast<float>(texture.rows) /
+                   static_cast<float>(texture.cols);
+
+  auto mesh = MakePlane({x_length, y_length}, R, t);
+
+  ObjMaterial mat;
+  mat.diffuse_tex = texture;
+  mat.diffuse_texname = "diffuse_tex";
+
+  mesh->set_single_material(mat);
+
+  return mesh;
+}
+
+MeshPtr MakePlane(const Eigen::Vector2f& length, const Eigen::Matrix3f& R,
                   const Eigen::Vector3f& t) {
   MeshPtr plane = std::make_shared<Mesh>();
   std::vector<Eigen::Vector3f> vertices(4);
   std::vector<Eigen::Vector3i> vertex_indices(2);
+  const std::vector<Eigen::Vector2f> uvs{
+      {1.f, 1.f}, {0.f, 1.f}, {1.f, 0.f}, {0.f, 0.f}};
 
-  const float h_x = length / 2;
-  const float h_y = length / 2;
-  // const float h_z = length / 2;
+  const float h_x = length[0] / 2;
+  const float h_y = length[1] / 2;
 
   vertices[0] = Eigen::Vector3f(h_x, h_y, 0.f);
   vertices[1] = Eigen::Vector3f(-h_x, h_y, 0.f);
@@ -601,10 +619,17 @@ MeshPtr MakePlane(float length, const Eigen::Matrix3f& R,
 
   plane->set_vertices(vertices);
   plane->set_vertex_indices(vertex_indices);
+  plane->set_uv(uvs);
+  plane->set_uv_indices(vertex_indices);
 
   plane->CalcNormal();
 
   return plane;
+}
+
+MeshPtr MakePlane(float length, const Eigen::Matrix3f& R,
+                  const Eigen::Vector3f& t) {
+  return MakePlane(Eigen::Vector2f(length, length), R, t);
 }
 
 void SetRandomVertexColor(MeshPtr mesh, int seed) {

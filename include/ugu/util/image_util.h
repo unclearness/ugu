@@ -224,4 +224,6 @@ bool Remap(const Image3f& src, const Image3f& map, const Image1b& mask,
            Image3f& dst, int32_t interp = InterpolationFlags::INTER_LINEAR,
            const Vec3f& bkg_val = Vec3f({0.f, 0.f, 0.f}));
 
+bool AlignChannels(const Image4b& src, Image3b& dst);
+
 }  // namespace ugu

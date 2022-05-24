@@ -818,4 +818,16 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
 
 #endif
 
+bool AlignChannels(const Image4b& src, Image3b& dst) {
+  dst = Image3b::zeros(src.rows, src.cols);
+  auto f = [=](Vec3b& val, const int* index) {
+    const auto& src_val = src.at<Vec4b>(index[1], index[0]);
+    val[0] = src_val[0];
+    val[1] = src_val[1];
+    val[2] = src_val[2];
+  };
+  dst.forEach<Vec3b>(f);
+  return true;
+}
+
 }  // namespace ugu

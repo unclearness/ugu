@@ -6,12 +6,23 @@
 #include <iostream>
 
 #include "cxxopts.hpp"
-#include "ugu/inpaint/inpaint.h"
-#include "ugu/textrans/texture_transfer.h"
-#include "ugu/texturing/texture_mapper.h"
+#include "ugu/mesh.h"
 #include "ugu/timer.h"
-#include "ugu/util/raster_util.h"
 #include "ugu/util/string_util.h"
+
+namespace {
+
+void GenAnime(const std::vector<ugu::Image3b>& images,
+              std::vector<ugu::Mesh>& meshes, int width = 256,
+              int max_len = 1024, float scale_w = 1.f,
+              float z_offset = 0.002f) {
+  meshes.clear();
+  meshes.resize(images.size());
+}
+
+void WriteGltf(const std::vector<ugu::Mesh>& meshes) {}
+
+}  // namespace
 
 int main(int argc, char* argv[]) {
   cxxopts::Options options("gif3d", "tmp");
@@ -52,10 +63,15 @@ int main(int argc, char* argv[]) {
   ugu::Timer<> timer;
 
   // Load images
+  std::vector<ugu::Image3b> images;
+
+  std::vector<ugu::Mesh> meshes;
 
   // Make a set of meshes
+  // GenAnime();
 
   // Output
+  // WriteGltf();
 
   return 0;
 }

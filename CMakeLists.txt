@@ -267,6 +267,7 @@ set(
   include/ugu/util/geom_util.h
   include/ugu/util/image_util.h
   include/ugu/util/string_util.h
+  include/ugu/util/path_util.h
   include/ugu/timer.h
 
   src/camera.cc
@@ -280,6 +281,7 @@ set(
   src/util/image_util.cc
   src/util/string_util.cc
   src/util/raster_util.cc
+  src/util/path_util.cc
 
   include/ugu/renderer/base.h
   include/ugu/renderer/raytracer.h
@@ -415,6 +417,7 @@ if (NOT hasParent)
   setup_exe(textrans_cmd app/textrans.cc FOLDER_NAME "app")
   setup_exe(vc2tex_cmd app/vc2tex.cc FOLDER_NAME "app")
   setup_exe(gif3d app/gif3d.cc FOLDER_NAME "app")
+  setup_exe(image3d app/image3d.cc FOLDER_NAME "app")
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})

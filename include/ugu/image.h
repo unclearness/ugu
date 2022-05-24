@@ -143,6 +143,7 @@ using Vec2d = Vec_<double, 2>;
 using Vec3b = Vec_<unsigned char, 3>;
 using Vec3f = Vec_<float, 3>;
 using Vec3d = Vec_<double, 3>;
+using Vec4b = Vec_<unsigned char, 4>;
 
 template <typename TT, int N>
 using Point_ = Vec_<TT, N>;
@@ -387,8 +388,8 @@ class Image {
     size_t st(0);
     size_t ed = static_cast<size_t>(cols * rows * sizeof(T) / sizeof(TT));
     auto f2 = [&](const size_t& i) {
-      const int xy[2] = {static_cast<int32_t>(i) % rows,
-                         static_cast<int32_t>(i) / rows};
+      const int xy[2] = {static_cast<int32_t>(i) % cols,
+                         static_cast<int32_t>(i) / cols};
       f(reinterpret_cast<TT*>(data)[i], xy);
     };
     ugu::parallel_for(st, ed, f2);
@@ -397,6 +398,7 @@ class Image {
 
 using Image1b = Image<Vec1b>;  // For gray image.
 using Image3b = Image<Vec3b>;  // For color image. RGB order.
+using Image4b = Image<Vec4b>;  // For color image. RGBA order.
 using Image1w = Image<Vec1w>;  // For depth image with 16 bit (unsigned
                                // short) mm-scale format
 using Image1i = Image<Vec1i>;  // For face visibility. face id is within int32_t

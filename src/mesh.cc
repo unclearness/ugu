@@ -465,6 +465,13 @@ bool Mesh::set_face_indices_per_material(
   return true;
 }
 
+bool Mesh::set_single_material(const ObjMaterial& material) {
+  set_materials({material});
+  std::vector<int> material_ids(vertex_indices_.size(), 0);
+  set_material_ids(material_ids);
+  return true;
+}
+
 bool Mesh::set_blendshapes(const std::vector<Blendshape>& blendshapes) {
   CopyVec(blendshapes, &blendshapes_);
   return true;
