@@ -224,14 +224,14 @@ void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
   }
 
   auto copy_pix = [&](VT& val, const int* index) {
-    VT& src_val = src.at<VT>(index[1], index[0]);
+    VT& src_val = src.at<typename VT>(index[1], index[0]);
     for (int i = 0; i < src.channels(); i++) {
       ugu::Image<VT2>& p = planes[i];
-      p.at<VT2>(index[1], index[0])[0] = src_val[i];
+      p.at<typename VT2>(index[1], index[0])[0] = src_val[i];
     }
   };
 
-  src.forEach<typename VT>(copy_pix);
+  src.forEach<VT>(copy_pix);
 }
 
 }  // namespace
