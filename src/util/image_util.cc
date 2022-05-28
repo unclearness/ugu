@@ -243,7 +243,7 @@ ugu::Image<T> MergeByteImpl(const std::vector<ugu::Image1b>& planes) {
       val[i] = p.at<uint8_t>(index[1], index[0]);
     }
   };
-  merged.forEach<T>(f);
+  merged.template forEach<T>(f);
   return merged;
 }
 

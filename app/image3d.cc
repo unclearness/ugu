@@ -73,6 +73,7 @@ int main(int argc, char* argv[]) {
                 ("gltf", "GLTF output",cxxopts::value<bool>()->default_value("false"))
                 ("t,threads", "#Threads",cxxopts::value<int>()->default_value("-1"))
                 ("v,verbose", "Verbose", cxxopts::value<bool>()->default_value("false"))
+                ("no_enlarge_tex", "Texutre scale is applied only if actual texture size is smaller than specified size", cxxopts::value<bool>()->default_value("false"))
                 ("h,help", "Print usage");
 
   options.parse_positional({"src"});
@@ -94,6 +95,7 @@ int main(int argc, char* argv[]) {
   bool verbose = result["verbose"].as<bool>();
   const std::string mask_path = result["mask"].as<std::string>();
   int threads_num = result["threads"].as<int>();
+  bool no_enlarge_tex = result["no_enlarge_tex"].as<bool>();
 
   if (threads_num > 0) {
     ugu::UGU_THREADS_NUM = threads_num;
@@ -160,6 +162,10 @@ int main(int argc, char* argv[]) {
   }
 
   bool to_resize = width > 0 && w != width;
+  if (to_resize && no_enlarge_tex) {
+    to_resize = width < w;
+  }
+
   if (to_resize) {
     ugu::Size dsize;
     dsize.width = width;
