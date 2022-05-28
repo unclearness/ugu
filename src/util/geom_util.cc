@@ -13,6 +13,8 @@
 
 namespace {
 
+using namespace ugu;
+
 template <typename T>
 void CopyVec(const std::vector<T>& src, std::vector<T>* dst,
              bool clear_dst = true) {
@@ -98,6 +100,47 @@ std::optional<T> IntersectImpl(const T& origin, const T& ray, const T& v0,
   }
 
   return T(t, u, v);
+}
+
+MeshPtr MakeTexturedPlaneImpl(const Image3b& diffuse, const Image4b& with_alpha,
+                              float width_scale, float height_scale,
+                              const Eigen::Matrix3f& R,
+                              const Eigen::Vector3f& t) {
+  ObjMaterial mat;
+  int w = -1;
+  int h = -1;
+  if (!diffuse.empty()) {
+    mat.diffuse_tex = diffuse;
+    mat.diffuse_texname = "diffuse_tex.png";
+    w = diffuse.cols;
+    h = diffuse.rows;
+  }
+
+  if (!with_alpha.empty()) {
+    mat.with_alpha_tex = with_alpha;
+    mat.with_alpha_texname = "with_alpha_tex.png";
+    w = with_alpha.cols;
+    h = with_alpha.rows;
+  }
+
+  float x_length = width_scale;
+  float y_length = height_scale;
+  float r = static_cast<float>(h) / static_cast<float>(w);
+  if (x_length <= 0.f && y_length <= 0.f) {
+    x_length = 1.f;
+    y_length = x_length * r;
+  } else if (0.f < x_length && y_length <= 0.f) {
+    y_length = x_length * r;
+  } else if (x_length <= 0.f && 0.f < y_length) {
+    x_length = y_length / r;
+  } else {
+    // do nothing
+  }
+
+  auto mesh = MakePlane({x_length, y_length}, R, t);
+  mesh->set_single_material(mat);
+
+  return mesh;
 }
 
 }  // namespace
@@ -580,29 +623,15 @@ MeshPtr MakeUvSphere(const Eigen::Vector3f& center, float r, int n_stacks,
 MeshPtr MakeTexturedPlane(const Image3b& texture, float width_scale,
                           float height_scale, const Eigen::Matrix3f& R,
                           const Eigen::Vector3f& t) {
-  float x_length = width_scale;
-  float y_length = height_scale;
-  float r = static_cast<float>(texture.rows) / static_cast<float>(texture.cols);
-  if (x_length <= 0.f && y_length <= 0.f) {
-    x_length = 1.f;
-    y_length = x_length * r;
-  } else if (0.f < x_length && y_length <= 0.f) {
-    y_length = x_length * r;
-  } else if (x_length <= 0.f && 0.f < y_length) {
-    x_length = y_length / r;
-  } else {
-    // do nothing
-  }
+  return MakeTexturedPlaneImpl(texture, Image4b(), width_scale, height_scale, R,
+                               t);
+}
 
-  auto mesh = MakePlane({x_length, y_length}, R, t);
-
-  ObjMaterial mat;
-  mat.diffuse_tex = texture;
-  mat.diffuse_texname = "diffuse_tex.png";
-
-  mesh->set_single_material(mat);
-
-  return mesh;
+MeshPtr MakeTexturedPlane(const Image4b& texture, float width_scale,
+                          float height_scale, const Eigen::Matrix3f& R,
+                          const Eigen::Vector3f& t) {
+  return MakeTexturedPlaneImpl(Image3b(), texture, width_scale, height_scale, R,
+                               t);
 }
 
 MeshPtr MakePlane(const Eigen::Vector2f& length, const Eigen::Matrix3f& R,

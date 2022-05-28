@@ -228,8 +228,10 @@ bool AlignChannels(const Image4b& src, Image3b& dst);
 
 void Split(const Image3b& src, std::vector<Image1b>& planes);
 void Split(const Image4b& src, std::vector<Image1b>& planes);
+void Split(const Image4b& src, Image3b& color, Image1b& mask);
 
 Image4b Merge(const Image3b& color, const Image1b& alpha);
+Image3b Merge(const Image1b& a, const Image1b& b, const Image1b& c);
 
 std::vector<uint8_t> JpgData(const Image3b& color);
 std::vector<uint8_t> PngData(const Image3b& color);

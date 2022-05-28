@@ -99,9 +99,9 @@ int main(int argc, char* argv[]) {
     ugu::UGU_THREADS_NUM = threads_num;
   }
 
-  ugu::Timer<> timer;
+  ugu::Timer<> timer, timer_total;
 
-  auto print_time = [&](const std::string& name) {
+  auto print_time = [verbose](ugu::Timer<>& timer, const std::string& name) {
     if (!verbose) {
       return;
     }
@@ -110,6 +110,7 @@ int main(int argc, char* argv[]) {
     timer.Start();
   };
 
+  timer_total.Start();
   timer.Start();
 
   if (!ugu::FileExists(src_path)) {
@@ -127,23 +128,29 @@ int main(int argc, char* argv[]) {
   ugu::Image3b image;
   ugu::Image4b alpha_image;
   ugu::Image1b mask;
+  int w = -1;
+  int h = -1;
+  int c = -1;
   if (ext == "png") {
     image = ugu::imread<ugu::Image3b>(src_path);
+    w = image.cols;
+    h = image.rows;
+    c = image.channels();
     if (image.empty()) {
       alpha_image = ugu::imread<ugu::Image4b>(src_path);
-      if (!alpha_image.empty()) {
-        ugu::AlignChannels(alpha_image, image);
-        std::vector<ugu::Image1b> planes;
-        ugu::Split(alpha_image, planes);
-        mask = planes[3];
-      }
+      w = alpha_image.cols;
+      h = alpha_image.rows;
+      c = alpha_image.channels();
     }
   } else {
     // jpeg is always 3 channel
     image = ugu::imread<ugu::Image3b>(src_path);
+    w = image.cols;
+    h = image.rows;
+    c = image.channels();
   }
 
-  if (image.empty()) {
+  if (w < 0) {
     ugu::LOGE("Failed to load src: %s\n", src_path.c_str());
     return 1;
   }
@@ -152,35 +159,44 @@ int main(int argc, char* argv[]) {
     LoadMask(mask_path, mask);
   }
 
-  bool to_resize = width > 0 && image.cols != width;
+  bool to_resize = width > 0 && w != width;
   if (to_resize) {
     ugu::Size dsize;
     dsize.width = width;
-    float r = static_cast<float>(image.rows) / static_cast<float>(image.cols);
+    float r = static_cast<float>(h) / static_cast<float>(w);
     dsize.height = static_cast<int>(r * width);
-    ugu::resize(image.clone(), image, dsize);
-    ugu::resize(mask.clone(), mask, dsize);
+    if (!image.empty()) {
+      ugu::resize(image.clone(), image, dsize);
+    }
+    if (!mask.empty()) {
+      ugu::resize(mask.clone(), mask, dsize);
+    }
+    if (!alpha_image.empty()) {
+      ugu::resize(alpha_image.clone(), alpha_image, dsize);
+    }
   }
-  print_time("image load");
+  print_time(timer, "image load");
 
-  auto mesh = ugu::MakeTexturedPlane(image, scale_width, scale_height);
-
+  ugu::MeshPtr mesh = nullptr;
+  if (!image.empty()) {
+    mesh = ugu::MakeTexturedPlane(image, scale_width, scale_height);
+  } else if (!alpha_image.empty()) {
+    mesh = ugu::MakeTexturedPlane(alpha_image, scale_width, scale_height);
+  }
   // Align bottum
   const auto& stats = mesh->stats();
   mesh->Translate({0.f, -stats.bb_min.y(), 0.f});
 
-  print_time("mesh generation");
+  print_time(timer, "mesh generation");
 
   // For gltf generation
   auto mats = mesh->materials();
-  bool with_alpha =
-      !mask.empty() && mask.cols == image.cols && mask.rows == image.rows;
+  bool with_alpha = !alpha_image.empty();
 
   if (with_alpha) {
-    mats[0].with_alpha_tex = ugu::Merge(image, mask);
-    print_time("ugu::Merge");
+    mats[0].with_alpha_tex = alpha_image;
     mats[0].with_alpha_texname = "with_alpha_tex.png";
-    mats[0].with_alpha_texpath = out_dir + "/tmp_with_alpha.png";
+    mats[0].with_alpha_texpath = out_dir + "/with_alpha.png";
 
     mats[0].with_alpha_compressed = ugu::PngData(mats[0].with_alpha_tex);
   } else {
@@ -192,11 +208,11 @@ int main(int argc, char* argv[]) {
       mats[0].diffuse_compressed = ugu::JpgData(mats[0].diffuse_tex);
     }
   }
-  print_time("texture process");
+  print_time(timer, "texture process");
 
   mesh->set_single_material(mats[0]);
 
-  print_time("material process");
+  print_time(timer, "material process");
 
   if (is_glb) {
     mesh->WriteGlb(out_dir, basename + ".glb");
@@ -204,7 +220,9 @@ int main(int argc, char* argv[]) {
     mesh->WriteGltfSeparate(out_dir, basename);
   }
 
-  print_time("write gltf");
+  print_time(timer, "write gltf");
+
+  print_time(timer_total, "total");
 
   return 0;
 }

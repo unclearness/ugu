@@ -234,6 +234,19 @@ void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
   src.template forEach<VT>(copy_pix);
 }
 
+template <typename T>
+ugu::Image<T> MergeByteImpl(const std::vector<ugu::Image1b>& planes) {
+  ugu::Image<T> merged = ugu::Image<T>::zeros(planes[0].rows, planes[0].cols);
+  auto f = [=](T& val, const int* index) {
+    for (int i = 0; i < merged.channels(); i++) {
+      const auto& p = planes[i];
+      val[i] = p.at<uint8_t>(index[1], index[0]);
+    }
+  };
+  merged.forEach<T>(f);
+  return merged;
+}
+
 typedef struct {
   int last_pos;
   void* context;
@@ -930,8 +943,16 @@ bool AlignChannels(const Image4b& src, Image3b& dst) {
 void Split(const Image3b& src, std::vector<Image1b>& planes) {
   SplitImpl(const_cast<Image3b&>(src), planes);
 }
+
 void Split(const Image4b& src, std::vector<Image1b>& planes) {
   SplitImpl(const_cast<Image4b&>(src), planes);
+}
+
+void Split(const Image4b& src, Image3b& color, Image1b& mask) {
+  std::vector<Image1b> planes;
+  SplitImpl(const_cast<Image4b&>(src), planes);
+  mask = planes[3];
+  color = Merge(planes[0], planes[1], planes[2]);
 }
 
 Image4b Merge(const Image3b& color, const Image1b& alpha) {
@@ -939,16 +960,12 @@ Image4b Merge(const Image3b& color, const Image1b& alpha) {
   std::vector<Image1b> planes;
   Split(color, planes);
   planes.push_back(alpha);
+  return MergeByteImpl<Vec4b>(planes);
+}
 
-  auto f = [=](Vec4b& val, const int* index) {
-    for (int i = 0; i < with_alpha.channels(); i++) {
-      const auto& p = planes[i];
-      val[i] = p.at<uint8_t>(index[1], index[0]);
-    }
-  };
-  with_alpha.forEach<Vec4b>(f);
-
-  return with_alpha;
+Image3b Merge(const Image1b& a, const Image1b& b, const Image1b& c) {
+  std::vector<Image1b> planes = {a, b, c};
+  return MergeByteImpl<Vec3b>(planes);
 }
 
 std::vector<uint8_t> JpgData(const Image3b& color) {
