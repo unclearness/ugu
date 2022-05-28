@@ -46,7 +46,7 @@ MeshPtr MakePlane(float length,
                   const Eigen::Matrix3f& R = Eigen::Matrix3f::Identity(),
                   const Eigen::Vector3f& t = Eigen::Vector3f::Zero());
 MeshPtr MakeTexturedPlane(
-    const ugu::Image3b& texture, float width_scale,
+    const ugu::Image3b& texture, float width_scale, float height_scale = -1.f,
     const Eigen::Matrix3f& R = Eigen::Matrix3f::Identity(),
     const Eigen::Vector3f& t = Eigen::Vector3f::Zero());
 

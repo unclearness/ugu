@@ -578,10 +578,21 @@ MeshPtr MakeUvSphere(const Eigen::Vector3f& center, float r, int n_stacks,
 }
 
 MeshPtr MakeTexturedPlane(const Image3b& texture, float width_scale,
-                          const Eigen::Matrix3f& R, const Eigen::Vector3f& t) {
+                          float height_scale, const Eigen::Matrix3f& R,
+                          const Eigen::Vector3f& t) {
   float x_length = width_scale;
-  float y_length = x_length * static_cast<float>(texture.rows) /
-                   static_cast<float>(texture.cols);
+  float y_length = height_scale;
+  float r = static_cast<float>(texture.rows) / static_cast<float>(texture.cols);
+  if (x_length <= 0.f && y_length <= 0.f) {
+    x_length = 1.f;
+    y_length = x_length * r;
+  } else if (0.f < x_length && y_length <= 0.f) {
+    y_length = x_length * r;
+  } else if (x_length <= 0.f && 0.f < y_length) {
+    x_length = y_length / r;
+  } else {
+    // do nothing
+  }
 
   auto mesh = MakePlane({x_length, y_length}, R, t);
 

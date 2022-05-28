@@ -67,7 +67,8 @@ int main(int argc, char* argv[]) {
                 ("o,out", "Output directory",cxxopts::value<std::string>()->default_value("./"))
                 ("b,base", "Output basename",cxxopts::value<std::string>()->default_value("out"))
                 ("w,width", "Output texture width",cxxopts::value<int>()->default_value("-1"))
-                ("scale", "Output scale of width",cxxopts::value<float>()->default_value("1.0"))
+                ("scale_width", "Output scale of width. < 0 will be ignored and automatically calculate from scale_height",cxxopts::value<float>()->default_value("1.0"))
+                ("scale_height", "Output scale of height. < 0 will be ignored and automatically calculate from scale_width",cxxopts::value<float>()->default_value("-1.0"))
                 ("m,mask", "Foreground mask path",cxxopts::value<std::string>()->default_value(""))
                 ("gltf", "GLTF output",cxxopts::value<bool>()->default_value("false"))
                 ("t,threads", "#Threads",cxxopts::value<int>()->default_value("-1"))
@@ -87,7 +88,8 @@ int main(int argc, char* argv[]) {
   const std::string& basename = result["base"].as<std::string>();
   const std::string& out_dir = result["out"].as<std::string>();
   int width = result["width"].as<int>();
-  float scale = result["scale"].as<float>();
+  float scale_width = result["scale_width"].as<float>();
+  float scale_height = result["scale_height"].as<float>();
   bool is_glb = !result["gltf"].as<bool>();
   bool verbose = result["verbose"].as<bool>();
   std::string mask_path = result["mask"].as<std::string>();
@@ -169,7 +171,7 @@ int main(int argc, char* argv[]) {
   }
   print_time("image load");
 
-  auto mesh = ugu::MakeTexturedPlane(image, scale);
+  auto mesh = ugu::MakeTexturedPlane(image, scale_width, scale_height);
 
   // Align bottum
   const auto& stats = mesh->stats();
