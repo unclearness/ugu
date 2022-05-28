@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  std::string src_path = result["src"].as<std::string>();
+  const std::string src_path = result["src"].as<std::string>();
   const std::string& basename = result["base"].as<std::string>();
   const std::string& out_dir = result["out"].as<std::string>();
   int width = result["width"].as<int>();
@@ -92,7 +92,7 @@ int main(int argc, char* argv[]) {
   float scale_height = result["scale_height"].as<float>();
   bool is_glb = !result["gltf"].as<bool>();
   bool verbose = result["verbose"].as<bool>();
-  std::string mask_path = result["mask"].as<std::string>();
+  const std::string mask_path = result["mask"].as<std::string>();
   int threads_num = result["threads"].as<int>();
 
   if (threads_num > 0) {
@@ -158,16 +158,8 @@ int main(int argc, char* argv[]) {
     dsize.width = width;
     float r = static_cast<float>(image.rows) / static_cast<float>(image.cols);
     dsize.height = static_cast<int>(r * width);
-    // Write tmp image & update path
     ugu::resize(image.clone(), image, dsize);
-    std::string tmp_path = out_dir + "/tmp.png";
-    src_path = tmp_path;
-    ugu::imwrite(src_path, image);
-
     ugu::resize(mask.clone(), mask, dsize);
-    std::string tmp_mask_path = out_dir + "/tmp_mask.png";
-    mask_path = tmp_mask_path;
-    ugu::imwrite(mask_path, mask);
   }
   print_time("image load");
 
@@ -181,32 +173,35 @@ int main(int argc, char* argv[]) {
 
   // For gltf generation
   auto mats = mesh->materials();
-  mats[0].diffuse_texpath = src_path;
-
   bool with_alpha =
       !mask.empty() && mask.cols == image.cols && mask.rows == image.rows;
+
   if (with_alpha) {
     mats[0].with_alpha_tex = ugu::Merge(image, mask);
+    print_time("ugu::Merge");
     mats[0].with_alpha_texname = "with_alpha_tex.png";
     mats[0].with_alpha_texpath = out_dir + "/tmp_with_alpha.png";
-    ugu::imwrite(mats[0].with_alpha_texpath, mats[0].with_alpha_tex);
+
+    mats[0].with_alpha_compressed = ugu::PngData(mats[0].with_alpha_tex);
+  } else {
+    mats[0].diffuse_texpath = src_path;
+
+    if (ext == "png") {
+      mats[0].diffuse_compressed = ugu::PngData(mats[0].diffuse_tex);
+    } else {
+      mats[0].diffuse_compressed = ugu::JpgData(mats[0].diffuse_tex);
+    }
   }
+  print_time("texture process");
 
   mesh->set_single_material(mats[0]);
+
+  print_time("material process");
 
   if (is_glb) {
     mesh->WriteGlb(out_dir, basename + ".glb");
   } else {
     mesh->WriteGltfSeparate(out_dir, basename);
-  }
-
-  if (to_resize) {
-    ugu::RmFile(src_path);
-    ugu::RmFile(mask_path);
-  }
-
-  if (with_alpha) {
-    ugu::RmFile(mats[0].with_alpha_texpath);
   }
 
   print_time("write gltf");

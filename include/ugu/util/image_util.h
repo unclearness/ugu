@@ -231,4 +231,8 @@ void Split(const Image4b& src, std::vector<Image1b>& planes);
 
 Image4b Merge(const Image3b& color, const Image1b& alpha);
 
+std::vector<uint8_t> JpgData(const Image3b& color);
+std::vector<uint8_t> PngData(const Image3b& color);
+std::vector<uint8_t> PngData(const Image4b& color);
+
 }  // namespace ugu

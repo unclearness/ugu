@@ -234,6 +234,84 @@ void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
   src.template forEach<VT>(copy_pix);
 }
 
+typedef struct {
+  int last_pos;
+  void* context;
+} custom_stbi_mem_context;
+
+static void custom_stbi_write_mem(void* context, void* data, int size) {
+  custom_stbi_mem_context* c = (custom_stbi_mem_context*)context;
+  char* dst = (char*)c->context;
+  char* src = (char*)data;
+  int cur_pos = c->last_pos;
+  for (int i = 0; i < size; i++) {
+    dst[cur_pos++] = src[i];
+  }
+  c->last_pos = cur_pos;
+}
+
+bool CompressedDataImpl(
+    int width, int height, int channels, uint8_t* data,
+    std::vector<uint8_t>& compressed_data,
+    std::function<int(int, int, int, uint8_t*, custom_stbi_mem_context&)> cb) {
+#ifdef UGU_USE_STB
+  size_t bitmap_bytes = static_cast<size_t>(width) *
+                        static_cast<size_t>(height) *
+                        static_cast<size_t>(channels) * sizeof(uint8_t);
+
+  compressed_data.resize(bitmap_bytes);  // Safe resize
+  // https://github.com/nothings/stb/issues/1132#issuecomment-850628100
+  custom_stbi_mem_context context;
+  context.last_pos = 0;
+  context.context = (void*)compressed_data.data();
+
+  int result = cb(width, height, channels, data, context);
+
+  if (result != 1) {
+    ugu::LOGE("failed to write data to memory\n");
+    compressed_data.clear();
+    return false;
+  }
+  compressed_data.resize(context.last_pos);
+  return true;
+#else
+  ugu::LOGE("not suppored in this configration\n");
+  return false;
+#endif
+}
+
+bool JpgDataImpl(int width, int height, int channels, uint8_t* data,
+                 std::vector<uint8_t>& jpg_data) {
+#ifdef UGU_USE_STB
+  auto cb = [](int width, int height, int channels, uint8_t* data,
+               custom_stbi_mem_context& context) {
+    const int max_quality{100};
+    return stbi_write_jpg_to_func(custom_stbi_write_mem, &context, width,
+                                  height, channels, data, max_quality);
+  };
+  return CompressedDataImpl(width, height, channels, data, jpg_data, cb);
+#else
+  ugu::LOGE("not suppored in this configration\n");
+  return false;
+#endif
+}
+
+bool PngDataImpl(int width, int height, int channels, uint8_t* data,
+                 std::vector<uint8_t>& png_data) {
+#ifdef UGU_USE_STB
+  auto cb = [](int width, int height, int channels, uint8_t* data,
+               custom_stbi_mem_context& context) {
+    int stride = width * channels * sizeof(uint8_t);
+    return stbi_write_png_to_func(custom_stbi_write_mem, &context, width,
+                                  height, channels, data, stride);
+  };
+  return CompressedDataImpl(width, height, channels, data, png_data, cb);
+#else
+  ugu::LOGE("not suppored in this configration\n");
+  return false;
+#endif
+}
+
 }  // namespace
 
 namespace ugu {
@@ -871,6 +949,27 @@ Image4b Merge(const Image3b& color, const Image1b& alpha) {
   with_alpha.forEach<Vec4b>(f);
 
   return with_alpha;
+}
+
+std::vector<uint8_t> JpgData(const Image3b& color) {
+  std::vector<uint8_t> compressed_data;
+  JpgDataImpl(color.cols, color.rows, color.channels(), color.data,
+              compressed_data);
+  return compressed_data;
+}
+
+std::vector<uint8_t> PngData(const Image3b& color) {
+  std::vector<uint8_t> compressed_data;
+  PngDataImpl(color.cols, color.rows, color.channels(), color.data,
+              compressed_data);
+  return compressed_data;
+}
+
+std::vector<uint8_t> PngData(const Image4b& color) {
+  std::vector<uint8_t> compressed_data;
+  PngDataImpl(color.cols, color.rows, color.channels(), color.data,
+              compressed_data);
+  return compressed_data;
 }
 
 }  // namespace ugu

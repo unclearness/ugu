@@ -1181,9 +1181,11 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
   for (auto& mat : this->materials_) {
     std::string tex_name = mat.with_alpha_texname;
     std::string tex_path = mat.with_alpha_texpath;
+    std::vector<uint8_t> tex_data = mat.with_alpha_compressed;
     if (tex_name.empty()) {
       tex_name = mat.diffuse_texname;
       tex_path = mat.diffuse_texpath;
+      tex_data = mat.diffuse_compressed;
     }
     if (tex_name.empty()) {
       continue;
@@ -1201,15 +1203,20 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
     }
 
     image.name = ExtractPathWithoutExt(tex_name);
-    // Read jpeg or png data
-    std::ifstream ifs(tex_path, std::ios::in | std::ios::binary);
-    // Get size
-    ifs.seekg(0, std::ios::end);
-    long long int size = ifs.tellg();
-    ifs.seekg(0);
-    // Read binary
-    image.data.resize(size);
-    ifs.read(reinterpret_cast<char*>(image.data.data()), size);
+    if (tex_data.empty()) {
+      // Read jpeg or png data
+      std::ifstream ifs(tex_path, std::ios::in | std::ios::binary);
+      // Get size
+      ifs.seekg(0, std::ios::end);
+      long long int size = ifs.tellg();
+      ifs.seekg(0);
+      // Read binary
+      image.data.resize(size);
+      ifs.read(reinterpret_cast<char*>(image.data.data()), size);
+    } else {
+      // Copy from memory
+      image.data = std::move(tex_data);
+    }
 
     model.images.push_back(image);
   }
