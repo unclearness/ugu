@@ -74,6 +74,7 @@ int main(int argc, char* argv[]) {
                 ("t,threads", "#Threads",cxxopts::value<int>()->default_value("-1"))
                 ("v,verbose", "Verbose", cxxopts::value<bool>()->default_value("false"))
                 ("no_enlarge_tex", "Texutre scale is applied only if actual texture size is smaller than specified size", cxxopts::value<bool>()->default_value("false"))
+                ("unlit", "Unlit material", cxxopts::value<bool>()->default_value("false"))
                 ("h,help", "Print usage");
 
   options.parse_positional({"src"});
@@ -96,6 +97,7 @@ int main(int argc, char* argv[]) {
   const std::string mask_path = result["mask"].as<std::string>();
   int threads_num = result["threads"].as<int>();
   bool no_enlarge_tex = result["no_enlarge_tex"].as<bool>();
+  bool is_unlit = result["unlit"].as<bool>();
 
   if (threads_num > 0) {
     ugu::UGU_THREADS_NUM = threads_num;
@@ -221,9 +223,9 @@ int main(int argc, char* argv[]) {
   print_time(timer, "material process");
 
   if (is_glb) {
-    mesh->WriteGlb(out_dir, basename + ".glb");
+    mesh->WriteGlb(out_dir, basename + ".glb", is_unlit);
   } else {
-    mesh->WriteGltfSeparate(out_dir, basename);
+    mesh->WriteGltfSeparate(out_dir, basename, is_unlit);
   }
 
   print_time(timer, "write gltf");

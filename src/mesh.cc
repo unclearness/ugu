@@ -1074,7 +1074,7 @@ int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
 }
 
 bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
-                             const std::string& gltf_basename) {
+                             const std::string& gltf_basename, bool is_unlit) {
 #ifdef UGU_USE_JSON
   gltf::Model model;
   // Make .bin and update model info
@@ -1114,6 +1114,7 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
   model.materials.resize(this->materials_.size());  // todo: update pbr params
   for (size_t i = 0; i < model.materials.size(); i++) {
     model.materials[i].name = this->materials_[i].name;
+    model.materials[i].is_unlit = is_unlit;
   }
 
   model.images.clear();
@@ -1152,7 +1153,8 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
   return false;
 }
 
-bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
+bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name,
+                    bool is_unlit) {
 #ifdef UGU_USE_JSON
   gltf::Model model;
   // Make .bin and update model info
@@ -1176,6 +1178,7 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name) {
   model.materials.resize(this->materials_.size());  // todo: update pbr params
   for (size_t i = 0; i < model.materials.size(); i++) {
     model.materials[i].name = this->materials_[i].name;
+    model.materials[i].is_unlit = is_unlit;
   }
   model.images.clear();
   for (auto& mat : this->materials_) {

@@ -142,8 +142,10 @@ class Mesh {
                 const std::string& mtl_basename = "", bool write_obj = true,
                 bool write_mtl = true, bool write_texture = true);
   bool WriteGltfSeparate(const std::string& gltf_dir,
-                         const std::string& gltf_basename);
-  bool WriteGlb(const std::string& glb_dir, const std::string& glb_name);
+                         const std::string& gltf_basename,
+                         bool is_unlit = false);
+  bool WriteGlb(const std::string& glb_dir, const std::string& glb_name,
+                bool is_unlit = false);
 
   int RemoveVertices(const std::vector<bool>& valid_vertex_table);
   int RemoveUnreferencedVertices();

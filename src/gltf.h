@@ -91,6 +91,8 @@ struct Material {
   std::string name = "material_000";
   PbrMetallicRoughness pbrMetallicRoughness;
 
+  bool is_unlit = false;
+
   bool with_alpha = false;
   float alphaCutoff = 0.1f;
   std::string alphaMode = "MASK";
@@ -103,6 +105,11 @@ void to_json(json& j, const Material& obj) {
   if (obj.with_alpha) {
     j["alphaCutoff"] = obj.alphaCutoff;
     j["alphaMode"] = obj.alphaMode;
+  }
+
+  if (obj.is_unlit) {
+    j["extensions"] = json();
+    j["extensions"]["KHR_materials_unlit"] = json({});
   }
 }
 
@@ -260,6 +267,10 @@ void to_json(json& j, const Model& obj) {
            {"textures", obj.textures},   {"images", obj.images},
            {"accessors", obj.accessors}, {"bufferViews", obj.bufferViews},
            {"buffers", obj.buffers}};
+
+  if (obj.materials[0].is_unlit) {
+    j["extensionsUsed"] = {"KHR_materials_unlit"};
+  }
 }
 
 struct Chunk {
