@@ -146,6 +146,15 @@ int main(int argc, char* argv[]) {
       h = alpha_image.rows;
       c = alpha_image.channels();
     }
+    if (image.empty() && alpha_image.empty()) {
+      ugu::Image1b gray_image = ugu::imread<ugu::Image1b>(src_path);
+      if (!gray_image.empty()) {
+        image = ugu::Merge(gray_image, gray_image, gray_image);
+        w = image.cols;
+        h = image.rows;
+        c = image.channels();
+      }
+    }
   } else {
     // jpeg is always 3 channel
     image = ugu::imread<ugu::Image3b>(src_path);
