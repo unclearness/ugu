@@ -77,7 +77,7 @@ void to_json(json& j, const TextureInfo& obj) {
 struct PbrMetallicRoughness {
   TextureInfo baseColorTexture;
   float metallicFactor = 0.f;
-  float roughnessFactor = 0.9057191014289856f;
+  float roughnessFactor = 1.f;
 };
 void to_json(json& j, const PbrMetallicRoughness& obj) {
   j = json{{"baseColorTexture", obj.baseColorTexture},
