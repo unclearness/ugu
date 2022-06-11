@@ -36,6 +36,8 @@
 #pragma warning(pop)
 #endif
 
+#include <cstring>
+
 namespace {
 STBIDEF unsigned char *stbi_xload(stbi__context *s, int *x, int *y, int *frames,
                                   int **delays) {
