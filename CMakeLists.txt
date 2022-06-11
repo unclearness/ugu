@@ -273,6 +273,7 @@ set(
   src/camera.cc
   src/mesh.cc
   src/gltf.h
+  src/ugu_stb.h
   src/log.cc
   src/util/io_util.cc
   src/util/math_util.cc

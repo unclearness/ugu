@@ -237,4 +237,7 @@ std::vector<uint8_t> JpgData(const Image3b& color);
 std::vector<uint8_t> PngData(const Image3b& color);
 std::vector<uint8_t> PngData(const Image4b& color);
 
+std::pair<std::vector<Image4b>, std::vector<int>> LoadGif(
+    const std::string& path);
+
 }  // namespace ugu

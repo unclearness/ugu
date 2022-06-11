@@ -32,6 +32,8 @@
 #endif
 #endif
 
+#include "ugu_stb.h"
+
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgproc.hpp"
 #endif
@@ -987,6 +989,38 @@ std::vector<uint8_t> PngData(const Image4b& color) {
   PngDataImpl(color.cols, color.rows, color.channels(), color.data,
               compressed_data);
   return compressed_data;
+}
+
+std::pair<std::vector<Image4b>, std::vector<int>> LoadGif(
+    const std::string& path) {
+  std::vector<Image4b> images;
+  std::vector<int> delays;
+#ifdef UGU_USE_STB
+  int x = -1;
+  int y = -1;
+  int frames = -1;
+
+  std::vector<unsigned char> data = LoadGif(path, x, y, frames, delays);
+
+  if (data.empty() || x <= 0 || y <= 0 || frames <= 0 || delays.empty()) {
+    return {{}, {}};
+  }
+
+  assert(frames == delays.size());
+
+  images.resize(frames);
+
+  const size_t pix_per_image =
+      static_cast<size_t>(x) * static_cast<size_t>(y) * 4;
+  const size_t bytes_per_image = pix_per_image * sizeof(unsigned char);
+
+  for (int i = 0; i < frames; i++) {
+    images[i] = Image4b::zeros(y, x);
+    std::memcpy(images[i].data, data.data() + i * bytes_per_image,
+                bytes_per_image);
+  }
+#endif
+  return {images, delays};
 }
 
 }  // namespace ugu

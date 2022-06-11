@@ -33,5 +33,13 @@ int main(int argc, char* argv[]) {
   ugu::line(vis_sdf, {10, 200}, {100, 200}, {0, 0, 255}, 5);
   ugu::imwrite(data_dir + "00000_sdf_circle.png", vis_sdf);
 
+  // GIF load
+  auto [images, delays] = ugu::LoadGif("../data/gif/dancing.gif");
+  for (size_t i = 0; i < images.size(); i++) {
+    ugu::imwrite("../data/gif/" + std::to_string(i) + "_" +
+                     std::to_string(delays[i]) + "ms.png",
+                 images[i]);
+  }
+
   return 0;
 }
