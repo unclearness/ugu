@@ -320,7 +320,7 @@ bool WriteGltfJsonToFile(const Model& model, const std::string& path) {
   return true;
 }
 
-std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
+void MakeGltfBinAndUpdateModel(
     const std::vector<Eigen::Vector3f>& vertices,
     const Eigen::Vector3f& vert_max, const Eigen::Vector3f& vert_min,
     const std::vector<Eigen::Vector3f>& normals,
@@ -329,13 +329,17 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
     bool is_glb,
     const std::vector<std::vector<Eigen::Vector3f>>& blendshape_vertices,
     const std::vector<std::vector<Eigen::Vector3f>>& blendshape_normals,
-    bool with_alpha, Model& model) {
-  size_t total_size = 0;
-  model.accessors.resize(4);
-  model.bufferViews.resize(4);
+    //  bool with_alpha,
+    Model& model, std::vector<std::uint8_t>& combined_bytes) {
+  uint32_t org_total_size = static_cast<uint32_t>(combined_bytes.size());
+  uint32_t total_size = org_total_size;
+  uint32_t org_num_accs = static_cast<uint32_t>(model.accessors.size());
+  uint32_t org_num_bv = static_cast<uint32_t>(model.bufferViews.size());
+  model.accessors.resize(org_num_accs + 4);
+  model.bufferViews.resize(org_num_bv + 4);
 
-  auto& vert_acc = model.accessors[0];
-  vert_acc.bufferView = 0;
+  auto& vert_acc = model.accessors[org_num_accs + 0];
+  vert_acc.bufferView = org_num_bv + 0;
   vert_acc.componentType = 5126;
   vert_acc.count = static_cast<int>(vertices.size());
   vert_acc.write_minmax = true;
@@ -345,61 +349,60 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
   size_t vert_size = vertices.size() * sizeof(float) * 3;
   std::vector<std::uint8_t> vert_bytes(vert_size);
   std::memcpy(vert_bytes.data(), vertices.data(), vert_size);
-  auto& vert_bview = model.bufferViews[0];
+  auto& vert_bview = model.bufferViews[org_num_bv + 0];
   vert_bview.buffer = 0;
   vert_bview.byteLength = static_cast<std::uint32_t>(vert_size);
   vert_bview.byteOffset = static_cast<std::uint32_t>(total_size);
-  total_size += vert_size;
+  total_size += static_cast<uint32_t>(vert_size);
 
-  auto& nor_acc = model.accessors[1];
-  nor_acc.bufferView = 1;
+  auto& nor_acc = model.accessors[org_num_accs + 1];
+  nor_acc.bufferView = org_num_bv + 1;
   nor_acc.componentType = 5126;
   nor_acc.count = static_cast<int>(normals.size());
   nor_acc.type = "VEC3";
   size_t nor_size = normals.size() * sizeof(float) * 3;
   std::vector<std::uint8_t> nor_bytes(nor_size);
   std::memcpy(nor_bytes.data(), normals.data(), nor_size);
-  auto& nor_bview = model.bufferViews[1];
+  auto& nor_bview = model.bufferViews[org_num_bv + 1];
   nor_bview.buffer = 0;
   nor_bview.byteLength = static_cast<std::uint32_t>(nor_size);
   nor_bview.byteOffset = static_cast<std::uint32_t>(total_size);
-  total_size += nor_size;
+  total_size += static_cast<uint32_t>(nor_size);
 
-  auto& uv_acc = model.accessors[2];
-  uv_acc.bufferView = 2;
+  auto& uv_acc = model.accessors[org_num_accs + 2];
+  uv_acc.bufferView = org_num_bv + 2;
   uv_acc.componentType = 5126;
   uv_acc.count = static_cast<int>(uvs.size());
   uv_acc.type = "VEC2";
   size_t uv_size = uvs.size() * sizeof(float) * 2;
   std::vector<std::uint8_t> uv_bytes(uv_size);
   std::memcpy(uv_bytes.data(), uvs.data(), uv_size);
-  auto& uv_bview = model.bufferViews[2];
+  auto& uv_bview = model.bufferViews[org_num_bv + 2];
   uv_bview.buffer = 0;
   uv_bview.byteLength = static_cast<std::uint32_t>(uv_size);
   uv_bview.byteOffset = static_cast<std::uint32_t>(total_size);
-  total_size += uv_size;
+  total_size += static_cast<uint32_t>(uv_size);
 
-  auto& index_acc = model.accessors[3];
-  index_acc.bufferView = 3;
+  auto& index_acc = model.accessors[org_num_accs + 3];
+  index_acc.bufferView = org_num_bv + 3;
   index_acc.componentType = 5125;
   index_acc.count = static_cast<int>(indices.size() * 3);
   index_acc.type = "SCALAR";
   size_t index_size = indices.size() * sizeof(int) * 3;
   std::vector<std::uint8_t> index_bytes(index_size);
   std::memcpy(index_bytes.data(), indices.data(), index_size);
-  auto& index_bview = model.bufferViews[3];
+  auto& index_bview = model.bufferViews[org_num_bv + 3];
   index_bview.buffer = 0;
   index_bview.byteLength = static_cast<std::uint32_t>(index_size);
   index_bview.byteOffset = static_cast<std::uint32_t>(total_size);
-  total_size += index_size;
+  total_size += static_cast<uint32_t>(index_size);
 
   std::vector<std::vector<std::uint8_t>> bytes_list = {vert_bytes, nor_bytes,
                                                        uv_bytes, index_bytes};
 
-  model.buffers.resize(1);
+  // model.buffers.resize(1);
 
-  int num_bv = 4;
-
+  uint32_t num_bv = org_num_bv + 3 + 1;
   if (!blendshape_vertices.empty() &&
       blendshape_vertices.size() == blendshape_normals.size()) {
     for (size_t i = 0; i < blendshape_vertices.size(); i++) {
@@ -484,20 +487,23 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(
 
   model.buffers[0].byteLength = static_cast<std::uint32_t>(total_size);
 
-  std::vector<std::uint8_t> combined_bytes;
-  combined_bytes.reserve(total_size);
+  combined_bytes.resize(total_size);
+  size_t offset = org_total_size;
   for (auto& bytes : bytes_list) {
-    combined_bytes.insert(combined_bytes.end(), bytes.begin(), bytes.end());
+    combined_bytes.insert(combined_bytes.begin() + offset, bytes.begin(),
+                          bytes.end());
+    offset += bytes.size();
   }
 
-  model.materials[0].with_alpha = with_alpha;
+  // model.materials.back().with_alpha = with_alpha;
 
-  return combined_bytes;
+  // return combined_bytes;
 }
 
-std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
-                                                    const std::string& bin_name,
-                                                    bool is_glb, Model& model) {
+void MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
+                               const std::string& bin_name, bool is_glb,
+                               Model& model,
+                               std::vector<std::uint8_t>& combined_bytes) {
   // Flip v
   auto gltf_uvs = mesh.uv();
   for (auto& uv : gltf_uvs) {
@@ -511,12 +517,12 @@ std::vector<std::uint8_t> MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
     blendshape_normals.push_back(b.normals);
   }
 
-  bool with_alpha = !mesh.materials()[0].with_alpha_tex.empty();
+  /// bool with_alpha = !mesh.materials()[0].with_alpha_tex.empty();
 
-  return MakeGltfBinAndUpdateModel(
+  MakeGltfBinAndUpdateModel(
       mesh.vertices(), mesh.stats().bb_max, mesh.stats().bb_min, mesh.normals(),
       gltf_uvs, mesh.vertex_indices(), bin_name, is_glb, blendshape_vertices,
-      blendshape_normals, with_alpha, model);
+      blendshape_normals, model, combined_bytes);
 }
 
 }  // namespace gltf

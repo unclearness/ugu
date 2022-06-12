@@ -1111,8 +1111,8 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
       static_cast<std::uint32_t>(this->blendshapes_.size());
 
   std::string bin_name = gltf_basename + ".bin";
-  std::vector<std::uint8_t> bin =
-      MakeGltfBinAndUpdateModel(*this, bin_name, false, model);
+  std::vector<std::uint8_t> bin;
+  MakeGltfBinAndUpdateModel(*this, bin_name, false, model, bin);
 
   // Write .bin
   std::ofstream bin_out(gltf_dir + bin_name,
@@ -1242,8 +1242,8 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name,
   }
 
   std::string bin_name = glb_name + ".bin";
-  std::vector<std::uint8_t> bin =
-      MakeGltfBinAndUpdateModel(*this, bin_name, true, model);
+  std::vector<std::uint8_t> bin;
+  MakeGltfBinAndUpdateModel(*this, bin_name, true, model, bin);
 
   gltf::Chunk bin_chunk{0x004E4942, bin};  // 0x004E4942 -> "BIN" in ASCII
   std::vector<std::uint8_t> bin_bin = gltf::ChunkToBin(bin_chunk);
@@ -1608,25 +1608,51 @@ bool WriteGltfSeparate(Scene& scene, const std::string& gltf_dir,
   model.scenes[0].nodes.clear();
   model.nodes.clear();
   model.images.clear();
+  model.materials.clear();
+  model.accessors.clear();
+  model.bufferViews.clear();
+  model.buffers.resize(1);
+  model.textures.clear();
 
+  uint32_t total_mat_num = 0;
+  uint32_t mat_count = 0;
+  for (size_t msh_idx = 0; msh_idx < scene.size(); msh_idx++) {
+    total_mat_num += static_cast<uint32_t>(scene[msh_idx]->materials().size());
+  }
+
+  model.materials.resize(total_mat_num);  // todo: update pbr params
 
   for (size_t msh_idx = 0; msh_idx < scene.size(); msh_idx++) {
     MeshPtr mesh = scene[msh_idx];
 
-    model.scenes[0].nodes.push_back(msh_idx);
+    model.scenes[0].nodes.push_back(static_cast<int>(msh_idx));
     ugu::gltf::Node node;
-    node.mesh = msh_idx;
+    node.mesh = static_cast<uint32_t>(msh_idx);
     node.name = std::to_string(msh_idx);  // TODO
     model.nodes.push_back(node);
-
 
     // Make .bin and update model info
     mesh->CalcStats();  // ensure min/max
 
     model.meshes[msh_idx].name = ExtractPathWithoutExt(gltf_basename);
 
-    // Prepare blendshapes
     model.meshes[msh_idx].with_blendshapes = !mesh->blendshapes().empty();
+
+    ugu::gltf::Primitive primitive;
+    int primitive_offset = 4;  // model.meshes[msh_idx].with_blendshapes ? 5 :
+                               // 4;
+    primitive.indices = static_cast<uint32_t>(msh_idx * primitive_offset + 3);
+    primitive.material = static_cast<uint32_t>(msh_idx);
+    primitive.attributes["NORMAL"] =
+        static_cast<uint32_t>(msh_idx * primitive_offset + 1);
+    primitive.attributes["POSITION"] =
+        static_cast<uint32_t>(msh_idx * primitive_offset + 0);
+    primitive.attributes["TEXCOORD_0"] =
+        static_cast<uint32_t>(msh_idx * primitive_offset + 2);
+    model.meshes[msh_idx].primitives = {primitive};
+
+    // Prepare blendshapes
+
     for (auto& p : model.meshes[msh_idx].primitives) {
       p.with_blendshapes = model.meshes[msh_idx].with_blendshapes;
     }
@@ -1637,18 +1663,26 @@ bool WriteGltfSeparate(Scene& scene, const std::string& gltf_dir,
     model.meshes[msh_idx].primitives[0].blendshape_num =
         static_cast<std::uint32_t>(mesh->blendshapes().size());
 
-    std::vector<std::uint8_t> bin =
-        MakeGltfBinAndUpdateModel(*mesh, bin_name, false, model);
-    std::copy(bin.begin(), bin.end(), std::back_inserter(bin_all));
+    // std::vector<std::uint8_t> bin =
+    MakeGltfBinAndUpdateModel(*mesh, bin_name, false, model, bin_all);
+    // std::copy(bin.begin(), bin.end(), std::back_inserter(bin_all));
+    // bin_all = std::move(bin);
 
     // Write texture
 
     // Update materials and textures of the model
-    model.materials.resize(
-        mesh->materials().size());  // todo: update pbr params
-    for (size_t i = 0; i < model.materials.size(); i++) {
-      model.materials[i].name = mesh->materials()[i].name;
-      model.materials[i].is_unlit = is_unlit;
+
+    for (size_t i = 0; i < mesh->materials().size(); i++) {
+      model.materials[mat_count + i].name = mesh->materials()[i].name;
+      model.materials[mat_count + i].is_unlit = is_unlit;
+      model.materials[mat_count + i].with_alpha =
+          !mesh->materials()[i].with_alpha_tex.empty();
+      model.materials[mat_count + i]
+          .pbrMetallicRoughness.baseColorTexture.index = mat_count;
+      ugu::gltf::Texture texture;
+      texture.source = mat_count;
+      model.textures.push_back(texture);
+      mat_count++;
     }
 
     std::vector<ObjMaterial> to_write_mats;
@@ -1661,7 +1695,7 @@ bool WriteGltfSeparate(Scene& scene, const std::string& gltf_dir,
       std::string tex_path = mat.with_alpha_texpath;
       if (tex_name.empty()) {
         tex_name = mat.diffuse_texname;
-        tex_path =  mat.diffuse_texpath;
+        tex_path = mat.diffuse_texpath;
         // Kill with_alpha
         to_write_mats.back().with_alpha_texpath = "";
       } else {
