@@ -188,4 +188,11 @@ class Mesh {
                      const AnimInterp& anim_interp = AnimInterp::LINEAR);
 };
 
+// TODO: Scene graph
+using Scene = std::vector<MeshPtr>;
+bool WriteGltfSeparate(Scene& scene, const std::string& gltf_dir,
+                       const std::string& gltf_basename, bool is_unlit = false);
+bool WriteGlb(Scene& scene, const std::string& glb_dir, const std::string& glb_name,
+              bool is_unlit = false);
+
 }  // namespace ugu

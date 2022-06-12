@@ -1164,9 +1164,10 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
   gltf::WriteGltfJsonToFile(model, gltf_dir + gltf_basename + ".gltf");
 
   return true;
-#endif
+#else
 
   return false;
+#endif
 }
 
 bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name,
@@ -1277,8 +1278,9 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name,
   glb_out.write(reinterpret_cast<char*>(combined.data()), length);
 
   return true;
-#endif
+#else
   return false;
+#endif
 }
 
 int Mesh::RemoveUnreferencedVertices() {
@@ -1590,6 +1592,112 @@ bool Mesh::AnimatedShape(uint32_t frame,
   }
 #endif  // 0
 
+  return true;
+}
+
+bool WriteGltfSeparate(Scene& scene, const std::string& gltf_dir,
+                       const std::string& gltf_basename, bool is_unlit) {
+#ifdef UGU_USE_JSON
+  gltf::Model model;
+  std::string bin_name = gltf_basename + ".bin";
+
+  std::vector<std::uint8_t> bin_all;
+
+  model.meshes.resize(scene.size());
+
+  model.scenes[0].nodes.clear();
+  model.nodes.clear();
+  model.images.clear();
+
+
+  for (size_t msh_idx = 0; msh_idx < scene.size(); msh_idx++) {
+    MeshPtr mesh = scene[msh_idx];
+
+    model.scenes[0].nodes.push_back(msh_idx);
+    ugu::gltf::Node node;
+    node.mesh = msh_idx;
+    node.name = std::to_string(msh_idx);  // TODO
+    model.nodes.push_back(node);
+
+
+    // Make .bin and update model info
+    mesh->CalcStats();  // ensure min/max
+
+    model.meshes[msh_idx].name = ExtractPathWithoutExt(gltf_basename);
+
+    // Prepare blendshapes
+    model.meshes[msh_idx].with_blendshapes = !mesh->blendshapes().empty();
+    for (auto& p : model.meshes[msh_idx].primitives) {
+      p.with_blendshapes = model.meshes[msh_idx].with_blendshapes;
+    }
+    for (const auto& b : mesh->blendshapes()) {
+      model.meshes[msh_idx].blendshape_names.push_back(b.name);
+      model.meshes[msh_idx].blendshape_weights.push_back(b.weight);
+    }
+    model.meshes[msh_idx].primitives[0].blendshape_num =
+        static_cast<std::uint32_t>(mesh->blendshapes().size());
+
+    std::vector<std::uint8_t> bin =
+        MakeGltfBinAndUpdateModel(*mesh, bin_name, false, model);
+    std::copy(bin.begin(), bin.end(), std::back_inserter(bin_all));
+
+    // Write texture
+
+    // Update materials and textures of the model
+    model.materials.resize(
+        mesh->materials().size());  // todo: update pbr params
+    for (size_t i = 0; i < model.materials.size(); i++) {
+      model.materials[i].name = mesh->materials()[i].name;
+      model.materials[i].is_unlit = is_unlit;
+    }
+
+    std::vector<ObjMaterial> to_write_mats;
+
+    for (auto mat : mesh->materials()) {
+      mat.with_alpha_texpath = gltf_dir + mat.with_alpha_texname;
+      mat.diffuse_texpath = gltf_dir + mat.diffuse_texname;
+      to_write_mats.push_back(mat);
+      std::string tex_name = mat.with_alpha_texname;
+      std::string tex_path = mat.with_alpha_texpath;
+      if (tex_name.empty()) {
+        tex_name = mat.diffuse_texname;
+        tex_path =  mat.diffuse_texpath;
+        // Kill with_alpha
+        to_write_mats.back().with_alpha_texpath = "";
+      } else {
+        // Kill diffuse
+        to_write_mats.back().diffuse_texpath = "";
+      }
+      if (tex_name.empty()) {
+        continue;
+      }
+
+      gltf::Image image;
+      image.uri = tex_name;
+      image.name = ExtractPathWithoutExt(tex_name);
+      model.images.push_back(image);
+    }
+
+    WriteTexture(to_write_mats);
+  }
+
+  // Write .bin
+  std::ofstream bin_out(gltf_dir + bin_name,
+                        std::ios::out | std::ios::binary | std::ios::trunc);
+  bin_out.write(reinterpret_cast<char*>(bin_all.data()), bin_all.size());
+
+  // Write .gltf (json)
+  gltf::WriteGltfJsonToFile(model, gltf_dir + gltf_basename + ".gltf");
+
+  return true;
+#else
+
+  return false;
+#endif
+}
+
+bool WriteGlb(Scene& scene, const std::string& glb_dir,
+              const std::string& glb_name, bool is_unlit) {
   return true;
 }
 
