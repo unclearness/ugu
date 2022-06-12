@@ -212,6 +212,12 @@ const std::vector<Blendshape>& Mesh::blendshapes() const {
   return blendshapes_;
 };
 
+const std::map<uint32_t, AnimKeyframe>& Mesh::keyframes() const {
+  return keyframes_;
+};
+
+const AnimInterp& Mesh::anim_interp() const { return anim_interp_; };
+
 void Mesh::CalcStats() {
   stats_.bb_min = Eigen::Vector3f(std::numeric_limits<float>::max(),
                                   std::numeric_limits<float>::max(),
@@ -478,6 +484,16 @@ bool Mesh::set_single_material(const ObjMaterial& material) {
 
 bool Mesh::set_blendshapes(const std::vector<Blendshape>& blendshapes) {
   CopyVec(blendshapes, &blendshapes_);
+  return true;
+}
+
+bool Mesh::set_keyframes(const std::map<uint32_t, AnimKeyframe>& keyframes) {
+  keyframes_ = keyframes;
+  return true;
+}
+
+bool Mesh::set_anim_interp(const AnimInterp& anim_interp) {
+  anim_interp_ = anim_interp;
   return true;
 }
 
@@ -1431,6 +1447,148 @@ bool Mesh::FlipFaces() {
   std::for_each(normal_indices_.begin(), normal_indices_.end(), flip);
 
   CalcNormal();
+
+  return true;
+}
+
+bool Mesh::AnimatedShape(uint32_t frame,
+                         std::vector<Eigen::Vector3f>& anim_verts,
+                         std::vector<Eigen::Vector3f>& anim_normals,
+                         const AnimInterp& anim_interp) {
+  if (keyframes_.empty()) {
+    return false;
+  }
+
+  uint32_t lower_fn(uint32_t(~0)), upper_fn(uint32_t(~0));
+  float lower_w(0.f), upper_w(0.f);
+  decltype(keyframes_)::iterator lesseq_iter = keyframes_.lower_bound(frame);
+  auto next_iter = std::next(lesseq_iter);
+
+  // Find lower and upper keyframes
+  if (lesseq_iter == keyframes_.end()) {
+    lower_fn = upper_fn = (*(--lesseq_iter)).first;
+  } else if (next_iter == keyframes_.end()) {
+    lower_fn = upper_fn = (*(lesseq_iter)).first;
+  } else {
+    lower_fn = lesseq_iter->first;
+    upper_fn = next_iter->first;
+  }
+
+  // Calc weights for the lower and upper keyframes
+  if (anim_interp == AnimInterp::LINEAR) {
+    if (lower_fn == upper_fn) {
+      lower_w = 1.f;
+      upper_w = 0.f;
+    } else {
+      uint32_t diff = upper_fn - lower_fn;
+      lower_w = static_cast<float>(upper_fn - frame) / static_cast<float>(diff);
+      upper_w = static_cast<float>(frame - lower_fn) / static_cast<float>(diff);
+    }
+  } else if (anim_interp == AnimInterp::NN) {
+    if ((upper_fn - frame) < (frame - lower_fn)) {
+      lower_w = 0.f;
+      upper_w = 1.f;
+    } else {
+      lower_w = 1.f;
+      upper_w = 0.f;
+    }
+  }
+
+  const AnimKeyframe& lower_kf = keyframes_[lower_fn];
+  const AnimKeyframe& upper_kf = keyframes_[upper_fn];
+
+  // TODO
+  if (!(lower_kf.valid() && upper_kf.valid())) {
+    LOGE("should be all valid\n");
+    return false;
+  }
+
+  // Apply weights
+  anim_verts.clear();
+  anim_normals.clear();
+  Eigen::Quaternionf q = Eigen::Quaternionf::Identity();
+  Eigen::Vector3f t(0.f, 0.f, 0.f);
+  float s = 1.f;
+
+  // TODO: correct?
+  q = lower_kf.q.slerp(lower_w, upper_kf.q);
+
+  t = lower_kf.t * lower_w + upper_kf.t * upper_w;
+  s = lower_kf.s * lower_w + upper_kf.s * upper_w;
+
+  Eigen::Affine3f trans = Eigen::Translation3f(t) * q * Eigen::Scaling(s);
+
+  anim_verts = vertices_;
+  anim_normals = normals_;
+  if (!blendshapes_.empty() && lower_kf.weights.size() == blendshapes_.size() &&
+      upper_kf.weights.size() == blendshapes_.size()) {
+    bool with_normals =
+        blendshapes_[0].vertices.size() == blendshapes_[0].normals.size();
+    for (size_t i = 0; i < anim_verts.size(); i++) {
+      for (size_t j = 0; j < blendshapes_.size(); j++) {
+        float lower_w_bs = lower_w * lower_kf.weights[j];
+        float upper_w_bs = upper_w * upper_kf.weights[j];
+        anim_verts[i] += lower_w_bs * blendshapes_[j].vertices[i] +
+                         upper_w_bs * blendshapes_[j].vertices[i];
+
+        if (with_normals) {
+          anim_normals[i] += lower_w_bs * blendshapes_[j].normals[i] +
+                             upper_w_bs * blendshapes_[j].normals[i];
+          anim_normals[i].normalize();
+        }
+      }
+    }
+  }
+
+  auto apply_trans = [&](std::vector<Eigen::Vector3f>& vec) {
+    for (auto& v : vec) {
+      v = trans * v;
+    }
+  };
+  auto apply_q = [&](std::vector<Eigen::Vector3f>& vec) {
+    for (auto& v : vec) {
+      v = q * v;
+    }
+  };
+
+  apply_trans(anim_verts);
+  apply_q(anim_normals);
+
+#if 0
+  anim_verts = vertices_;
+  anim_normals = normals_;
+
+  auto apply_trans = [&](std::vector<Eigen::Vector3f>& vec) {
+    for (auto& v : vec) {
+      v = trans * v;
+    }
+  };
+  auto apply_q = [&](std::vector<Eigen::Vector3f>& vec) {
+    for (auto& v : vec) {
+      v = q * v;
+    }
+  };
+
+  apply_trans(anim_verts);
+  apply_q(anim_normals);
+
+  if (!blendshapes_.empty() && lower_kf.weights.size() == blendshapes_.size() &&
+      upper_kf.weights.size() == blendshapes_.size()) {
+    std::vector<Blendshape> anim_blendshapes = blendshapes_;
+    for (auto& bs : anim_blendshapes) {
+      apply_trans(bs.vertices);
+      apply_q(bs.normals);
+    }
+
+    for (size_t i = 0; i < anim_verts.size(); i++) {
+      
+    }
+
+    for (size_t i = 0; i < anim_normals.size(); i++) {
+      }
+
+  }
+#endif  // 0
 
   return true;
 }

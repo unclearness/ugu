@@ -6,6 +6,7 @@
 #pragma once
 
 #include <array>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -57,6 +58,23 @@ struct Blendshape {
   std::vector<Eigen::Vector3f> normals;
 };
 
+enum class AnimInterp { LINEAR, NN };
+
+struct AnimKeyframe {
+  bool R_valid = false;
+  bool t_valid = false;
+  bool s_valid = false;
+  bool weights_valid = false;
+
+  Eigen::Quaternionf q = Eigen::Quaternionf::Identity();
+  Eigen::Vector3f t = Eigen::Vector3f::Zero();
+  float s = 1.f;
+
+  std::vector<float> weights;
+
+  bool valid() const { return R_valid & t_valid & s_valid & weights_valid; }
+};
+
 class Mesh;
 using MeshPtr = std::shared_ptr<Mesh>;
 
@@ -83,6 +101,10 @@ class Mesh {
   MeshStats stats_;
 
   std::vector<Blendshape> blendshapes_;
+
+  // To keep key (frame number) order, use map
+  std::map<uint32_t, AnimKeyframe> keyframes_;
+  AnimInterp anim_interp_ = AnimInterp::LINEAR;
 
  public:
   Mesh();
@@ -118,6 +140,8 @@ class Mesh {
   const std::vector<ObjMaterial>& materials() const;
   const std::vector<std::vector<int>>& face_indices_per_material() const;
   const std::vector<Blendshape>& blendshapes() const;
+  const std::map<uint32_t, AnimKeyframe>& keyframes() const;
+  const AnimInterp& anim_interp() const;
 
   bool set_vertices(const std::vector<Eigen::Vector3f>& vertices);
   bool set_vertex_colors(const std::vector<Eigen::Vector3f>& vertex_colors);
@@ -133,6 +157,8 @@ class Mesh {
   bool set_face_indices_per_material(
       const std::vector<std::vector<int>>& face_indices_per_material);
   bool set_blendshapes(const std::vector<Blendshape>& blendshapes);
+  bool set_keyframes(const std::map<uint32_t, AnimKeyframe>& keyframes);
+  bool set_anim_interp(const AnimInterp& anim_interp);
 
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);
   bool LoadPly(const std::string& ply_path);
@@ -156,6 +182,10 @@ class Mesh {
   bool SplitMultipleUvVertices();
 
   bool FlipFaces();
+
+  bool AnimatedShape(uint32_t frame, std::vector<Eigen::Vector3f>& anim_verts,
+                     std::vector<Eigen::Vector3f>& anim_normals,
+                     const AnimInterp& anim_interp = AnimInterp::LINEAR);
 };
 
 }  // namespace ugu
