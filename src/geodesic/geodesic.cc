@@ -185,7 +185,7 @@ void FmmUpdate(DijkstraHeap& q, ugu::VertexAdjacency& vertex_adjacency,
 }
 
 bool ComputeGeodesicDistanceDijkstraBase(const ugu::Mesh& mesh,
-                                         std::vector<int> src_vids,
+                                         const std::vector<int>& src_vids,
                                          Eigen::SparseMatrix<float>& edge_dists,
                                          std::vector<double>& dists,
                                          std::vector<int>& min_path_edges,
@@ -274,7 +274,7 @@ bool ComputeGeodesicDistance(const Mesh& mesh, int src_vid,
                                  dists, min_path_edges, method);
 }
 
-bool ComputeGeodesicDistance(const Mesh& mesh, std::vector<int> src_vids,
+bool ComputeGeodesicDistance(const Mesh& mesh, const std::vector<int>& src_vids,
                              Eigen::SparseMatrix<float>& edge_dists,
                              std::vector<double>& dists,
                              std::vector<int>& min_path_edges,
