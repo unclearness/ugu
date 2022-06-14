@@ -144,5 +144,17 @@ int main(int argc, char* argv[]) {
   ugu::LOGI("fmm %f\n", timer.elapsed_msec());
   SaveGeodesicDistance(data_dir, "fmm_", mesh, dists);
 
+  mesh.LoadObj(in_obj_path, data_dir);
+  timer.Start();
+  ugu::ComputeGeodesicDistance(
+      mesh,
+      {0, static_cast<int>(mesh.vertices().size() / 2),
+       static_cast<int>(mesh.vertices().size() - 1)},
+      edge_dists, dists, min_path_edges,
+      ugu::GeodesicComputeMethod::FAST_MARCHING_METHOD);
+  timer.End();
+  ugu::LOGI("fmm multiple src_vids %f\n", timer.elapsed_msec());
+  SaveGeodesicDistance(data_dir, "fmm_multi_", mesh, dists);
+
   return 0;
 }

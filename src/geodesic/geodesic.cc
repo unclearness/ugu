@@ -184,7 +184,8 @@ void FmmUpdate(DijkstraHeap& q, ugu::VertexAdjacency& vertex_adjacency,
   }
 }
 
-bool ComputeGeodesicDistanceDijkstraBase(const ugu::Mesh& mesh, int src_vid,
+bool ComputeGeodesicDistanceDijkstraBase(const ugu::Mesh& mesh,
+                                         std::vector<int> src_vids,
                                          Eigen::SparseMatrix<float>& edge_dists,
                                          std::vector<double>& dists,
                                          std::vector<int>& min_path_edges,
@@ -192,7 +193,9 @@ bool ComputeGeodesicDistanceDijkstraBase(const ugu::Mesh& mesh, int src_vid,
   dists.clear();
   const auto num_vertices = mesh.vertices().size();
   dists.resize(num_vertices, std::numeric_limits<double>::max());
-  dists[src_vid] = 0.0;
+  for (const auto& src_vid : src_vids) {
+    dists[src_vid] = 0.0;
+  }
 
   min_path_edges.clear();
   min_path_edges.resize(num_vertices, -1);
@@ -234,7 +237,9 @@ bool ComputeGeodesicDistanceDijkstraBase(const ugu::Mesh& mesh, int src_vid,
   DijkstraHeap q;
 
   // Initialization
-  q.push({src_vid, 0.0});
+  for (const auto& src_vid : src_vids) {
+    q.push({src_vid, 0.0});
+  }
   std::unordered_map<int, std::vector<int>> v2f;
 
   const auto& faces = mesh.vertex_indices();
@@ -265,12 +270,21 @@ bool ComputeGeodesicDistance(const Mesh& mesh, int src_vid,
                              std::vector<double>& dists,
                              std::vector<int>& min_path_edges,
                              GeodesicComputeMethod method) {
+  return ComputeGeodesicDistance(mesh, std::vector(1, src_vid), edge_dists,
+                                 dists, min_path_edges, method);
+}
+
+bool ComputeGeodesicDistance(const Mesh& mesh, std::vector<int> src_vids,
+                             Eigen::SparseMatrix<float>& edge_dists,
+                             std::vector<double>& dists,
+                             std::vector<int>& min_path_edges,
+                             GeodesicComputeMethod method) {
   if (method == GeodesicComputeMethod::DIJKSTRA) {
-    return ComputeGeodesicDistanceDijkstraBase(mesh, src_vid, edge_dists, dists,
-                                               min_path_edges, false);
+    return ComputeGeodesicDistanceDijkstraBase(mesh, src_vids, edge_dists,
+                                               dists, min_path_edges, false);
   } else if (method == GeodesicComputeMethod::FAST_MARCHING_METHOD) {
-    return ComputeGeodesicDistanceDijkstraBase(mesh, src_vid, edge_dists, dists,
-                                               min_path_edges, true);
+    return ComputeGeodesicDistanceDijkstraBase(mesh, src_vids, edge_dists,
+                                               dists, min_path_edges, true);
   }
 
   return false;
