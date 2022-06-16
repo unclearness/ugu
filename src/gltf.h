@@ -179,6 +179,44 @@ void to_json(json& j, const Image& obj) {
   }
 }
 
+struct Target {
+  int node = -1;
+  std::string path = "";
+};
+void to_json(json& j, const Target& obj) {
+  j = json{{"node", obj.node}, {"path", obj.path}};
+}
+
+struct Channel {
+  int sampler = -1;
+  Target target;
+};
+void to_json(json& j, const Channel& obj) {
+  j = json{{"sampler", obj.sampler}, {"target", obj.target}};
+}
+
+struct Sampler {
+  int input = -1;
+  std::string interpolation = "";
+  int output = -1;
+};
+void to_json(json& j, const Sampler& obj) {
+  j = json{{"input", obj.input},
+           {"interpolation", obj.interpolation},
+           {"output", obj.output}};
+}
+
+struct Animation {
+  std::string name = "Animation";
+  std::vector<Channel> channels;
+  std::vector<Sampler> samplers;
+};
+void to_json(json& j, const Animation& obj) {
+  j = json{{"name", obj.name},
+           {"channels", obj.channels},
+           {"samplers", obj.samplers}};
+}
+
 struct Accessor {
   std::uint32_t bufferView = 0;
   std::uint32_t componentType = 5126;
@@ -186,12 +224,12 @@ struct Accessor {
   std::string type;
 
   bool write_minmax = false;
-  std::array<float, 3> max{std::numeric_limits<float>::lowest(),
-                           std::numeric_limits<float>::lowest(),
-                           std::numeric_limits<float>::lowest()};
-  std::array<float, 3> min{std::numeric_limits<float>::max(),
-                           std::numeric_limits<float>::max(),
-                           std::numeric_limits<float>::max()};
+  std::vector<float> max{std::numeric_limits<float>::lowest(),
+                         std::numeric_limits<float>::lowest(),
+                         std::numeric_limits<float>::lowest()};
+  std::vector<float> min{std::numeric_limits<float>::max(),
+                         std::numeric_limits<float>::max(),
+                         std::numeric_limits<float>::max()};
 };
 void to_json(json& j, const Accessor& obj) {
   j = json{{"bufferView", obj.bufferView},
@@ -256,6 +294,7 @@ struct Model {
   std::vector<Texture> textures = {Texture()};
   std::vector<Image> images = {Image()};
   std::vector<Accessor> accessors = GenDefaultAccessors();
+  std::vector<gltf::Animation> animations = {};
   std::vector<BufferView> bufferViews = {BufferView(), BufferView(),
                                          BufferView(), BufferView()};
   std::vector<Buffer> buffers = {Buffer()};
@@ -270,6 +309,10 @@ void to_json(json& j, const Model& obj) {
 
   if (obj.materials[0].is_unlit) {
     j["extensionsUsed"] = {"KHR_materials_unlit"};
+  }
+
+  if (!obj.animations.empty()) {
+    j["animations"] = obj.animations;
   }
 }
 
@@ -330,6 +373,7 @@ void MakeGltfBinAndUpdateModel(
     const std::vector<std::vector<Eigen::Vector3f>>& blendshape_vertices,
     const std::vector<std::vector<Eigen::Vector3f>>& blendshape_normals,
     //  bool with_alpha,
+    std::map<float, AnimKeyframe> keyframes, AnimInterp anim_interp,
     Model& model, std::vector<std::uint8_t>& combined_bytes) {
   uint32_t org_total_size = static_cast<uint32_t>(combined_bytes.size());
   uint32_t total_size = org_total_size;
@@ -455,6 +499,82 @@ void MakeGltfBinAndUpdateModel(
     }
   }
 
+  if (!keyframes.empty()) {
+    if (model.animations.empty()) {
+      model.animations.resize(1);
+    }
+
+    std::vector<float> input;
+    std::vector<Eigen::Vector3f> output;
+
+    for (const auto& kf : keyframes) {
+      input.push_back(kf.first);
+      Eigen::Vector3f uni_scale(kf.second.s, kf.second.s, kf.second.s);
+      output.push_back(uni_scale);
+    }
+
+    Accessor input_acc, output_acc;
+    BufferView input_bv, output_bv;
+
+    input_acc.componentType = 5126;
+    input_acc.count = static_cast<std::uint32_t>(keyframes.size());
+    input_acc.type = "SCALAR";
+    input_acc.bufferView = num_bv;
+    num_bv++;
+    input_acc.write_minmax = true;
+    auto min_max_t = std::minmax_element(input.begin(), input.end());
+    input_acc.max.resize(1);
+    input_acc.min.resize(1);
+    input_acc.max[0] = *min_max_t.second;
+    input_acc.min[0] = *min_max_t.first;
+    model.accessors.push_back(input_acc);
+
+    // TODO: scale case only
+    output_acc.componentType = 5126;
+    output_acc.count = static_cast<std::uint32_t>(keyframes.size());
+    output_acc.type = "VEC3";
+    output_acc.bufferView = num_bv;
+    num_bv++;
+    model.accessors.push_back(output_acc);
+
+    input_bv.buffer = 0;
+    size_t input_bv_size = input.size() * sizeof(float) * 1;
+    std::vector<std::uint8_t> input_bv_bytes(input_bv_size);
+    std::memcpy(input_bv_bytes.data(), input.data(), input_bv_size);
+    input_bv.byteLength = static_cast<std::uint32_t>(input_bv_size);
+    input_bv.byteOffset = static_cast<std::uint32_t>(total_size);
+    total_size += input_bv.byteLength;
+    model.bufferViews.push_back(input_bv);
+    bytes_list.push_back(input_bv_bytes);
+
+    output_bv.buffer = 0;
+    size_t output_bv_size = output.size() * sizeof(float) * 3;
+    std::vector<std::uint8_t> output_bv_bytes(output_bv_size);
+    std::memcpy(output_bv_bytes.data(), output.data(), output_bv_size);
+    output_bv.byteLength = static_cast<std::uint32_t>(output_bv_size);
+    output_bv.byteOffset = static_cast<std::uint32_t>(total_size);
+    total_size += output_bv.byteLength;
+    model.bufferViews.push_back(output_bv);
+    bytes_list.push_back(output_bv_bytes);
+
+    gltf::Channel channel;
+    channel.sampler = static_cast<int>(model.animations[0].samplers.size());
+
+    // TODO
+    /* DANGER static */
+    static int anim_node_count = 0;
+    channel.target.node = anim_node_count;
+    anim_node_count++;
+    channel.target.path = "scale";
+
+    gltf::Sampler sampler;
+    sampler.input = static_cast<int>(model.accessors.size() - 2);
+    sampler.output = static_cast<int>(model.accessors.size() - 1);
+    sampler.interpolation = "STEP";
+    model.animations[0].channels.push_back(channel);
+    model.animations[0].samplers.push_back(sampler);
+  }
+
   if (is_glb) {
     model.buffers[0].is_glb = true;
 
@@ -522,7 +642,8 @@ void MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
   MakeGltfBinAndUpdateModel(
       mesh.vertices(), mesh.stats().bb_max, mesh.stats().bb_min, mesh.normals(),
       gltf_uvs, mesh.vertex_indices(), bin_name, is_glb, blendshape_vertices,
-      blendshape_normals, model, combined_bytes);
+      blendshape_normals, mesh.keyframes(), mesh.anim_interp(), model,
+      combined_bytes);
 }
 
 }  // namespace gltf

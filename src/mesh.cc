@@ -212,7 +212,7 @@ const std::vector<Blendshape>& Mesh::blendshapes() const {
   return blendshapes_;
 };
 
-const std::map<uint32_t, AnimKeyframe>& Mesh::keyframes() const {
+const std::map<float, AnimKeyframe>& Mesh::keyframes() const {
   return keyframes_;
 };
 
@@ -487,7 +487,7 @@ bool Mesh::set_blendshapes(const std::vector<Blendshape>& blendshapes) {
   return true;
 }
 
-bool Mesh::set_keyframes(const std::map<uint32_t, AnimKeyframe>& keyframes) {
+bool Mesh::set_keyframes(const std::map<float, AnimKeyframe>& keyframes) {
   keyframes_ = keyframes;
   return true;
 }
@@ -1453,7 +1453,7 @@ bool Mesh::FlipFaces() {
   return true;
 }
 
-bool Mesh::AnimatedShape(uint32_t frame,
+bool Mesh::AnimatedShape(float frame,
                          std::vector<Eigen::Vector3f>& anim_verts,
                          std::vector<Eigen::Vector3f>& anim_normals,
                          const AnimInterp& anim_interp) {
@@ -1641,6 +1641,9 @@ bool WriteGltfSeparate(Scene& scene, const std::string& gltf_dir,
     ugu::gltf::Primitive primitive;
     int primitive_offset = 4;  // model.meshes[msh_idx].with_blendshapes ? 5 :
                                // 4;
+    if (!mesh->keyframes().empty()) {
+      primitive_offset += 2;
+    }
     primitive.indices = static_cast<uint32_t>(msh_idx * primitive_offset + 3);
     primitive.material = static_cast<uint32_t>(msh_idx);
     primitive.attributes["NORMAL"] =

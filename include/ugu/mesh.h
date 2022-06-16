@@ -78,6 +78,22 @@ struct AnimKeyframe {
 class Mesh;
 using MeshPtr = std::shared_ptr<Mesh>;
 
+
+#if 0
+				class AnimationSystem {
+private:
+  std::vector<MeshPtr> meshes_;
+  std::unordered_map<MeshPtr, std::map<uint32_t, AnimKeyframe>> keyframes_;
+  uint32_t fps_ = 30;
+  AnimInterp anim_interp_ = AnimInterp::LINEAR;
+
+public:
+  
+};
+#endif  // 0
+
+
+
 class Mesh {
   std::vector<Eigen::Vector3f> vertices_;
   std::vector<Eigen::Vector3f> vertex_colors_;   // optional, RGB order
@@ -102,8 +118,9 @@ class Mesh {
 
   std::vector<Blendshape> blendshapes_;
 
-  // To keep key (frame number) order, use map
-  std::map<uint32_t, AnimKeyframe> keyframes_;
+  // To keep key (sec.) order, use map
+  std::map<float, AnimKeyframe> keyframes_;
+  //uint32_t fps_ = 30;
   AnimInterp anim_interp_ = AnimInterp::LINEAR;
 
  public:
@@ -140,7 +157,7 @@ class Mesh {
   const std::vector<ObjMaterial>& materials() const;
   const std::vector<std::vector<int>>& face_indices_per_material() const;
   const std::vector<Blendshape>& blendshapes() const;
-  const std::map<uint32_t, AnimKeyframe>& keyframes() const;
+  const std::map<float, AnimKeyframe>& keyframes() const;
   const AnimInterp& anim_interp() const;
 
   bool set_vertices(const std::vector<Eigen::Vector3f>& vertices);
@@ -157,7 +174,7 @@ class Mesh {
   bool set_face_indices_per_material(
       const std::vector<std::vector<int>>& face_indices_per_material);
   bool set_blendshapes(const std::vector<Blendshape>& blendshapes);
-  bool set_keyframes(const std::map<uint32_t, AnimKeyframe>& keyframes);
+  bool set_keyframes(const std::map<float, AnimKeyframe>& keyframes);
   bool set_anim_interp(const AnimInterp& anim_interp);
 
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);
@@ -183,7 +200,7 @@ class Mesh {
 
   bool FlipFaces();
 
-  bool AnimatedShape(uint32_t frame, std::vector<Eigen::Vector3f>& anim_verts,
+  bool AnimatedShape(float frame, std::vector<Eigen::Vector3f>& anim_verts,
                      std::vector<Eigen::Vector3f>& anim_normals,
                      const AnimInterp& anim_interp = AnimInterp::LINEAR);
 };
