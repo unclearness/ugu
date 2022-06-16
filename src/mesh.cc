@@ -13,6 +13,7 @@
 
 #include "gltf.h"
 #include "ugu/face_adjacency.h"
+#include "ugu/util/image_util.h"
 
 #ifdef UGU_USE_TINYOBJLOADER
 #include "tiny_obj_loader.h"
@@ -30,7 +31,7 @@ void CopyVec(const std::vector<T>& src, std::vector<T>* dst,
   std::copy(src.begin(), src.end(), std::back_inserter(*dst));
 }
 
-std::vector<std::string> Split(const std::string& s, char delim) {
+std::vector<std::string> SplitStr(const std::string& s, char delim) {
   std::vector<std::string> elems;
   std::stringstream ss(s);
   std::string item;
@@ -705,7 +706,7 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   std::int64_t vertex_num = 0;
   while (getline(ifs, str)) {
     if (str.find("element vertex") != std::string::npos) {
-      std::vector<std::string> splitted = Split(str, ' ');
+      std::vector<std::string> splitted = SplitStr(str, ' ');
       if (splitted.size() == 3) {
         vertex_num = std::atol(splitted[2].c_str());
         ret = true;
@@ -727,7 +728,7 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   std::int64_t face_num = 0;
   while (getline(ifs, str)) {
     if (str.find("element face") != std::string::npos) {
-      std::vector<std::string> splitted = Split(str, ' ');
+      std::vector<std::string> splitted = SplitStr(str, ' ');
       if (splitted.size() == 3) {
         face_num = std::atol(splitted[2].c_str());
         ret = true;
@@ -754,7 +755,7 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   vertices_.resize(vertex_num);
   int vertex_count = 0;
   while (getline(ifs, str)) {
-    std::vector<std::string> splitted = Split(str, ' ');
+    std::vector<std::string> splitted = SplitStr(str, ' ');
     vertices_[vertex_count][0] =
         static_cast<float>(std::atof(splitted[0].c_str()));
     vertices_[vertex_count][1] =
@@ -779,7 +780,7 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   vertex_indices_.resize(face_num);
   int face_count = 0;
   while (getline(ifs, str)) {
-    std::vector<std::string> splitted = Split(str, ' ');
+    std::vector<std::string> splitted = SplitStr(str, ' ');
     vertex_indices_[face_count][0] = std::atoi(splitted[1].c_str());
     vertex_indices_[face_count][1] = std::atoi(splitted[2].c_str());
     vertex_indices_[face_count][2] = std::atoi(splitted[3].c_str());
@@ -1453,8 +1454,7 @@ bool Mesh::FlipFaces() {
   return true;
 }
 
-bool Mesh::AnimatedShape(float frame,
-                         std::vector<Eigen::Vector3f>& anim_verts,
+bool Mesh::AnimatedShape(float frame, std::vector<Eigen::Vector3f>& anim_verts,
                          std::vector<Eigen::Vector3f>& anim_normals,
                          const AnimInterp& anim_interp) {
   if (keyframes_.empty()) {
@@ -1735,7 +1735,273 @@ bool WriteGltfSeparate(Scene& scene, const std::string& gltf_dir,
 
 bool WriteGlb(Scene& scene, const std::string& glb_dir,
               const std::string& glb_name, bool is_unlit) {
+#ifdef UGU_USE_JSON
+  gltf::Model model;
+  std::string bin_name = glb_name + ".bin";
+
+  std::vector<std::uint8_t> bin_all;
+
+  model.meshes.resize(scene.size());
+
+  model.scenes[0].nodes.clear();
+  model.nodes.clear();
+  model.images.clear();
+  model.materials.clear();
+  model.accessors.clear();
+  model.bufferViews.clear();
+  model.buffers.resize(1);
+  model.textures.clear();
+
+  uint32_t total_mat_num = 0;
+  uint32_t mat_count = 0;
+  for (size_t msh_idx = 0; msh_idx < scene.size(); msh_idx++) {
+    total_mat_num += static_cast<uint32_t>(scene[msh_idx]->materials().size());
+  }
+
+  model.materials.resize(total_mat_num);  // todo: update pbr params
+
+  for (size_t msh_idx = 0; msh_idx < scene.size(); msh_idx++) {
+    MeshPtr mesh = scene[msh_idx];
+
+    model.scenes[0].nodes.push_back(static_cast<int>(msh_idx));
+    ugu::gltf::Node node;
+    node.mesh = static_cast<uint32_t>(msh_idx);
+    node.name = std::to_string(msh_idx);  // TODO
+    model.nodes.push_back(node);
+
+    // Make .bin and update model info
+    mesh->CalcStats();  // ensure min/max
+
+    model.meshes[msh_idx].name = ExtractPathWithoutExt(glb_name);
+
+    model.meshes[msh_idx].with_blendshapes = !mesh->blendshapes().empty();
+
+    ugu::gltf::Primitive primitive;
+    int primitive_offset = 4;  // model.meshes[msh_idx].with_blendshapes ? 5 :
+                               // 4;
+    if (!mesh->keyframes().empty()) {
+      primitive_offset += 2;
+    }
+    primitive.indices = static_cast<uint32_t>(msh_idx * primitive_offset + 3);
+    primitive.material = static_cast<uint32_t>(msh_idx);
+    primitive.attributes["NORMAL"] =
+        static_cast<uint32_t>(msh_idx * primitive_offset + 1);
+    primitive.attributes["POSITION"] =
+        static_cast<uint32_t>(msh_idx * primitive_offset + 0);
+    primitive.attributes["TEXCOORD_0"] =
+        static_cast<uint32_t>(msh_idx * primitive_offset + 2);
+    model.meshes[msh_idx].primitives = {primitive};
+
+    // Prepare blendshapes
+
+    for (auto& p : model.meshes[msh_idx].primitives) {
+      p.with_blendshapes = model.meshes[msh_idx].with_blendshapes;
+    }
+    for (const auto& b : mesh->blendshapes()) {
+      model.meshes[msh_idx].blendshape_names.push_back(b.name);
+      model.meshes[msh_idx].blendshape_weights.push_back(b.weight);
+    }
+    model.meshes[msh_idx].primitives[0].blendshape_num =
+        static_cast<std::uint32_t>(mesh->blendshapes().size());
+
+    for (size_t i = 0; i < mesh->materials().size(); i++) {
+      model.materials[mat_count + i].name = mesh->materials()[i].name;
+      model.materials[mat_count + i].is_unlit = is_unlit;
+      model.materials[mat_count + i].with_alpha =
+          !mesh->materials()[i].with_alpha_tex.empty();
+      model.materials[mat_count + i]
+          .pbrMetallicRoughness.baseColorTexture.index = mat_count;
+      ugu::gltf::Texture texture;
+      texture.source = mat_count;
+      model.textures.push_back(texture);
+      mat_count++;
+    }
+#if 0
+        
+    std::vector<ObjMaterial> to_write_mats;
+
+    for (auto mat : mesh->materials()) {
+      mat.with_alpha_texpath =  + mat.with_alpha_texname;
+      mat.diffuse_texpath = gltf_dir + mat.diffuse_texname;
+      to_write_mats.push_back(mat);
+      std::string tex_name = mat.with_alpha_texname;
+      std::string tex_path = mat.with_alpha_texpath;
+      if (tex_name.empty()) {
+        tex_name = mat.diffuse_texname;
+        tex_path = mat.diffuse_texpath;
+        // Kill with_alpha
+        to_write_mats.back().with_alpha_texpath = "";
+      } else {
+        // Kill diffuse
+        to_write_mats.back().diffuse_texpath = "";
+      }
+      if (tex_name.empty()) {
+        continue;
+      }
+
+      gltf::Image image;
+      image.uri = tex_name;
+      image.name = ExtractPathWithoutExt(tex_name);
+      model.images.push_back(image);
+    }
+
+    WriteTexture(to_write_mats);
+#endif  // 0
+
+    for (auto mat : mesh->materials()) {
+      std::string tex_name = mat.with_alpha_texname;
+      std::string tex_path = mat.with_alpha_texpath;
+      if (tex_path.empty()) {
+        tex_path = tex_name;
+      }
+      if (mat.with_alpha_compressed.empty()) {
+        std::string ext = ExtractPathExt(tex_path);
+        if (ext == "png") {
+          mat.with_alpha_compressed = PngData(mat.with_alpha_tex);
+        }
+      }
+      std::vector<uint8_t> tex_data = mat.with_alpha_compressed;
+      if (tex_name.empty()) {
+        tex_name = mat.diffuse_texname;
+        tex_path = mat.diffuse_texpath;
+        if (tex_path.empty()) {
+          tex_path = tex_name;
+        }
+        if (mat.diffuse_compressed.empty()) {
+          std::string ext = ExtractPathExt(tex_path);
+          if (ext == "jpg" || ext == "jpeg") {
+            mat.diffuse_compressed = JpgData(mat.diffuse_tex);
+          }
+          else if(ext == "png") {
+            mat.diffuse_compressed = PngData(mat.diffuse_tex);
+          }
+        }
+        tex_data = mat.diffuse_compressed;
+      }
+      if (tex_name.empty()) {
+        continue;
+      }
+
+      gltf::Image image;
+      image.is_glb = true;
+      std::string ext = ExtractPathExt(tex_path);
+      if (ext == "jpg" || ext == "jpeg") {
+        image.mimeType = "image/jpeg";
+      } else if (ext == "png") {
+        image.mimeType = "image/png";
+      } else {
+        LOGE("ext %s is not supported\n", ext.c_str());
+        continue;
+      }
+
+      image.name = ExtractPathWithoutExt(tex_name);
+      if (tex_data.empty()) {
+        // Read jpeg or png data
+        std::ifstream ifs(tex_path, std::ios::in | std::ios::binary);
+        // Get size
+        ifs.seekg(0, std::ios::end);
+        long long int size = ifs.tellg();
+        ifs.seekg(0);
+        // Read binary
+        image.data.resize(size);
+        ifs.read(reinterpret_cast<char*>(image.data.data()), size);
+      } else {
+        // Copy from memory
+        image.data = std::move(tex_data);
+      }
+
+      model.images.push_back(image);
+    }
+
+    std::string bin_name = glb_name + ".bin";
+    MakeGltfBinAndUpdateModel(*mesh, bin_name, true, model, bin_all, false);
+  }
+
+  uint32_t num_bv = static_cast<uint32_t>(model.bufferViews.size());
+  uint32_t total_size = static_cast<uint32_t>(bin_all.size());
+  uint32_t org_total_size = total_size;
+  std::vector<std::vector<std::uint8_t>> bytes_list;
+  if (true) {
+    model.buffers[0].is_glb = true;
+
+    for (auto& image : model.images) {
+      if (image.glb_processed) {
+        continue;
+      }
+
+      image.is_glb = true;
+      image.glb_processed = true;
+      image.bufferView = num_bv;
+
+      // Does not need accessor for image
+      // BufferView and mimeType are enough for decoding
+      gltf::BufferView bv;
+      bv.buffer = 0;
+      // Image data should be last of buffer
+      // Otherwise you may get ""ACCESSOR_TOTAL_OFFSET_ALIGNMENT" Accessor's
+      // total byteOffset XXXX isn't a multiple of componentType length 4." for
+      // other (e.g. vertices) bufferViews
+      bv.byteLength = static_cast<int>(image.data.size());
+      bv.byteOffset = static_cast<std::uint32_t>(total_size);
+      total_size += bv.byteLength;
+      model.bufferViews.push_back(bv);
+
+      bytes_list.push_back(image.data);
+
+      num_bv++;
+    }
+
+  } else {
+    model.buffers[0].is_glb = false;
+    model.buffers[0].uri = bin_name;
+  }
+
+  model.buffers[0].byteLength = static_cast<std::uint32_t>(total_size);
+
+  bin_all.resize(total_size);
+  size_t offset = org_total_size;
+  for (auto& bytes : bytes_list) {
+    bin_all.insert(bin_all.begin() + offset, bytes.begin(), bytes.end());
+    offset += bytes.size();
+  }
+
+  gltf::Chunk bin_chunk{0x004E4942, bin_all};  // 0x004E4942 -> "BIN" in ASCII
+  std::vector<std::uint8_t> bin_bin = gltf::ChunkToBin(bin_chunk);
+
+  // Make json
+  std::string json_string = gltf::WriteGltfJsonToString(model);
+
+  std::vector<std::uint8_t> json_bytes(json_string.size());
+  std::memcpy(json_bytes.data(), json_string.c_str(), json_string.size());
+  gltf::Chunk json_chunk{0x4E4F534A,
+                         json_bytes};  // 0x4E4F534A	-> "JSON" in ASCII
+  std::vector<std::uint8_t> json_bin = gltf::ChunkToBin(json_chunk);
+
+  std::uint32_t magic = 0x46546C67;  //  0x46546C67 -> "glTF"in ASCII
+  std::uint32_t version = 2;
+  int header_size = 12;
+  std::uint32_t length = static_cast<std::uint32_t>(
+      header_size + json_bin.size() + bin_bin.size());
+  std::vector<std::uint8_t> header(header_size);
+  std::memcpy(header.data(), &magic, 4);
+  std::memcpy(header.data() + 4, &version, 4);
+  std::memcpy(header.data() + 8, &length, 4);
+
+  std::vector<std::uint8_t> combined(length);
+  std::memcpy(combined.data(), header.data(), header_size);
+  std::memcpy(combined.data() + header_size, json_bin.data(), json_bin.size());
+  std::memcpy(combined.data() + header_size + json_bin.size(), bin_bin.data(),
+              bin_bin.size());
+
+  std::ofstream glb_out(glb_dir + glb_name,
+                        std::ios::out | std::ios::binary | std::ios::trunc);
+  glb_out.write(reinterpret_cast<char*>(combined.data()), length);
+
   return true;
+#else
+
+  return false;
+#endif
 }
 
 }  // namespace ugu

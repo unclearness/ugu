@@ -167,6 +167,7 @@ struct Image {
   std::string uri = "untitled.jpg";
 
   bool is_glb = false;
+  bool glb_processed = false;
   std::uint32_t bufferView = 0;
   std::string mimeType = "image/jpeg";
   std::vector<std::uint8_t> data;
@@ -374,7 +375,8 @@ void MakeGltfBinAndUpdateModel(
     const std::vector<std::vector<Eigen::Vector3f>>& blendshape_normals,
     //  bool with_alpha,
     std::map<float, AnimKeyframe> keyframes, AnimInterp anim_interp,
-    Model& model, std::vector<std::uint8_t>& combined_bytes) {
+    Model& model, std::vector<std::uint8_t>& combined_bytes,
+    bool process_glb_images = true) {
   uint32_t org_total_size = static_cast<uint32_t>(combined_bytes.size());
   uint32_t total_size = org_total_size;
   uint32_t org_num_accs = static_cast<uint32_t>(model.accessors.size());
@@ -578,26 +580,33 @@ void MakeGltfBinAndUpdateModel(
   if (is_glb) {
     model.buffers[0].is_glb = true;
 
-    for (auto& image : model.images) {
-      image.is_glb = true;
-      image.bufferView = num_bv;
+    if (process_glb_images) {
+      for (auto& image : model.images) {
+        if (image.glb_processed) {
+          continue;
+        }
 
-      // Does not need accessor for image
-      // BufferView and mimeType are enough for decoding
-      BufferView bv;
-      bv.buffer = 0;
-      // Image data should be last of buffer
-      // Otherwise you may get ""ACCESSOR_TOTAL_OFFSET_ALIGNMENT" Accessor's
-      // total byteOffset XXXX isn't a multiple of componentType length 4." for
-      // other (e.g. vertices) bufferViews
-      bv.byteLength = static_cast<int>(image.data.size());
-      bv.byteOffset = static_cast<std::uint32_t>(total_size);
-      total_size += bv.byteLength;
-      model.bufferViews.push_back(bv);
+        image.is_glb = true;
+        image.glb_processed = true;
+        image.bufferView = num_bv;
 
-      bytes_list.push_back(image.data);
+        // Does not need accessor for image
+        // BufferView and mimeType are enough for decoding
+        BufferView bv;
+        bv.buffer = 0;
+        // Image data should be last of buffer
+        // Otherwise you may get ""ACCESSOR_TOTAL_OFFSET_ALIGNMENT" Accessor's
+        // total byteOffset XXXX isn't a multiple of componentType length 4."
+        // for other (e.g. vertices) bufferViews
+        bv.byteLength = static_cast<int>(image.data.size());
+        bv.byteOffset = static_cast<std::uint32_t>(total_size);
+        total_size += bv.byteLength;
+        model.bufferViews.push_back(bv);
 
-      num_bv++;
+        bytes_list.push_back(image.data);
+
+        num_bv++;
+      }
     }
 
   } else {
@@ -623,7 +632,8 @@ void MakeGltfBinAndUpdateModel(
 void MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
                                const std::string& bin_name, bool is_glb,
                                Model& model,
-                               std::vector<std::uint8_t>& combined_bytes) {
+                               std::vector<std::uint8_t>& combined_bytes,
+                               bool process_glb_images = true) {
   // Flip v
   auto gltf_uvs = mesh.uv();
   for (auto& uv : gltf_uvs) {
@@ -643,7 +653,7 @@ void MakeGltfBinAndUpdateModel(const ugu::Mesh& mesh,
       mesh.vertices(), mesh.stats().bb_max, mesh.stats().bb_min, mesh.normals(),
       gltf_uvs, mesh.vertex_indices(), bin_name, is_glb, blendshape_vertices,
       blendshape_normals, mesh.keyframes(), mesh.anim_interp(), model,
-      combined_bytes);
+      combined_bytes, process_glb_images);
 }
 
 }  // namespace gltf
