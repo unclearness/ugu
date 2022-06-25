@@ -6,6 +6,7 @@
 #pragma once
 
 #include <array>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -57,8 +58,41 @@ struct Blendshape {
   std::vector<Eigen::Vector3f> normals;
 };
 
+enum class AnimInterp { LINEAR, NN };
+
+struct AnimKeyframe {
+  bool R_valid = false;
+  bool t_valid = false;
+  bool s_valid = false;
+  bool weights_valid = false;
+
+  Eigen::Quaternionf q = Eigen::Quaternionf::Identity();
+  Eigen::Vector3f t = Eigen::Vector3f::Zero();
+  float s = 1.f;
+
+  std::vector<float> weights;
+
+  bool valid() const { return R_valid & t_valid & s_valid & weights_valid; }
+};
+
 class Mesh;
 using MeshPtr = std::shared_ptr<Mesh>;
+
+
+#if 0
+				class AnimationSystem {
+private:
+  std::vector<MeshPtr> meshes_;
+  std::unordered_map<MeshPtr, std::map<uint32_t, AnimKeyframe>> keyframes_;
+  uint32_t fps_ = 30;
+  AnimInterp anim_interp_ = AnimInterp::LINEAR;
+
+public:
+  
+};
+#endif  // 0
+
+
 
 class Mesh {
   std::vector<Eigen::Vector3f> vertices_;
@@ -83,6 +117,11 @@ class Mesh {
   MeshStats stats_;
 
   std::vector<Blendshape> blendshapes_;
+
+  // To keep key (sec.) order, use map
+  std::map<float, AnimKeyframe> keyframes_;
+  //uint32_t fps_ = 30;
+  AnimInterp anim_interp_ = AnimInterp::LINEAR;
 
  public:
   Mesh();
@@ -118,6 +157,8 @@ class Mesh {
   const std::vector<ObjMaterial>& materials() const;
   const std::vector<std::vector<int>>& face_indices_per_material() const;
   const std::vector<Blendshape>& blendshapes() const;
+  const std::map<float, AnimKeyframe>& keyframes() const;
+  const AnimInterp& anim_interp() const;
 
   bool set_vertices(const std::vector<Eigen::Vector3f>& vertices);
   bool set_vertex_colors(const std::vector<Eigen::Vector3f>& vertex_colors);
@@ -133,6 +174,8 @@ class Mesh {
   bool set_face_indices_per_material(
       const std::vector<std::vector<int>>& face_indices_per_material);
   bool set_blendshapes(const std::vector<Blendshape>& blendshapes);
+  bool set_keyframes(const std::map<float, AnimKeyframe>& keyframes);
+  bool set_anim_interp(const AnimInterp& anim_interp);
 
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);
   bool LoadPly(const std::string& ply_path);
@@ -156,6 +199,17 @@ class Mesh {
   bool SplitMultipleUvVertices();
 
   bool FlipFaces();
+
+  bool AnimatedShape(float frame, std::vector<Eigen::Vector3f>& anim_verts,
+                     std::vector<Eigen::Vector3f>& anim_normals,
+                     const AnimInterp& anim_interp = AnimInterp::LINEAR);
 };
+
+// TODO: Scene graph
+using Scene = std::vector<MeshPtr>;
+bool WriteGltfSeparate(Scene& scene, const std::string& gltf_dir,
+                       const std::string& gltf_basename, bool is_unlit = false);
+bool WriteGlb(Scene& scene, const std::string& glb_dir, const std::string& glb_name,
+              bool is_unlit = false);
 
 }  // namespace ugu
