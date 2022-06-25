@@ -1642,7 +1642,7 @@ bool WriteGltfSeparate(Scene& scene, const std::string& gltf_dir,
     int primitive_offset = 4;  // model.meshes[msh_idx].with_blendshapes ? 5 :
                                // 4;
     if (!mesh->keyframes().empty()) {
-      primitive_offset += 2;
+      primitive_offset += 4;
     }
     primitive.indices = static_cast<uint32_t>(msh_idx * primitive_offset + 3);
     primitive.material = static_cast<uint32_t>(msh_idx);
@@ -1780,7 +1780,7 @@ bool WriteGlb(Scene& scene, const std::string& glb_dir,
     int primitive_offset = 4;  // model.meshes[msh_idx].with_blendshapes ? 5 :
                                // 4;
     if (!mesh->keyframes().empty()) {
-      primitive_offset += 2;
+      primitive_offset += 4;
     }
     primitive.indices = static_cast<uint32_t>(msh_idx * primitive_offset + 3);
     primitive.material = static_cast<uint32_t>(msh_idx);

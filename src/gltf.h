@@ -506,75 +506,155 @@ void MakeGltfBinAndUpdateModel(
       model.animations.resize(1);
     }
 
-    std::vector<float> input;
-    std::vector<Eigen::Vector3f> output;
-
-    for (const auto& kf : keyframes) {
-      input.push_back(kf.first);
-      Eigen::Vector3f uni_scale(kf.second.s, kf.second.s, kf.second.s);
-      output.push_back(uni_scale);
-    }
-
-    Accessor input_acc, output_acc;
-    BufferView input_bv, output_bv;
-
-    input_acc.componentType = 5126;
-    input_acc.count = static_cast<std::uint32_t>(keyframes.size());
-    input_acc.type = "SCALAR";
-    input_acc.bufferView = num_bv;
-    num_bv++;
-    input_acc.write_minmax = true;
-    auto min_max_t = std::minmax_element(input.begin(), input.end());
-    input_acc.max.resize(1);
-    input_acc.min.resize(1);
-    input_acc.max[0] = *min_max_t.second;
-    input_acc.min[0] = *min_max_t.first;
-    model.accessors.push_back(input_acc);
-
-    // TODO: scale case only
-    output_acc.componentType = 5126;
-    output_acc.count = static_cast<std::uint32_t>(keyframes.size());
-    output_acc.type = "VEC3";
-    output_acc.bufferView = num_bv;
-    num_bv++;
-    model.accessors.push_back(output_acc);
-
-    input_bv.buffer = 0;
-    size_t input_bv_size = input.size() * sizeof(float) * 1;
-    std::vector<std::uint8_t> input_bv_bytes(input_bv_size);
-    std::memcpy(input_bv_bytes.data(), input.data(), input_bv_size);
-    input_bv.byteLength = static_cast<std::uint32_t>(input_bv_size);
-    input_bv.byteOffset = static_cast<std::uint32_t>(total_size);
-    total_size += input_bv.byteLength;
-    model.bufferViews.push_back(input_bv);
-    bytes_list.push_back(input_bv_bytes);
-
-    output_bv.buffer = 0;
-    size_t output_bv_size = output.size() * sizeof(float) * 3;
-    std::vector<std::uint8_t> output_bv_bytes(output_bv_size);
-    std::memcpy(output_bv_bytes.data(), output.data(), output_bv_size);
-    output_bv.byteLength = static_cast<std::uint32_t>(output_bv_size);
-    output_bv.byteOffset = static_cast<std::uint32_t>(total_size);
-    total_size += output_bv.byteLength;
-    model.bufferViews.push_back(output_bv);
-    bytes_list.push_back(output_bv_bytes);
-
-    gltf::Channel channel;
-    channel.sampler = static_cast<int>(model.animations[0].samplers.size());
-
-    // TODO
+      // TODO
     /* DANGER static */
     static int anim_node_count = 0;
-    channel.target.node = anim_node_count;
-    anim_node_count++;
-    channel.target.path = "scale";
 
-    gltf::Sampler sampler;
-    sampler.input = static_cast<int>(model.accessors.size() - 2);
-    sampler.output = static_cast<int>(model.accessors.size() - 1);
-    sampler.interpolation = "STEP";
-    model.animations[0].channels.push_back(channel);
-    model.animations[0].samplers.push_back(sampler);
+    // SCALE
+    {
+      std::vector<float> input;
+      std::vector<Eigen::Vector3f> output;
+
+      for (const auto& kf : keyframes) {
+        input.push_back(kf.first);
+        Eigen::Vector3f uni_scale(kf.second.s, kf.second.s, kf.second.s);
+        output.push_back(uni_scale);
+      }
+
+      Accessor input_acc, output_acc;
+      BufferView input_bv, output_bv;
+
+      input_acc.componentType = 5126;
+      input_acc.count = static_cast<std::uint32_t>(keyframes.size());
+      input_acc.type = "SCALAR";
+      input_acc.bufferView = num_bv;
+      num_bv++;
+      input_acc.write_minmax = true;
+      auto min_max_t = std::minmax_element(input.begin(), input.end());
+      input_acc.max.resize(1);
+      input_acc.min.resize(1);
+      input_acc.max[0] = *min_max_t.second;
+      input_acc.min[0] = *min_max_t.first;
+      model.accessors.push_back(input_acc);
+
+      // TODO: scale case only
+      output_acc.componentType = 5126;
+      output_acc.count = static_cast<std::uint32_t>(keyframes.size());
+      output_acc.type = "VEC3";
+      output_acc.bufferView = num_bv;
+      num_bv++;
+      model.accessors.push_back(output_acc);
+
+      input_bv.buffer = 0;
+      size_t input_bv_size = input.size() * sizeof(float) * 1;
+      std::vector<std::uint8_t> input_bv_bytes(input_bv_size);
+      std::memcpy(input_bv_bytes.data(), input.data(), input_bv_size);
+      input_bv.byteLength = static_cast<std::uint32_t>(input_bv_size);
+      input_bv.byteOffset = static_cast<std::uint32_t>(total_size);
+      total_size += input_bv.byteLength;
+      model.bufferViews.push_back(input_bv);
+      bytes_list.push_back(input_bv_bytes);
+
+      output_bv.buffer = 0;
+      size_t output_bv_size = output.size() * sizeof(float) * 3;
+      std::vector<std::uint8_t> output_bv_bytes(output_bv_size);
+      std::memcpy(output_bv_bytes.data(), output.data(), output_bv_size);
+      output_bv.byteLength = static_cast<std::uint32_t>(output_bv_size);
+      output_bv.byteOffset = static_cast<std::uint32_t>(total_size);
+      total_size += output_bv.byteLength;
+      model.bufferViews.push_back(output_bv);
+      bytes_list.push_back(output_bv_bytes);
+
+      gltf::Channel channel;
+      channel.sampler = static_cast<int>(model.animations[0].samplers.size());
+
+
+      channel.target.node = anim_node_count;
+      //anim_node_count++;
+      channel.target.path = "scale";
+
+      gltf::Sampler sampler;
+      sampler.input = static_cast<int>(model.accessors.size() - 2);
+      sampler.output = static_cast<int>(model.accessors.size() - 1);
+      sampler.interpolation = "STEP";
+      model.animations[0].channels.push_back(channel);
+      model.animations[0].samplers.push_back(sampler);
+
+    }
+
+
+
+    // Translation
+    {
+      std::vector<float> input;
+      std::vector<Eigen::Vector3f> output;
+
+      for (const auto& kf : keyframes) {
+        input.push_back(kf.first);
+        output.push_back(kf.second.t);
+      }
+
+      Accessor input_acc, output_acc;
+      BufferView input_bv, output_bv;
+
+      input_acc.componentType = 5126;
+      input_acc.count = static_cast<std::uint32_t>(keyframes.size());
+      input_acc.type = "SCALAR";
+      input_acc.bufferView = num_bv;
+      num_bv++;
+      input_acc.write_minmax = true;
+      auto min_max_t = std::minmax_element(input.begin(), input.end());
+      input_acc.max.resize(1);
+      input_acc.min.resize(1);
+      input_acc.max[0] = *min_max_t.second;
+      input_acc.min[0] = *min_max_t.first;
+      model.accessors.push_back(input_acc);
+
+      // TODO: scale case only
+      output_acc.componentType = 5126;
+      output_acc.count = static_cast<std::uint32_t>(keyframes.size());
+      output_acc.type = "VEC3";
+      output_acc.bufferView = num_bv;
+      num_bv++;
+      model.accessors.push_back(output_acc);
+
+      input_bv.buffer = 0;
+      size_t input_bv_size = input.size() * sizeof(float) * 1;
+      std::vector<std::uint8_t> input_bv_bytes(input_bv_size);
+      std::memcpy(input_bv_bytes.data(), input.data(), input_bv_size);
+      input_bv.byteLength = static_cast<std::uint32_t>(input_bv_size);
+      input_bv.byteOffset = static_cast<std::uint32_t>(total_size);
+      total_size += input_bv.byteLength;
+      model.bufferViews.push_back(input_bv);
+      bytes_list.push_back(input_bv_bytes);
+
+      output_bv.buffer = 0;
+      size_t output_bv_size = output.size() * sizeof(float) * 3;
+      std::vector<std::uint8_t> output_bv_bytes(output_bv_size);
+      std::memcpy(output_bv_bytes.data(), output.data(), output_bv_size);
+      output_bv.byteLength = static_cast<std::uint32_t>(output_bv_size);
+      output_bv.byteOffset = static_cast<std::uint32_t>(total_size);
+      total_size += output_bv.byteLength;
+      model.bufferViews.push_back(output_bv);
+      bytes_list.push_back(output_bv_bytes);
+
+      gltf::Channel channel;
+      channel.sampler = static_cast<int>(model.animations[0].samplers.size());
+
+      channel.target.node = anim_node_count;
+      channel.target.path = "translation";
+
+      gltf::Sampler sampler;
+      sampler.input = static_cast<int>(model.accessors.size() - 2);
+      sampler.output = static_cast<int>(model.accessors.size() - 1);
+      sampler.interpolation = "STEP";
+      model.animations[0].channels.push_back(channel);
+      model.animations[0].samplers.push_back(sampler);
+    }
+
+      anim_node_count++;
+
+
   }
 
   if (is_glb) {
