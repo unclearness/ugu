@@ -1113,6 +1113,8 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
 
   std::string bin_name = gltf_basename + ".bin";
   std::vector<std::uint8_t> bin;
+  model.accessors.clear();
+  model.bufferViews.clear();
   MakeGltfBinAndUpdateModel(*this, bin_name, false, model, bin);
 
   // Write .bin
@@ -1244,6 +1246,8 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name,
 
   std::string bin_name = glb_name + ".bin";
   std::vector<std::uint8_t> bin;
+  model.accessors.clear();
+  model.bufferViews.clear();
   MakeGltfBinAndUpdateModel(*this, bin_name, true, model, bin);
 
   gltf::Chunk bin_chunk{0x004E4942, bin};  // 0x004E4942 -> "BIN" in ASCII
