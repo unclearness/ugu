@@ -483,6 +483,11 @@ bool Mesh::set_single_material(const ObjMaterial& material) {
   return true;
 }
 
+bool Mesh::set_default_material() {
+  const static auto default_mat = ObjMaterial();
+  return set_single_material(default_mat);
+}
+
 bool Mesh::set_blendshapes(const std::vector<Blendshape>& blendshapes) {
   CopyVec(blendshapes, &blendshapes_);
   return true;
@@ -1875,8 +1880,7 @@ bool WriteGlb(Scene& scene, const std::string& glb_dir,
           std::string ext = ExtractPathExt(tex_path);
           if (ext == "jpg" || ext == "jpeg") {
             mat.diffuse_compressed = JpgData(mat.diffuse_tex);
-          }
-          else if(ext == "png") {
+          } else if (ext == "png") {
             mat.diffuse_compressed = PngData(mat.diffuse_tex);
           }
         }

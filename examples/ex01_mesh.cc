@@ -17,6 +17,8 @@
 #include "ugu/util/raster_util.h"
 #include "ugu/util/rgbd_util.h"
 
+namespace {
+
 inline std::vector<std::string> Split(const std::string& s, char delim) {
   std::vector<std::string> elems;
   std::stringstream ss(s);
@@ -388,7 +390,30 @@ void TestRayInteresection() {
   tmp->WritePly("intersected.ply");
 }
 
+void TestMakeGeom() {
+  std::string data_dir = "../data/";
+  auto cone = ugu::MakeCone(0.5f, 1.f);
+  cone->WriteObj(data_dir, "cone");
+
+  auto cylinder = ugu::MakeCylinder(0.5f, 1.f);
+  cylinder->WriteObj(data_dir, "cylinder");
+
+  ugu::ObjMaterial cylinder_mat, cone_mat;
+  cylinder_mat.diffuse = {0.f, 1.f, 0.f};
+  cone_mat.diffuse = {1.f, 0.f, 1.f};
+  auto arrow =
+      ugu::MakeArrow(0.1f, 1.f, 0.2f, 0.2f, 30, 30, cylinder_mat, cone_mat);
+  arrow->WriteObj(data_dir, "arrow");
+
+  auto origin = ugu::MakeOrigin(1.f);
+  origin->WriteObj(data_dir, "origin");
+}
+
+}  // namespace
+
 int main() {
+  TestMakeGeom();
+
   TestRayInteresection();
 
   TestDecimation();

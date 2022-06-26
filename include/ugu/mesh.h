@@ -171,6 +171,7 @@ class Mesh {
   bool set_material_ids(const std::vector<int>& material_ids);
   bool set_materials(const std::vector<ObjMaterial>& materials);
   bool set_single_material(const ObjMaterial& material);
+  bool set_default_material();
   bool set_face_indices_per_material(
       const std::vector<std::vector<int>>& face_indices_per_material);
   bool set_blendshapes(const std::vector<Blendshape>& blendshapes);

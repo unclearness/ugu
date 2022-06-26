@@ -54,6 +54,17 @@ MeshPtr MakeTexturedPlane(
     const Eigen::Matrix3f& R = Eigen::Matrix3f::Identity(),
     const Eigen::Vector3f& t = Eigen::Vector3f::Zero());
 
+MeshPtr MakeCircle(float r, uint32_t n_slices = 20);
+MeshPtr MakeCone(float r, float height, uint32_t n_slices = 20);
+MeshPtr MakeCylinder(float r, float height, uint32_t n_slices = 20);
+MeshPtr MakeArrow(float cylibder_r, float cylinder_height, float cone_r,
+                  float cone_height, uint32_t cylinder_slices = 20,
+                  uint32_t cone_slices = 20,
+                  const ObjMaterial& cylinder_mat = ObjMaterial(),
+                  const ObjMaterial& cone_mat = ObjMaterial());
+MeshPtr MakeOrigin(float size, int32_t cylinder_slices = 30,
+                   uint32_t cone_slices = 30);
+
 void SetRandomUniformVertexColor(MeshPtr mesh, int seed = 0);
 void SetRandomVertexColor(MeshPtr mesh, int seed = 0);
 

@@ -674,6 +674,182 @@ MeshPtr MakePlane(float length, const Eigen::Matrix3f& R,
   return MakePlane(Eigen::Vector2f(length, length), R, t);
 }
 
+MeshPtr MakeCircle(float r, uint32_t n_slices) {
+  MeshPtr mesh = std::make_shared<Mesh>();
+  std::vector<Eigen::Vector3f> vertices;
+  std::vector<Eigen::Vector2f> uvs;
+  std::vector<Eigen::Vector3i> indices;
+
+  vertices.emplace_back(Eigen::Vector3f(0.f, 0.f, 0.f));
+  uvs.emplace_back(Eigen::Vector2f(0.5f, 0.5f));
+
+  // Generate vertices per stack / slice
+  for (int j = 0; j < n_slices; j++) {
+    double theta = 2.0 * ugu::pi * double(j) / double(n_slices);
+    double x = std::cos(theta);
+    double y = std::sin(theta);
+    vertices.push_back(Eigen::Vector3f(static_cast<float>(x) * r,
+                                       static_cast<float>(y) * r, 0.f));
+    uvs.push_back({x + 1.f, y + 1.f});
+  }
+
+  for (uint32_t i = 0; i < n_slices - 1; i++) {
+    int i0 = 0;
+    int i1 = static_cast<int>(i + 1) + 0;
+    int i2 = static_cast<int>(i + 1) + 1;
+    indices.push_back({i0, i1, i2});
+  }
+  indices.push_back({0, static_cast<int>(n_slices), 1});
+
+  mesh->set_vertices(vertices);
+  mesh->set_vertex_indices(indices);
+  mesh->set_uv(uvs);
+  mesh->set_uv_indices(indices);
+
+  mesh->set_default_material();
+
+  mesh->CalcNormal();
+
+  mesh->CalcStats();
+
+  return mesh;
+}
+
+MeshPtr MakeCone(float r, float height, uint32_t n_slices) {
+  MeshPtr cone = std::make_shared<Mesh>();
+  MeshPtr circle = MakeCircle(r, n_slices);
+  circle->FlipFaces();
+  std::vector<Eigen::Vector3f> vertices = circle->vertices();
+  std::vector<Eigen::Vector2f> uvs = circle->uv();
+  std::vector<Eigen::Vector3i> indices = circle->vertex_indices();
+
+  vertices.emplace_back(Eigen::Vector3f(0.f, 0.f, height));
+  uvs.emplace_back(Eigen::Vector2f(0.5f, 0.5f));
+
+  // Side
+  for (uint32_t i = 0; i < n_slices - 1; i++) {
+    int i0 = static_cast<int>(n_slices + 1);
+    int i1 = static_cast<int>(i + 1) + 0;
+    int i2 = static_cast<int>(i + 1) + 1;
+    indices.push_back({i0, i1, i2});
+  }
+  indices.push_back(
+      {1, static_cast<int>(n_slices + 1), static_cast<int>(n_slices)});
+
+  cone->set_vertices(vertices);
+  cone->set_vertex_indices(indices);
+  cone->set_uv(uvs);
+  cone->set_uv_indices(indices);
+
+  cone->set_default_material();
+
+  cone->CalcNormal();
+
+  cone->CalcStats();
+
+  return cone;
+}
+
+MeshPtr MakeCylinder(float r, float height, uint32_t n_slices) {
+  auto top = MakeCircle(r, n_slices);
+  auto bottom = MakeCircle(r, n_slices);
+  top->FlipFaces();
+  bottom->Translate({0.f, 0.f, height});
+
+#if 1
+  std::vector<Eigen::Vector3f> vertices = top->vertices();
+  std::copy(bottom->vertices().begin(), bottom->vertices().end(),
+            std::back_inserter(vertices));
+
+  std::vector<Eigen::Vector3i> indices = top->vertex_indices();
+  size_t offset = top->vertices().size();
+  for (const auto& bi : bottom->vertex_indices()) {
+    Eigen::Vector3i new_i = bi;
+    new_i += Eigen::Vector3i::Constant(static_cast<int>(offset));
+    indices.push_back(new_i);
+  }
+#endif  // 0
+
+  // Side
+  for (int i = 0; i < static_cast<int>(n_slices - 1); i++) {
+    int i0 = i + 1;
+    int i1 = i + 1 + 1;
+    int i2 = static_cast<int>(offset) + i + 1;
+    int i3 = static_cast<int>(offset) + i + 1 + 1;
+
+    indices.push_back({i0, i1, i2});
+    indices.push_back({i2, i1, i3});
+  }
+  indices.push_back({static_cast<int>(n_slices), static_cast<int>(1),
+                     static_cast<int>(offset + 1)});
+  indices.push_back({static_cast<int>(n_slices), static_cast<int>(offset + 1),
+                     static_cast<int>(offset + n_slices)});
+
+  MeshPtr mesh = Mesh::Create();
+  mesh->set_vertices(vertices);
+  mesh->set_vertex_indices(indices);
+
+  mesh->set_default_material();
+
+  mesh->CalcNormal();
+
+  mesh->CalcStats();
+
+  return mesh;
+}
+
+MeshPtr MakeArrow(float cylibder_r, float cylinder_height, float cone_r,
+                  float cone_height, uint32_t cylinder_slices,
+                  uint32_t cone_slices, const ObjMaterial& cylinder_mat,
+                  const ObjMaterial& cone_mat) {
+  auto cylinder = MakeCylinder(cylibder_r, cylinder_height, cylinder_slices);
+  auto cone = MakeCone(cone_r, cone_height, cone_slices);
+  cone->Translate({0.f, 0.f, cylinder_height});
+  cone->set_uv({});
+  cone->set_uv_indices({});
+
+  cylinder->set_single_material(cylinder_mat);
+  cone->set_single_material(cone_mat);
+
+  auto mesh = Mesh::Create();
+
+  MergeMeshes(*cylinder, *cone, mesh.get());
+
+  return mesh;
+}
+
+MeshPtr MakeOrigin(float size, int32_t cylinder_slices, uint32_t cone_slices) {
+  const float cylibder_r = size * 0.05f;
+  const float cylinder_height = size * 0.8;
+  const float cone_r = size * 0.1f;
+  const float cone_height = size * 0.2f;
+
+  ObjMaterial x_mat, y_mat, z_mat;
+
+  x_mat.diffuse = {1.f, 0.f, 0.f};
+  y_mat.diffuse = {0.f, 1.f, 0.f};
+  z_mat.diffuse = {0.f, 0.f, 1.f};
+
+  auto x = MakeArrow(cylibder_r, cylinder_height, cone_r, cone_height,
+                     cylinder_slices, cone_slices, x_mat, x_mat);
+  x->Rotate(Eigen::AngleAxisf(radians(90.f), Eigen::Vector3f(0.f, 1.f, 0.f))
+                .matrix());
+
+  auto y = MakeArrow(cylibder_r, cylinder_height, cone_r, cone_height,
+                     cylinder_slices, cone_slices, y_mat, y_mat);
+  y->Rotate(Eigen::AngleAxisf(radians(-90.f), Eigen::Vector3f(1.f, 0.f, 0.f))
+                .matrix());
+
+  auto z = MakeArrow(cylibder_r, cylinder_height, cone_r, cone_height,
+                     cylinder_slices, cone_slices, z_mat, z_mat);
+
+  auto mesh = Mesh::Create();
+
+  MergeMeshes({x, y, z}, mesh.get());
+
+  return mesh;
+}
+
 void SetRandomVertexColor(MeshPtr mesh, int seed) {
   std::mt19937 mt(seed);
   std::uniform_int_distribution<int> random_color(0, 255);
