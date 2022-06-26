@@ -407,6 +407,11 @@ void TestMakeGeom() {
 
   auto origin = ugu::MakeOrigin(1.f);
   origin->WriteObj(data_dir, "origin");
+
+  std::vector<Eigen::Affine3d> poses;
+  ugu::LoadTumFormat("../data/bunny/tumpose.txt", &poses);
+  auto trajectory = ugu::MakeTrajectoryGeom(poses, 100.f);
+  trajectory->WriteObj(data_dir, "tumpose");
 }
 
 }  // namespace

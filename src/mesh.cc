@@ -276,6 +276,10 @@ void Mesh::Transform(const Eigen::Matrix3f& R, const Eigen::Vector3f& t) {
   Translate(t);
 }
 
+void Mesh::Transform(const Eigen::Affine3f& T) {
+  Transform(T.rotation(), T.translation());
+}
+
 void Mesh::Scale(float scale) { Scale(scale, scale, scale); }
 
 void Mesh::Scale(float x_scale, float y_scale, float z_scale) {

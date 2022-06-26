@@ -684,7 +684,7 @@ MeshPtr MakeCircle(float r, uint32_t n_slices) {
   uvs.emplace_back(Eigen::Vector2f(0.5f, 0.5f));
 
   // Generate vertices per stack / slice
-  for (int j = 0; j < n_slices; j++) {
+  for (int j = 0; j < static_cast<int>(n_slices); j++) {
     double theta = 2.0 * ugu::pi * double(j) / double(n_slices);
     double x = std::cos(theta);
     double y = std::sin(theta);
@@ -818,9 +818,9 @@ MeshPtr MakeArrow(float cylibder_r, float cylinder_height, float cone_r,
   return mesh;
 }
 
-MeshPtr MakeOrigin(float size, int32_t cylinder_slices, uint32_t cone_slices) {
+MeshPtr MakeOrigin(float size, uint32_t cylinder_slices, uint32_t cone_slices) {
   const float cylibder_r = size * 0.05f;
-  const float cylinder_height = size * 0.8;
+  const float cylinder_height = size * 0.8f;
   const float cone_r = size * 0.1f;
   const float cone_height = size * 0.2f;
 
@@ -848,6 +848,36 @@ MeshPtr MakeOrigin(float size, int32_t cylinder_slices, uint32_t cone_slices) {
   MergeMeshes({x, y, z}, mesh.get());
 
   return mesh;
+}
+
+MeshPtr MakeTrajectoryGeom(const std::vector<Eigen::Affine3f>& c2w_list,
+                           float size, uint32_t cylinder_slices,
+                           uint32_t cone_slices) {
+  auto trajectory = Mesh::Create();
+  std::vector<MeshPtr> meshes;
+  for (const auto& c2w : c2w_list) {
+    auto cam = MakeOrigin(size, cylinder_slices, cone_slices);
+
+    Eigen::Affine3f T = c2w;
+
+    cam->Transform(T);
+
+    meshes.push_back(cam);
+  }
+
+  MergeMeshes(meshes, trajectory.get());
+
+  return trajectory;
+}
+
+MeshPtr MakeTrajectoryGeom(const std::vector<Eigen::Affine3d>& c2w_list,
+                           float size, uint32_t cylinder_slices,
+                           uint32_t cone_slices) {
+  std::vector<Eigen::Affine3f> c2w_list_f;
+  for (const auto& c2w : c2w_list) {
+    c2w_list_f.push_back(c2w.cast<float>());
+  }
+  return MakeTrajectoryGeom(c2w_list_f, size, cylinder_slices, cone_slices);
 }
 
 void SetRandomVertexColor(MeshPtr mesh, int seed) {

@@ -62,8 +62,14 @@ MeshPtr MakeArrow(float cylibder_r, float cylinder_height, float cone_r,
                   uint32_t cone_slices = 20,
                   const ObjMaterial& cylinder_mat = ObjMaterial(),
                   const ObjMaterial& cone_mat = ObjMaterial());
-MeshPtr MakeOrigin(float size, int32_t cylinder_slices = 30,
-                   uint32_t cone_slices = 30);
+MeshPtr MakeOrigin(float size, uint32_t cylinder_slices = 20,
+                   uint32_t cone_slices = 20);
+MeshPtr MakeTrajectoryGeom(const std::vector<Eigen::Affine3f>& c2w_list,
+                           float size, uint32_t cylinder_slices = 20,
+                           uint32_t cone_slices = 20);
+MeshPtr MakeTrajectoryGeom(const std::vector<Eigen::Affine3d>& c2w_list,
+                           float size, uint32_t cylinder_slices = 20,
+                           uint32_t cone_slices = 20);
 
 void SetRandomUniformVertexColor(MeshPtr mesh, int seed = 0);
 void SetRandomVertexColor(MeshPtr mesh, int seed = 0);

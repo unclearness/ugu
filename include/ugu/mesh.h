@@ -142,6 +142,7 @@ class Mesh {
   void Rotate(const Eigen::Matrix3f& R);
   void Translate(const Eigen::Vector3f& t);
   void Transform(const Eigen::Matrix3f& R, const Eigen::Vector3f& t);
+  void Transform(const Eigen::Affine3f& T);
   void Scale(float scale);
   void Scale(float x_scale, float y_scale, float z_scale);
   const std::vector<Eigen::Vector3f>& vertices() const;

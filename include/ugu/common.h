@@ -141,4 +141,9 @@ T saturate_cast(const TT& v) {
                  static_cast<TT>(std::numeric_limits<T>::max())));
 }
 
+enum class Coordinate {
+  OpenCV,
+  OpenGL
+};
+
 }  // namespace ugu
