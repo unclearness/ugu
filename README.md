@@ -199,7 +199,7 @@ PP
 ## Mandatory
 
 - Eigen
-  https://github.com/eigenteam/eigen-git-mirror
+  https://gitlab.com/libeigen/eigen
   - Math
 
 ## Optional

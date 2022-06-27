@@ -16,7 +16,8 @@ namespace ugu {
 
 bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
                  bool use_src1_material = false);
-bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged);
+bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged,
+                 bool overwrite_material = false);
 
 std::tuple<std::vector<std::vector<std::pair<int, int>>>,
            std::vector<std::vector<int>>>
@@ -61,7 +62,8 @@ MeshPtr MakeArrow(float cylibder_r, float cylinder_height, float cone_r,
                   float cone_height, uint32_t cylinder_slices = 20,
                   uint32_t cone_slices = 20,
                   const ObjMaterial& cylinder_mat = ObjMaterial(),
-                  const ObjMaterial& cone_mat = ObjMaterial());
+                  const ObjMaterial& cone_mat = ObjMaterial(),
+                  bool use_same_mat_if_possible = true);
 MeshPtr MakeOrigin(float size, uint32_t cylinder_slices = 20,
                    uint32_t cone_slices = 20);
 MeshPtr MakeTrajectoryGeom(const std::vector<Eigen::Affine3f>& c2w_list,

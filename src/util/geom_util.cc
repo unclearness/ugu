@@ -269,7 +269,8 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
   return true;
 }
 
-bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged) {
+bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged,
+                 bool overwrite_material) {
   if (src_meshes.empty()) {
     return false;
   }
@@ -283,7 +284,7 @@ bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged) {
   tmp0 = *src_meshes[0];
   for (size_t i = 1; i < src_meshes.size(); i++) {
     const auto& src = src_meshes[i];
-    ugu::MergeMeshes(tmp0, *src, &tmp2);
+    ugu::MergeMeshes(tmp0, *src, &tmp2, overwrite_material);
     tmp0 = Mesh(tmp2);
   }
   *merged = tmp0;
@@ -801,7 +802,7 @@ MeshPtr MakeCylinder(float r, float height, uint32_t n_slices) {
 MeshPtr MakeArrow(float cylibder_r, float cylinder_height, float cone_r,
                   float cone_height, uint32_t cylinder_slices,
                   uint32_t cone_slices, const ObjMaterial& cylinder_mat,
-                  const ObjMaterial& cone_mat) {
+                  const ObjMaterial& cone_mat, bool use_same_mat_if_possible) {
   auto cylinder = MakeCylinder(cylibder_r, cylinder_height, cylinder_slices);
   auto cone = MakeCone(cone_r, cone_height, cone_slices);
   cone->Translate({0.f, 0.f, cylinder_height});
@@ -813,7 +814,7 @@ MeshPtr MakeArrow(float cylibder_r, float cylinder_height, float cone_r,
 
   auto mesh = Mesh::Create();
 
-  MergeMeshes(*cylinder, *cone, mesh.get());
+  MergeMeshes(*cylinder, *cone, mesh.get(), use_same_mat_if_possible);
 
   return mesh;
 }
@@ -827,8 +828,11 @@ MeshPtr MakeOrigin(float size, uint32_t cylinder_slices, uint32_t cone_slices) {
   ObjMaterial x_mat, y_mat, z_mat;
 
   x_mat.diffuse = {1.f, 0.f, 0.f};
+  x_mat.name = "x_axis";
   y_mat.diffuse = {0.f, 1.f, 0.f};
+  y_mat.name = "y_axis";
   z_mat.diffuse = {0.f, 0.f, 1.f};
+  z_mat.name = "z_axis";
 
   auto x = MakeArrow(cylibder_r, cylinder_height, cone_r, cone_height,
                      cylinder_slices, cone_slices, x_mat, x_mat);
@@ -865,7 +869,7 @@ MeshPtr MakeTrajectoryGeom(const std::vector<Eigen::Affine3f>& c2w_list,
     meshes.push_back(cam);
   }
 
-  MergeMeshes(meshes, trajectory.get());
+  MergeMeshes(meshes, trajectory.get(), true);
 
   return trajectory;
 }
