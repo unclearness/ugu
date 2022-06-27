@@ -412,6 +412,9 @@ void TestMakeGeom() {
   ugu::LoadTumFormat("../data/bunny/tumpose.txt", &poses);
   auto trajectory = ugu::MakeTrajectoryGeom(poses, 100.f);
   trajectory->WriteObj(data_dir, "tumpose");
+
+  auto frustum = ugu::MakeFrustum(1.f, 0.8f, 0.5f, 0.4f, 1.f);
+  frustum->WriteObj(data_dir, "frustum");
 }
 
 }  // namespace

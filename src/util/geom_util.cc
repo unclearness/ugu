@@ -143,6 +143,84 @@ MeshPtr MakeTexturedPlaneImpl(const Image3b& diffuse, const Image4b& with_alpha,
   return mesh;
 }
 
+void MergeMaterialsSolvingNameConflict(
+    const std::vector<ugu::ObjMaterial>& src1_materials,
+    std::vector<ugu::ObjMaterial>& src2_materials,
+    std::vector<ugu::ObjMaterial>& materials) {
+  materials.clear();
+  CopyVec(src1_materials, &materials);
+
+  // Check if src2 has the same material name to src1
+  for (size_t i = 0; i < src2_materials.size(); i++) {
+    auto& mat2 = src2_materials[i];
+    bool has_same_name = false;
+    for (const auto& mat : materials) {
+      if (mat2.name == mat.name) {
+        has_same_name = true;
+      }
+    }
+    // If the same material name was found, update to resolve name confilict
+    if (has_same_name) {
+      // TODO: rule for modified material name
+      int new_name_postfix = 0;
+      std::string new_name = mat2.name + "_0";
+      while (true) {
+        bool is_conflict = false;
+        for (size_t j = 0; j < src2_materials.size(); j++) {
+          if (new_name == src2_materials[j].name) {
+            is_conflict = true;
+            break;
+          }
+        }
+        for (size_t j = 0; j < materials.size(); j++) {
+          if (new_name == materials[j].name) {
+            is_conflict = true;
+            break;
+          }
+        }
+
+        if (!is_conflict) {
+          mat2.name = new_name;
+          break;
+        }
+
+        new_name_postfix++;
+        new_name = mat2.name + "_" + std::to_string(new_name_postfix);
+      }
+    }
+  }
+  CopyVec(src2_materials, &materials, false);
+}
+
+void MergeMaterialsAndIds(const std::vector<ugu::ObjMaterial>& src1_materials,
+                          const std::vector<int>& src1_material_ids,
+                          const std::vector<ugu::ObjMaterial>& src2_materials,
+                          const std::vector<int>& src2_material_ids,
+                          std::vector<ugu::ObjMaterial>& materials,
+                          std::vector<int>& material_ids,
+                          bool use_src1_material) {
+  if (use_src1_material) {
+    CopyVec(src1_materials, &materials);
+
+    CopyVec(src1_material_ids, &material_ids);
+
+    // Is using original material_ids for src2 right?
+    CopyVec(src2_material_ids, &material_ids, false);
+  } else {
+    std::vector<int> offset_material_ids2;
+    std::vector<ObjMaterial> src2_materials_ = src2_materials;
+    MergeMaterialsSolvingNameConflict(src1_materials, src2_materials_,
+                                      materials);
+
+    CopyVec(src1_material_ids, &material_ids);
+    CopyVec(src2_material_ids, &offset_material_ids2);
+    int offset_mi = static_cast<int>(src1_materials.size());
+    std::for_each(offset_material_ids2.begin(), offset_material_ids2.end(),
+                  [offset_mi](int& i) { i += offset_mi; });
+    CopyVec(offset_material_ids2, &material_ids, false);
+  }
+}
+
 }  // namespace
 
 namespace ugu {
@@ -151,7 +229,7 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
                  bool use_src1_material) {
   std::vector<Eigen::Vector3f> vertices, vertex_colors, vertex_normals;
   std::vector<Eigen::Vector2f> uv;
-  std::vector<int> material_ids, offset_material_ids2;
+  std::vector<int> material_ids;
   std::vector<ugu::ObjMaterial> materials;
 
   std::vector<Eigen::Vector3i> vertex_indices, offset_vertex_indices2;
@@ -193,66 +271,9 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
                 });
   CopyVec(offset_uv_indices2, &uv_indices, false);
 
-  if (use_src1_material) {
-    CopyVec(src1.materials(), &materials);
-
-    CopyVec(src1.material_ids(), &material_ids);
-
-    // Is using original material_ids for src2 right?
-    CopyVec(src2.material_ids(), &material_ids, false);
-  } else {
-    CopyVec(src1.materials(), &materials);
-
-    std::vector<ObjMaterial> src2_materials = src2.materials();
-    // Check if src2 has the same material name to src1
-    for (size_t i = 0; i < src2_materials.size(); i++) {
-      auto& mat2 = src2_materials[i];
-      bool has_same_name = false;
-      for (const auto& mat : materials) {
-        if (mat2.name == mat.name) {
-          has_same_name = true;
-        }
-      }
-      // If the same material name was found, update to resolve name confilict
-      if (has_same_name) {
-        // TODO: rule for modified material name
-        int new_name_postfix = 0;
-        std::string new_name = mat2.name + "_0";
-        while (true) {
-          bool is_conflict = false;
-          for (size_t j = 0; j < src2_materials.size(); j++) {
-            if (new_name == src2_materials[j].name) {
-              is_conflict = true;
-              break;
-            }
-          }
-          for (size_t j = 0; j < materials.size(); j++) {
-            if (new_name == materials[j].name) {
-              is_conflict = true;
-              break;
-            }
-          }
-
-          if (!is_conflict) {
-            mat2.name = new_name;
-            break;
-          }
-
-          new_name_postfix++;
-          new_name = mat2.name + "_" + std::to_string(new_name_postfix);
-        }
-      }
-    }
-
-    CopyVec(src2_materials, &materials, false);
-
-    CopyVec(src1.material_ids(), &material_ids);
-    CopyVec(src2.material_ids(), &offset_material_ids2);
-    int offset_mi = static_cast<int>(src1.materials().size());
-    std::for_each(offset_material_ids2.begin(), offset_material_ids2.end(),
-                  [offset_mi](int& i) { i += offset_mi; });
-    CopyVec(offset_material_ids2, &material_ids, false);
-  }
+  MergeMaterialsAndIds(src1.materials(), src1.material_ids(), src2.materials(),
+                       src2.material_ids(), materials, material_ids,
+                       use_src1_material);
 
   merged->set_vertices(vertices);
   merged->set_vertex_colors(vertex_colors);
@@ -663,6 +684,8 @@ MeshPtr MakePlane(const Eigen::Vector2f& length, const Eigen::Matrix3f& R,
   plane->set_uv(uvs);
   plane->set_uv_indices(vertex_indices);
 
+  plane->set_default_material();
+
   plane->CalcNormal();
 
   plane->CalcStats();
@@ -882,6 +905,82 @@ MeshPtr MakeTrajectoryGeom(const std::vector<Eigen::Affine3d>& c2w_list,
     c2w_list_f.push_back(c2w.cast<float>());
   }
   return MakeTrajectoryGeom(c2w_list_f, size, cylinder_slices, cone_slices);
+}
+
+MeshPtr MakeFrustum(float top_w, float top_h, float bottom_w, float bottom_h,
+                    float height, const ObjMaterial& top_mat,
+                    const ObjMaterial& bottom_mat,
+                    const ObjMaterial& side_mat) {
+  MeshPtr mesh = Mesh::Create();
+  auto top = MakePlane({top_w, top_h});
+  top->Translate({0.f, 0.f, height});
+  top->set_single_material(top_mat);
+
+  auto bottom = MakePlane({bottom_w, bottom_h});
+  bottom->FlipFaces();
+  bottom->set_single_material(bottom_mat);
+
+  MergeMeshes({top, bottom}, mesh.get(), true);
+
+  auto vertex_indices = mesh->vertex_indices();
+
+  vertex_indices.push_back({0, 4, 1});
+  vertex_indices.push_back({1, 4, 5});
+
+  vertex_indices.push_back({1, 5, 3});
+  vertex_indices.push_back({3, 5, 7});
+
+  vertex_indices.push_back({2, 3, 7});
+  vertex_indices.push_back({2, 7, 6});
+
+  vertex_indices.push_back({0, 2, 6});
+  vertex_indices.push_back({4, 0, 6});
+
+  auto uv = mesh->uv();
+  uv.push_back({0.f, 0.f});    // 8
+  uv.push_back({0.f, 0.25f});  // 9
+  uv.push_back({0.f, 0.5f});   // 10
+  uv.push_back({0.f, 1.f});    // 11
+
+  uv.push_back({1.f, 0.f});    // 12
+  uv.push_back({1.f, 0.25f});  // 13
+  uv.push_back({1.f, 0.5f});   // 14
+  uv.push_back({1.f, 1.f});    // 15
+
+  auto uv_indices = mesh->uv_indices();
+  uv_indices.push_back({8, 9, 12});
+  uv_indices.push_back({9, 12, 13});
+
+  uv_indices.push_back({9, 10, 13});
+  uv_indices.push_back({10, 13, 14});
+
+  uv_indices.push_back({10, 11, 14});
+  uv_indices.push_back({11, 14, 15});
+
+  uv_indices.push_back({11, 8, 15});
+  uv_indices.push_back({8, 15, 12});
+
+  std::vector<ObjMaterial> materials;
+  std::vector<ObjMaterial> tmp_mat{side_mat};
+
+  std::vector<int> material_ids;
+  std::vector<int> tmp_material_ids(8, 0);
+
+  MergeMaterialsAndIds(mesh->materials(), mesh->material_ids(), tmp_mat,
+                       tmp_material_ids, materials, material_ids, false);
+
+  mesh->set_vertex_indices(vertex_indices);
+
+  mesh->set_uv(uv);
+  mesh->set_uv_indices(uv_indices);
+
+  mesh->set_materials(materials);
+  mesh->set_material_ids(material_ids);
+
+  mesh->CalcNormal();
+  mesh->CalcStats();
+
+  return mesh;
 }
 
 void SetRandomVertexColor(MeshPtr mesh, int seed) {

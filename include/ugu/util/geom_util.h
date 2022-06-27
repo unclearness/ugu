@@ -73,6 +73,11 @@ MeshPtr MakeTrajectoryGeom(const std::vector<Eigen::Affine3d>& c2w_list,
                            float size, uint32_t cylinder_slices = 20,
                            uint32_t cone_slices = 20);
 
+MeshPtr MakeFrustum(float top_w, float top_h, float bottom_w, float bottom_h,
+                    float height, const ObjMaterial& top_mat = ObjMaterial(),
+                    const ObjMaterial& bottom_mat = ObjMaterial(),
+                    const ObjMaterial& side_mat = ObjMaterial());
+
 void SetRandomUniformVertexColor(MeshPtr mesh, int seed = 0);
 void SetRandomVertexColor(MeshPtr mesh, int seed = 0);
 
