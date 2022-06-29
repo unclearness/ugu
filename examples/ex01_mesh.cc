@@ -415,6 +415,13 @@ void TestMakeGeom() {
 
   auto frustum = ugu::MakeFrustum(1.f, 0.8f, 0.5f, 0.4f, 1.f);
   frustum->WriteObj(data_dir, "frustum");
+
+  ugu::Image3b view0_image =
+      ugu::imread<ugu::Image3b>("../data/bunny/00000_color.png");
+  auto view_frustum =
+      ugu::MakeViewFrustum(ugu::radians(30.f), poses[0].cast<float>(), 200.f,
+                           view0_image, ugu::CoordinateType::OpenCV, 10.f);
+  view_frustum->WriteObj(data_dir, "view_frustum");
 }
 
 }  // namespace

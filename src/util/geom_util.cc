@@ -56,7 +56,8 @@ Eigen::Vector3i GenerateFace(int vid1, int vid2, int vid3, bool flipped) {
 template <typename T>
 std::optional<T> IntersectImpl(const T& origin, const T& ray, const T& v0,
                                const T& v1, const T& v2,
-                               const typename T::Scalar kEpsilon) {
+                               const typename T::Scalar kEpsilon,
+                               bool standard_barycentric) {
   using scalar = typename T::Scalar;
 
   T e1 = v1 - v0;
@@ -97,6 +98,15 @@ std::optional<T> IntersectImpl(const T& origin, const T& ray, const T& v0,
   scalar t = e2.dot(beta) * invDet;
   if (t < 0.0f) {
     return std::nullopt;
+  }
+
+  if (standard_barycentric) {
+    // Convert from edge basis vectors to triangle area ratios
+    // Original : u*(v1 - v0) + v*(v2 - v0) + v0
+    // Converted : u* v0 + v* v1 + (1 - u - v) * v2
+    scalar w = 1 - u - v;
+    v = u;
+    u = w;
   }
 
   return T(t, u, v);
@@ -145,18 +155,26 @@ MeshPtr MakeTexturedPlaneImpl(const Image3b& diffuse, const Image4b& with_alpha,
 
 void MergeMaterialsSolvingNameConflict(
     const std::vector<ugu::ObjMaterial>& src1_materials,
+    const std::vector<int>& src1_material_ids,
     std::vector<ugu::ObjMaterial>& src2_materials,
-    std::vector<ugu::ObjMaterial>& materials) {
+    std::vector<int>& src2_material_ids,
+    std::vector<ugu::ObjMaterial>& materials, std::vector<int>& material_ids,
+    bool merge_same_name) {
   materials.clear();
+  material_ids.clear();
   CopyVec(src1_materials, &materials);
+
+  std::map<int, int> src2_src1_conflict;
 
   // Check if src2 has the same material name to src1
   for (size_t i = 0; i < src2_materials.size(); i++) {
     auto& mat2 = src2_materials[i];
     bool has_same_name = false;
-    for (const auto& mat : materials) {
+    for (size_t ii = 0; ii < materials.size(); ii++) {
+      const auto& mat = materials[ii];
       if (mat2.name == mat.name) {
         has_same_name = true;
+        src2_src1_conflict.insert({static_cast<int>(i), static_cast<int>(ii)});
       }
     }
     // If the same material name was found, update to resolve name confilict
@@ -189,28 +207,28 @@ void MergeMaterialsSolvingNameConflict(
       }
     }
   }
-  CopyVec(src2_materials, &materials, false);
-}
 
-void MergeMaterialsAndIds(const std::vector<ugu::ObjMaterial>& src1_materials,
-                          const std::vector<int>& src1_material_ids,
-                          const std::vector<ugu::ObjMaterial>& src2_materials,
-                          const std::vector<int>& src2_material_ids,
-                          std::vector<ugu::ObjMaterial>& materials,
-                          std::vector<int>& material_ids,
-                          bool use_src1_material) {
-  if (use_src1_material) {
-    CopyVec(src1_materials, &materials);
+  if (merge_same_name && !src2_src1_conflict.empty()) {
+    // not merge materials
+
+    // Update src2_material_ids
+    for (size_t j = 0; j < src2_material_ids.size(); j++) {
+      for (auto& kv : src2_src1_conflict) {
+        if (kv.first == src2_material_ids[j]) {
+          src2_material_ids[j] = kv.second;
+          break;
+        }
+      }
+    }
 
     CopyVec(src1_material_ids, &material_ids);
-
-    // Is using original material_ids for src2 right?
     CopyVec(src2_material_ids, &material_ids, false);
+
   } else {
+    CopyVec(src2_materials, &materials, false);
+
     std::vector<int> offset_material_ids2;
     std::vector<ObjMaterial> src2_materials_ = src2_materials;
-    MergeMaterialsSolvingNameConflict(src1_materials, src2_materials_,
-                                      materials);
 
     CopyVec(src1_material_ids, &material_ids);
     CopyVec(src2_material_ids, &offset_material_ids2);
@@ -221,12 +239,36 @@ void MergeMaterialsAndIds(const std::vector<ugu::ObjMaterial>& src1_materials,
   }
 }
 
+void MergeMaterialsAndIds(const std::vector<ugu::ObjMaterial>& src1_materials,
+                          const std::vector<int>& src1_material_ids,
+                          const std::vector<ugu::ObjMaterial>& src2_materials,
+                          const std::vector<int>& src2_material_ids,
+                          std::vector<ugu::ObjMaterial>& materials,
+                          std::vector<int>& material_ids,
+                          bool use_src1_material, bool merge_same_name) {
+  if (use_src1_material) {
+    CopyVec(src1_materials, &materials);
+
+    CopyVec(src1_material_ids, &material_ids);
+
+    // Is using original material_ids for src2 right?
+    CopyVec(src2_material_ids, &material_ids, false);
+  } else {
+    std::vector<int> offset_material_ids2;
+    std::vector<ObjMaterial> src2_materials_ = src2_materials;
+    std::vector<int> src2_material_ids_ = src2_material_ids;
+    MergeMaterialsSolvingNameConflict(src1_materials, src1_material_ids,
+                                      src2_materials_, src2_material_ids_,
+                                      materials, material_ids, merge_same_name);
+  }
+}
+
 }  // namespace
 
 namespace ugu {
 
 bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
-                 bool use_src1_material) {
+                 bool use_src1_material, bool merge_same_name_material) {
   std::vector<Eigen::Vector3f> vertices, vertex_colors, vertex_normals;
   std::vector<Eigen::Vector2f> uv;
   std::vector<int> material_ids;
@@ -273,7 +315,7 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
 
   MergeMaterialsAndIds(src1.materials(), src1.material_ids(), src2.materials(),
                        src2.material_ids(), materials, material_ids,
-                       use_src1_material);
+                       use_src1_material, merge_same_name_material);
 
   merged->set_vertices(vertices);
   merged->set_vertex_colors(vertex_colors);
@@ -291,7 +333,7 @@ bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
 }
 
 bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged,
-                 bool overwrite_material) {
+                 bool overwrite_material, bool merge_same_name_material) {
   if (src_meshes.empty()) {
     return false;
   }
@@ -305,7 +347,8 @@ bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged,
   tmp0 = *src_meshes[0];
   for (size_t i = 1; i < src_meshes.size(); i++) {
     const auto& src = src_meshes[i];
-    ugu::MergeMeshes(tmp0, *src, &tmp2, overwrite_material);
+    ugu::MergeMeshes(tmp0, *src, &tmp2, overwrite_material,
+                     merge_same_name_material);
     tmp0 = Mesh(tmp2);
   }
   *merged = tmp0;
@@ -657,12 +700,18 @@ MeshPtr MakeTexturedPlane(const Image4b& texture, float width_scale,
 }
 
 MeshPtr MakePlane(const Eigen::Vector2f& length, const Eigen::Matrix3f& R,
-                  const Eigen::Vector3f& t) {
+                  const Eigen::Vector3f& t, bool flip_uv_vertical) {
   MeshPtr plane = std::make_shared<Mesh>();
   std::vector<Eigen::Vector3f> vertices(4);
   std::vector<Eigen::Vector3i> vertex_indices(2);
-  const std::vector<Eigen::Vector2f> uvs{
+  std::vector<Eigen::Vector2f> uvs{
       {1.f, 1.f}, {0.f, 1.f}, {1.f, 0.f}, {0.f, 0.f}};
+
+  if (flip_uv_vertical) {
+    for (auto& uv : uvs) {
+      uv[1] = 1.f - uv[1];
+    }
+  }
 
   const float h_x = length[0] / 2;
   const float h_y = length[1] / 2;
@@ -694,8 +743,8 @@ MeshPtr MakePlane(const Eigen::Vector2f& length, const Eigen::Matrix3f& R,
 }
 
 MeshPtr MakePlane(float length, const Eigen::Matrix3f& R,
-                  const Eigen::Vector3f& t) {
-  return MakePlane(Eigen::Vector2f(length, length), R, t);
+                  const Eigen::Vector3f& t, bool flip_uv_vertical) {
+  return MakePlane(Eigen::Vector2f(length, length), R, t, flip_uv_vertical);
 }
 
 MeshPtr MakeCircle(float r, uint32_t n_slices) {
@@ -909,18 +958,20 @@ MeshPtr MakeTrajectoryGeom(const std::vector<Eigen::Affine3d>& c2w_list,
 
 MeshPtr MakeFrustum(float top_w, float top_h, float bottom_w, float bottom_h,
                     float height, const ObjMaterial& top_mat,
-                    const ObjMaterial& bottom_mat,
-                    const ObjMaterial& side_mat) {
+                    const ObjMaterial& bottom_mat, const ObjMaterial& side_mat,
+                    bool flip_plane_uv) {
   MeshPtr mesh = Mesh::Create();
-  auto top = MakePlane({top_w, top_h});
+  auto top = MakePlane({top_w, top_h}, Eigen::Matrix3f::Identity(),
+                       Eigen::Vector3f::Zero(), flip_plane_uv);
   top->Translate({0.f, 0.f, height});
   top->set_single_material(top_mat);
 
-  auto bottom = MakePlane({bottom_w, bottom_h});
+  auto bottom = MakePlane({bottom_w, bottom_h}, Eigen::Matrix3f::Identity(),
+                          Eigen::Vector3f::Zero(), flip_plane_uv);
   bottom->FlipFaces();
   bottom->set_single_material(bottom_mat);
 
-  MergeMeshes({top, bottom}, mesh.get(), true);
+  MergeMeshes({top, bottom}, mesh.get());
 
   auto vertex_indices = mesh->vertex_indices();
 
@@ -967,7 +1018,7 @@ MeshPtr MakeFrustum(float top_w, float top_h, float bottom_w, float bottom_h,
   std::vector<int> tmp_material_ids(8, 0);
 
   MergeMaterialsAndIds(mesh->materials(), mesh->material_ids(), tmp_mat,
-                       tmp_material_ids, materials, material_ids, false);
+                       tmp_material_ids, materials, material_ids, false, true);
 
   mesh->set_vertex_indices(vertex_indices);
 
@@ -979,6 +1030,58 @@ MeshPtr MakeFrustum(float top_w, float top_h, float bottom_w, float bottom_h,
 
   mesh->CalcNormal();
   mesh->CalcStats();
+
+  return mesh;
+}
+
+MeshPtr MakeViewFrustum(float fovy_rad, const Eigen::Affine3f& c2w, float z_max,
+                        const Image3b& view_image, CoordinateType coord,
+                        float z_min, bool attach_view_image_bottom,
+                        bool attach_view_image_top, float aspect) {
+  fovy_rad = std::clamp(fovy_rad, radians(1.f), radians(179.f));
+
+  Eigen::Vector3f view_offset =
+      c2w.rotation().col(2) * z_min;  // view direction
+
+  bool flip_plane_uv = false;
+  if (coord == CoordinateType::OpenCV) {
+    flip_plane_uv = true;
+  }
+
+  float height = std::max(z_max - z_min, 1e-10f);
+
+  float aspect_ = aspect;
+  if (!view_image.empty()) {
+    aspect_ = static_cast<float>(view_image.cols) /
+              static_cast<float>(view_image.rows);
+  }
+  if (aspect_ <= 0.f) {
+    aspect_ = 1.34f;  // default 4:3
+  }
+
+  float top_h = z_max / std::cos(fovy_rad * 0.5f);
+  float top_w = top_h * aspect_;
+
+  float bottom_h = z_min / std::cos(fovy_rad * 0.5f);
+  float bottom_w = bottom_h * aspect_;
+
+  ObjMaterial top_mat, bottom_mat, side_mat;
+  if (attach_view_image_bottom) {
+    bottom_mat.name = "bottom_mat";
+    bottom_mat.diffuse_tex = view_image;
+    bottom_mat.diffuse_texname = "view_image.jpg";
+  }
+  if (attach_view_image_top) {
+    top_mat.name = "top_mat";
+    top_mat.diffuse_tex = view_image;
+    top_mat.diffuse_texname = "view_image.jpg";
+  }
+
+  side_mat.name = "side_mat";
+  auto mesh = MakeFrustum(top_w, top_h, bottom_w, bottom_h, height, top_mat,
+                          bottom_mat, side_mat, flip_plane_uv);
+
+  mesh->Transform(c2w.rotation(), c2w.translation() + view_offset);
 
   return mesh;
 }
@@ -1268,8 +1371,9 @@ std::optional<Eigen::Vector3f> Intersect(const Eigen::Vector3f& origin,
                                          const Eigen::Vector3f& v0,
                                          const Eigen::Vector3f& v1,
                                          const Eigen::Vector3f& v2,
-                                         const float kEpsilon) {
-  return IntersectImpl(origin, ray, v0, v1, v2, kEpsilon);
+                                         const float kEpsilon,
+                                         bool standard_barycentric) {
+  return IntersectImpl(origin, ray, v0, v1, v2, kEpsilon, standard_barycentric);
 }
 
 std::optional<Eigen::Vector3d> Intersect(const Eigen::Vector3d& origin,
@@ -1277,15 +1381,16 @@ std::optional<Eigen::Vector3d> Intersect(const Eigen::Vector3d& origin,
                                          const Eigen::Vector3d& v0,
                                          const Eigen::Vector3d& v1,
                                          const Eigen::Vector3d& v2,
-                                         const double kEpsilon) {
-  return IntersectImpl(origin, ray, v0, v1, v2, kEpsilon);
+                                         const double kEpsilon,
+                                         bool standard_barycentric) {
+  return IntersectImpl(origin, ray, v0, v1, v2, kEpsilon, standard_barycentric);
 }
 
 std::vector<IntersectResult> Intersect(
     const Eigen::Vector3f& origin, const Eigen::Vector3f& ray,
     const std::vector<Eigen::Vector3f>& vertices,
     const std::vector<Eigen::Vector3i>& faces, int num_threads,
-    const float kEpsilon) {
+    const float kEpsilon, bool standard_barycentric) {
   std::vector<IntersectResult> results;
 
   if (num_threads != 1) {
@@ -1299,9 +1404,10 @@ std::vector<IntersectResult> Intersect(
       const auto& v1 = vertices[f[1]];
       const auto& v2 = vertices[f[2]];
       // Use double for numerical reason
-      auto ret = Intersect(origin.cast<double>(), ray.cast<double>(),
-                           v0.cast<double>(), v1.cast<double>(),
-                           v2.cast<double>(), double(kEpsilon));
+      auto ret =
+          Intersect(origin.cast<double>(), ray.cast<double>(),
+                    v0.cast<double>(), v1.cast<double>(), v2.cast<double>(),
+                    double(kEpsilon), standard_barycentric);
       if (ret) {
         const auto& tuv = ret.value().cast<float>();
         std::lock_guard<std::mutex> lock(mtx);
@@ -1323,9 +1429,10 @@ std::vector<IntersectResult> Intersect(
       const auto& v1 = vertices[f[1]];
       const auto& v2 = vertices[f[2]];
       // Use double for numerical reason
-      auto ret = Intersect(origin.cast<double>(), ray.cast<double>(),
-                           v0.cast<double>(), v1.cast<double>(),
-                           v2.cast<double>(), double(kEpsilon));
+      auto ret =
+          Intersect(origin.cast<double>(), ray.cast<double>(),
+                    v0.cast<double>(), v1.cast<double>(), v2.cast<double>(),
+                    double(kEpsilon), standard_barycentric);
       if (ret) {
         const auto& tuv = ret.value().cast<float>();
         IntersectResult result;

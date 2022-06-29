@@ -15,9 +15,11 @@
 namespace ugu {
 
 bool MergeMeshes(const Mesh& src1, const Mesh& src2, Mesh* merged,
-                 bool use_src1_material = false);
+                 bool use_src1_material = false,
+                 bool merge_same_name_material = true);
 bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged,
-                 bool overwrite_material = false);
+                 bool overwrite_material = false,
+                 bool merge_same_name_material = true);
 
 std::tuple<std::vector<std::vector<std::pair<int, int>>>,
            std::vector<std::vector<int>>>
@@ -42,10 +44,12 @@ MeshPtr MakeUvSphere(const Eigen::Vector3f& center, float r, int n_stacks = 10,
 
 MeshPtr MakePlane(const Eigen::Vector2f& length,
                   const Eigen::Matrix3f& R = Eigen::Matrix3f::Identity(),
-                  const Eigen::Vector3f& t = Eigen::Vector3f::Zero());
+                  const Eigen::Vector3f& t = Eigen::Vector3f::Zero(),
+                  bool flip_uv_vertical = false);
 MeshPtr MakePlane(float length,
                   const Eigen::Matrix3f& R = Eigen::Matrix3f::Identity(),
-                  const Eigen::Vector3f& t = Eigen::Vector3f::Zero());
+                  const Eigen::Vector3f& t = Eigen::Vector3f::Zero(),
+                  bool flip_uv_vertical = false);
 MeshPtr MakeTexturedPlane(
     const ugu::Image3b& texture, float width_scale, float height_scale = -1.f,
     const Eigen::Matrix3f& R = Eigen::Matrix3f::Identity(),
@@ -76,7 +80,15 @@ MeshPtr MakeTrajectoryGeom(const std::vector<Eigen::Affine3d>& c2w_list,
 MeshPtr MakeFrustum(float top_w, float top_h, float bottom_w, float bottom_h,
                     float height, const ObjMaterial& top_mat = ObjMaterial(),
                     const ObjMaterial& bottom_mat = ObjMaterial(),
-                    const ObjMaterial& side_mat = ObjMaterial());
+                    const ObjMaterial& side_mat = ObjMaterial(),
+                    bool flip_plane_uv = false);
+
+MeshPtr MakeViewFrustum(float fovy_rad, const Eigen::Affine3f& c2w, float z_max,
+                        const Image3b& view_image,
+                        CoordinateType coord = CoordinateType::OpenCV,
+                        float z_min = 0.f, bool attach_view_image_bottom = true,
+                        bool attach_view_image_top = true,
+                        float aspect = 1.34f);
 
 void SetRandomUniformVertexColor(MeshPtr mesh, int seed = 0);
 void SetRandomVertexColor(MeshPtr mesh, int seed = 0);
@@ -89,14 +101,16 @@ std::optional<Eigen::Vector3f> Intersect(const Eigen::Vector3f& origin,
                                          const Eigen::Vector3f& v0,
                                          const Eigen::Vector3f& v1,
                                          const Eigen::Vector3f& v2,
-                                         const float kEpsilon = 1e-6f);
+                                         const float kEpsilon = 1e-6f,
+                                         bool standard_barycentric = true);
 
 std::optional<Eigen::Vector3d> Intersect(const Eigen::Vector3d& origin,
                                          const Eigen::Vector3d& ray,
                                          const Eigen::Vector3d& v0,
                                          const Eigen::Vector3d& v1,
                                          const Eigen::Vector3d& v2,
-                                         const double kEpsilon = 1e-20);
+                                         const double kEpsilon = 1e-20,
+                                         bool standard_barycentric = true);
 
 // u, v and t are defined as follows:
 // origin + ray * t ==  (1-u-v)*v0 + u*v1+v*v2
@@ -111,7 +125,7 @@ std::vector<IntersectResult> Intersect(
     const Eigen::Vector3f& origin, const Eigen::Vector3f& ray,
     const std::vector<Eigen::Vector3f>& vertices,
     const std::vector<Eigen::Vector3i>& faces, int num_threads = 1,
-    const float kEpsilon = 1e-10f);
+    const float kEpsilon = 1e-10f, bool standard_barycentric = true);
 
 // https://github.com/isl-org/Open3D/blob/ed30e3b61fbe031e106fa64030bec3f698b316b4/cpp/open3d/geometry/Geometry3D.cpp#L41
 template <typename T>
