@@ -176,9 +176,11 @@ void VertexInfo::CalcStat() {
   median_distance_color = ugu::WeightedMedian(colors, inv_distances);
 
   // Intensity
-  auto min_intensity_it = std::min_element(intensities.begin(), intensities.end());
+  auto min_intensity_it =
+      std::min_element(intensities.begin(), intensities.end());
   min_intensity = *min_intensity_it;
-  min_intensity_color = colors[std::distance(intensities.begin(), min_intensity_it)];
+  min_intensity_color =
+      colors[std::distance(intensities.begin(), min_intensity_it)];
 
   median_intensity = Median(intensities, true);
   auto median_viewing_it =
@@ -186,6 +188,18 @@ void VertexInfo::CalcStat() {
   median_intensity_color =
       colors[std::distance(intensities.begin(), median_viewing_it)];
 
+  // Mode
+  for (const auto& c : colors) {
+    if (occurrence.find(c) == occurrence.end()) {
+      occurrence.insert({c, 0});
+    } else {
+      occurrence[c] = occurrence[c] + 1;
+      if (mode_frequency < occurrence[c]) {
+        mode_frequency = occurrence[c];
+        mode = c;
+      }
+    }
+  }
 }
 
 int VertexInfo::VisibleFrom(int kf_id) const {

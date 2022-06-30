@@ -29,7 +29,8 @@ enum class ViewSelectionCriteria {
   kMedianDistance = 5,
   kMaxArea = 6,
   kMinIntensity = 7,
-  kMedianIntensity = 8
+  kMedianIntensity = 8,
+  kMode = 9 // Valid only if input keyframe images are discrete (e.g. class id)
 };
 
 struct VisibilityTesterOption {
@@ -100,6 +101,10 @@ struct VertexInfo {
 
   float mean_distance{-1.0f};
   float median_distance{-1.0f};
+
+  Eigen::Vector3f mode;
+  int mode_frequency {-1};
+  std::unordered_map<Eigen::Vector3f, int> occurrence;
   /**************************************/
 
   VertexInfo();

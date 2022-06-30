@@ -48,6 +48,11 @@ bool VertexColorizer::Colorize(const VisibilityInfo& info, Mesh* mesh,
     select = [&](const VertexInfo& info) {
       return info.median_intensity_color;
     };
+  } else if (criteria == ViewSelectionCriteria::kMode) {
+    select = [&](const VertexInfo& info) {
+      return info.mode;
+      ;
+    };
   }
 
   for (size_t i = 0; i < info.vertex_info_list.size(); i++) {
