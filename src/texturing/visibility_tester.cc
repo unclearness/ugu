@@ -11,54 +11,7 @@
 #include "ugu/accel/bvh_nanort.h"
 #include "ugu/timer.h"
 #include "ugu/util/math_util.h"
-
-namespace {
-
-template <typename T>
-float Median(const std::vector<T>& data, bool force_org_val = false) {
-  assert(data.size() > 0);
-  if (data.size() == 1) {
-    return data[0];
-  } else if (data.size() == 2) {
-    if (force_org_val) {
-      return data[0];
-    }
-    return (data[0] + data[1]) * 0.5f;
-  }
-
-  std::vector<T> data_tmp;
-  std::copy(data.begin(), data.end(), std::back_inserter(data_tmp));
-
-  size_t n = data_tmp.size() / 2;
-  if (force_org_val || data_tmp.size() % 2 == 0) {
-    std::nth_element(data_tmp.begin(), data_tmp.begin() + n, data_tmp.end());
-    return data_tmp[n];
-  }
-
-  std::nth_element(data_tmp.begin(), data_tmp.begin() + n + 1, data_tmp.end());
-  return (data_tmp[n] + data_tmp[n + 1]) * 0.5f;
-}
-
-Eigen::Vector3f MedianColor(const std::vector<Eigen::Vector3f>& colors) {
-  Eigen::Vector3f median;
-  std::vector<std::vector<float>> ith_channel_list(3);
-  for (const auto& color : colors) {
-    for (int i = 0; i < 3; i++) {
-      ith_channel_list[i].push_back(color[i]);
-    }
-  }
-  for (int i = 0; i < 3; i++) {
-    median[i] = Median(ith_channel_list[i]);
-  }
-  return median;
-}
-
-inline float EdgeFunction(const Eigen::Vector2f& a, const Eigen::Vector2f& b,
-                          const Eigen::Vector2f& c) {
-  return (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
-}
-
-}  // namespace
+#include "ugu/util/raster_util.h"
 
 namespace ugu {
 
@@ -101,7 +54,6 @@ void VisibilityTesterOption::CopyTo(VisibilityTesterOption* dst) const {
 
 VertexInfoPerKeyframe::VertexInfoPerKeyframe() {}
 VertexInfoPerKeyframe::~VertexInfoPerKeyframe() {}
-
 VertexInfo::VertexInfo() {}
 VertexInfo::VertexInfo(const VertexInfo& src){
     // TODO: implement
@@ -112,7 +64,7 @@ void VertexInfo::Update(const VertexInfoPerKeyframe& info) {
   std::lock_guard<std::mutex> lock(mtx_);
   visible_keyframes.push_back(info);
 }
-void VertexInfo::CalcStat() {
+void VertexInfo::CalcStat(std::function<void(VertexInfo&)> vert_custom_func) {
   if (visible_keyframes.empty()) {
     return;
   }
@@ -189,16 +141,10 @@ void VertexInfo::CalcStat() {
       colors[std::distance(intensities.begin(), median_viewing_it)];
 
   // Mode
-  for (const auto& c : colors) {
-    if (occurrence.find(c) == occurrence.end()) {
-      occurrence.insert({c, 0});
-    } else {
-      occurrence[c] = occurrence[c] + 1;
-      if (mode_frequency < occurrence[c]) {
-        mode_frequency = occurrence[c];
-        mode = c;
-      }
-    }
+  Mode(colors.begin(), colors.end(), mode, mode_frequency, occurrence);
+
+  if (vert_custom_func != nullptr) {
+    vert_custom_func(*this);
   }
 }
 
@@ -273,7 +219,8 @@ VisibilityInfo::VisibilityInfo(const Mesh& mesh) {
   face_info_list.resize(mesh.vertex_indices().size());
 }
 VisibilityInfo::~VisibilityInfo() {}
-void VisibilityInfo::CalcStatVertexInfo() {
+void VisibilityInfo::CalcStatVertexInfo(
+    std::function<void(VertexInfo&)> vert_custom_func) {
   Timer<> timer;
   timer.Start();
   int vertex_info_list_num = static_cast<int>(vertex_info_list.size());
@@ -281,7 +228,7 @@ void VisibilityInfo::CalcStatVertexInfo() {
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int i = 0; i < vertex_info_list_num; i++) {
-    vertex_info_list[i].CalcStat();
+    vertex_info_list[i].CalcStat(vert_custom_func);
   }
   has_vertex_stat = true;
   timer.End();
@@ -713,7 +660,9 @@ bool VisibilityTester::TestFacewiseVertices(VisibilityInfo* info) const {
   return true;
 }
 
-bool VisibilityTester::Test(VisibilityInfo* info, bool facewise) const {
+bool VisibilityTester::Test(
+    VisibilityInfo* info, bool facewise,
+    std::function<void(VertexInfo&)> vert_custom_func) const {
   if (!ValidateAndInitBeforeTest(info)) {
     return false;
   }
@@ -723,7 +672,7 @@ bool VisibilityTester::Test(VisibilityInfo* info, bool facewise) const {
   if (facewise) {
     TestFacewiseVertices(info);
     if (option_.calc_stat_vertex_info) {
-      info->CalcStatVertexInfo();
+      info->CalcStatVertexInfo(vert_custom_func);
     }
     if (option_.calc_stat_face_info) {
       info->CalcStatFaceInfo();
@@ -732,7 +681,7 @@ bool VisibilityTester::Test(VisibilityInfo* info, bool facewise) const {
     TestVertices(info);
 
     if (option_.calc_stat_vertex_info) {
-      info->CalcStatVertexInfo();
+      info->CalcStatVertexInfo(vert_custom_func);
     }
 
     if (option_.collect_face_info) {
@@ -746,7 +695,8 @@ bool VisibilityTester::Test(VisibilityInfo* info, bool facewise) const {
 }
 
 bool VisibilityTester::Test(std::vector<std::shared_ptr<Keyframe>> keyframes,
-                            VisibilityInfo* info, bool facewise) {
+                            VisibilityInfo* info, bool facewise,
+                            std::function<void(VertexInfo&)> vert_custom_func) {
   bool ret = true;
   VisibilityTesterOption org_option;
   option_.CopyTo(&org_option);
@@ -757,7 +707,7 @@ bool VisibilityTester::Test(std::vector<std::shared_ptr<Keyframe>> keyframes,
 
   for (size_t i = 0; i < keyframes.size() - 1; i++) {
     set_keyframe(keyframes[i]);
-    if (!Test(info, facewise)) {
+    if (!Test(info, facewise, vert_custom_func)) {
       ret = false;
       break;
     }
@@ -766,7 +716,7 @@ bool VisibilityTester::Test(std::vector<std::shared_ptr<Keyframe>> keyframes,
   // recover original option at the end
   set_option(org_option);
   set_keyframe(keyframes[keyframes.size() - 1]);
-  if (!Test(info, facewise)) {
+  if (!Test(info, facewise, vert_custom_func)) {
     ret = false;
   }
 

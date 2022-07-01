@@ -12,6 +12,7 @@
 
 #include "Eigen/Geometry"
 #include "ugu/log.h"
+#include "ugu/eigen_util.h"
 
 #define UGU_FLOATING_POINT_ONLY_TEMPLATE                              \
   template <typename T,                                               \

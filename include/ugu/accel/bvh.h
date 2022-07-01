@@ -135,7 +135,7 @@ struct Ray {
 template <typename T, typename TT>
 class Bvh {
  public:
-  ~Bvh(){};
+  virtual ~Bvh(){};
 
   virtual void SetData(const std::vector<T>& vertices,
                        const std::vector<TT>& indices) = 0;

@@ -9,6 +9,7 @@
 #include <optional>
 #include <set>
 
+#include "ugu/face_adjacency.h"
 #include "ugu/line.h"
 #include "ugu/mesh.h"
 
@@ -126,6 +127,12 @@ std::vector<IntersectResult> Intersect(
     const std::vector<Eigen::Vector3f>& vertices,
     const std::vector<Eigen::Vector3i>& faces, int num_threads = 1,
     const float kEpsilon = 1e-10f, bool standard_barycentric = true);
+
+bool UpdateVertexAttrOneRingMost(
+    uint32_t num_vertices, const std::vector<Eigen::Vector3i>& indices,
+    std::vector<Eigen::Vector3f>& attrs,
+    const VertexAdjacency& vert_adjacency = VertexAdjacency(),
+    const FaceAdjacency& face_adjacency = FaceAdjacency());
 
 // https://github.com/isl-org/Open3D/blob/ed30e3b61fbe031e106fa64030bec3f698b316b4/cpp/open3d/geometry/Geometry3D.cpp#L41
 template <typename T>

@@ -65,8 +65,8 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
   vertices.push_back(query3d);
   vertex_colors.push_back({0.f, 255.f, 0.f});
 
-  for (const auto& r : res) {
-    vertices.push_back(points3d[r.index]);
+  for (const auto& rr : res) {
+    vertices.push_back(points3d[rr.index]);
     vertex_colors.push_back({255.f, 0.f, 0.f});
   }
 

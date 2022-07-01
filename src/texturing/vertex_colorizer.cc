@@ -39,7 +39,7 @@ bool VertexColorizer::Colorize(const VisibilityInfo& info, Mesh* mesh,
       return info.median_viewing_angle_color;
     };
   } else if (criteria == ViewSelectionCriteria::kMeanDistance) {
-    select = [&](const VertexInfo& info) { return info.median_distance_color; };
+    select = [&](const VertexInfo& info) { return info.mean_distance_color; };
   } else if (criteria == ViewSelectionCriteria::kMedianDistance) {
     select = [&](const VertexInfo& info) { return info.median_distance_color; };
   } else if (criteria == ViewSelectionCriteria::kMinIntensity) {
@@ -51,6 +51,11 @@ bool VertexColorizer::Colorize(const VisibilityInfo& info, Mesh* mesh,
   } else if (criteria == ViewSelectionCriteria::kMode) {
     select = [&](const VertexInfo& info) {
       return info.mode;
+      ;
+    };
+  } else if (criteria == ViewSelectionCriteria::kCustom) {
+    select = [&](const VertexInfo& info) {
+      return info.custom_best;
       ;
     };
   }

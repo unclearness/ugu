@@ -30,7 +30,9 @@ enum class ViewSelectionCriteria {
   kMaxArea = 6,
   kMinIntensity = 7,
   kMedianIntensity = 8,
-  kMode = 9 // Valid only if input keyframe images are discrete (e.g. class id)
+  kMode = 9,  // Valid only if pixels of input keyframe images are discrete
+              // (e.g. class id)
+  kCustom = 10
 };
 
 struct VisibilityTesterOption {
@@ -103,15 +105,18 @@ struct VertexInfo {
   float median_distance{-1.0f};
 
   Eigen::Vector3f mode;
-  int mode_frequency {-1};
+  int mode_frequency{-1};
   std::unordered_map<Eigen::Vector3f, int> occurrence;
+
+  std::vector<std::vector<Eigen::Vector3f>> customs;
+  Eigen::Vector3f custom_best;
   /**************************************/
 
   VertexInfo();
   VertexInfo(const VertexInfo& src);
   ~VertexInfo();
   void Update(const VertexInfoPerKeyframe& info);
-  void CalcStat();
+  void CalcStat(std::function<void(VertexInfo&)> vert_custom_func = nullptr);
   int VisibleFrom(int kf_id) const;
 
   friend std::ostream& operator<<(std::ostream& os, const VertexInfo& vi);
@@ -175,7 +180,8 @@ struct VisibilityInfo {
   VisibilityInfo();
   explicit VisibilityInfo(const Mesh& mesh);
   ~VisibilityInfo();
-  void CalcStatVertexInfo();
+  void CalcStatVertexInfo(
+      std::function<void(VertexInfo&)> vert_custom_func = nullptr);
   void CalcStatFaceInfo();
   void Update(int vertex_id, const VertexInfoPerKeyframe& info);
   void Update(int face_id, const FaceInfoPerKeyframe& info);
@@ -242,9 +248,11 @@ class VisibilityTester {
 
   // run visibility test
   // facewise=true: slow but more accurate on geometric boundaries
-  bool Test(VisibilityInfo* info, bool facewise = true) const;
+  bool Test(VisibilityInfo* info, bool facewise = true,
+            std::function<void(VertexInfo&)> vert_custom_func = nullptr) const;
   bool Test(std::vector<std::shared_ptr<Keyframe>> keyframes,
-            VisibilityInfo* info, bool facewise = true);
+            VisibilityInfo* info, bool facewise = true,
+            std::function<void(VertexInfo&)> vert_custom_func = nullptr);
 };
 
 }  // namespace ugu

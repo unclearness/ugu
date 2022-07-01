@@ -111,6 +111,9 @@ bool FastQuadricMeshSimplification(const Mesh& src, int target_face_num,
 
   return ret;
 #else
+  (void)src;
+  (void)target_face_num;
+  (void)decimated;
   ugu::LOGE("Not available in current configuration\n");
   return false;
 #endif

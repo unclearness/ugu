@@ -213,4 +213,19 @@ bool FindSimilarityTransformFromPointCorrespondences(
   return true;
 }
 
+
+Eigen::Vector3f MedianColor(const std::vector<Eigen::Vector3f>& colors) {
+  Eigen::Vector3f median;
+  std::vector<std::vector<float>> ith_channel_list(3);
+  for (const auto& color : colors) {
+    for (int i = 0; i < 3; i++) {
+      ith_channel_list[i].push_back(color[i]);
+    }
+  }
+  for (int i = 0; i < 3; i++) {
+    median[i] = Median(ith_channel_list[i]);
+  }
+  return median;
+}
+
 }  // namespace ugu

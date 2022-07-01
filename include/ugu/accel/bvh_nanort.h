@@ -120,7 +120,7 @@ class BvhNanort : public Bvh<T, TT> {
 
     // shoot ray
     float t_offset = 0.f;
-    constexpr float epsilon = 1e-7;
+    constexpr float epsilon = 1e-7f;
     nanort::TriangleIntersection<typename T::Scalar> isect;
     nanort::TriangleIntersector<typename T::Scalar> m_triangle_intersector(
         m_vertices[0].data(), m_indices[0].data(),

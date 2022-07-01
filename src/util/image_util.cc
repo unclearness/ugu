@@ -227,6 +227,7 @@ void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
   }
 
   auto copy_pix = [&](VT& val, const int* index) {
+    (void) val;
     VT& src_val = src.template at<VT>(index[1], index[0]);
     for (int i = 0; i < src.channels(); i++) {
       ugu::Image<VT2>& p = planes[i];

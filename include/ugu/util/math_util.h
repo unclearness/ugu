@@ -89,6 +89,53 @@ T WeightedMedian(const std::vector<T>& data,
   return data_weights[index].second;
 }
 
+template <typename T>
+float Median(const std::vector<T>& data, bool force_org_val = false) {
+  assert(data.size() > 0);
+  if (data.size() == 1) {
+    return data[0];
+  } else if (data.size() == 2) {
+    if (force_org_val) {
+      return data[0];
+    }
+    return (data[0] + data[1]) * 0.5f;
+  }
+
+  std::vector<T> data_tmp;
+  std::copy(data.begin(), data.end(), std::back_inserter(data_tmp));
+
+  size_t n = data_tmp.size() / 2;
+  if (force_org_val || data_tmp.size() % 2 == 0) {
+    std::nth_element(data_tmp.begin(), data_tmp.begin() + n, data_tmp.end());
+    return data_tmp[n];
+  }
+
+  std::nth_element(data_tmp.begin(), data_tmp.begin() + n + 1, data_tmp.end());
+  return (data_tmp[n] + data_tmp[n + 1]) * 0.5f;
+}
+
+Eigen::Vector3f MedianColor(const std::vector<Eigen::Vector3f>& colors);
+
+template <typename T, class InputIterator>
+void Mode(InputIterator first, InputIterator end, T& mode, int& mode_frequency,
+          std::unordered_map<T, int>& occurrence) {
+  mode_frequency = 0;
+  occurrence.clear();
+
+  for (auto it = first; it != end; it++) {
+    const T& c = *it;
+    if (occurrence.find(c) == occurrence.end()) {
+      occurrence.insert({c, 0});
+    } else {
+      occurrence[c] = occurrence[c] + 1;
+      if (mode_frequency < occurrence[c]) {
+        mode_frequency = occurrence[c];
+        mode = c;
+      }
+    }
+  }
+}
+
 template <typename T, typename TT>
 T LinearInterpolation(const T& val1, const T& val2, const TT& r) {
   return (TT(1.0) - r) * val1 + r * val2;

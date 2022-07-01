@@ -238,6 +238,8 @@ class FaceAdjacency {
 
     return vertex_adjacency;
   }
+
+  bool Empty() const { return vertex_indices_.empty(); }
 };
 
 inline std::unordered_map<int, std::vector<int>> GenerateVertex2FaceMap(

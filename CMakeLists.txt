@@ -252,6 +252,7 @@ message("UGU_STATIC_LIBRARY: ${UGU_STATIC_LIBRARY}")
 set(
   UGU_SOURCE
 
+  include/ugu/eigen_util.h
   include/ugu/common.h
   include/ugu/camera.h
   include/ugu/mesh.h

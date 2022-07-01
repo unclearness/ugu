@@ -1448,4 +1448,43 @@ std::vector<IntersectResult> Intersect(
   return results;
 }
 
+bool UpdateVertexAttrOneRingMost(uint32_t num_vertices,
+                                 const std::vector<Eigen::Vector3i>& indices,
+                                 std::vector<Eigen::Vector3f>& attrs,
+                                 const VertexAdjacency& vert_adjacency,
+                                 const FaceAdjacency& face_adjacency) {
+  VertexAdjacency vert_adjacency_;
+  if (vert_adjacency.empty()) {
+    FaceAdjacency face_adjacency_;
+    if (face_adjacency.Empty()) {
+      face_adjacency_.Init(num_vertices, indices);
+    } else {
+      face_adjacency_ = face_adjacency;
+    }
+    vert_adjacency_ = face_adjacency_.GenerateVertexAdjacency();
+  } else {
+    vert_adjacency_ = vert_adjacency;
+  }
+
+  std::vector<Eigen::Vector3f> org_attrs = attrs;
+
+  for (uint32_t i = 0; i < num_vertices; i++) {
+    const auto& va = vert_adjacency_[i];
+    if (va.empty()) {
+      continue;
+    }
+    int mode_frequency = -1;
+    std::unordered_map<Eigen::Vector3f, int> occurrence;
+
+    std::vector<Eigen::Vector3f> one_ring_attrs;
+    std::transform(va.begin(), va.end(), std::back_inserter(one_ring_attrs),
+                   [&](const int32_t& ii) { return org_attrs[ii]; });
+
+    Mode(one_ring_attrs.begin(), one_ring_attrs.end(), attrs[i], mode_frequency,
+         occurrence);
+  }
+
+  return true;
+}
+
 }  // namespace ugu
