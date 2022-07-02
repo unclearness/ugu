@@ -142,6 +142,9 @@ void VertexInfo::CalcStat(std::function<void(VertexInfo&)> vert_custom_func) {
 
   // Mode
   Mode(colors.begin(), colors.end(), mode, mode_frequency, occurrence);
+  Mode(colors.begin(), colors.end(), mode_viewing_angle_color,
+       mode_frequency_viewing_angle_color, occurrence_viewing_angle,
+       inv_viewing_angles);
 
   if (vert_custom_func != nullptr) {
     vert_custom_func(*this);

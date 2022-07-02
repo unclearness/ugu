@@ -125,14 +125,47 @@ void Mode(InputIterator first, InputIterator end, T& mode, int& mode_frequency,
   for (auto it = first; it != end; it++) {
     const T& c = *it;
     if (occurrence.find(c) == occurrence.end()) {
-      occurrence.insert({c, 0});
+      occurrence.insert({c, 1});
     } else {
       occurrence[c] = occurrence[c] + 1;
-      if (mode_frequency < occurrence[c]) {
-        mode_frequency = occurrence[c];
-        mode = c;
-      }
     }
+    if (mode_frequency < occurrence[c]) {
+      mode_frequency = occurrence[c];
+      mode = c;
+    }
+  }
+}
+
+template <typename T, class InputIterator>
+void Mode(InputIterator first, InputIterator end, T& mode,
+          float& mode_frequency, std::unordered_map<T, float>& occurrence,
+          const std::vector<float>& weights = std::vector<float>()) {
+  mode_frequency = 0;
+  occurrence.clear();
+
+  std::vector<float> weights_ = weights;
+
+  size_t size = std::distance(first, end);
+  if (weights_.size() != size) {
+    weights_.clear();
+    weights_.resize(size, 1.f);
+  }
+
+  uint32_t count = 0;
+
+  for (auto it = first; it != end; it++) {
+    const T& c = *it;
+    const float& w = weights_[count];
+    if (occurrence.find(c) == occurrence.end()) {
+      occurrence.insert({c, w});
+    } else {
+      occurrence[c] = occurrence[c] + w;
+    }
+    if (mode_frequency < occurrence[c]) {
+      mode_frequency = occurrence[c];
+      mode = c;
+    }
+    count++;
   }
 }
 

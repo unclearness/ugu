@@ -53,6 +53,11 @@ bool VertexColorizer::Colorize(const VisibilityInfo& info, Mesh* mesh,
       return info.mode;
       ;
     };
+  } else if (criteria == ViewSelectionCriteria::kModeViewingAngle) {
+    select = [&](const VertexInfo& info) {
+      return info.mode_viewing_angle_color;
+      ;
+    };
   } else if (criteria == ViewSelectionCriteria::kCustom) {
     select = [&](const VertexInfo& info) {
       return info.custom_best;

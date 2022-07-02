@@ -32,7 +32,8 @@ enum class ViewSelectionCriteria {
   kMedianIntensity = 8,
   kMode = 9,  // Valid only if pixels of input keyframe images are discrete
               // (e.g. class id)
-  kCustom = 10
+  kModeViewingAngle = 10,
+  kCustom = 11
 };
 
 struct VisibilityTesterOption {
@@ -106,7 +107,10 @@ struct VertexInfo {
 
   Eigen::Vector3f mode;
   int mode_frequency{-1};
+  Eigen::Vector3f mode_viewing_angle_color;
+  float mode_frequency_viewing_angle_color{-1.f};
   std::unordered_map<Eigen::Vector3f, int> occurrence;
+  std::unordered_map<Eigen::Vector3f, float> occurrence_viewing_angle;
 
   std::vector<std::vector<Eigen::Vector3f>> customs;
   Eigen::Vector3f custom_best;
