@@ -33,17 +33,17 @@ struct Aabb {
 
     vertices.resize(24);
     indices.resize(12);
-    vertices[0] = Eigen::Vector3f(min_v[0], max_v[1], min_v[2]);
-    vertices[1] = Eigen::Vector3f(max_v[0], max_v[1], min_v[2]);
-    vertices[2] = Eigen::Vector3f(max_v[0], max_v[1], max_v[2]);
-    vertices[3] = Eigen::Vector3f(min_v[0], max_v[1], max_v[2]);
+    vertices[0] = Eigen::Vector3d(min_v[0], max_v[1], min_v[2]).cast<float>();
+    vertices[1] = Eigen::Vector3d(max_v[0], max_v[1], min_v[2]).cast<float>();
+    vertices[2] = Eigen::Vector3d(max_v[0], max_v[1], max_v[2]).cast<float>();
+    vertices[3] = Eigen::Vector3d(min_v[0], max_v[1], max_v[2]).cast<float>();
     indices[0] = Eigen::Vector3i(0, 2, 1);
     indices[1] = Eigen::Vector3i(0, 3, 2);
 
-    vertices[4] = Eigen::Vector3f(min_v[0], min_v[1], min_v[2]);
-    vertices[5] = Eigen::Vector3f(max_v[0], min_v[1], min_v[2]);
-    vertices[6] = Eigen::Vector3f(max_v[0], min_v[1], max_v[2]);
-    vertices[7] = Eigen::Vector3f(min_v[0], min_v[1], max_v[2]);
+    vertices[4] = Eigen::Vector3d(min_v[0], min_v[1], min_v[2]).cast<float>();
+    vertices[5] = Eigen::Vector3d(max_v[0], min_v[1], min_v[2]).cast<float>();
+    vertices[6] = Eigen::Vector3d(max_v[0], min_v[1], max_v[2]).cast<float>();
+    vertices[7] = Eigen::Vector3d(min_v[0], min_v[1], max_v[2]).cast<float>();
     indices[2] = Eigen::Vector3i(4, 5, 6);
     indices[3] = Eigen::Vector3i(4, 6, 7);
 

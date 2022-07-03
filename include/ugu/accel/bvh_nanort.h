@@ -71,8 +71,21 @@ class BvhNanort : public Bvh<T, TT> {
     // timer.End();
     // LOGI("  BVH build time: %.1f msecs\n", timer.elapsed_msec());
 
-    m_stats = m_accel.GetStatistics();
+    m_stats_nanort = m_accel.GetStatistics();
     m_accel.BoundingBox(m_bmin.data(), m_bmax.data());
+
+    m_stats.build_secs = m_stats_nanort.build_secs;
+    m_stats.max_tree_depth = m_stats_nanort.max_tree_depth;
+    m_stats.num_branch_nodes = m_stats_nanort.num_branch_nodes;
+    m_stats.num_leaf_nodes = m_stats_nanort.num_leaf_nodes;
+    Eigen::Vector3d bmax, bmin;
+    bmax[0] = static_cast<double>(m_bmax[0]);
+    bmax[1] = static_cast<double>(m_bmax[1]);
+    bmax[2] = static_cast<double>(m_bmax[2]);
+    bmin[0] = static_cast<double>(m_bmin[0]);
+    bmin[1] = static_cast<double>(m_bmin[1]);
+    bmin[2] = static_cast<double>(m_bmin[2]);
+    m_stats.bb = Aabb<Eigen::Vector3d>(bmax, bmin);
 
     // m_triangle_intersector = nanort::TriangleIntersector<typename T::Scalar>(
     //    m_vertices[0].data(), m_indices[0].data(), sizeof(T::Scalar) * 3);
@@ -83,21 +96,7 @@ class BvhNanort : public Bvh<T, TT> {
   }
 
   const BvhBuildStatistics& GetBuildStatistics() const override {
-    BvhBuildStatistics stats;
-    stats.build_secs = m_stats.build_secs;
-    stats.max_tree_depth = m_stats.max_tree_depth;
-    stats.num_branch_nodes = m_stats.num_branch_nodes;
-    stats.num_leaf_nodes = m_stats.num_leaf_nodes;
-    Eigen::Vector3d bmax, bmin;
-    bmax[0] = static_cast<double>(m_bmax[0]);
-    bmax[1] = static_cast<double>(m_bmax[1]);
-    bmax[2] = static_cast<double>(m_bmax[2]);
-    bmin[0] = static_cast<double>(m_bmin[0]);
-    bmin[1] = static_cast<double>(m_bmin[1]);
-    bmin[2] = static_cast<double>(m_bmin[2]);
-    stats.bb = Aabb<Eigen::Vector3d>(bmax, bmin);
-
-    return stats;
+    return m_stats;
   }
 
   std::vector<IntersectResult> Intersect(const Ray& ray,
@@ -164,7 +163,8 @@ class BvhNanort : public Bvh<T, TT> {
   std::unique_ptr<nanort::TriangleMesh<typename T::Scalar>> m_triangle_mesh;
   std::unique_ptr<nanort::TriangleSAHPred<typename T::Scalar>> m_triangle_pred;
   nanort::BVHAccel<typename T::Scalar> m_accel;
-  nanort::BVHBuildStatistics m_stats;
+  nanort::BVHBuildStatistics m_stats_nanort;
+  BvhBuildStatistics m_stats;
   T m_bmin, m_bmax;
 };
 
