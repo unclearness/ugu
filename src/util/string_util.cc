@@ -40,4 +40,14 @@ std::string ExtractExt(const std::string& path, bool no_dot) {
   return extname;
 }
 
+std::vector<std::string> Split(const std::string& input, char delimiter) {
+  std::istringstream stream(input);
+  std::string field;
+  std::vector<std::string> result;
+  while (std::getline(stream, field, delimiter)) {
+    result.push_back(field);
+  }
+  return result;
+}
+
 }  // namespace ugu

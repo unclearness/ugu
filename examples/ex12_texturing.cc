@@ -14,6 +14,7 @@
 #include "ugu/texturing/vertex_colorizer.h"
 #include "ugu/texturing/visibility_tester.h"
 #include "ugu/util/raster_util.h"
+#include "ugu/util/string_util.h"
 
 // test by bunny data with 6 views
 int main(int argc, char* argv[]) {

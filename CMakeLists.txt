@@ -260,6 +260,7 @@ set(
   include/ugu/image.h
   include/ugu/line.h
   include/ugu/log.h
+  include/ugu/util/camera_util.h
   include/ugu/util/io_util.h
   include/ugu/util/math_util.h
   include/ugu/util/raster_util.h
@@ -271,11 +272,13 @@ set(
   include/ugu/util/path_util.h
   include/ugu/timer.h
 
+  src/common.cc
   src/camera.cc
   src/mesh.cc
   src/gltf.h
   src/ugu_stb.h
   src/log.cc
+  src/util/camera_util.cc
   src/util/io_util.cc
   src/util/math_util.cc
   src/util/rgbd_util.cc

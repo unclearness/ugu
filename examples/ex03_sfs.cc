@@ -10,6 +10,7 @@
 #include "ugu/camera.h"
 #include "ugu/sfs/voxel_carver.h"
 #include "ugu/util/image_util.h"
+#include "ugu/util/string_util.h"
 
 #if 0
 std::vector<std::string> Split(const std::string& input, char delimiter) {

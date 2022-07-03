@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "ugu/common.h"
+#include "ugu/util/camera_util.h"
 
 namespace ugu {
 
@@ -233,13 +234,6 @@ class OrthoCamera : public Camera {
   void ray_w(int x, int y, Eigen::Vector3f* dir) const override;
 };
 
-void WriteTumFormat(const std::vector<Eigen::Affine3d>& poses,
-                    const std::string& path);
-bool LoadTumFormat(const std::string& path,
-                   std::vector<Eigen::Affine3d>* poses);
-bool LoadTumFormat(const std::string& path,
-                   std::vector<std::pair<int, Eigen::Affine3d>>* poses);
-
 inline PinholeCamera::PinholeCamera()
     : principal_point_(-1, -1), focal_length_(-1, -1) {
   set_size(-1, -1);
@@ -317,11 +311,11 @@ inline void PinholeCamera::set_c2w(const Eigen::Affine3d& c2w) {
 }
 
 inline float PinholeCamera::fov_x() const {
-  return degrees<float>(2 * std::atan(width_ * 0.5f / focal_length_[0]));
+  return degrees(2 * std::atan(width_ * 0.5f / focal_length_[0]));
 }
 
 inline float PinholeCamera::fov_y() const {
-  return degrees<float>(2 * std::atan(height_ * 0.5f / focal_length_[1]));
+  return degrees(2 * std::atan(height_ * 0.5f / focal_length_[1]));
 }
 
 inline const Eigen::Vector2f& PinholeCamera::principal_point() const {
@@ -347,8 +341,7 @@ inline void PinholeCamera::set_focal_length(
 inline void PinholeCamera::set_fov_x(float fov_x_deg) {
   // same focal length per pixel for x and y
   focal_length_[0] =
-      width_ * 0.5f /
-      static_cast<float>(std::tan(radians<float>(fov_x_deg) * 0.5));
+      width_ * 0.5f / static_cast<float>(std::tan(radians(fov_x_deg) * 0.5));
   focal_length_[1] = focal_length_[0];
 
   need_init_ray_table_ = true;
@@ -358,8 +351,7 @@ inline void PinholeCamera::set_fov_y(float fov_y_deg) {
   // same focal length per pixel for x and y
 
   focal_length_[1] =
-      height_ * 0.5f /
-      static_cast<float>(std::tan(radians<float>(fov_y_deg) * 0.5));
+      height_ * 0.5f / static_cast<float>(std::tan(radians(fov_y_deg) * 0.5));
   focal_length_[0] = focal_length_[1];
 
   need_init_ray_table_ = true;

@@ -11,10 +11,12 @@
 
 #include "ugu/renderer/rasterizer.h"
 #include "ugu/renderer/raytracer.h"
+#include "ugu/util/camera_util.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/io_util.h"
 #include "ugu/util/rgbd_util.h"
+#include "ugu/util/string_util.h"
 
 // #define USE_RASTERIZER
 

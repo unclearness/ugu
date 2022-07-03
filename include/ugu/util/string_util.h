@@ -5,11 +5,23 @@
 
 #pragma once
 
+#include <iomanip>
+#include <sstream>
 #include <string>
+#include <vector>
 
 namespace ugu {
 
 std::string ExtractDir(const std::string& path);
 std::string ExtractExt(const std::string& path, bool no_dot = true);
+
+std::vector<std::string> Split(const std::string& input, char delimiter);
+
+template <typename T>
+std::string zfill(const T& val, int num = 5) {
+  std::ostringstream sout;
+  sout << std::setfill('0') << std::setw(num) << val;
+  return sout.str();
+}
 
 }  // namespace ugu
