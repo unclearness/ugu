@@ -18,6 +18,10 @@ bool LoadTumFormat(const std::string& path,
                    std::vector<Eigen::Affine3d>* poses);
 bool LoadTumFormat(const std::string& path,
                    std::vector<std::pair<int, Eigen::Affine3d>>* poses);
+bool LoadTumFormatExtend(
+    const std::string& path,
+    std::vector<std::tuple<int, Eigen::Affine3d, std::vector<std::string>>>*
+        poses);
 
 void c2w(const Eigen::Vector3f& position, const Eigen::Vector3f& target,
          const Eigen::Vector3f& up, Eigen::Matrix3f* R);

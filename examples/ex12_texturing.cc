@@ -165,7 +165,9 @@ int main(int argc, char* argv[]) {
 #ifdef UGU_USE_MVS_TEXTURING
   // mvs-texturing
   ugu::Mesh debug_mesh;
-  bool ret = ugu::MvsTexturing(keyframes, output_mesh.get(), &debug_mesh);
+  bool ret = ugu::MvsTexturing(keyframes, output_mesh.get(), &debug_mesh,
+                               data_dir + "bunny_mvs_texturing_native",
+                               data_dir + "bunny_mvs_texturing_debug_native");
   if (ret) {
     output_mesh->WriteObj(data_dir, "bunny_mvs_texturing");
     debug_mesh.WriteObj(data_dir, "bunny_mvs_texturing_debug");

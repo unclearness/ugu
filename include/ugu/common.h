@@ -20,7 +20,6 @@
 
 namespace ugu {
 
-// TODO: definition in header may be invalid.
 static inline const double pi = 3.14159265358979323846;
 
 // Interpolation method in texture uv space

@@ -15,6 +15,8 @@ bool FastQuadricMeshSimplification(const Mesh& src, int target_face_num,
                                    Mesh* decimated);
 
 bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
-                  ugu::Mesh* mesh, ugu::Mesh* debug_mesh = nullptr);
+                  ugu::Mesh* mesh, ugu::Mesh* debug_mesh = nullptr,
+                  const std::string& save_path = "",
+                  const std::string& save_debug_path = "");
 
 }  // namespace ugu

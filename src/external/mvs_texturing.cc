@@ -207,7 +207,9 @@ bool ConvertObjModel(tex::Model& objmodel, ugu::Mesh& ugu_mesh) {
 namespace ugu {
 
 bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
-                  ugu::Mesh* ugu_mesh, ugu::Mesh* debug_mesh) {
+                  ugu::Mesh* ugu_mesh, ugu::Mesh* debug_mesh,
+                  const std::string& save_path,
+                  const std::string& save_debug_path) {
 #ifdef UGU_USE_MVS_TEXTURING
 
   Arguments conf;
@@ -361,8 +363,9 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
 
   ConvertObjModel(objmodel, *ugu_mesh);
 
-  // tex::Model::save(model, conf.out_prefix);
-
+  if (!save_path.empty()) {
+    tex::Model::save(objmodel, save_path);
+  }
 #if 0
       if (conf.write_timings) {
     timer.write_to_file(conf.out_prefix + "_timings.csv");
@@ -386,7 +389,9 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
     tex::Model debugobjmodel;
     tex::build_model(mesh, texture_atlases, &debugobjmodel);
     ConvertObjModel(debugobjmodel, *debug_mesh);
-    // tex::Model::save(debugobjmodel, conf.out_prefix + "_view_selection");
+    if (!save_debug_path.empty()) {
+      tex::Model::save(debugobjmodel, save_debug_path);
+    }
   }
 
   // convert to ugu_mesh
