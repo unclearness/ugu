@@ -42,4 +42,18 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
             std::vector<Eigen::VectorXf>& noise_points, float epsilon,
             size_t min_nn_points, bool use_kdtree = true);
 
+struct SegmentMeshResult {
+  std::vector<uint32_t> cluster_ids;
+  std::vector<std::vector<Eigen::Vector3i>> clusters;
+  std::vector<std::vector<Eigen::Vector3f>> cluster_normals;
+  std::vector<std::vector<uint32_t>> cluster_fids;
+};
+
+bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
+                 const std::vector<Eigen::Vector3i>& faces,
+                 const std::vector<Eigen::Vector3f>& face_normals,
+                 SegmentMeshResult& res, float angle_limit_deg = 66.f,
+                 float area_weight = 0.f, bool consider_connectiviy = true,
+                 uint32_t seed_fid = 0);
+
 }  // namespace ugu

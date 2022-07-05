@@ -12,6 +12,7 @@
 #include "ugu/accel/kdtree.h"
 #include "ugu/accel/kdtree_nanoflann.h"
 #include "ugu/common.h"
+#include "ugu/face_adjacency.h"
 
 namespace {
 
@@ -511,4 +512,173 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
 
   return true;
 }
+
+bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
+                 const std::vector<Eigen::Vector3i>& faces,
+                 const std::vector<Eigen::Vector3f>& face_normals,
+                 SegmentMeshResult& res, float angle_limit_deg,
+                 float area_weight, bool consider_connectiviy,
+                 uint32_t seed_fid) {
+  const float angle_limit_rad = std::clamp(radians(angle_limit_deg), 1e-4f,
+                                           static_cast<float>(ugu::pi * 0.5));
+
+  res.cluster_ids.clear();
+  res.clusters.clear();
+  res.cluster_normals.clear();
+  res.cluster_fids.clear();
+
+  res.cluster_ids.resize(faces.size(), uint32_t(~0));
+
+  std::unordered_set<uint32_t> to_process_fids;
+  for (size_t i = 0; i < faces.size(); i++) {
+    to_process_fids.insert(static_cast<uint32_t>(i));
+  }
+
+  uint32_t cur_cid = 0;
+  uint32_t cur_fid = seed_fid;
+  Eigen::Vector3f cur_normal = face_normals[cur_fid];
+  to_process_fids.erase(cur_fid);
+  res.cluster_ids[cur_fid] = cur_cid;
+
+  FaceAdjacency fa;
+  VertexAdjacency va;
+  std::unordered_map<int, std::vector<int>> v2f;
+  if (consider_connectiviy) {
+    fa.Init(static_cast<int>(vertices.size()), faces);
+    va = fa.GenerateVertexAdjacency();
+    v2f = GenerateVertex2FaceMap(faces, vertices.size());
+  }
+
+  auto normal_aggr_func =
+      [&](Eigen::Vector3f& average_normal, const Eigen::Vector3f& v0,
+          const Eigen::Vector3f& v1, const Eigen::Vector3f& v2,
+          const Eigen::Vector3f& n) {
+        if (area_weight <= 0.0f) {
+          average_normal += n;
+
+        } else if (area_weight >= 1.f) {
+          const float area = ((v2 - v0).cross(v1 - v0)).norm() * 0.5f;
+          average_normal += area * n;
+
+        } else {
+          const float area = ((v2 - v0).cross(v1 - v0)).norm() * 0.5f;
+          const float area_blend = area * area_weight + (1.f - area_weight);
+          average_normal += area_blend * n;
+        }
+      };
+
+  auto update_func = [&](uint32_t fid, const Eigen::Vector3f& cur_normal,
+                         std::vector<Eigen::Vector3i>& cluster,
+                         std::vector<Eigen::Vector3f>& cluster_normal,
+                         std::vector<uint32_t>& cluster_fid,
+                         Eigen::Vector3f& average_normal) {
+    const float angle = std::acos(face_normals[fid].dot(cur_normal));
+    if (angle <= angle_limit_rad) {
+      cluster_fid.push_back(fid);
+      cluster.push_back(faces[fid]);
+      cluster_normal.push_back(face_normals[fid]);
+      const auto& v0 = vertices[faces[fid][0]];
+      const auto& v1 = vertices[faces[fid][1]];
+      const auto& v2 = vertices[faces[fid][2]];
+      normal_aggr_func(average_normal, v0, v1, v2, face_normals[fid]);
+
+      res.cluster_ids[fid] = cur_cid;
+      return true;
+    }
+    return false;
+  };
+
+  Eigen::Vector3f average_normal = cur_normal;
+  while (true) {
+    std::vector<Eigen::Vector3i> cluster{faces[cur_fid]};
+    std::vector<Eigen::Vector3f> cluster_normal{face_normals[cur_fid]};
+    std::vector<uint32_t> cluster_fid{cur_fid};
+
+    res.cluster_ids[cur_fid] = cur_cid;
+
+#if 0
+    const auto& v0 = vertices[faces[cur_fid][0]];
+    const auto& v1 = vertices[faces[cur_fid][1]];
+    const auto& v2 = vertices[faces[cur_fid][2]];
+    normal_aggr_func(average_normal, v0, v1, v2, face_normals[cur_fid]);
+#endif
+
+    if (consider_connectiviy) {
+      std::unordered_set<uint32_t> processing;
+      std::unordered_set<uint32_t> processed;
+      std::vector<int> adjacent_face_ids;
+
+      auto update_func2 = [&](uint32_t fid) {
+        // fa.GetAdjacentFacesByVertex(static_cast<int>(fid), va, v2f,
+        //                            &adjacent_face_ids);
+        fa.GetAdjacentFaces(static_cast<int>(fid), &adjacent_face_ids);
+        for (const auto& fid : adjacent_face_ids) {
+          bool is_assigned =
+              to_process_fids.find(uint32_t(fid)) != to_process_fids.end();
+          bool is_processed = processed.find(uint32_t(fid)) != processed.end();
+          if (is_assigned && !is_processed) {
+            if (update_func(fid, cur_normal, cluster, cluster_normal,
+                            cluster_fid, average_normal)) {
+              processing.insert(uint32_t(fid));
+              // fa.RemoveFace(int(fid));
+            }
+          }
+        }
+      };
+
+      processed.insert(cur_fid);
+      update_func2(cur_fid);
+
+      while (!processing.empty()) {
+        uint32_t front_fid = *processing.begin();
+        processing.erase(front_fid);
+        processed.insert(front_fid);
+        update_func2(front_fid);
+      }
+
+    } else {
+      for (const auto& fid : to_process_fids) {
+        update_func(fid, cur_normal, cluster, cluster_normal, cluster_fid,
+                    average_normal);
+      }
+    }
+
+    average_normal.normalize();
+
+    res.cluster_fids.push_back(cluster_fid);
+    res.clusters.push_back(cluster);
+    res.cluster_normals.push_back(cluster_normal);
+
+    for (const auto& fid : cluster_fid) {
+      to_process_fids.erase(fid);
+    }
+
+    if (to_process_fids.empty()) {
+      break;
+    }
+
+    // Find the most flipped face from the average normal
+    uint32_t flipped_fid = cur_fid;
+    float flipped_angle = -static_cast<float>(ugu::pi);
+    Eigen::Vector3f flipped_normal = average_normal;
+    for (const auto& fid : to_process_fids) {
+      const float angle = std::acos(face_normals[fid].dot(average_normal));
+      if (flipped_angle < angle) {
+        flipped_fid = fid;
+        flipped_normal = face_normals[fid];
+        flipped_angle = angle;
+      }
+    }
+
+    assert(cur_fid != flipped_fid);
+
+    cur_fid = flipped_fid;
+    cur_normal = flipped_normal;
+
+    cur_cid++;
+  }
+
+  return true;
+}
+
 }  // namespace ugu

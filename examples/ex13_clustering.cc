@@ -287,11 +287,95 @@ void DBSCANTest() {
   SavePoints("dbscan.ply", points, num_clusters, labels_, centroids);
 }
 
+void SegmentMeshTest() {
+  std::string data_dir = "../data/bunny/";
+  std::string obj_path = data_dir + "bunny.obj";
+  // load mesh
+  ugu::MeshPtr input_mesh = ugu::Mesh::Create();
+  input_mesh->LoadObj(obj_path, data_dir);
+
+  ugu::SegmentMeshResult res;
+  ugu::SegmentMesh(input_mesh->vertices(), input_mesh->vertex_indices(),
+                   input_mesh->face_normals(), res);
+
+  std::uniform_real_distribution<float> color_dstr(0.f, 255.f);
+  std::vector<Eigen::Vector3f> random_colors;
+
+  for (size_t i = 0; i < res.clusters.size(); i++) {
+    ugu::MeshPtr output_mesh = ugu::Mesh::Create();
+
+    // TODO: not to decompose
+    std::vector<Eigen::Vector3f> vertices;
+    std::vector<Eigen::Vector3i> faces;
+    for (const auto& fid : res.cluster_fids[i]) {
+      auto v0 = input_mesh->vertices()[input_mesh->vertex_indices()[fid][0]];
+      auto v1 = input_mesh->vertices()[input_mesh->vertex_indices()[fid][1]];
+      auto v2 = input_mesh->vertices()[input_mesh->vertex_indices()[fid][2]];
+      vertices.push_back(v0);
+      vertices.push_back(v1);
+      vertices.push_back(v2);
+
+      faces.push_back({static_cast<int>(vertices.size() - 3),
+                       static_cast<int>(vertices.size() - 2),
+                       static_cast<int>(vertices.size() - 1)});
+    }
+
+    output_mesh->set_vertex_indices(faces);
+    output_mesh->set_vertices(vertices);
+
+    Eigen::Vector3f random_color(color_dstr(engine), color_dstr(engine),
+                                 color_dstr(engine));
+    random_colors.push_back(random_color);
+    std::vector<Eigen::Vector3f> vertex_colors(vertices.size(), random_color);
+    output_mesh->set_vertex_colors(vertex_colors);
+    output_mesh->WritePly(data_dir + "bunny_segmented_" + std::to_string(i) +
+                          ".ply");
+  }
+
+  ugu::MeshPtr output_mesh = ugu::Mesh::Create();
+  //std::vector<Eigen::Vector3f> vertex_colors;
+  for (size_t i = 0; i < res.cluster_ids.size(); i++) {
+    auto id = res.cluster_ids[i];
+    if (id > 1000) {
+      ugu::LOGI("%d %d\n", i, id);
+    }
+  }
+
+ // std::transform(res.cluster_ids.begin(), res.cluster_ids.end(),
+ //                std::back_inserter(vertex_colors),
+  //               [&](uint32_t cid) { return random_colors[cid]; });
+
+  std::vector<int> material_ids;
+  std::transform(res.cluster_ids.begin(), res.cluster_ids.end(),
+                 std::back_inserter(material_ids),
+                 [&](uint32_t cid) { return int(cid); });
+  std::vector<ugu::ObjMaterial> materials;
+  for (size_t i = 0; i < res.clusters.size(); i++) {
+    ugu::ObjMaterial mat;
+    mat.name = "mat_" + std::to_string(i);
+    mat.diffuse[0] = random_colors[i][0] / 255.f;
+    mat.diffuse[1] = random_colors[i][1] / 255.f;
+    mat.diffuse[2] = random_colors[i][2] / 255.f;
+    materials.push_back(mat);
+  };
+
+  //output_mesh->set_vertex_colors(vertex_colors);
+
+  output_mesh->set_vertices(input_mesh->vertices());
+  output_mesh->set_vertex_indices(input_mesh->vertex_indices());
+  output_mesh->set_material_ids(material_ids);
+  output_mesh->set_materials(materials);
+
+  output_mesh->WriteObj(data_dir, "bunny_segmented.obj");
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
+
+  SegmentMeshTest();
 
   KMeansTest();
 
