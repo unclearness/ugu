@@ -21,7 +21,7 @@
 
 namespace ugu {
 
-using VertexAdjacency = std::vector<std::set<int>>;
+using Adjacency = std::vector<std::set<int>>;
 
 class FaceAdjacency {
  private:
@@ -137,81 +137,45 @@ class FaceAdjacency {
     }
   }
 
-  void GetAdjacentFacesByVertex(int face_id, const VertexAdjacency& va,
-                                std::unordered_map<int, std::vector<int>> v2f,
-                                std::vector<int>* adjacent_face_ids) {
-    std::unordered_set<int> connecting_vids;
-    for (int i = 0; i < 3; i++) {
-      const auto& vids = va[vertex_indices_[face_id][i]];
-      for (const auto& vid : vids) {
-        connecting_vids.insert(vid);
-      }
-    }
+  Adjacency GenerateAdjacentFacesByVertex(
+      const Adjacency& vertex_adjacency,
+      std::unordered_map<int, std::vector<int>> v2f) const {
+    Adjacency res(vertex_indices_.size());
 
-    std::unordered_set<int> connecting;
-    const auto& face = vertex_indices_[face_id];
-    for (const auto& vid : connecting_vids) {
-      const auto& fids = v2f[vid];
-      for (const auto& fid : fids) {
-        //connecting.insert(fid);
-        const auto& face_ = vertex_indices_[fid];
-   bool ok = false;
-        for (int i = 0; i < 3; i++) {
-          for (int j = 0; j < 3; j++) {
-            if (face[i] == face_[j]) {
-              ok = true;
-              break;
+    for (int face_id = 0; face_id < static_cast<int>(vertex_indices_.size());
+         ++face_id) {
+      std::unordered_set<int> connecting_vids;
+      for (int i = 0; i < 3; i++) {
+        const auto& vids = vertex_adjacency[vertex_indices_[face_id][i]];
+        for (const auto& vid : vids) {
+          connecting_vids.insert(vid);
+        }
+      }
+
+      std::set<int>& connecting = res[face_id];
+      const auto& face = vertex_indices_[face_id];
+      for (const auto& vid : connecting_vids) {
+        const auto& fids = v2f[vid];
+        for (const auto& fid : fids) {
+          const auto& face_ = vertex_indices_[fid];
+          bool ok = false;
+          for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+              if (face[i] == face_[j]) {
+                ok = true;
+                break;
+              }
             }
           }
-        }
-        if (ok) {
-          connecting.insert(fid);
-        }
-
-      }
-    }
-    connecting.erase(face_id);
-
-    adjacent_face_ids->clear();
-    std::copy(connecting.begin(), connecting.end(),
-              std::back_inserter(*adjacent_face_ids));
-
-#if 0
-           std::vector<int> one_ring;
-    GetAdjacentFaces(face_id, &one_ring);
-    std::unordered_set<int> two_ring;
-    for (const auto& fid : one_ring) {
-      std::vector<int> tmp;
-      GetAdjacentFaces(fid, &tmp);
-      for (const auto& t : tmp) {
-        two_ring.insert(t);
-      }
-    }
-    two_ring.erase(face_id);
-
-    const auto& face = vertex_indices_[face_id];
-    std::unordered_set<int> connecting;
-
-    for (const auto& fid : two_ring) {
-      const auto& face_ = vertex_indices_[fid];
-      bool ok = false;
-      for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-          if (face[i] == face_[j]) {
-            ok = true;
-            break;
+          if (ok) {
+            connecting.insert(fid);
           }
         }
       }
-      if (ok) {
-        connecting.insert(fid);
-      }
+      connecting.erase(face_id);
     }
 
-    adjacent_face_ids->clear();
-    std::copy(connecting.begin(), connecting.end(),
-              std::back_inserter(*adjacent_face_ids));
-#endif  // 0
+    return res;
   }
 
   bool RemoveFace(int face_id) {
@@ -296,9 +260,9 @@ class FaceAdjacency {
     return {boundary_edges, boundary_vertex_ids};
   }
 
-  VertexAdjacency GenerateVertexAdjacency() {
+  Adjacency GenerateVertexAdjacency() {
     const auto vertex_num = mat_.rows();
-    VertexAdjacency vertex_adjacency(vertex_num);
+    Adjacency vertex_adjacency(vertex_num);
 
     for (size_t face_id = 0; face_id < vertex_indices_.size(); face_id++) {
       const Eigen::Vector3i& face = vertex_indices_[face_id];

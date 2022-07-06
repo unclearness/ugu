@@ -1451,9 +1451,9 @@ std::vector<IntersectResult> Intersect(
 bool UpdateVertexAttrOneRingMost(uint32_t num_vertices,
                                  const std::vector<Eigen::Vector3i>& indices,
                                  std::vector<Eigen::Vector3f>& attrs,
-                                 const VertexAdjacency& vert_adjacency,
+                                 const Adjacency& vert_adjacency,
                                  const FaceAdjacency& face_adjacency) {
-  VertexAdjacency vert_adjacency_;
+  Adjacency vert_adjacency_;
   if (vert_adjacency.empty()) {
     FaceAdjacency face_adjacency_;
     if (face_adjacency.Empty()) {

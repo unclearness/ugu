@@ -47,13 +47,14 @@ struct SegmentMeshResult {
   std::vector<std::vector<Eigen::Vector3i>> clusters;
   std::vector<std::vector<Eigen::Vector3f>> cluster_normals;
   std::vector<std::vector<uint32_t>> cluster_fids;
+  std::vector<Eigen::Vector3f> cluster_representative_normals;
 };
 
 bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
                  const std::vector<Eigen::Vector3i>& faces,
                  const std::vector<Eigen::Vector3f>& face_normals,
-                 SegmentMeshResult& res, float angle_limit_deg = 66.f,
+                 SegmentMeshResult& res, float angle_limit_deg = 66.4f,
                  float area_weight = 0.f, bool consider_connectiviy = true,
-                 uint32_t seed_fid = 0);
+                 bool use_vertex_based_connectivity = false);
 
 }  // namespace ugu

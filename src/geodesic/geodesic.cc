@@ -31,7 +31,7 @@ bool operator<(const DijkstraVertexInfo& l, const DijkstraVertexInfo& r) {
 using DijkstraHeap =
     std::priority_queue<DijkstraVertexInfo, std::vector<DijkstraVertexInfo>>;
 
-void DijkstraUpdate(DijkstraHeap& q, ugu::VertexAdjacency& vertex_adjacency,
+void DijkstraUpdate(DijkstraHeap& q, ugu::Adjacency& vertex_adjacency,
                     Eigen::SparseMatrix<float>& edge_dists,
                     std::vector<double>& dists,
                     std::vector<int>& min_path_edges) {
@@ -53,7 +53,7 @@ void DijkstraUpdate(DijkstraHeap& q, ugu::VertexAdjacency& vertex_adjacency,
 // Kimmel, Ron, and James A. Sethian. "Computing geodesic paths on manifolds."
 // Proceedings of the national academy of Sciences 95.15 (1998): 8431-8435.
 // https://www.pnas.org/content/pnas/95/15/8431.full.pdf
-void FmmUpdate(DijkstraHeap& q, ugu::VertexAdjacency& vertex_adjacency,
+void FmmUpdate(DijkstraHeap& q, ugu::Adjacency& vertex_adjacency,
                const std::unordered_map<int, std::vector<int>>& v2f,
                const std::vector<Eigen::Vector3i>& faces,
                Eigen::SparseMatrix<float>& edge_dists,
@@ -203,8 +203,7 @@ bool ComputeGeodesicDistanceDijkstraBase(const ugu::Mesh& mesh,
   ugu::FaceAdjacency face_adjacency;
   face_adjacency.Init(static_cast<int>(num_vertices), mesh.vertex_indices());
 
-  ugu::VertexAdjacency vertex_adjacency =
-      face_adjacency.GenerateVertexAdjacency();
+  ugu::Adjacency vertex_adjacency = face_adjacency.GenerateVertexAdjacency();
 
   // Compute edge distances
   edge_dists = Eigen::SparseMatrix<float>(num_vertices, num_vertices);

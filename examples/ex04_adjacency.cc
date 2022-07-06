@@ -33,6 +33,7 @@ int main(int argc, char* argv[]) {
   auto [clusters, non_orphans, orphans, clusters_f] =
       ugu::ClusterByConnectivity(mesh->uv_indices(),
                                  static_cast<int32_t>(mesh->uv().size()));
+  ugu::LOGI("#Clusters %d\n", clusters.size());
 
   ugu::Mesh cluster_colored = *mesh;
   auto random_colors =
@@ -51,7 +52,6 @@ int main(int argc, char* argv[]) {
 
   cluster_colored.set_vertex_colors(colors);
   cluster_colored.WritePly(data_dir + "bunny_uv_cluster.ply");
-
   auto [boundary_edges_list, boundary_vertex_ids_list] = ugu::FindBoundaryLoops(
       mesh->vertex_indices(), static_cast<int32_t>(mesh->vertices().size()));
 

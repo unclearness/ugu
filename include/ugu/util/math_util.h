@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 #include <numeric>
 #include <vector>
@@ -317,6 +318,21 @@ std::tuple<float, T, Eigen::Vector2f> PointTriangleDistance(const T& p,
 
 inline Eigen::Vector3f Extract3f(const Eigen::Vector4f& v) {
   return Eigen::Vector3f(v[0], v[1], v[2]);
+}
+
+template <typename T>
+std::vector<size_t> argsort(const std::vector<T>& array, bool greater = false) {
+  std::vector<size_t> indices(array.size());
+  std::iota(indices.begin(), indices.end(), 0);
+  std::sort(indices.begin(), indices.end(),
+            [=, &array](int left, int right) -> bool {
+              // sort indices according to corresponding array element
+              if (greater) {
+                return array[left] > array[right];
+              }
+              return array[left] < array[right];
+            });
+  return indices;
 }
 
 }  // namespace ugu

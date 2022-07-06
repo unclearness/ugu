@@ -13,6 +13,9 @@
 #include "ugu/accel/kdtree_nanoflann.h"
 #include "ugu/common.h"
 #include "ugu/face_adjacency.h"
+#include "ugu/util/math_util.h"
+
+#define UGU_CLUSTERING_FACE_CONNECTIVIY_VERTICES
 
 namespace {
 
@@ -518,14 +521,30 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
                  const std::vector<Eigen::Vector3f>& face_normals,
                  SegmentMeshResult& res, float angle_limit_deg,
                  float area_weight, bool consider_connectiviy,
-                 uint32_t seed_fid) {
+                 bool use_vertex_based_connectivity) {
   const float angle_limit_rad = std::clamp(radians(angle_limit_deg), 1e-4f,
                                            static_cast<float>(ugu::pi * 0.5));
+
+  const float project_angle_limit_cos = std::cos(angle_limit_rad);
+  // const float project_angle_limit_half_cos = std::cos(angle_limit_rad / 2);
+
+  // Sort by face area
+  std::vector<float> face_areas;
+  std::transform(faces.begin(), faces.end(), std::back_inserter(face_areas),
+                 [&](const Eigen::Vector3i& f) {
+                   const auto& v0 = vertices[f[0]];
+                   const auto& v1 = vertices[f[1]];
+                   const auto& v2 = vertices[f[2]];
+                   const float area = ((v2 - v0).cross(v1 - v0)).norm() * 0.5f;
+                   return area;
+                 });
+  std::vector<size_t> sorted_indices = argsort(face_areas, true);
 
   res.cluster_ids.clear();
   res.clusters.clear();
   res.cluster_normals.clear();
   res.cluster_fids.clear();
+  res.cluster_representative_normals.clear();
 
   res.cluster_ids.resize(faces.size(), uint32_t(~0));
 
@@ -535,52 +554,56 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
   }
 
   uint32_t cur_cid = 0;
-  uint32_t cur_fid = seed_fid;
+  uint32_t cur_fid = sorted_indices[0];
   Eigen::Vector3f cur_normal = face_normals[cur_fid];
   to_process_fids.erase(cur_fid);
   res.cluster_ids[cur_fid] = cur_cid;
 
   FaceAdjacency fa;
-  VertexAdjacency va;
+  Adjacency va, fav;
   std::unordered_map<int, std::vector<int>> v2f;
   if (consider_connectiviy) {
     fa.Init(static_cast<int>(vertices.size()), faces);
     va = fa.GenerateVertexAdjacency();
     v2f = GenerateVertex2FaceMap(faces, vertices.size());
+
+    if (use_vertex_based_connectivity) {
+      fav = fa.GenerateAdjacentFacesByVertex(va, v2f);
+    }
   }
 
-  auto normal_aggr_func =
-      [&](Eigen::Vector3f& average_normal, const Eigen::Vector3f& v0,
-          const Eigen::Vector3f& v1, const Eigen::Vector3f& v2,
-          const Eigen::Vector3f& n) {
-        if (area_weight <= 0.0f) {
-          average_normal += n;
+  auto normal_aggr_func = [&](Eigen::Vector3f& average_normal, uint32_t fid,
+                              const Eigen::Vector3f& n) {
+    if (area_weight <= 0.0f) {
+      average_normal += n;
 
-        } else if (area_weight >= 1.f) {
-          const float area = ((v2 - v0).cross(v1 - v0)).norm() * 0.5f;
-          average_normal += area * n;
+    } else if (area_weight >= 1.f) {
+      const float& area = face_areas[fid];
+      average_normal += area * n;
 
-        } else {
-          const float area = ((v2 - v0).cross(v1 - v0)).norm() * 0.5f;
-          const float area_blend = area * area_weight + (1.f - area_weight);
-          average_normal += area_blend * n;
-        }
-      };
+    } else {
+      const float& area = face_areas[fid];
+      const float area_blend = area * area_weight + (1.f - area_weight);
+      average_normal += area_blend * n;
+    }
+  };
 
   auto update_func = [&](uint32_t fid, const Eigen::Vector3f& cur_normal,
                          std::vector<Eigen::Vector3i>& cluster,
                          std::vector<Eigen::Vector3f>& cluster_normal,
                          std::vector<uint32_t>& cluster_fid,
                          Eigen::Vector3f& average_normal) {
-    const float angle = std::acos(face_normals[fid].dot(cur_normal));
-    if (angle <= angle_limit_rad) {
+    const float dot = face_normals[fid].dot(cur_normal);
+    // const float angle = std::acos(face_normals[fid].dot(cur_normal));
+    // if (angle <= angle_limit_rad) {
+
+    // TODO: Here should be half?
+    // if (dot > project_angle_limit_half_cos) {
+    if (dot > project_angle_limit_cos) {
       cluster_fid.push_back(fid);
       cluster.push_back(faces[fid]);
       cluster_normal.push_back(face_normals[fid]);
-      const auto& v0 = vertices[faces[fid][0]];
-      const auto& v1 = vertices[faces[fid][1]];
-      const auto& v2 = vertices[faces[fid][2]];
-      normal_aggr_func(average_normal, v0, v1, v2, face_normals[fid]);
+      normal_aggr_func(average_normal, fid, face_normals[fid]);
 
       res.cluster_ids[fid] = cur_cid;
       return true;
@@ -588,7 +611,6 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
     return false;
   };
 
-  Eigen::Vector3f average_normal = cur_normal;
   while (true) {
     std::vector<Eigen::Vector3i> cluster{faces[cur_fid]};
     std::vector<Eigen::Vector3f> cluster_normal{face_normals[cur_fid]};
@@ -603,15 +625,23 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
     normal_aggr_func(average_normal, v0, v1, v2, face_normals[cur_fid]);
 #endif
 
+    Eigen::Vector3f average_normal = Eigen::Vector3f::Zero();
+
     if (consider_connectiviy) {
       std::unordered_set<uint32_t> processing;
       std::unordered_set<uint32_t> processed;
-      std::vector<int> adjacent_face_ids;
 
       auto update_func2 = [&](uint32_t fid) {
-        // fa.GetAdjacentFacesByVertex(static_cast<int>(fid), va, v2f,
-        //                            &adjacent_face_ids);
-        fa.GetAdjacentFaces(static_cast<int>(fid), &adjacent_face_ids);
+        std::set<int> adjacent_face_ids;
+        if (use_vertex_based_connectivity) {
+          adjacent_face_ids = fav[fid];
+        } else {
+          std::vector<int> tmp;
+          fa.GetAdjacentFaces(static_cast<int>(fid), &tmp);
+          std::copy(
+              tmp.begin(), tmp.end(),
+              std::inserter(adjacent_face_ids, adjacent_face_ids.begin()));
+        }
         for (const auto& fid : adjacent_face_ids) {
           bool is_assigned =
               to_process_fids.find(uint32_t(fid)) != to_process_fids.end();
@@ -643,11 +673,16 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
       }
     }
 
-    average_normal.normalize();
+    if (average_normal.norm() > 1e-6f) {
+      average_normal.normalize();
+    } else {
+      average_normal = cur_normal;
+    }
 
     res.cluster_fids.push_back(cluster_fid);
     res.clusters.push_back(cluster);
     res.cluster_normals.push_back(cluster_normal);
+    res.cluster_representative_normals.push_back(average_normal);
 
     for (const auto& fid : cluster_fid) {
       to_process_fids.erase(fid);
@@ -657,25 +692,32 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
       break;
     }
 
-    // Find the most flipped face from the average normal
+    // Find the most flipped face from clusters
     uint32_t flipped_fid = cur_fid;
-    float flipped_angle = -static_cast<float>(ugu::pi);
+    // float flipped_angle = -static_cast<float>(ugu::pi);
+    float flipped_dot = 1.f;
     Eigen::Vector3f flipped_normal = average_normal;
     for (const auto& fid : to_process_fids) {
-      const float angle = std::acos(face_normals[fid].dot(average_normal));
-      if (flipped_angle < angle) {
-        flipped_fid = fid;
-        flipped_normal = face_normals[fid];
-        flipped_angle = angle;
+      for (const auto& rn : res.cluster_representative_normals) {
+        const float dot = face_normals[fid].dot(rn);
+        // const float angle = std::acos(face_normals[fid].dot(rn));
+        // if (flipped_angle < angle) {
+        if (dot < flipped_dot) {
+          flipped_fid = fid;
+          flipped_normal = face_normals[fid];
+          // flipped_angle = angle;
+          flipped_dot = dot;
+        }
       }
     }
 
-    assert(cur_fid != flipped_fid);
-
-    cur_fid = flipped_fid;
-    cur_normal = flipped_normal;
-
-    cur_cid++;
+    // if (flipped_angle > angle_limit_rad) {
+    if (flipped_dot < project_angle_limit_cos) {
+      assert(cur_fid != flipped_fid);
+      cur_fid = flipped_fid;
+      cur_normal = flipped_normal;
+      cur_cid++;
+    }
   }
 
   return true;
