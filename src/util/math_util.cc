@@ -5,6 +5,32 @@
 
 #include "ugu/util/math_util.h"
 
+namespace {
+
+template <typename T, int N>
+void ComputeAxisForPointsImpl(const std::vector<Eigen::Matrix<T, N, 1>>& points,
+                              std::array<Eigen::Matrix<T, N, 1>, N>& axis,
+                              std::array<T, N>& weights) {
+  ugu::Pca<Eigen::MatrixXd> pca;
+  Eigen::MatrixXd pca_data;
+  pca_data.resize(N, static_cast<Eigen::Index>(points.size()));
+
+  for (size_t i = 0; i < points.size(); i++) {
+    for (int j = 0; j < N; j++) {
+      pca_data(j, i) = static_cast<double>(points[i][j]);
+    }
+  }
+
+  pca.Compute(pca_data);
+
+  for (int j = 0; j < N; j++) {
+    axis[j] = Eigen::Matrix<T, N, 1>(pca.vecs.col(j).cast<T>());
+    weights[j] = T(pca.coeffs(j));
+  }
+}
+
+}  // namespace
+
 namespace ugu {
 
 // FINDING OPTIMAL ROTATION AND TRANSLATION BETWEEN CORRESPONDING 3D POINTS
@@ -213,7 +239,6 @@ bool FindSimilarityTransformFromPointCorrespondences(
   return true;
 }
 
-
 Eigen::Vector3f MedianColor(const std::vector<Eigen::Vector3f>& colors) {
   Eigen::Vector3f median;
   std::vector<std::vector<float>> ith_channel_list(3);
@@ -226,6 +251,18 @@ Eigen::Vector3f MedianColor(const std::vector<Eigen::Vector3f>& colors) {
     median[i] = Median(ith_channel_list[i]);
   }
   return median;
+}
+
+void ComputeAxisForPoints(const std::vector<Eigen::Vector3f>& points,
+                          std::array<Eigen::Vector3f, 3>& axes,
+                          std::array<float, 3>& weights) {
+  return ComputeAxisForPointsImpl(points, axes, weights);
+}
+
+void ComputeAxisForPoints(const std::vector<Eigen::Vector2f>& points,
+                          std::array<Eigen::Vector2f, 2>& axes,
+                          std::array<float, 2>& weights) {
+  return ComputeAxisForPointsImpl(points, axes, weights);
 }
 
 }  // namespace ugu

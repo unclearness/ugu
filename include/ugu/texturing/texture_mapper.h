@@ -42,4 +42,10 @@ bool Parameterize(const std::vector<Eigen::Vector3f>& vertices,
                   int tex_h = 1024,
                   OutputUvType type = OutputUvType::kGenerateSimpleTriangles);
 
+bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
+                      const std::vector<Eigen::Vector3f>& points_3d,
+                      std::vector<Eigen::Vector2f>& points_2d,
+                      bool align_longest_axis_x = true, bool normalize = true,
+                      bool keep_aspect = true);
+
 }  // namespace ugu

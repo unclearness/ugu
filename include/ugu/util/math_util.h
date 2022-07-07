@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <Eigen/Eigenvalues>
 #include <algorithm>
 #include <cassert>
 #include <numeric>
@@ -334,5 +335,40 @@ std::vector<size_t> argsort(const std::vector<T>& array, bool greater = false) {
             });
   return indices;
 }
+
+template <typename InputMatrixType>
+struct Pca {
+  InputMatrixType coeffs;
+  InputMatrixType cov;
+  InputMatrixType means;
+  InputMatrixType vecs;
+  InputMatrixType standarized;
+
+  void Compute(const InputMatrixType& data) {
+    // auto r = data.rows();
+    auto c = data.cols();
+
+    // means_ is vector and has vector operation
+    // https://stackoverflow.com/questions/54021457/how-could-i-subtract-a-1xn-eigen-matrix-from-a-mxn-matrix-like-numpy-does
+    auto means_ = data.rowwise().mean();
+
+    means = means_;
+    standarized = data.colwise() - means_;
+
+    cov = standarized * standarized.adjoint();
+    cov = cov / c;
+    Eigen::SelfAdjointEigenSolver<InputMatrixType> eig(cov);
+    vecs = eig.eigenvectors();
+    coeffs = eig.eigenvalues();
+  }
+};
+
+void ComputeAxisForPoints(const std::vector<Eigen::Vector3f>& points,
+                          std::array<Eigen::Vector3f, 3>& axes,
+                          std::array<float, 3>& weights);
+
+void ComputeAxisForPoints(const std::vector<Eigen::Vector2f>& points,
+                          std::array<Eigen::Vector2f, 2>& axes,
+                          std::array<float, 2>& weights);
 
 }  // namespace ugu

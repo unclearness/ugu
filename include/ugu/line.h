@@ -226,6 +226,13 @@ struct Plane {
     p = line.a + t * line.d;
     return true;
   }
+
+   Eigen::Matrix<T, 3, 1>  Project(const Eigen::Matrix<T, 3, 1>& p) const {
+      // (p + tn).dot(n) + d = 0
+    T t = - d - p.dot(n);
+    return p + t * n;
+  }
+
 };
 using Planef = Plane<float>;
 using Planed = Plane<double>;

@@ -17,6 +17,7 @@
 #include "ugu/texturing/bin_packer_2d.h"
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
+#include "ugu/util/math_util.h"
 
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgproc.hpp"
@@ -1111,6 +1112,77 @@ bool Parameterize(const std::vector<Eigen::Vector3f>& vertices,
     uvs.push_back(target_tri_uv[2]);
     int uv_size = static_cast<int>(uvs.size());
     uv_faces.push_back(Eigen::Vector3i(uv_size - 3, uv_size - 2, uv_size - 1));
+  }
+
+  return true;
+}
+
+bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
+                      const std::vector<Eigen::Vector3f>& points_3d,
+                      std::vector<Eigen::Vector2f>& points_2d,
+                      bool align_longest_axis_x, bool normalize,
+                      bool keep_aspect) {
+  constexpr float d = 0.f;  // any value is ok.
+  Planef plane(project_normal, d);
+  //const Eigen::Vector3f x_vec(1.f, 0.f, 0.f);
+  //const Eigen::Vector3f y_vec(0.f, 1.f, 0.f);
+  const Eigen::Vector3f z_vec(0.f, 0.f, 1.f);
+  //Eigen::Vector3f base_vec = x_vec;
+
+  //if (project_normal.dot(x_vec) > 0.999f) {
+  //  base_vec = y_vec;
+  //}
+
+  const float angle = std::acos(project_normal.dot(z_vec));
+  const Eigen::Vector3f axis = (project_normal.cross(z_vec)).normalized();
+
+  const Eigen::Matrix3f R = Eigen::AngleAxisf(angle, axis).matrix();
+
+  for (const auto& p3d : points_3d) {
+    Eigen::Vector3f p = plane.Project(p3d);
+    p = R * p;
+    points_2d.push_back({p[0], p[1]});
+  }
+
+  if (align_longest_axis_x) {
+    std::array<Eigen::Vector2f, 2> axes;
+    std::array<float, 2> weights;
+    ComputeAxisForPoints(points_2d, axes, weights);
+    float rad = std::acos(
+        axes[0].normalized().dot(Eigen::Vector2f(1.f, 0.f).transpose()));
+
+    Eigen::Matrix2f R_2d;
+    R_2d(0, 0) = std::cos(rad);
+    R_2d(0, 1) = -std::sin(rad);
+    R_2d(1, 0) = std::sin(rad);
+    R_2d(1, 1) = std::cos(rad);
+
+    for (auto& p2d : points_2d) {
+      p2d = R_2d * p2d;
+    }
+  }
+
+  if (normalize) {
+    auto max_bound = ComputeMaxBound(points_2d);
+    auto min_bound = ComputeMinBound(points_2d);
+    auto len = max_bound - min_bound;
+    Eigen::Vector2f inv_len(1.f / len[0], 1.f / len[1]);
+    if (keep_aspect) {
+      float smaller_inv_len = inv_len[1];
+      Eigen::Vector2f smaller_min_bound =
+          Eigen::Vector2f::Constant(min_bound[1]);
+      if (len[1] < len[0]) {
+        smaller_inv_len = inv_len[0];
+        smaller_min_bound = Eigen::Vector2f::Constant(min_bound[0]);
+      }
+      for (auto& p2d : points_2d) {
+        p2d = (p2d - smaller_min_bound) * smaller_inv_len;
+      }
+    } else {
+      for (auto& p2d : points_2d) {
+        p2d = (p2d - min_bound).cwiseProduct(inv_len);
+      }
+    }
   }
 
   return true;
