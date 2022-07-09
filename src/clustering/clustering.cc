@@ -13,9 +13,8 @@
 #include "ugu/accel/kdtree_nanoflann.h"
 #include "ugu/common.h"
 #include "ugu/face_adjacency.h"
+#include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
-
-#define UGU_CLUSTERING_FACE_CONNECTIVIY_VERTICES
 
 namespace {
 
@@ -516,6 +515,7 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
   return true;
 }
 
+#if 0
 bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
                  const std::vector<Eigen::Vector3i>& faces,
                  const std::vector<Eigen::Vector3f>& face_normals,
@@ -726,6 +726,316 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
       cur_cid++;
     } else {
       ugu::LOGI("wrong update...\n");
+    }
+  }
+
+  return true;
+}
+#endif
+
+struct SegmentFace {
+  float area;
+  size_t org_id;
+  Eigen::Vector3i efa;
+  Eigen::Vector3f no;
+  bool valid;
+  bool tag;
+};
+
+bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
+                 const std::vector<Eigen::Vector3i>& faces,
+                 const std::vector<Eigen::Vector3f>& face_normals,
+                 SegmentMeshResult& res, float angle_limit_deg,
+                 float area_weight, bool consider_connectiviy,
+                 bool use_vertex_based_connectivity) {
+  const float angle_limit_rad = std::clamp(radians(angle_limit_deg), 1e-4f,
+                                           static_cast<float>(ugu::pi * 0.5));
+
+  const float project_angle_limit_cos = std::cos(angle_limit_rad);
+  const float project_angle_limit_half_cos = std::cos(angle_limit_rad / 2);
+
+  std::vector<SegmentFace> thick_faces(faces.size());
+  // Sort by face area
+  std::vector<float> face_areas;
+  std::transform(faces.begin(), faces.end(), std::back_inserter(face_areas),
+                 [&](const Eigen::Vector3i& f) {
+                   const auto& v0 = vertices[f[0]];
+                   const auto& v1 = vertices[f[1]];
+                   const auto& v2 = vertices[f[2]];
+                   const float area =
+                       std::abs(((v2 - v0).cross(v1 - v0)).norm()) * 0.5f;
+                   return area;
+                 });
+  constexpr float area_ignore = 1e-12f;
+  for (size_t i = 0; i < thick_faces.size(); i++) {
+    thick_faces[i].area = face_areas[i];
+    thick_faces[i].org_id = i;
+    thick_faces[i].efa = faces[i];
+    thick_faces[i].no = face_normals[i];
+    thick_faces[i].valid = thick_faces[i].area > area_ignore;
+    thick_faces[i].tag = false;
+  }
+
+  std::sort(thick_faces.begin(), thick_faces.end(),
+            [&](const SegmentFace& a, const SegmentFace& b) {
+              if (!((a.area > area_ignore) || (b.area > area_ignore))) {
+                return false;
+              }
+              if (a.area < b.area) {
+                return true;
+              }
+              if (a.area > b.area) {
+                return false;
+              }
+              return false;
+            });
+
+  std::vector<Eigen::Vector3f> project_normal_array;
+  {
+    Eigen::Vector3f project_normal = thick_faces[0].no;
+
+    std::vector<SegmentFace> project_thick_faces;
+    while (true) {
+      for (int64_t f_index = thick_faces.size() - 1; f_index >= 0; f_index--) {
+        if (!thick_faces[f_index].valid || thick_faces[f_index].tag) {
+          continue;
+        }
+
+        if (thick_faces[f_index].no.dot(project_normal) >
+            project_angle_limit_half_cos) {
+          project_thick_faces.push_back(thick_faces[f_index]);
+          thick_faces[f_index].tag = true;
+        }
+      }
+
+      Eigen::Vector3f average_normal = Eigen::Vector3f::Zero();
+
+      if (area_weight <= 0.0f) {
+        for (size_t f_proj_index = 0; f_proj_index < project_thick_faces.size();
+             f_proj_index++) {
+          const auto& tf = project_thick_faces[f_proj_index];
+          average_normal += tf.no;
+        }
+      } else if (area_weight >= 1.0f) {
+        for (size_t f_proj_index = 0; f_proj_index < project_thick_faces.size();
+             f_proj_index++) {
+          const auto& tf = project_thick_faces[f_proj_index];
+          average_normal += (tf.no * tf.area);
+        }
+      } else {
+        for (size_t f_proj_index = 0; f_proj_index < project_thick_faces.size();
+             f_proj_index++) {
+          const auto& tf = project_thick_faces[f_proj_index];
+          const float area_blend =
+              (tf.area * area_weight) + (1.0f - area_weight);
+          average_normal += (tf.no * area_blend);
+        }
+      }
+
+      if (average_normal.norm() > 0.f) {
+        average_normal.normalize();
+        project_normal_array.push_back(average_normal);
+      }
+
+      /* Find the most unique angle that points away from other normals. */
+      float angle_best = 1.0f;
+      size_t angle_best_index = 0;
+
+      for (int64_t f_index = thick_faces.size() - 1; f_index >= 0; f_index--) {
+        if (!thick_faces[f_index].valid || thick_faces[f_index].tag) {
+          continue;
+        }
+
+        float angle_test = -1.0f;
+        for (size_t p_index = 0; p_index < project_normal_array.size();
+             p_index++) {
+          angle_test = std::max(angle_test, project_normal_array[p_index].dot(
+                                                thick_faces[f_index].no));
+        }
+
+        if (angle_test < angle_best) {
+          angle_best = angle_test;
+          angle_best_index = f_index;
+        }
+      }
+
+      if (angle_best < project_angle_limit_cos) {
+        project_normal = thick_faces[angle_best_index].no;
+        project_thick_faces.clear();
+        project_thick_faces.push_back(thick_faces[angle_best_index]);
+        thick_faces[angle_best_index].tag = true;
+      } else {
+        if (project_normal_array.size() >= 1) {
+          break;
+        }
+      }
+    }
+  }
+
+  std::vector<std::vector<SegmentFace>> thickface_project_groups(
+      project_normal_array.size());
+
+  for (int64_t f_index = thick_faces.size() - 1; f_index >= 0; f_index--) {
+    const auto& f_normal = thick_faces[f_index].no;
+
+    float angle_best = f_normal.dot(project_normal_array[0]);
+    size_t angle_best_index = 0;
+
+    for (int p_index = 1; p_index < project_normal_array.size(); p_index++) {
+      const float angle_test = f_normal.dot(project_normal_array[p_index]);
+      if (angle_test > angle_best) {
+        angle_best = angle_test;
+        angle_best_index = p_index;
+      }
+    }
+
+    thickface_project_groups[angle_best_index].push_back(thick_faces[f_index]);
+  }
+
+
+  res.cluster_ids.clear();
+  res.cluster_areas.clear();
+  res.clusters.clear();
+  res.cluster_normals.clear();
+  res.cluster_fids.clear();
+  res.cluster_representative_normals.clear();
+  res.cluster_ids.resize(faces.size(), uint32_t(~0));
+
+#if 0
+    std::unordered_set<uint32_t> to_process_fids;
+  for (size_t i = 0; i < faces.size(); i++) {
+    to_process_fids.insert(static_cast<uint32_t>(i));
+  }
+
+  uint32_t cur_cid = 0;
+  uint32_t cur_fid = sorted_indices[0];
+  Eigen::Vector3f cur_normal = face_normals[cur_fid];
+  to_process_fids.erase(cur_fid);
+  res.cluster_ids[cur_fid] = cur_cid;
+#endif  // 0
+
+#if 0
+  FaceAdjacency fa;
+  Adjacency va, fav;
+  std::unordered_map<int, std::vector<int>> v2f;
+  if (consider_connectiviy) {
+    fa.Init(static_cast<int>(vertices.size()), faces);
+    va = fa.GenerateVertexAdjacency();
+    v2f = GenerateVertex2FaceMap(faces, vertices.size());
+
+    if (use_vertex_based_connectivity) {
+      fav = fa.GenerateAdjacentFacesByVertex(va, v2f);
+    }
+  }
+#endif
+  uint32_t cid = 0;
+
+  if (!consider_connectiviy) {
+    for (size_t pid = 0; pid < thickface_project_groups.size(); pid++) {
+      std::vector<Eigen::Vector3i> cluster;
+      std::vector<Eigen::Vector3f> cluster_normal;
+      std::vector<uint32_t> cluster_fid;
+
+      for (const auto& tmp : thickface_project_groups[pid]) {
+        cluster.push_back(tmp.efa);
+        cluster_normal.push_back(tmp.no);
+        cluster_fid.push_back(tmp.org_id);
+        res.cluster_ids[tmp.org_id] = pid;
+      }
+
+      res.cluster_fids.push_back(cluster_fid);
+      res.clusters.push_back(cluster);
+      res.cluster_normals.push_back(cluster_normal);
+      res.cluster_representative_normals.push_back(project_normal_array[pid]);
+
+      double cluster_area = 0.0;
+      for (const auto& fid : cluster_fid) {
+        cluster_area += face_areas[fid];
+      }
+      res.cluster_areas.push_back(static_cast<float>(cluster_area));
+
+    }
+    return true;
+  }
+
+  for (size_t pid = 0; pid < thickface_project_groups.size(); pid++) {
+    std::vector<uint32_t> sub_face_ids;
+    std::unordered_set<uint32_t> to_process_fids;
+    std::unordered_map<uint32_t, uint32_t> org2sub;
+    for (size_t i = 0; i < thickface_project_groups[pid].size(); i++) {
+      auto fid = static_cast<uint32_t>(thickface_project_groups[pid][i].org_id);
+      to_process_fids.insert(fid);
+      sub_face_ids.push_back(fid);
+      org2sub.insert({fid, i});
+    }
+
+    auto [sub_vertices, sub_faces] =
+        ExtractSubGeom(vertices, faces, sub_face_ids);
+
+    auto [geo_clusters, geo_non_orphans, geo_orphans, geo_clusters_f] =
+        ClusterByConnectivity(sub_faces, sub_vertices.size());
+
+    std::vector<uint32_t> fid2geocluster(sub_faces.size(), uint32_t(~0));
+    for (size_t i = 0; i < geo_clusters_f.size(); i++) {
+      uint32_t geo_cid = static_cast<uint32_t>(i);
+      for (const int& fid : geo_clusters_f[geo_cid]) {
+        fid2geocluster[fid] = geo_cid;
+      }
+    }
+
+    uint32_t cur_fid = thickface_project_groups[pid][0].org_id;
+    Eigen::Vector3f cur_normal = face_normals[cur_fid];
+    to_process_fids.erase(cur_fid);
+    res.cluster_ids[cur_fid] = cid;
+
+    while (true) {
+      std::vector<Eigen::Vector3i> cluster{faces[cur_fid]};
+      std::vector<Eigen::Vector3f> cluster_normal{face_normals[cur_fid]};
+      std::vector<uint32_t> cluster_fid{cur_fid};
+      res.cluster_ids[cur_fid] = cid;
+
+      uint32_t geo_cid = fid2geocluster[org2sub[cur_fid]];
+
+      auto update_func = [&](uint32_t fid) {
+        cluster_fid.push_back(fid);
+        cluster.push_back(faces[fid]);
+        cluster_normal.push_back(face_normals[fid]);
+        res.cluster_ids[fid] = cid;
+      };
+
+      std::unordered_set<uint32_t> processed;
+      processed.insert(cur_fid);
+      update_func(cur_fid);
+
+      for (const auto& fid : to_process_fids) {
+        if (geo_cid == fid2geocluster[org2sub[fid]]) {
+          processed.insert(fid);
+          update_func(fid);
+        }
+      }
+
+      for (const auto& fid : processed) {
+        to_process_fids.erase(fid);
+      }
+
+      res.cluster_fids.push_back(cluster_fid);
+      res.clusters.push_back(cluster);
+      res.cluster_normals.push_back(cluster_normal);
+      res.cluster_representative_normals.push_back(project_normal_array[pid]);
+      double cluster_area = 0.0;
+      for (const auto& fid : cluster_fid) {
+        cluster_area += face_areas[fid];
+      }
+      res.cluster_areas.push_back(static_cast<float>(cluster_area));
+
+      cid++;
+
+      if (to_process_fids.empty()) {
+        break;
+      }
+
+      // Find remaining fid
+      cur_fid = *to_process_fids.begin();
     }
   }
 

@@ -288,11 +288,11 @@ void DBSCANTest() {
 }
 
 void SegmentMeshTest() {
-  std::vector<std::string> data_dirs{"../data/bunny/", "../data/sphere/",
-                                     "../data/sphere/"};
+  std::vector<std::string> data_dirs{"../data/blendshape/", "../data/sphere/",
+                                     "../data/sphere/", "../data/bunny/"};
 
-  std::vector<std::string> names{"bunny", "icosphere3_smart_uv",
-                                 "icosphere5_smart_uv"};
+  std::vector<std::string> names{"cube", "icosphere3_smart_uv",
+                                 "icosphere5_smart_uv", "bunny"};
 
   for (size_t i = 0; i < data_dirs.size(); i++) {
     std::string data_dir = data_dirs[i];
@@ -306,8 +306,9 @@ void SegmentMeshTest() {
     ugu::SegmentMeshResult res;
     ugu::Timer<> timer;
     timer.Start();
+    input_mesh->CalcNormal();
     ugu::SegmentMesh(input_mesh->vertices(), input_mesh->vertex_indices(),
-                     input_mesh->face_normals(), res);
+                     input_mesh->face_normals(), res, 66.4f, 0.f, true, true);
     timer.End();
     ugu::LOGI("SegmentMesh %f ms\n", timer.elapsed_msec());
     ugu::LOGI("#Clusters %d\n", res.clusters.size());

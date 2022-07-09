@@ -5,6 +5,7 @@
 
 #include "ugu/util/geom_util.h"
 
+#include <deque>
 #include <random>
 
 #include "ugu/face_adjacency.h"
@@ -450,53 +451,54 @@ ClusterByConnectivity(const std::vector<Eigen::Vector3i>& indices,
   std::vector<std::set<int32_t>> clusters;
   std::vector<std::set<int32_t>> clusters_f;
 
-  auto [boundary_edges_list, boundary_vertex_ids_list] =
-      FindBoundaryLoops(indices, vnum);
-
-  clusters.resize(boundary_vertex_ids_list.size());
-  clusters_f.resize(boundary_vertex_ids_list.size());
-
-  auto v2f = ugu::GenerateVertex2FaceMap(indices, vnum);
-
   std::set<int32_t> non_orphans;
 
-  for (size_t i = 0; i < boundary_vertex_ids_list.size(); i++) {
-    auto& cluster = clusters[i];
+  ugu::FaceAdjacency fa;
+  fa.Init(vnum, indices);
 
-    for (const auto& vid : boundary_vertex_ids_list[i]) {
-      cluster.insert(vid);
-    }
+  std::unordered_set<int32_t> to_process;
+  // std::unordered_set<int32_t> processed;
+  for (size_t i = 0; i < indices.size(); i++) {
+    to_process.insert(static_cast<int32_t>(i));
+  }
 
-    while (true) {
-      std::set<int32_t> new_vids;
-      for (const auto& vid : cluster) {
-        const auto& f_list = v2f[vid];
+  std::deque<int32_t> q;
 
-        for (const auto& f : f_list) {
-          for (int32_t j = 0; j < 3; j++) {
-            const auto& new_vid = indices[f][j];
+  while (!to_process.empty()) {
+    q.push_back(*to_process.begin());
+    std::set<int32_t> cluster_f;
+    cluster_f.insert(q.back());
+    to_process.erase(q.back());
 
-            if (cluster.count(new_vid) == 0) {
-              new_vids.insert(new_vid);
-            }
-          }
+    while (!q.empty()) {
+      int fid = q.front();
+      q.pop_front();
+      std::vector<int> adjacent_face_ids;
+
+      fa.GetAdjacentFaces(fid, &adjacent_face_ids);
+      // fa.RemoveFace(fid);
+
+      for (const auto& afid : adjacent_face_ids) {
+        if (to_process.find(afid) != to_process.end()) {
+          // processed.insert(afid);
+          to_process.erase(afid);
+          q.push_back(afid);
+          cluster_f.insert(afid);
         }
       }
+    }
 
-      if (new_vids.empty()) {
-        break;
-      }
-
-      cluster.insert(new_vids.begin(), new_vids.end());
+    std::set<int32_t> cluster;
+    for (const auto& fid : cluster_f) {
+      cluster.insert(indices[fid][0]);
+      cluster.insert(indices[fid][1]);
+      cluster.insert(indices[fid][2]);
     }
 
     non_orphans.insert(cluster.begin(), cluster.end());
-    for (const auto& vid : cluster) {
-      const auto& f_list = v2f[vid];
-      for (const auto& f : f_list) {
-        clusters_f[i].insert(f);
-      }
-    }
+
+    clusters.push_back(cluster);
+    clusters_f.push_back(cluster_f);
   }
 
   std::set<int32_t> orphans, all_vids;
@@ -1485,6 +1487,38 @@ bool UpdateVertexAttrOneRingMost(uint32_t num_vertices,
   }
 
   return true;
+}
+
+std::tuple<std::vector<Eigen::Vector3f>, std::vector<Eigen::Vector3i>>
+ExtractSubGeom(const std::vector<Eigen::Vector3f>& vertices,
+               const std::vector<Eigen::Vector3i>& faces,
+               const std::vector<uint32_t>& sub_face_ids) {
+  std::vector<Eigen::Vector3f> sub_vertices;
+  std::vector<Eigen::Vector3i> sub_faces;
+
+  std::unordered_map<int32_t, int32_t> org2seg;
+  int32_t count = 0;
+  for (const auto& org_fid : sub_face_ids) {
+    Eigen::Vector3i face;
+    for (int i = 0; i < 3; i++) {
+      int org_vid = faces[org_fid][i];
+      int vid = -1;
+      if (org2seg.find(org_vid) != org2seg.end()) {
+        // Found
+        vid = org2seg[org_vid];
+      } else {
+        // New vid
+        org2seg.insert({org_vid, count});
+        sub_vertices.push_back(vertices[org_vid]);
+        vid = count;
+        count++;
+      }
+      face[i] = vid;
+    }
+    sub_faces.push_back(face);
+  }
+
+  return {sub_vertices, sub_faces};
 }
 
 }  // namespace ugu
