@@ -312,8 +312,6 @@ set(
   src/texturing/vertex_colorizer.cc
   include/ugu/texturing/texture_mapper.h
   src/texturing/texture_mapper.cc
-  include/ugu/texturing/bin_packer_2d.h
-  src/texturing/bin_packer_2d.cc
 
   include/ugu/stereo/base.h
   src/stereo/base.cc
@@ -348,6 +346,12 @@ set(
   include/ugu/accel/kdtree_nanoflann.h
   include/ugu/accel/bvh.h
   include/ugu/accel/bvh_nanort.h
+
+  include/ugu/discrete/bin_packer_2d.h
+  src/discrete/bin_packer_2d.cc
+
+  include/ugu/parameterize/parameterize.h
+  src/parameterize/parameterize.cc
 
   include/ugu/external/external.h
   src/external/fast_quadric_mesh_simplification.cc
@@ -428,6 +432,7 @@ if (UGU_BUILD_EXAMPLES)
   setup_exe(ex16_textrans examples/ex16_textrans.cc)
   setup_exe(ex17_kdtree examples/ex17_kdtree.cc)
   setup_exe(ex18_bvh examples/ex18_bvh.cc)
+  setup_exe(ex19_parameterize examples/ex19_parameterize.cc)
 endif()
 
 if (UGU_BUILD_APP)

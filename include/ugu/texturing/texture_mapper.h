@@ -5,13 +5,13 @@
 
 #pragma once
 
-#include "visibility_tester.h"
+#include "ugu/texturing/visibility_tester.h"
 
 namespace ugu {
 
 enum TextureMappingType { kSimpleProjection = 0 };
 
-enum OutputUvType {
+enum TexturingOutputUvType {
   kGenerateSimpleTile = 0,
   kUseOriginalMeshUv = 1,
   kGenerateSimpleTriangles = 2,
@@ -21,7 +21,7 @@ enum OutputUvType {
 struct TextureMappingOption {
   ViewSelectionCriteria criteria = ViewSelectionCriteria::kMaxArea;
   TextureMappingType type = TextureMappingType::kSimpleProjection;
-  OutputUvType uv_type = OutputUvType::kGenerateSimpleTile;
+  TexturingOutputUvType uv_type = TexturingOutputUvType::kGenerateSimpleTile;
   std::string texture_base_name = "ugutex";
   int tex_w = 1024;
   int tex_h = 1024;
@@ -31,21 +31,5 @@ struct TextureMappingOption {
 bool TextureMapping(const std::vector<std::shared_ptr<Keyframe>>& keyframes,
                     const VisibilityInfo& info, Mesh* mesh,
                     const TextureMappingOption& option);
-
-bool Parameterize(Mesh& mesh, int tex_w = 1024, int tex_h = 1024,
-                  OutputUvType type = OutputUvType::kGenerateSimpleTriangles);
-
-bool Parameterize(const std::vector<Eigen::Vector3f>& vertices,
-                  const std::vector<Eigen::Vector3i>& faces,
-                  std::vector<Eigen::Vector2f>& uvs,
-                  std::vector<Eigen::Vector3i>& uv_faces, int tex_w = 1024,
-                  int tex_h = 1024,
-                  OutputUvType type = OutputUvType::kGenerateSimpleTriangles);
-
-bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
-                      const std::vector<Eigen::Vector3f>& points_3d,
-                      std::vector<Eigen::Vector2f>& points_2d,
-                      bool align_longest_axis_x = true, bool normalize = true,
-                      bool keep_aspect = true);
 
 }  // namespace ugu

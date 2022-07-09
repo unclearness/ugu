@@ -11,6 +11,7 @@
 #include "ugu/external/external.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/mesh.h"
+#include "ugu/parameterize/parameterize.h"
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
@@ -280,7 +281,8 @@ void TestTexture() {
 
   bunny.WritePly(data_dir + "fetched_vertex_color.ply");
 
-  ugu::Parameterize(bunny);
+  ugu::Parameterize(bunny, 1024, 0124,
+                    ugu::ParameterizeUvType::kSimpleTriangles);
 
   ugu::Image1b mask = ugu::Image1b::zeros(1024, 1024);
   auto rerasterized = bunny.materials()[0].diffuse_tex.clone();

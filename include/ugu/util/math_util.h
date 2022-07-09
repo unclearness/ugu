@@ -352,6 +352,7 @@ struct Pca {
     // https://stackoverflow.com/questions/54021457/how-could-i-subtract-a-1xn-eigen-matrix-from-a-mxn-matrix-like-numpy-does
     auto means_ = data.rowwise().mean();
 
+    // Eigen::MatrixXd does not have vector operation
     means = means_;
     standarized = data.colwise() - means_;
 

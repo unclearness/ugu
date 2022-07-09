@@ -256,13 +256,13 @@ Eigen::Vector3f MedianColor(const std::vector<Eigen::Vector3f>& colors) {
 void ComputeAxisForPoints(const std::vector<Eigen::Vector3f>& points,
                           std::array<Eigen::Vector3f, 3>& axes,
                           std::array<float, 3>& weights) {
-  return ComputeAxisForPointsImpl(points, axes, weights);
+  ComputeAxisForPointsImpl(points, axes, weights);
 }
 
 void ComputeAxisForPoints(const std::vector<Eigen::Vector2f>& points,
                           std::array<Eigen::Vector2f, 2>& axes,
                           std::array<float, 2>& weights) {
-  return ComputeAxisForPointsImpl(points, axes, weights);
+  ComputeAxisForPointsImpl(points, axes, weights);
 }
 
 }  // namespace ugu

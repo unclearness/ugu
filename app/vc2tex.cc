@@ -7,8 +7,8 @@
 
 #include "cxxopts.hpp"
 #include "ugu/inpaint/inpaint.h"
+#include "ugu/parameterize/parameterize.h"
 #include "ugu/textrans/texture_transfer.h"
-#include "ugu/texturing/texture_mapper.h"
 #include "ugu/timer.h"
 #include "ugu/util/raster_util.h"
 #include "ugu/util/string_util.h"
@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
   int width = result["width"].as<int>();
   int height = result["height"].as<int>();
   bool inpaint = result["inpaint"].as<bool>();
-  //bool verbose = result["verbose"].as<bool>();
+  // bool verbose = result["verbose"].as<bool>();
 
   ugu::Timer<> timer;
   ugu::Mesh src_mesh, dst_mesh;
@@ -89,7 +89,8 @@ int main(int argc, char* argv[]) {
 
   std::string out_basename = out_dir + "/" + basename;
 
-  ugu::Parameterize(src_mesh, width, height);
+  ugu::Parameterize(src_mesh, width, height,
+                    ugu::ParameterizeUvType::kSimpleTriangles);
 
   ugu::Image1b mask = ugu::Image1b::zeros(height, width);
   auto rasterized = ugu::Image3b::zeros(height, width);

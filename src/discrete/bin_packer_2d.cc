@@ -3,9 +3,9 @@
  * All rights reserved.
  */
 
-#include <deque>
+#include "ugu/discrete/bin_packer_2d.h"
 
-#include "ugu/texturing/bin_packer_2d.h"
+#include <deque>
 
 namespace {
 
