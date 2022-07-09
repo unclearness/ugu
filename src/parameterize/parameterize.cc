@@ -122,10 +122,9 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
     ugu::OrthoProjectToXY(prj_n, cluster_vtx, cluster_uvs[cid], true, true,
                           true);
 
-    // auto uv_img =
-    //    ugu::DrawUv(cluster_uvs[cid], cluster_face, {255, 255, 255}, {0, 0,
-    //    0});
-    // uv_img.WritePng(std::to_string(cid) + ".png");
+    auto uv_img =
+        ugu::DrawUv(cluster_uvs[cid], cluster_face, {255, 255, 255}, {0, 0, 0});
+    uv_img.WritePng(std::to_string(cid) + ".png");
   }
 
   // Pack segments
@@ -190,15 +189,33 @@ bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
     points_2d.push_back({p[0], p[1]});
   }
 
-  if (align_longest_axis_x) {
+  if (align_longest_axis_x && points_2d.size() > 1) {
     std::array<Eigen::Vector2f, 2> axes;
     std::array<float, 2> weights;
 
-    // Find the dominant axis
-    ComputeAxisForPoints(points_2d, axes, weights);
+    if (points_2d.size() <= 3) {
+      // PCA may be unstable
+      // Find the longest manually...
+      float max_len = -1.f;
+      for (size_t i = 0; i < points_2d.size(); i++) {
+        for (size_t j = i + 1; j < points_2d.size(); j++) {
+          Eigen::Vector2f axis_ = points_2d[i] - points_2d[j];
+          float len = (axis_).norm();
+          if (max_len < len) {
+            max_len = len;
+            axes[0] = axis_.normalized();
+          }
+        }
+      }
 
-    // Angle from X-axis
-    float rad = std::acos(axes[0].normalized()[0]);
+    } else {
+      // Find the dominant axis by PCA
+      ComputeAxisForPoints(points_2d, axes, weights);
+    }
+
+    // Angle from X-axis, Y-axis is down in UV
+    Eigen::Vector2f dominant_axis = axes[0].normalized();
+    float rad = std::atan2(-dominant_axis[1], dominant_axis[0]);
 
     // Rotate points around the axis
     Eigen::Matrix2f R_2d;
