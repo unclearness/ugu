@@ -306,7 +306,6 @@ void SegmentMeshTest() {
     ugu::SegmentMeshResult res;
     ugu::Timer<> timer;
     timer.Start();
-    input_mesh->CalcNormal();
     ugu::SegmentMesh(input_mesh->vertices(), input_mesh->vertex_indices(),
                      input_mesh->face_normals(), res, 66.4f, 0.f, true, true);
     timer.End();

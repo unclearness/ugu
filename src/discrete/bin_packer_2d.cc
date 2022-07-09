@@ -7,6 +7,8 @@
 
 #include <deque>
 
+#include "ugu/util/image_util.h"
+
 namespace {
 
 bool FindBestRect(const std::vector<ugu::Rect>& available_rects,
@@ -104,6 +106,23 @@ bool BinPacking2D(const std::vector<Rect>& rects, std::vector<Rect>* packed_pos,
   }
 
   return true;
+}
+
+Image3b DrawPackesRects(const std::vector<Rect>& packed_rects, int w, int h) {
+  Image3b res = Image3b::zeros(h, w);
+
+  std::vector<Eigen::Vector3f> random_colors =
+      GenRandomColors(static_cast<int32_t>(packed_rects.size()), 0.f, 255.f, 0);
+  for (size_t i = 0; i < packed_rects.size(); i++) {
+    Vec3b c{random_colors[i][0], random_colors[i][1], random_colors[i][2]};
+    const auto& r = packed_rects[i];
+    for (int y = r.y; y < r.y + r.height; y++) {
+      for (int x = r.x; x < r.x + r.width; x++) {
+        res.at<Vec3b>(y, x) = c;
+      }
+    }
+  }
+  return res;
 }
 
 }  // namespace ugu

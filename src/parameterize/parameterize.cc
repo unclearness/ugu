@@ -112,24 +112,124 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
   // Parameterize per segment
   std::vector<std::vector<Eigen::Vector2f>> cluster_uvs(
       res.cluster_fids.size());
-  std::vector<std::vector<Eigen::Vector3i>> cluster_uv_faces(
-      res.cluster_fids.size());
+  std::vector<std::vector<Eigen::Vector3i>> cluster_sub_faces;
   for (size_t cid = 0; cid < res.clusters.size(); ++cid) {
     auto prj_n = res.cluster_representative_normals[cid];
     auto [cluster_vtx, cluster_face] =
         ugu::ExtractSubGeom(vertices, faces, res.cluster_fids[cid]);
 
+    cluster_sub_faces.push_back(cluster_face);
+
     ugu::OrthoProjectToXY(prj_n, cluster_vtx, cluster_uvs[cid], true, true,
                           true);
 
-    auto uv_img =
-        ugu::DrawUv(cluster_uvs[cid], cluster_face, {255, 255, 255}, {0, 0, 0});
-    uv_img.WritePng(std::to_string(cid) + ".png");
+    // auto uv_img =
+    //   ugu::DrawUv(cluster_uvs[cid], cluster_face, {255, 255, 255}, {0, 0,
+    //   0});
+    // uv_img.WritePng(std::to_string(cid) + ".png");
   }
 
   // Pack segments
 
-  // ugu::BinPacking2D()
+  std::vector<float> normalized_areas;
+  double sum_area = 0.0;
+  for (const auto& a : res.cluster_areas) {
+    sum_area += a;
+  }
+
+  for (const auto& a : res.cluster_areas) {
+    normalized_areas.push_back(
+        static_cast<float>(static_cast<double>(a) / sum_area));
+  }
+
+  auto indices = ugu::argsort(normalized_areas, true);
+
+  float smallest_area = std::max(normalized_areas[indices.back()], 1e-4f);
+  // Ratio to keep one pixel for the smallest cluster
+  // TODO: one pixel for face
+  // float smallest_ratio = 1.f / smallest_area;
+
+  std::vector<ugu::Rect> rects, packed_pos, available_rects;
+
+  std::vector<std::pair<Eigen::Vector2f, Eigen::Vector2f>> min_max_local_uvs(
+      res.clusters.size());
+
+  std::vector<float> scales(indices.size());
+  for (const auto& idx : indices) {
+    auto uvs = cluster_uvs[idx];
+    Eigen::Vector2f max_bound = ugu::ComputeMaxBound(uvs);
+    Eigen::Vector2f min_bound = ugu::ComputeMinBound(uvs);
+
+    min_max_local_uvs[idx] = {min_bound, max_bound};
+
+    Eigen::Vector2f len = max_bound - min_bound;
+
+    float r = std::sqrt(std::max(normalized_areas[idx], smallest_area));
+    scales[idx] = r;
+    int w = static_cast<int>(std::max(std::ceil(len[0] * r * tex_w), 1.f));
+    int h = static_cast<int>(std::max(std::ceil(len[1] * r * tex_h), 1.f));
+    rects.push_back(ugu::Rect(0, 0, w, h));
+  }
+
+  // const int max_tex_len = 8192 * 2;  // 16K
+  int start_tex_w = std::max(tex_w / 4, 2);
+  int start_tex_h = std::max(tex_h / 4, 2);
+  int current_tex_w = start_tex_w;
+  int current_tex_h = start_tex_h;
+  int bin_packing_try_num = 0;
+  const float pyramid_ratio =
+      std::pow(2.f, 0.25f);  // std::sqrt(std::sqrt(2.0f));
+  float best_fill_rate = 0.f;
+  while (!ugu::BinPacking2D(rects, &packed_pos, &available_rects,
+                            current_tex_w - 1, current_tex_h - 1)) {
+    current_tex_w = static_cast<int>(
+        std::round(start_tex_w * std::pow(pyramid_ratio, bin_packing_try_num)));
+
+    current_tex_h = static_cast<int>(
+        std::round(start_tex_h * std::pow(pyramid_ratio, bin_packing_try_num)));
+
+    bin_packing_try_num++;
+  }
+
+  // auto vis = ugu::DrawPackesRects(packed_pos, current_tex_w, current_tex_h);
+  // vis.WriteJpg("tmp.jpg");
+
+  uvs.clear();
+  uv_faces.clear();
+  uv_faces.resize(faces.size());
+
+  for (int k = 0; k < static_cast<int>(indices.size()); k++) {
+    int uv_index_offset = static_cast<int>(uvs.size());
+
+    const ugu::Rect& rect = packed_pos[k];
+    size_t cid = indices[k];
+
+    auto [min_bound, max_bound] = min_max_local_uvs[cid];
+    Eigen::Vector2f len = max_bound - min_bound;
+    float scale = scales[cid];
+
+    Eigen::Vector2f uv_offset(static_cast<float>(rect.x) / current_tex_w,
+                              1.f - static_cast<float>(rect.y) / current_tex_h);
+    for (const auto& cuv : cluster_uvs[cid]) {
+      Eigen::Vector2f tmp;
+      tmp[0] = (cuv[0] - min_bound[0]) * scale + uv_offset[0];
+      tmp[1] = (cuv[1] - min_bound[1]) * scale + uv_offset[1] -
+               (static_cast<float>(rect.height) / current_tex_h);
+      uvs.push_back(tmp);
+    }
+
+    for (uint32_t j = 0; j < res.cluster_fids[cid].size(); j++) {
+      uint32_t fid = res.cluster_fids[cid][j];
+
+      // Add to global uv
+      Eigen::Vector3i global_index;
+      const Eigen::Vector3i& local_index = cluster_sub_faces[cid][j];
+      global_index[0] = uv_index_offset + local_index[0];
+      global_index[1] = uv_index_offset + local_index[1];
+      global_index[2] = uv_index_offset + local_index[2];
+      uv_faces[fid] = global_index;
+    }
+  }
 
   return true;
 }

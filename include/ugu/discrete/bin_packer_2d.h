@@ -44,4 +44,6 @@ using Rect = Rect_<int>;
 bool BinPacking2D(const std::vector<Rect>& rects, std::vector<Rect>* packed_pos,
                   std::vector<Rect>* available_rects, int w, int h);
 
+Image3b DrawPackesRects(const std::vector<Rect>& packed_rects, int w, int h);
+
 }  // namespace ugu
