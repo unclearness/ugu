@@ -446,16 +446,21 @@ FindBoundaryLoops(const std::vector<Eigen::Vector3i>& indices, int32_t vnum) {
 
 std::tuple<std::vector<std::set<int32_t>>, std::set<int32_t>, std::set<int32_t>,
            std::vector<std::set<int32_t>>>
-ClusterByConnectivity(const std::vector<Eigen::Vector3i>& indices,
-                      int32_t vnum) {
+ClusterByConnectivity(const std::vector<Eigen::Vector3i>& indices, int32_t vnum,
+                      bool vertex_based_adjacency) {
   std::vector<std::set<int32_t>> clusters;
   std::vector<std::set<int32_t>> clusters_f;
 
   std::set<int32_t> non_orphans;
 
-  ugu::FaceAdjacency fa;
+  FaceAdjacency fa;
   fa.Init(vnum, indices);
 
+  Adjacency fva;
+  if (vertex_based_adjacency) {
+    fva = fa.GenerateAdjacentFacesByVertex(
+        fa.GenerateVertexAdjacency(), GenerateVertex2FaceMap(indices, vnum));
+  }
   std::unordered_set<int32_t> to_process;
   // std::unordered_set<int32_t> processed;
   for (size_t i = 0; i < indices.size(); i++) {
@@ -475,9 +480,14 @@ ClusterByConnectivity(const std::vector<Eigen::Vector3i>& indices,
       q.pop_front();
       std::vector<int> adjacent_face_ids;
 
-      fa.GetAdjacentFaces(fid, &adjacent_face_ids);
-      // fa.RemoveFace(fid);
-
+      if (vertex_based_adjacency) {
+        auto tmp = fva[fid];
+        std::copy(tmp.begin(), tmp.end(),
+                  std::inserter(adjacent_face_ids, adjacent_face_ids.begin()));
+      } else {
+        fa.GetAdjacentFaces(fid, &adjacent_face_ids);
+        // fa.RemoveFace(fid);
+      }
       for (const auto& afid : adjacent_face_ids) {
         if (to_process.find(afid) != to_process.end()) {
           // processed.insert(afid);

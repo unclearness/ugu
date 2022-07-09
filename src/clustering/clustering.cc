@@ -892,7 +892,6 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
     thickface_project_groups[angle_best_index].push_back(thick_faces[f_index]);
   }
 
-
   res.cluster_ids.clear();
   res.cluster_areas.clear();
   res.clusters.clear();
@@ -901,33 +900,6 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
   res.cluster_representative_normals.clear();
   res.cluster_ids.resize(faces.size(), uint32_t(~0));
 
-#if 0
-    std::unordered_set<uint32_t> to_process_fids;
-  for (size_t i = 0; i < faces.size(); i++) {
-    to_process_fids.insert(static_cast<uint32_t>(i));
-  }
-
-  uint32_t cur_cid = 0;
-  uint32_t cur_fid = sorted_indices[0];
-  Eigen::Vector3f cur_normal = face_normals[cur_fid];
-  to_process_fids.erase(cur_fid);
-  res.cluster_ids[cur_fid] = cur_cid;
-#endif  // 0
-
-#if 0
-  FaceAdjacency fa;
-  Adjacency va, fav;
-  std::unordered_map<int, std::vector<int>> v2f;
-  if (consider_connectiviy) {
-    fa.Init(static_cast<int>(vertices.size()), faces);
-    va = fa.GenerateVertexAdjacency();
-    v2f = GenerateVertex2FaceMap(faces, vertices.size());
-
-    if (use_vertex_based_connectivity) {
-      fav = fa.GenerateAdjacentFacesByVertex(va, v2f);
-    }
-  }
-#endif
   uint32_t cid = 0;
 
   if (!consider_connectiviy) {
@@ -953,7 +925,6 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
         cluster_area += face_areas[fid];
       }
       res.cluster_areas.push_back(static_cast<float>(cluster_area));
-
     }
     return true;
   }
@@ -973,7 +944,8 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
         ExtractSubGeom(vertices, faces, sub_face_ids);
 
     auto [geo_clusters, geo_non_orphans, geo_orphans, geo_clusters_f] =
-        ClusterByConnectivity(sub_faces, sub_vertices.size());
+        ClusterByConnectivity(sub_faces, sub_vertices.size(),
+                              use_vertex_based_connectivity);
 
     std::vector<uint32_t> fid2geocluster(sub_faces.size(), uint32_t(~0));
     for (size_t i = 0; i < geo_clusters_f.size(); i++) {

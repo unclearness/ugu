@@ -817,14 +817,11 @@ bool Mesh::WritePly(const std::string& ply_path) const {
     return false;
   }
 
-  bool has_vertex_normal = !normals_.empty();
-  if (has_vertex_normal) {
-    assert(vertices_.size() == normals_.size());
-  }
-  bool has_vertex_color = !vertex_colors_.empty();
-  if (has_vertex_color) {
-    assert(vertices_.size() == vertex_colors_.size());
-  }
+  bool has_vertex_normal =
+      !vertices_.empty() && vertices_.size() == normals_.size();
+
+  bool has_vertex_color =
+      !vertices_.empty() && vertices_.size() == vertex_colors_.size();
 
   ofs << "ply"
       << "\n";

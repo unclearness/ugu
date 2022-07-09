@@ -28,8 +28,8 @@ FindBoundaryLoops(const std::vector<Eigen::Vector3i>& indices, int32_t vnum);
 
 std::tuple<std::vector<std::set<int32_t>>, std::set<int32_t>, std::set<int32_t>,
            std::vector<std::set<int32_t>>>
-ClusterByConnectivity(const std::vector<Eigen::Vector3i>& indices,
-                      int32_t vnum);
+ClusterByConnectivity(const std::vector<Eigen::Vector3i>& indices, int32_t vnum,
+                      bool vertex_based_adjacency = false);
 
 // make cube with 24 vertices
 MeshPtr MakeCube(const Eigen::Vector3f& length, const Eigen::Matrix3f& R,

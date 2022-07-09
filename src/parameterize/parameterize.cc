@@ -6,6 +6,7 @@
 #include "ugu/parameterize/parameterize.h"
 
 #include "ugu/clustering/clustering.h"
+#include "ugu/discrete/bin_packer_2d.h"
 #include "ugu/line.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
@@ -115,38 +116,21 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
       res.cluster_fids.size());
   for (size_t cid = 0; cid < res.clusters.size(); ++cid) {
     auto prj_n = res.cluster_representative_normals[cid];
-    std::vector<Eigen::Vector3f> cluster_vtx;
-    std::vector<Eigen::Vector3i> cluster_face;
-    std::unordered_map<int32_t, int32_t> org2seg;
-    int32_t count = 0;
-    for (const auto& org_fid : res.cluster_fids[cid]) {
-      Eigen::Vector3i face;
-      for (int i = 0; i < 3; i++) {
-        int org_vid = faces[org_fid][i];
-        int vid = -1;
-        if (org2seg.find(org_vid) != org2seg.end()) {
-          // Found
-          vid = org2seg[org_vid];
-        } else {
-          // New vid
-          org2seg.insert({org_vid, count});
-          cluster_vtx.push_back(vertices[org_vid]);
-          vid = count;
-          count++;
-        }
-        face[i] = vid;
-      }
-      cluster_face.push_back(face);
-    }
+    auto [cluster_vtx, cluster_face] =
+        ugu::ExtractSubGeom(vertices, faces, res.cluster_fids[cid]);
+
     ugu::OrthoProjectToXY(prj_n, cluster_vtx, cluster_uvs[cid], true, true,
                           true);
 
-    auto uv_img =
-        ugu::DrawUv(cluster_uvs[cid], cluster_face, {255, 255, 255}, {0, 0, 0});
-    uv_img.WritePng(std::to_string(cid) + ".png");
+    // auto uv_img =
+    //    ugu::DrawUv(cluster_uvs[cid], cluster_face, {255, 255, 255}, {0, 0,
+    //    0});
+    // uv_img.WritePng(std::to_string(cid) + ".png");
   }
 
   // Pack segments
+
+  // ugu::BinPacking2D()
 
   return true;
 }
@@ -199,6 +183,7 @@ bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
 
   const Eigen::Matrix3f R = Eigen::AngleAxisf(angle, axis).matrix();
 
+  points_2d.clear();
   for (const auto& p3d : points_3d) {
     Eigen::Vector3f p = plane.Project(p3d);
     p = R * p;
@@ -211,8 +196,9 @@ bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
 
     // Find the dominant axis
     ComputeAxisForPoints(points_2d, axes, weights);
-    float rad = std::acos(
-        axes[0].normalized().dot(Eigen::Vector2f(1.f, 0.f).transpose()));
+
+    // Angle from X-axis
+    float rad = std::acos(axes[0].normalized()[0]);
 
     // Rotate points around the axis
     Eigen::Matrix2f R_2d;
@@ -226,26 +212,26 @@ bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
   }
 
   if (normalize) {
-    auto max_bound = ComputeMaxBound(points_2d);
-    auto min_bound = ComputeMinBound(points_2d);
-    auto len = max_bound - min_bound;
+    Eigen::Vector2f max_bound = ComputeMaxBound(points_2d);
+    Eigen::Vector2f min_bound = ComputeMinBound(points_2d);
+    Eigen::Vector2f len = max_bound - min_bound;
     Eigen::Vector2f inv_len(1.f / len[0], 1.f / len[1]);
-    if (keep_aspect) {
-      float smaller_inv_len = inv_len[1];
-      Eigen::Vector2f smaller_min_bound =
-          Eigen::Vector2f::Constant(min_bound[1]);
-      if (len[1] < len[0]) {
-        smaller_inv_len = inv_len[0];
-        smaller_min_bound = Eigen::Vector2f::Constant(min_bound[0]);
-      }
-      for (auto& p2d : points_2d) {
-        p2d = (p2d - smaller_min_bound) * smaller_inv_len;
-      }
-    } else {
-      for (auto& p2d : points_2d) {
-        p2d = (p2d - min_bound).cwiseProduct(inv_len);
-      }
+
+    float aspect = 1.f;
+    if (keep_aspect && len[0] > 0.f) {
+      aspect = len[1] / len[0];
     }
+
+    // TODO:
+    // sometimes aspect is largaer than 1 with align_longest_axis_x
+    // Why?
+    aspect = std::min(1.f, aspect);
+
+    for (auto& p2d : points_2d) {
+      p2d = (p2d - min_bound).cwiseProduct(inv_len);
+      p2d[1] *= aspect;
+    }
+
     if (align_top_y) {
       auto max_bound2 = ComputeMaxBound(points_2d);
       float offset_y = 1.f - max_bound2[1];
