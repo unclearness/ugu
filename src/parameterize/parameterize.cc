@@ -5,37 +5,17 @@
 
 #include "ugu/parameterize/parameterize.h"
 
+#include "ugu/clustering/clustering.h"
 #include "ugu/line.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
 
-namespace ugu {
+namespace {
 
-bool Parameterize(Mesh& mesh, int tex_w, int tex_h, ParameterizeUvType type) {
-  std::vector<Eigen::Vector2f> uvs;
-  std::vector<Eigen::Vector3i> uv_faces;
-  bool ret = Parameterize(mesh.vertices(), mesh.vertex_indices(), uvs, uv_faces,
-                          tex_w, tex_h, type);
-  if (ret) {
-    mesh.set_uv(uvs);
-    mesh.set_uv_indices(uv_faces);
-  }
-
-  return ret;
-}
-
-bool Parameterize(const std::vector<Eigen::Vector3f>& vertices,
-                  const std::vector<Eigen::Vector3i>& faces,
-                  std::vector<Eigen::Vector2f>& uvs,
-                  std::vector<Eigen::Vector3i>& uv_faces, int tex_w, int tex_h,
-                  ParameterizeUvType type) {
-  if (type != ParameterizeUvType::kSimpleTriangles) {
-    ugu::LOGE("OutputUvType %d is not implemented\n", type);
-    return false;
-  }
-
-  (void)vertices;
-
+bool ParameterizeSimpleTriangles(const std::vector<Eigen::Vector3i>& faces,
+                                 std::vector<Eigen::Vector2f>& uvs,
+                                 std::vector<Eigen::Vector3i>& uv_faces,
+                                 int tex_w, int tex_h) {
   // Padding must be at least 2
   // to pad right/left and up/down
   const int padding_tri = 2;
@@ -118,21 +98,101 @@ bool Parameterize(const std::vector<Eigen::Vector3f>& vertices,
   return true;
 }
 
+bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
+                         const std::vector<Eigen::Vector3i>& faces,
+                         const std::vector<Eigen::Vector3f>& face_normals,
+                         std::vector<Eigen::Vector2f>& uvs,
+                         std::vector<Eigen::Vector3i>& uv_faces, int tex_w,
+                         int tex_h) {
+  // Segment mesh
+  ugu::SegmentMeshResult res;
+  ugu::SegmentMesh(vertices, faces, face_normals, res);
+
+  // Parameterize per segment
+  std::vector<std::vector<Eigen::Vector2f>> cluster_uvs(
+      res.cluster_fids.size());
+  std::vector<std::vector<Eigen::Vector3i>> cluster_uv_faces(
+      res.cluster_fids.size());
+  for (size_t cid = 0; cid < res.clusters.size(); ++cid) {
+    auto prj_n = res.cluster_representative_normals[cid];
+    std::vector<Eigen::Vector3f> cluster_vtx;
+    std::vector<Eigen::Vector3i> cluster_face;
+    std::unordered_map<int32_t, int32_t> org2seg;
+    int32_t count = 0;
+    for (const auto& org_fid : res.cluster_fids[cid]) {
+      Eigen::Vector3i face;
+      for (int i = 0; i < 3; i++) {
+        int org_vid = faces[org_fid][i];
+        int vid = -1;
+        if (org2seg.find(org_vid) != org2seg.end()) {
+          // Found
+          vid = org2seg[org_vid];
+        } else {
+          // New vid
+          org2seg.insert({org_vid, count});
+          cluster_vtx.push_back(vertices[org_vid]);
+          vid = count;
+          count++;
+        }
+        face[i] = vid;
+      }
+      cluster_face.push_back(face);
+    }
+    ugu::OrthoProjectToXY(prj_n, cluster_vtx, cluster_uvs[cid], true, true,
+                          true);
+
+    auto uv_img =
+        ugu::DrawUv(cluster_uvs[cid], cluster_face, {255, 255, 255}, {0, 0, 0});
+    uv_img.WritePng(std::to_string(cid) + ".png");
+  }
+
+  // Pack segments
+
+  return true;
+}
+
+}  // namespace
+
+namespace ugu {
+
+bool Parameterize(Mesh& mesh, int tex_w, int tex_h, ParameterizeUvType type) {
+  std::vector<Eigen::Vector2f> uvs;
+  std::vector<Eigen::Vector3i> uv_faces;
+  bool ret =
+      Parameterize(mesh.vertices(), mesh.vertex_indices(), mesh.face_normals(),
+                   uvs, uv_faces, tex_w, tex_h, type);
+  if (ret) {
+    mesh.set_uv(uvs);
+    mesh.set_uv_indices(uv_faces);
+  }
+
+  return ret;
+}
+
+bool Parameterize(const std::vector<Eigen::Vector3f>& vertices,
+                  const std::vector<Eigen::Vector3i>& faces,
+                  const std::vector<Eigen::Vector3f>& face_normals,
+                  std::vector<Eigen::Vector2f>& uvs,
+                  std::vector<Eigen::Vector3i>& uv_faces, int tex_w, int tex_h,
+                  ParameterizeUvType type) {
+  if (type == ParameterizeUvType::kSimpleTriangles) {
+    return ParameterizeSimpleTriangles(faces, uvs, uv_faces, tex_w, tex_h);
+  } else if (type == ParameterizeUvType::kSmartUv) {
+    return ParameterizeSmartUv(vertices, faces, face_normals, uvs, uv_faces,
+                               tex_w, tex_h);
+  }
+
+  return false;
+}
+
 bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
                       const std::vector<Eigen::Vector3f>& points_3d,
                       std::vector<Eigen::Vector2f>& points_2d,
                       bool align_longest_axis_x, bool normalize,
-                      bool keep_aspect) {
+                      bool keep_aspect, bool align_top_y) {
   constexpr float d = 0.f;  // any value is ok.
   Planef plane(project_normal, d);
-  // const Eigen::Vector3f x_vec(1.f, 0.f, 0.f);
-  // const Eigen::Vector3f y_vec(0.f, 1.f, 0.f);
   const Eigen::Vector3f z_vec(0.f, 0.f, 1.f);
-  // Eigen::Vector3f base_vec = x_vec;
-
-  // if (project_normal.dot(x_vec) > 0.999f) {
-  //  base_vec = y_vec;
-  //}
 
   const float angle = std::acos(project_normal.dot(z_vec));
   const Eigen::Vector3f axis = (project_normal.cross(z_vec)).normalized();
@@ -148,16 +208,18 @@ bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
   if (align_longest_axis_x) {
     std::array<Eigen::Vector2f, 2> axes;
     std::array<float, 2> weights;
+
+    // Find the dominant axis
     ComputeAxisForPoints(points_2d, axes, weights);
     float rad = std::acos(
         axes[0].normalized().dot(Eigen::Vector2f(1.f, 0.f).transpose()));
 
+    // Rotate points around the axis
     Eigen::Matrix2f R_2d;
     R_2d(0, 0) = std::cos(rad);
     R_2d(0, 1) = -std::sin(rad);
     R_2d(1, 0) = std::sin(rad);
     R_2d(1, 1) = std::cos(rad);
-
     for (auto& p2d : points_2d) {
       p2d = R_2d * p2d;
     }
@@ -182,6 +244,13 @@ bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
     } else {
       for (auto& p2d : points_2d) {
         p2d = (p2d - min_bound).cwiseProduct(inv_len);
+      }
+    }
+    if (align_top_y) {
+      auto max_bound2 = ComputeMaxBound(points_2d);
+      float offset_y = 1.f - max_bound2[1];
+      for (auto& p2d : points_2d) {
+        p2d[1] = p2d[1] + offset_y;
       }
     }
   }

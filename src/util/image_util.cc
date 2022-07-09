@@ -11,6 +11,7 @@
 #include <random>
 #include <unordered_map>
 
+#include "ugu/util/raster_util.h"
 #include "ugu/util/thread_util.h"
 
 #if defined(UGU_USE_STB) && !defined(UGU_USE_OPENCV)
@@ -227,7 +228,7 @@ void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
   }
 
   auto copy_pix = [&](VT& val, const int* index) {
-    (void) val;
+    (void)val;
     VT& src_val = src.template at<VT>(index[1], index[0]);
     for (int i = 0; i < src.channels(); i++) {
       ugu::Image<VT2>& p = planes[i];
@@ -1023,6 +1024,42 @@ std::pair<std::vector<Image4b>, std::vector<int>> LoadGif(
   }
 #endif
   return {images, delays};
+}
+
+Image3b DrawUv(const std::vector<Eigen::Vector2f>& uvs,
+               const std::vector<Eigen::Vector3i>& uv_faces,
+               const Vec3b& line_col, const Vec3b& bkg_col,
+               const Image3b& bkg_img, int32_t tex_w, int32_t tex_h,
+               int32_t thickness) {
+  Image3b res;
+  if (bkg_img.empty()) {
+    res = Image3b::zeros(tex_h, tex_w);
+    res = bkg_col;
+  } else {
+    res = bkg_img.clone();
+  }
+
+  if (thickness <= 0) {
+    std::vector<Eigen::Vector3f> colors(
+        uvs.size(), Eigen::Vector3f(line_col[0], line_col[1], line_col[2]));
+    RasterizeVertexAttributeToTexture(colors, uv_faces, uvs, uv_faces, res,
+                                      tex_w, tex_h);
+    return res;
+  }
+
+  const std::vector<std::vector<int>> l_idxs = {{0, 1}, {1, 2}, {2, 0}};
+  for (const auto& face : uv_faces) {
+    for (const auto& l_idx : l_idxs) {
+      auto start_uv = uvs[face[l_idx[0]]];
+      auto end_uv = uvs[face[l_idx[1]]];
+      Point start(static_cast<int>(U2X(start_uv[0], tex_w)),
+                  static_cast<int>(V2Y(start_uv[1], tex_h)));
+      Point end(static_cast<int>(U2X(end_uv[0], tex_w)),
+                static_cast<int>(V2Y(end_uv[1], tex_h)));
+      line(res, start, end, line_col, thickness);
+    }
+  }
+  return res;
 }
 
 }  // namespace ugu

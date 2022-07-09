@@ -10,6 +10,9 @@ namespace {}  // namespace
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
+  // std::string data_dir = "../data/sphere/";
+  // std::string obj_path = data_dir + "icosphere3_smart_uv.obj";
+
   std::string data_dir = "../data/bunny/";
   std::string obj_path = data_dir + "bunny.obj";
 
@@ -17,6 +20,9 @@ int main(int argc, char* argv[]) {
   ugu::MeshPtr input_mesh = ugu::Mesh::Create();
   input_mesh->LoadObj(obj_path, data_dir);
 
+  ugu::Parameterize(*input_mesh, 512, 512, ugu::ParameterizeUvType::kSmartUv);
+
+  return 0;
   {
     std::vector<Eigen::Vector2f> points_2d;
     ugu::OrthoProjectToXY(Eigen::Vector3f(0.f, 0.f, 1.f),

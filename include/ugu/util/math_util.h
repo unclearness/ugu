@@ -338,29 +338,37 @@ std::vector<size_t> argsort(const std::vector<T>& array, bool greater = false) {
 
 template <typename InputMatrixType>
 struct Pca {
-  InputMatrixType coeffs;
   InputMatrixType cov;
   InputMatrixType means;
-  InputMatrixType vecs;
   InputMatrixType standarized;
 
-  void Compute(const InputMatrixType& data) {
+  InputMatrixType coeffs;
+  InputMatrixType vecs;
+
+  //     [row][col]
+  // data[dim][num_data]
+  void Compute(const InputMatrixType& data, bool descending_order = true) {
     // auto r = data.rows();
     auto c = data.cols();
 
     // means_ is vector and has vector operation
     // https://stackoverflow.com/questions/54021457/how-could-i-subtract-a-1xn-eigen-matrix-from-a-mxn-matrix-like-numpy-does
-    auto means_ = data.rowwise().mean();
+    auto means_ = data.rowwise().mean();  // [dim, 1]
 
     // Eigen::MatrixXd does not have vector operation
     means = means_;
-    standarized = data.colwise() - means_;
+    standarized = data.colwise() - means_;  // [dim, num_data]
 
-    cov = standarized * standarized.adjoint();
+    cov = standarized * standarized.adjoint();  // [dim, dim]
     cov = cov / c;
     Eigen::SelfAdjointEigenSolver<InputMatrixType> eig(cov);
-    vecs = eig.eigenvectors();
-    coeffs = eig.eigenvalues();
+    vecs = eig.eigenvectors();   // [dim, dim] vecs.col(i)
+    coeffs = eig.eigenvalues();  // [dim, 1] coeffs(i, 0)
+
+    if (descending_order) {
+      vecs.rowwise().reverseInPlace();
+      coeffs.colwise().reverseInPlace();
+    }
   }
 };
 

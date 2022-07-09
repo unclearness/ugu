@@ -541,6 +541,7 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
   std::vector<size_t> sorted_indices = argsort(face_areas, true);
 
   res.cluster_ids.clear();
+  res.cluster_areas.clear();
   res.clusters.clear();
   res.cluster_normals.clear();
   res.cluster_fids.clear();
@@ -683,6 +684,12 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
     res.clusters.push_back(cluster);
     res.cluster_normals.push_back(cluster_normal);
     res.cluster_representative_normals.push_back(average_normal);
+    double cluster_area = 0.0;
+    for (const auto& fid : cluster_fid) {
+      cluster_area += face_areas[fid];
+    }
+    res.cluster_areas.push_back(static_cast<float>(cluster_area));
+
 
     for (const auto& fid : cluster_fid) {
       to_process_fids.erase(fid);
@@ -717,6 +724,8 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
       cur_fid = flipped_fid;
       cur_normal = flipped_normal;
       cur_cid++;
+    } else {
+      ugu::LOGI("wrong update...\n");
     }
   }
 

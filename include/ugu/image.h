@@ -394,7 +394,15 @@ class Image {
     };
     ugu::parallel_for(st, ed, f2);
   }
+
+  Image<T>& operator=(const T& rhs);
 };
+
+template <typename T>
+Image<T>& Image<T>::operator=(const T& rhs) {
+  std::fill(data_->begin(), data_->end(), rhs);
+  return *this;
+}
 
 using Image1b = Image<Vec1b>;  // For gray image.
 using Image3b = Image<Vec3b>;  // For color image. RGB order.
@@ -528,6 +536,9 @@ class Point2i {
  public:
   int x = -1;
   int y = -1;
+  Point2i(){};
+  Point2i(int x_, int y_) : x(x_), y(y_){};
+  ~Point2i(){};
 };
 
 using Point = Point2i;

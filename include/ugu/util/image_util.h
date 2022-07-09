@@ -121,6 +121,12 @@ std::vector<uint8_t> PngData(const Image4b& color);
 std::pair<std::vector<Image4b>, std::vector<int>> LoadGif(
     const std::string& path);
 
+Image3b DrawUv(const std::vector<Eigen::Vector2f>& uvs,
+               const std::vector<Eigen::Vector3i>& uv_faces,
+               const Vec3b& line_col, const Vec3b& bkg_col,
+               const Image3b& bkg_img = Image3b(), int32_t tex_w = 512,
+               int32_t tex_h = 512, int32_t thickness = 1);
+
 template <typename T>
 T BilinearInterpolation(float x, float y, const ugu::Image<T>& image) {
   std::array<int, 2> pos_min = {{0, 0}};

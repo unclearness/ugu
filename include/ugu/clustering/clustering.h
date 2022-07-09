@@ -44,6 +44,7 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
 
 struct SegmentMeshResult {
   std::vector<uint32_t> cluster_ids;
+  std::vector<float> cluster_areas;
   std::vector<std::vector<Eigen::Vector3i>> clusters;
   std::vector<std::vector<Eigen::Vector3f>> cluster_normals;
   std::vector<std::vector<uint32_t>> cluster_fids;

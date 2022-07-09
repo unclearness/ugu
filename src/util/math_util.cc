@@ -23,10 +23,13 @@ void ComputeAxisForPointsImpl(const std::vector<Eigen::Matrix<T, N, 1>>& points,
 
   pca.Compute(pca_data);
 
+  // ugu::LOGI("\n");
   for (int j = 0; j < N; j++) {
     axis[j] = Eigen::Matrix<T, N, 1>(pca.vecs.col(j).cast<T>());
-    weights[j] = T(pca.coeffs(j));
+    weights[j] = T(pca.coeffs(j, 0));
+    // ugu::LOGI("%d %f\n", j, weights[j]);
   }
+  // ugu::LOGI("\n");
 }
 
 }  // namespace
@@ -256,13 +259,13 @@ Eigen::Vector3f MedianColor(const std::vector<Eigen::Vector3f>& colors) {
 void ComputeAxisForPoints(const std::vector<Eigen::Vector3f>& points,
                           std::array<Eigen::Vector3f, 3>& axes,
                           std::array<float, 3>& weights) {
-  ComputeAxisForPointsImpl(points, axes, weights);
+  ComputeAxisForPointsImpl<float, 3>(points, axes, weights);
 }
 
 void ComputeAxisForPoints(const std::vector<Eigen::Vector2f>& points,
                           std::array<Eigen::Vector2f, 2>& axes,
                           std::array<float, 2>& weights) {
-  ComputeAxisForPointsImpl(points, axes, weights);
+  ComputeAxisForPointsImpl<float, 2>(points, axes, weights);
 }
 
 }  // namespace ugu
