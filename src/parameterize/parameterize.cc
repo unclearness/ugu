@@ -175,7 +175,7 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
     scales[idx] = r;
     float w = len[0] * r + padding;
     float h = len[1] * r + padding;
-    rects.push_back(ugu::Rect2f(0, 0, w, h));
+    rects.push_back(ugu::Rect2f(0.f, 0.f, w, h));
   }
 
   int bin_packing_try_num = 0;
@@ -183,19 +183,20 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
   const float pyramid_ratio = 0.95f;
   float best_fill_rate = 0.f;
   std::vector<ugu::Rect2f> start_rects = rects;
+  float current_scale = start_scale;
 
   auto rescale_rects = [&]() {
     rects = start_rects;
-    float currenct_scale =
-        start_scale * std::pow(pyramid_ratio, bin_packing_try_num);
+    current_scale = start_scale * std::pow(pyramid_ratio, bin_packing_try_num);
     for (auto& rect : rects) {
-      rect.width *= currenct_scale;
-      rect.height *= currenct_scale;
+      rect.width *= current_scale;
+      rect.height *= current_scale;
     }
   };
 
   rescale_rects();
-  while (!ugu::BinPacking2D(rects, &packed_pos, &available_rects, 1.f, 1.f)) {
+  while (!ugu::BinPacking2D(rects, &packed_pos, &available_rects, padding,
+                            1.f - padding, padding, 1.f - padding)) {
     bin_packing_try_num++;
 
     // Rescale rects
@@ -219,13 +220,20 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
 
     auto [min_bound, max_bound] = min_max_local_uvs[cid];
     Eigen::Vector2f len = max_bound - min_bound;
-    float scale = scales[cid];
+    float scale = scales[cid] * current_scale;
 
     Eigen::Vector2f uv_offset(rect.x, rect.y);
     for (const auto& cuv : cluster_uvs[cid]) {
       Eigen::Vector2f tmp;
       tmp[0] = (cuv[0] - min_bound[0]) * scale + uv_offset[0];
+#if 0
+      // V is from top, y image coordinate used in BinPacking2D
       tmp[1] = (cuv[1] - min_bound[1]) * scale + uv_offset[1];
+#else
+      // Flip V
+      tmp[1] = (1.f - cuv[1]) * scale + uv_offset[1];
+      tmp[1] = 1.f - tmp[1];
+#endif
       uvs.push_back(tmp);
     }
 

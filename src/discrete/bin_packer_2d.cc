@@ -66,12 +66,13 @@ bool CutRect(const ugu::Rect_<T>& src, const ugu::Rect_<T>& target,
 template <typename T>
 bool BinPacking2DImpl(const std::vector<ugu::Rect_<T>>& rects,
                       std::vector<ugu::Rect_<T>>* packed_pos,
-                      std::vector<ugu::Rect_<T>>* available_rects, T w, T h) {
+                      std::vector<ugu::Rect_<T>>* available_rects, T w_min,
+                      T w_max, T h_min, T h_max) {
   std::deque<ugu::Rect_<T>> rects_;
   std::copy(rects.begin(), rects.end(), std::back_inserter(rects_));
 
   available_rects->clear();
-  available_rects->push_back(ugu::Rect_<T>(0, 0, w, h));
+  available_rects->push_back(ugu::Rect_<T>(w_min, h_min, w_max, h_max));
   packed_pos->clear();
 
   while (true) {
@@ -114,14 +115,18 @@ bool BinPacking2DImpl(const std::vector<ugu::Rect_<T>>& rects,
 namespace ugu {
 
 bool BinPacking2D(const std::vector<Rect>& rects, std::vector<Rect>* packed_pos,
-                  std::vector<Rect>* available_rects, int w, int h) {
-  return BinPacking2DImpl(rects, packed_pos, available_rects, w, h);
+                  std::vector<Rect>* available_rects, int x_min, int x_max,
+                  int y_min, int y_max) {
+  return BinPacking2DImpl(rects, packed_pos, available_rects, x_min, x_max,
+                          y_min, y_max);
 }
 
 bool BinPacking2D(const std::vector<Rect2f>& rects,
                   std::vector<Rect2f>* packed_pos,
-                  std::vector<Rect2f>* available_rects, float w, float h) {
-  return BinPacking2DImpl(rects, packed_pos, available_rects, w, h);
+                  std::vector<Rect2f>* available_rects, float x_min,
+                  float x_max, float y_min, float y_max) {
+  return BinPacking2DImpl(rects, packed_pos, available_rects, x_min, x_max,
+                          y_min, y_max);
 }
 
 Image3b DrawPackesRects(const std::vector<Rect>& packed_rects, int w, int h) {

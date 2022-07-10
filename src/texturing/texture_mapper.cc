@@ -669,8 +669,10 @@ bool GenerateAtlas(const Charts& charts, const ugu::Mesh& mesh,
   // TODO 1: Add padding for image boundary
   // TODO 2: Fix -1 for w and h. Why is this needed? Without -1, get 1 pixel
   // outside rects..
-  while (!ugu::BinPacking2D(rects, &packed_pos, &available_rects,
-                            current_tex_w - 1, current_tex_h - 1)) {
+  const int edge_padding = 1;
+  while (!ugu::BinPacking2D(rects, &packed_pos, &available_rects, edge_padding,
+                            current_tex_w - edge_padding, edge_padding,
+                            current_tex_h - edge_padding)) {
     bin_packing_try_num++;
     current_tex_w = static_cast<int>(
         option.tex_w * std::pow(pyramid_ratio, bin_packing_try_num));
