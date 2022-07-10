@@ -105,11 +105,13 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
                          std::vector<Eigen::Vector2f>& uvs,
                          std::vector<Eigen::Vector3i>& uv_faces, int tex_w,
                          int tex_h) {
-  // Segment mesh
+  constexpr bool debug = false;
+
+  // Step 1: Segment mesh
   ugu::SegmentMeshResult res;
   ugu::SegmentMesh(vertices, faces, face_normals, res);
 
-  // Parameterize per segment
+  // Step 2: Parameterize per segment
   std::vector<std::vector<Eigen::Vector2f>> cluster_uvs(
       res.cluster_fids.size());
   std::vector<std::vector<Eigen::Vector3i>> cluster_sub_faces;
@@ -123,14 +125,14 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
     ugu::OrthoProjectToXY(prj_n, cluster_vtx, cluster_uvs[cid], true, true,
                           true);
 
-    // auto uv_img =
-    //   ugu::DrawUv(cluster_uvs[cid], cluster_face, {255, 255, 255}, {0, 0,
-    //   0});
-    // uv_img.WritePng(std::to_string(cid) + ".png");
+    if (debug) {
+      auto uv_img = ugu::DrawUv(cluster_uvs[cid], cluster_face, {255, 255, 255},
+                                {0, 0, 0});
+      uv_img.WritePng(std::to_string(cid) + ".png");
+    }
   }
 
-  // Pack segments
-
+  // Step 3: Pack segments
   std::vector<float> normalized_areas;
   double sum_area = 0.0;
   for (const auto& a : res.cluster_areas) {
@@ -143,15 +145,18 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
   }
 
   auto indices = ugu::argsort(normalized_areas, true);
+  const float one_pix_area =
+      std::pow(1.f / static_cast<float>(std::max(tex_w, tex_h)), 2.f);
+  const float smallest_area =
+      std::max(normalized_areas[indices.back()], one_pix_area);
+  const float padding =
+      std::min(std::sqrt(smallest_area), std::sqrt(one_pix_area));
 
-  float smallest_area =
-      std::max(normalized_areas[indices.back()],
-               std::pow(1.f / static_cast<float>(std::max(tex_w, tex_h)), 2.f));
-  // Ratio to keep one pixel for the smallest cluster
-  // TODO: one pixel for face
-  // float smallest_ratio = 1.f / smallest_area;
+  for (auto& a : normalized_areas) {
+    a = std::max(a, one_pix_area);
+  }
 
-  std::vector<ugu::Rect> rects, packed_pos, available_rects;
+  std::vector<ugu::Rect2f> rects, packed_pos, available_rects;
 
   std::vector<std::pair<Eigen::Vector2f, Eigen::Vector2f>> min_max_local_uvs(
       res.clusters.size());
@@ -166,35 +171,41 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
 
     Eigen::Vector2f len = max_bound - min_bound;
 
-    float r = std::sqrt(std::max(normalized_areas[idx], smallest_area));
+    float r = std::sqrt(normalized_areas[idx]);
     scales[idx] = r;
-    int w = static_cast<int>(std::max(std::ceil(len[0] * r * tex_w), 1.f));
-    int h = static_cast<int>(std::max(std::ceil(len[1] * r * tex_h), 1.f));
-    rects.push_back(ugu::Rect(0, 0, w, h));
+    float w = len[0] * r + padding;
+    float h = len[1] * r + padding;
+    rects.push_back(ugu::Rect2f(0, 0, w, h));
   }
 
-  // const int max_tex_len = 8192 * 2;  // 16K
-  int start_tex_w = std::max(tex_w / 4, 2);
-  int start_tex_h = std::max(tex_h / 4, 2);
-  int current_tex_w = start_tex_w;
-  int current_tex_h = start_tex_h;
   int bin_packing_try_num = 0;
-  const float pyramid_ratio =
-      std::pow(2.f, 0.25f);  // std::sqrt(std::sqrt(2.0f));
+  const float start_scale = 2.f;
+  const float pyramid_ratio = 0.95f;
   float best_fill_rate = 0.f;
-  while (!ugu::BinPacking2D(rects, &packed_pos, &available_rects,
-                            current_tex_w - 1, current_tex_h - 1)) {
-    current_tex_w = static_cast<int>(
-        std::round(start_tex_w * std::pow(pyramid_ratio, bin_packing_try_num)));
+  std::vector<ugu::Rect2f> start_rects = rects;
 
-    current_tex_h = static_cast<int>(
-        std::round(start_tex_h * std::pow(pyramid_ratio, bin_packing_try_num)));
+  auto rescale_rects = [&]() {
+    rects = start_rects;
+    float currenct_scale =
+        start_scale * std::pow(pyramid_ratio, bin_packing_try_num);
+    for (auto& rect : rects) {
+      rect.width *= currenct_scale;
+      rect.height *= currenct_scale;
+    }
+  };
 
+  rescale_rects();
+  while (!ugu::BinPacking2D(rects, &packed_pos, &available_rects, 1.f, 1.f)) {
     bin_packing_try_num++;
+
+    // Rescale rects
+    rescale_rects();
   }
 
-  // auto vis = ugu::DrawPackesRects(packed_pos, current_tex_w, current_tex_h);
-  // vis.WriteJpg("tmp.jpg");
+  if (debug) {
+    auto vis = ugu::DrawPackesRects(packed_pos, tex_w, tex_h);
+    vis.WriteJpg("tmp.jpg");
+  }
 
   uvs.clear();
   uv_faces.clear();
@@ -203,20 +214,18 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
   for (int k = 0; k < static_cast<int>(indices.size()); k++) {
     int uv_index_offset = static_cast<int>(uvs.size());
 
-    const ugu::Rect& rect = packed_pos[k];
+    const ugu::Rect2f& rect = packed_pos[k];
     size_t cid = indices[k];
 
     auto [min_bound, max_bound] = min_max_local_uvs[cid];
     Eigen::Vector2f len = max_bound - min_bound;
     float scale = scales[cid];
 
-    Eigen::Vector2f uv_offset(static_cast<float>(rect.x) / current_tex_w,
-                              1.f - static_cast<float>(rect.y) / current_tex_h);
+    Eigen::Vector2f uv_offset(rect.x, rect.y);
     for (const auto& cuv : cluster_uvs[cid]) {
       Eigen::Vector2f tmp;
       tmp[0] = (cuv[0] - min_bound[0]) * scale + uv_offset[0];
-      tmp[1] = (cuv[1] - min_bound[1]) * scale + uv_offset[1] -
-               (static_cast<float>(rect.height) / current_tex_h);
+      tmp[1] = (cuv[1] - min_bound[1]) * scale + uv_offset[1];
       uvs.push_back(tmp);
     }
 

@@ -11,13 +11,15 @@
 
 namespace {
 
-bool FindBestRect(const std::vector<ugu::Rect>& available_rects,
-                  const ugu::Rect& target, int* index, ugu::Rect* best_rect) {
+template <typename T>
+bool FindBestRect(const std::vector<ugu::Rect_<T>>& available_rects,
+                  const ugu::Rect_<T>& target, int* index,
+                  ugu::Rect_<T>* best_rect) {
   *index = -1;
-  int best_area_diff = std::numeric_limits<int>::max();
+  T best_area_diff = std::numeric_limits<T>::max();
 
   for (int i = 0; i < static_cast<int>(available_rects.size()); i++) {
-    const ugu::Rect& rect = available_rects[i];
+    const ugu::Rect_<T>& rect = available_rects[i];
     if (target.height <= rect.height && target.width <= rect.width &&
         (rect.area() - target.area()) < best_area_diff) {
       best_area_diff = rect.area() - target.area();
@@ -29,10 +31,11 @@ bool FindBestRect(const std::vector<ugu::Rect>& available_rects,
   return true;
 }
 
-bool CutRect(const ugu::Rect& src, const ugu::Rect& target, ugu::Rect* cut1,
-             ugu::Rect* cut2) {
-  int h_diff = src.height - target.height;
-  int w_diff = src.width - target.width;
+template <typename T>
+bool CutRect(const ugu::Rect_<T>& src, const ugu::Rect_<T>& target,
+             ugu::Rect_<T>* cut1, ugu::Rect_<T>* cut2) {
+  T h_diff = src.height - target.height;
+  T w_diff = src.width - target.width;
 
   if (h_diff > w_diff) {
     cut1->x = src.x;
@@ -60,17 +63,15 @@ bool CutRect(const ugu::Rect& src, const ugu::Rect& target, ugu::Rect* cut1,
   return true;
 }
 
-}  // namespace
-
-namespace ugu {
-
-bool BinPacking2D(const std::vector<Rect>& rects, std::vector<Rect>* packed_pos,
-                  std::vector<Rect>* available_rects, int w, int h) {
-  std::deque<Rect> rects_;
+template <typename T>
+bool BinPacking2DImpl(const std::vector<ugu::Rect_<T>>& rects,
+                      std::vector<ugu::Rect_<T>>* packed_pos,
+                      std::vector<ugu::Rect_<T>>* available_rects, T w, T h) {
+  std::deque<ugu::Rect_<T>> rects_;
   std::copy(rects.begin(), rects.end(), std::back_inserter(rects_));
 
   available_rects->clear();
-  available_rects->push_back(Rect(0, 0, w, h));
+  available_rects->push_back(ugu::Rect_<T>(0, 0, w, h));
   packed_pos->clear();
 
   while (true) {
@@ -81,12 +82,12 @@ bool BinPacking2D(const std::vector<Rect>& rects, std::vector<Rect>* packed_pos,
       return false;
     }
 
-    Rect rect = rects_.front();
+    ugu::Rect_<T> rect = rects_.front();
     rects_.pop_front();
 
     while (true) {
       int best_index{-1};
-      Rect best_rect;
+      ugu::Rect_<T> best_rect;
       FindBestRect(*available_rects, rect, &best_index, &best_rect);
       if (best_index < 0 || best_rect.area() < rect.area()) {
         return false;
@@ -96,7 +97,7 @@ bool BinPacking2D(const std::vector<Rect>& rects, std::vector<Rect>* packed_pos,
         available_rects->erase(available_rects->begin() + best_index);
         break;
       } else {
-        Rect cut1, cut2;
+        ugu::Rect_<T> cut1, cut2;
         CutRect(best_rect, rect, &cut1, &cut2);
         available_rects->erase(available_rects->begin() + best_index);
         available_rects->push_back(cut2);
@@ -106,6 +107,21 @@ bool BinPacking2D(const std::vector<Rect>& rects, std::vector<Rect>* packed_pos,
   }
 
   return true;
+}
+
+}  // namespace
+
+namespace ugu {
+
+bool BinPacking2D(const std::vector<Rect>& rects, std::vector<Rect>* packed_pos,
+                  std::vector<Rect>* available_rects, int w, int h) {
+  return BinPacking2DImpl(rects, packed_pos, available_rects, w, h);
+}
+
+bool BinPacking2D(const std::vector<Rect2f>& rects,
+                  std::vector<Rect2f>* packed_pos,
+                  std::vector<Rect2f>* available_rects, float w, float h) {
+  return BinPacking2DImpl(rects, packed_pos, available_rects, w, h);
 }
 
 Image3b DrawPackesRects(const std::vector<Rect>& packed_rects, int w, int h) {
@@ -123,6 +139,18 @@ Image3b DrawPackesRects(const std::vector<Rect>& packed_rects, int w, int h) {
     }
   }
   return res;
+}
+
+Image3b DrawPackesRects(const std::vector<Rect2f>& packed_rects, int w, int h) {
+  std::vector<Rect> packed_rects_2i;
+  std::transform(packed_rects.begin(), packed_rects.end(),
+                 std::back_inserter(packed_rects_2i), [&](const Rect2f& r) {
+                   return Rect(static_cast<int>(r.x * w),
+                               static_cast<int>(r.y * h),
+                               static_cast<int>(r.width * w),
+                               static_cast<int>(r.height * w));
+                 });
+  return DrawPackesRects(packed_rects_2i, w, h);
 }
 
 }  // namespace ugu

@@ -259,6 +259,7 @@ set(
   include/ugu/face_adjacency.h
   include/ugu/image.h
   include/ugu/line.h
+  include/ugu/rect.h
   include/ugu/log.h
   include/ugu/util/camera_util.h
   include/ugu/util/io_util.h
