@@ -151,13 +151,13 @@ bool RasterizeTriangle(const std::array<Eigen::Vector3f, 3>& src_vetex_color,
 
 template <typename T>
 bool RasterizeVertexAttributeToTexture(
-    const std::vector<Eigen::Vector3f>& vertex_colors,
-    const std::vector<Eigen::Vector3i>& vertex_color_indices,
+    const std::vector<Eigen::Vector3f>& vertex_attrs,
+    const std::vector<Eigen::Vector3i>& vertex_attr_indices,
     const std::vector<Eigen::Vector2f>& uvs,
     const std::vector<Eigen::Vector3i>& uv_indices, Image<T>& texture,
     int width = 512, int height = 512, ugu::Image1b* mask = nullptr) {
-  if (vertex_color_indices.empty() ||
-      vertex_color_indices.size() != uv_indices.size()) {
+  if (vertex_attr_indices.empty() ||
+      vertex_attr_indices.size() != uv_indices.size()) {
     return false;
   }
 
@@ -167,14 +167,51 @@ bool RasterizeVertexAttributeToTexture(
     return false;
   }
 
-  auto face_num = vertex_color_indices.size();
+  const auto& face_num = vertex_attr_indices.size();
   for (size_t i = 0; i < face_num; i++) {
-    const auto vc_face = vertex_color_indices[i];
-    const auto uv_face = uv_indices[i];
+    const auto& vc_face = vertex_attr_indices[i];
+    const auto& uv_face = uv_indices[i];
 
-    std::array<Eigen::Vector3f, 3> src_vetex_color{vertex_colors[vc_face[0]],
-                                                   vertex_colors[vc_face[1]],
-                                                   vertex_colors[vc_face[2]]};
+    std::array<Eigen::Vector3f, 3> src_vetex_color{vertex_attrs[vc_face[0]],
+                                                   vertex_attrs[vc_face[1]],
+                                                   vertex_attrs[vc_face[2]]};
+    std::array<Eigen::Vector2f, 3> target_tri{uvs[uv_face[0]], uvs[uv_face[1]],
+                                              uvs[uv_face[2]]};
+
+    for (auto& tri : target_tri) {
+      tri.x() = ugu::U2X(tri.x(), texture.cols);
+      tri.y() = ugu::V2Y(tri.y(), texture.rows);
+    }
+
+    RasterizeTriangle(src_vetex_color, target_tri, &texture, mask);
+  }
+
+  return true;
+}
+
+template <typename T>
+bool RasterizeFaceAttributeToTexture(
+    const std::vector<Eigen::Vector3f>& face_attrs,
+    const std::vector<Eigen::Vector2f>& uvs,
+    const std::vector<Eigen::Vector3i>& uv_indices, Image<T>& texture,
+    int width = 512, int height = 512, ugu::Image1b* mask = nullptr) {
+  if (face_attrs.empty() || face_attrs.size() != uv_indices.size()) {
+    return false;
+  }
+
+  if (width > 0 && height > 0) {
+    texture = Image<T>::zeros(height, width);
+  } else if (texture.empty()) {
+    return false;
+  }
+
+  const auto& face_num = face_attrs.size();
+  for (size_t i = 0; i < face_num; i++) {
+    const auto& face_attr = face_attrs[i];
+    const auto& uv_face = uv_indices[i];
+
+    std::array<Eigen::Vector3f, 3> src_vetex_color{face_attr, face_attr,
+                                                   face_attr};
     std::array<Eigen::Vector2f, 3> target_tri{uvs[uv_face[0]], uvs[uv_face[1]],
                                               uvs[uv_face[2]]};
 

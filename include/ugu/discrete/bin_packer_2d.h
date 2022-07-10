@@ -19,6 +19,6 @@ bool BinPacking2D(const std::vector<Rect2f>& rects,
                   std::vector<Rect2f>* available_rects, float x_min,
                   float x_max, float y_min, float y_max);
 
-Image3b DrawPackesRects(const std::vector<Rect>& packed_rects, int w, int h);
-Image3b DrawPackesRects(const std::vector<Rect2f>& packed_rects, int w, int h);
+Image3b DrawPackedRects(const std::vector<Rect>& packed_rects, int w, int h);
+Image3b DrawPackedRects(const std::vector<Rect2f>& packed_rects, int w, int h);
 }  // namespace ugu

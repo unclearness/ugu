@@ -18,6 +18,7 @@
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/math_util.h"
+#include "ugu/util/raster_util.h"
 
 #ifdef UGU_USE_OPENCV
 #include "opencv2/imgproc.hpp"
@@ -229,6 +230,7 @@ bool PaddingBorderSimple(ugu::Image3b* texture, int padding) {
   return true;
 }
 
+// TODO: merge to raster_util
 bool RasterizeTriangle(const std::array<Eigen::Vector2f, 3>& src_tri,
                        const ugu::Image3b& src,
                        const std::array<Eigen::Vector2f, 3>& target_tri,

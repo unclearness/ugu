@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#include "ugu/inpaint/inpaint.h"
 #include "ugu/parameterize/parameterize.h"
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
@@ -24,9 +25,13 @@ int main(int argc, char* argv[]) {
   ugu::MeshPtr input_mesh = ugu::Mesh::Create();
   input_mesh->LoadObj(obj_path, data_dir);
 
+  int tex_w = 512;
+  int tex_h = 512;
+
   ugu::Timer<> timer;
   timer.Start();
-  ugu::Parameterize(*input_mesh, 512, 512, ugu::ParameterizeUvType::kSmartUv);
+  ugu::Parameterize(*input_mesh, tex_w, tex_h,
+                    ugu::ParameterizeUvType::kSmartUv);
   timer.End();
   ugu::LOGI("Parameterize %f ms\n", timer.elapsed_msec());
 
@@ -38,6 +43,7 @@ int main(int argc, char* argv[]) {
       ugu::ClusterByConnectivity(input_mesh->uv_indices(),
                                  static_cast<int32_t>(input_mesh->uv().size()));
 
+  std::string diffuse_tex_name = "my_uv.png";
 #if 1
   std::vector<Eigen::Vector3f> random_colors =
       ugu::GenRandomColors(clusters.size(), 0.f, 225.f);
@@ -58,41 +64,31 @@ int main(int argc, char* argv[]) {
     mat.diffuse[0] = random_colors[i][0] / 255.f;
     mat.diffuse[1] = random_colors[i][1] / 255.f;
     mat.diffuse[2] = random_colors[i][2] / 255.f;
+    mat.diffuse_texname = diffuse_tex_name;
     materials.push_back(mat);
   };
 
+#endif
+
+  std::vector<Eigen::Vector3f> face_colors(input_mesh->vertex_indices().size());
+  for (size_t i = 0; i < face_colors.size(); i++) {
+    face_colors[i][0] = materials[material_ids[i]].diffuse[0] * 255.f;
+    face_colors[i][1] = materials[material_ids[i]].diffuse[1] * 255.f;
+    face_colors[i][2] = materials[material_ids[i]].diffuse[2] * 255.f;
+  }
+
+  ugu::Image3b fc_rasterized;
+  ugu::RasterizeFaceAttributeToTexture(face_colors, input_mesh->uv(),
+                                       input_mesh->uv_indices(), fc_rasterized,
+                                       tex_w, tex_h);
+  for (auto& m : materials) {
+    m.diffuse_tex = fc_rasterized;
+  }
+
   input_mesh->set_material_ids(material_ids);
   input_mesh->set_materials(materials);
+
   input_mesh->WriteObj(data_dir, "bunny_my_uv_mat");
-#endif
-
-#if 1
-  auto [vid2uvid, uvid2vid] = ugu::GenerateVertex2UvMap(
-      input_mesh->vertex_indices(), input_mesh->vertices().size(),
-      input_mesh->uv_indices(), input_mesh->uv().size());
-  std::vector<Eigen::Vector3f> colors(input_mesh->vertices().size());
-  for (size_t i = 0; i < clusters.size(); i++) {
-    const auto& cluster = clusters[i];
-    for (const auto& uvid : cluster) {
-      auto vid = uvid2vid[uvid];
-      colors[vid] = random_colors[i];
-    }
-  }
-  input_mesh->set_vertex_colors(colors);
-
-  ugu::Image3b texture;
-  ugu::RasterizeVertexAttributeToTexture(colors, input_mesh->vertex_indices(),
-                                         input_mesh->uv(),
-                                         input_mesh->uv_indices(), texture);
-  auto mats = input_mesh->materials();
-  mats[0].diffuse_tex = texture;
-  mats[0].diffuse_texname = "my_uv.png";
-  mats[0].name = "my_uv_mat";
-  input_mesh->set_materials(mats);
-
-#endif
-
-  input_mesh->WriteObj(data_dir, "bunny_my_uv_tex");
 
   {
     std::vector<Eigen::Vector2f> points_2d;

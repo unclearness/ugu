@@ -204,7 +204,7 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
   }
 
   if (debug) {
-    auto vis = ugu::DrawPackesRects(packed_pos, tex_w, tex_h);
+    auto vis = ugu::DrawPackedRects(packed_pos, tex_w, tex_h);
     vis.WriteJpg("tmp.jpg");
   }
 

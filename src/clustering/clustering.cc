@@ -695,7 +695,7 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
         cluster.push_back(tmp.efa);
         cluster_normal.push_back(tmp.no);
         cluster_fid.push_back(tmp.org_id);
-        res.cluster_ids[tmp.org_id] = pid;
+        res.cluster_ids[tmp.org_id] = static_cast<uint32_t>(pid);
       }
 
       res.cluster_fids.push_back(cluster_fid);
@@ -741,7 +741,8 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
       }
     }
 
-    uint32_t cur_fid = thickface_project_groups[pid][0].org_id;
+    uint32_t cur_fid =
+        static_cast<uint32_t>(thickface_project_groups[pid][0].org_id);
     Eigen::Vector3f cur_normal = face_normals[cur_fid];
     to_process_fids.erase(cur_fid);
     res.cluster_ids[cur_fid] = cid;

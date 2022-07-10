@@ -129,7 +129,7 @@ bool BinPacking2D(const std::vector<Rect2f>& rects,
                           y_min, y_max);
 }
 
-Image3b DrawPackesRects(const std::vector<Rect>& packed_rects, int w, int h) {
+Image3b DrawPackedRects(const std::vector<Rect>& packed_rects, int w, int h) {
   Image3b res = Image3b::zeros(h, w);
 
   std::vector<Eigen::Vector3f> random_colors =
@@ -146,7 +146,7 @@ Image3b DrawPackesRects(const std::vector<Rect>& packed_rects, int w, int h) {
   return res;
 }
 
-Image3b DrawPackesRects(const std::vector<Rect2f>& packed_rects, int w, int h) {
+Image3b DrawPackedRects(const std::vector<Rect2f>& packed_rects, int w, int h) {
   std::vector<Rect> packed_rects_2i;
   std::transform(packed_rects.begin(), packed_rects.end(),
                  std::back_inserter(packed_rects_2i), [&](const Rect2f& r) {
@@ -155,7 +155,7 @@ Image3b DrawPackesRects(const std::vector<Rect2f>& packed_rects, int w, int h) {
                                static_cast<int>(r.width * w),
                                static_cast<int>(r.height * w));
                  });
-  return DrawPackesRects(packed_rects_2i, w, h);
+  return DrawPackedRects(packed_rects_2i, w, h);
 }
 
 }  // namespace ugu
