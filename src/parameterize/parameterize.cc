@@ -144,7 +144,9 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
 
   auto indices = ugu::argsort(normalized_areas, true);
 
-  float smallest_area = std::max(normalized_areas[indices.back()], 1e-4f);
+  float smallest_area =
+      std::max(normalized_areas[indices.back()],
+               std::pow(1.f / static_cast<float>(std::max(tex_w, tex_h)), 2.f));
   // Ratio to keep one pixel for the smallest cluster
   // TODO: one pixel for face
   // float smallest_ratio = 1.f / smallest_area;

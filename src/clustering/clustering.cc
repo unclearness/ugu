@@ -790,6 +790,7 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
               return false;
             });
 
+  // Step 1: Normal clustering
   std::vector<Eigen::Vector3f> project_normal_array;
   {
     Eigen::Vector3f project_normal = thick_faces[0].no;
@@ -837,7 +838,6 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
         project_normal_array.push_back(average_normal);
       }
 
-      /* Find the most unique angle that points away from other normals. */
       float angle_best = 1.0f;
       size_t angle_best_index = 0;
 
@@ -872,9 +872,9 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
     }
   }
 
+  // Step 2: Face clustering by the clustered normals
   std::vector<std::vector<SegmentFace>> thickface_project_groups(
       project_normal_array.size());
-
   for (int64_t f_index = thick_faces.size() - 1; f_index >= 0; f_index--) {
     const auto& f_normal = thick_faces[f_index].no;
 
@@ -903,6 +903,7 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
   uint32_t cid = 0;
 
   if (!consider_connectiviy) {
+    // Step 2.5: If don't consider connectivity, return the face clusters
     for (size_t pid = 0; pid < thickface_project_groups.size(); pid++) {
       std::vector<Eigen::Vector3i> cluster;
       std::vector<Eigen::Vector3f> cluster_normal;
@@ -929,10 +930,12 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
     return true;
   }
 
+  // Step 3: Find connected components in the face clusters
   for (size_t pid = 0; pid < thickface_project_groups.size(); pid++) {
     std::vector<uint32_t> sub_face_ids;
     std::unordered_set<uint32_t> to_process_fids;
-    std::unordered_map<uint32_t, uint32_t> org2sub;
+    std::unordered_map<uint32_t, uint32_t>
+        org2sub;  // Original face id to face id in the cluster
     for (size_t i = 0; i < thickface_project_groups[pid].size(); i++) {
       auto fid = static_cast<uint32_t>(thickface_project_groups[pid][i].org_id);
       to_process_fids.insert(fid);
@@ -947,6 +950,7 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
         ClusterByConnectivity(sub_faces, sub_vertices.size(),
                               use_vertex_based_connectivity);
 
+    // Face id in the cluster to the connected component id
     std::vector<uint32_t> fid2geocluster(sub_faces.size(), uint32_t(~0));
     for (size_t i = 0; i < geo_clusters_f.size(); i++) {
       uint32_t geo_cid = static_cast<uint32_t>(i);
@@ -968,20 +972,19 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
 
       uint32_t geo_cid = fid2geocluster[org2sub[cur_fid]];
 
+      std::unordered_set<uint32_t> processed;
       auto update_func = [&](uint32_t fid) {
+        processed.insert(fid);
         cluster_fid.push_back(fid);
         cluster.push_back(faces[fid]);
         cluster_normal.push_back(face_normals[fid]);
         res.cluster_ids[fid] = cid;
       };
 
-      std::unordered_set<uint32_t> processed;
-      processed.insert(cur_fid);
       update_func(cur_fid);
 
       for (const auto& fid : to_process_fids) {
         if (geo_cid == fid2geocluster[org2sub[fid]]) {
-          processed.insert(fid);
           update_func(fid);
         }
       }

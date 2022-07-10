@@ -63,12 +63,10 @@ int main(int argc, char* argv[]) {
 
   input_mesh->set_material_ids(material_ids);
   input_mesh->set_materials(materials);
-
+  input_mesh->WriteObj(data_dir, "bunny_my_uv_mat");
 #endif
 
-#if 0
-  auto random_colors =
-      ugu::GenRandomColors(static_cast<int32_t>(clusters.size()));
+#if 1
   auto [vid2uvid, uvid2vid] = ugu::GenerateVertex2UvMap(
       input_mesh->vertex_indices(), input_mesh->vertices().size(),
       input_mesh->uv_indices(), input_mesh->uv().size());
@@ -94,7 +92,7 @@ int main(int argc, char* argv[]) {
 
 #endif
 
-  input_mesh->WriteObj(data_dir, "bunny_my_uv");
+  input_mesh->WriteObj(data_dir, "bunny_my_uv_tex");
 
   {
     std::vector<Eigen::Vector2f> points_2d;
