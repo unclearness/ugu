@@ -434,6 +434,7 @@ if (UGU_BUILD_EXAMPLES)
   setup_exe(ex17_kdtree examples/ex17_kdtree.cc)
   setup_exe(ex18_bvh examples/ex18_bvh.cc)
   setup_exe(ex19_parameterize examples/ex19_parameterize.cc)
+  setup_exe(ex20_manifold examples/ex20_manifold.cc)
 endif()
 
 if (UGU_BUILD_APP)

@@ -27,6 +27,7 @@ class FaceAdjacency {
  private:
   // https://qiita.com/shinjiogaki/items/d16abb018a843c09b8c8
   std::vector<Eigen::Vector3i> vertex_indices_;
+  int num_vertices_;
 
  public:
 #ifdef UGU_FACE_ADJACENCY_USE_SPARSE_MAT
@@ -35,6 +36,7 @@ class FaceAdjacency {
   // - Faster Init by setFromTriplets()
   // - Slower GetAdjacentFaces since random access is not O(1)
   Eigen::SparseMatrix<int> mat_;  // Stores face_id + 1 to use SparseMatrix ()
+  Eigen::SparseMatrix<int> maniforld_test_mat_;
 
   void Init(int num_vertices,
             const std::vector<Eigen::Vector3i>& vertex_indices) {
@@ -43,6 +45,7 @@ class FaceAdjacency {
               std::back_inserter(vertex_indices_));
 
     mat_ = Eigen::SparseMatrix<int>(num_vertices, num_vertices);
+    num_vertices_ = num_vertices;
 
 #if 1
     std::vector<Eigen::Triplet<int>> triplet_list;
@@ -278,6 +281,44 @@ class FaceAdjacency {
     }
 
     return vertex_adjacency;
+  }
+
+  std::set<int32_t> GetNonManifoldVertices(bool force = false) {
+    if (maniforld_test_mat_.rows() || 1 && maniforld_test_mat_.cols() < 1 ||
+        force) {
+      maniforld_test_mat_ =
+          Eigen::SparseMatrix<int>(num_vertices_, num_vertices_);
+      std::vector<Eigen::Triplet<int>> triplet_list;
+      triplet_list.reserve(vertex_indices_.size() * 3);
+      for (int i = 0; i < static_cast<int>(vertex_indices_.size()); i++) {
+        const Eigen::Vector3i& face = vertex_indices_[i];
+        triplet_list.push_back(Eigen::Triplet<int>(face[0], face[1], 1));
+        triplet_list.push_back(Eigen::Triplet<int>(face[1], face[2], 1));
+        triplet_list.push_back(Eigen::Triplet<int>(face[2], face[0], 1));
+      }
+      maniforld_test_mat_.setFromTriplets(triplet_list.begin(),
+                                          triplet_list.end());
+    }
+
+    std::set<int32_t> nonmanifold_vids;
+
+    for (int k = 0; k < maniforld_test_mat_.outerSize(); ++k) {
+      for (Eigen::SparseMatrix<int>::InnerIterator it(maniforld_test_mat_, k);
+           it; ++it) {
+        if (it.value() > 1) {
+#if 0
+          std::cout << it.value() << " " << it.row()  // row index
+                    << " " << it.col()  // col index (here it is equal to k)
+                    << " "
+                    << it.index()  // inner index, here it is equal to it.row()
+                    << std::endl;
+#endif
+          nonmanifold_vids.insert(it.row());
+          nonmanifold_vids.insert(it.col());
+        }
+      }
+    }
+    return nonmanifold_vids;
   }
 
   bool Empty() const { return vertex_indices_.empty(); }

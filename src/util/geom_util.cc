@@ -1531,4 +1531,45 @@ ExtractSubGeom(const std::vector<Eigen::Vector3f>& vertices,
   return {sub_vertices, sub_faces};
 }
 
+bool CleanGeom(const std::vector<Eigen::Vector3f>& vertices,
+               const std::vector<Eigen::Vector3i>& faces,
+               std::vector<Eigen::Vector3f>& clean_vertices,
+               std::vector<Eigen::Vector3i>& clean_faces) {
+  ugu::FaceAdjacency fa;
+  fa.Init(static_cast<int>(vertices.size()), faces);
+  std::set<int32_t> nonmanifold_vtx = fa.GetNonManifoldVertices();
+  if (nonmanifold_vtx.empty()) {
+    return true;
+  }
+
+  clean_vertices = vertices;
+  clean_faces = faces;
+  while (!nonmanifold_vtx.empty()) {
+    std::vector<bool> valid_vertex_table(clean_vertices.size(), true);
+    for (const auto& vid : nonmanifold_vtx) {
+      valid_vertex_table[vid] = false;
+    }
+
+    auto [num_removed, valid_table, valid_vertices, valid_vertex_colors,
+          valid_uv, valid_indices, valid_face_table, with_uv,
+          with_vertex_color] =
+        RemoveVerticesBase(clean_vertices, clean_faces, {}, {}, {},
+                           valid_vertex_table);
+
+    std::tie(num_removed, valid_table, valid_vertices, valid_vertex_colors,
+             valid_uv, valid_indices, valid_face_table, with_uv,
+             with_vertex_color) =
+        RemoveUnreferencedVerticesBase(valid_vertices, valid_indices, {}, {},
+                                       {});
+
+    clean_vertices = valid_vertices;
+    clean_faces = valid_indices;
+
+    fa.Init(static_cast<int>(clean_vertices.size()), clean_faces);
+    nonmanifold_vtx = fa.GetNonManifoldVertices();
+  }
+
+  return false;
+}
+
 }  // namespace ugu

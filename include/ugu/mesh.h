@@ -78,7 +78,6 @@ struct AnimKeyframe {
 class Mesh;
 using MeshPtr = std::shared_ptr<Mesh>;
 
-
 #if 0
 				class AnimationSystem {
 private:
@@ -91,8 +90,6 @@ public:
   
 };
 #endif  // 0
-
-
 
 class Mesh {
   std::vector<Eigen::Vector3f> vertices_;
@@ -120,7 +117,7 @@ class Mesh {
 
   // To keep key (sec.) order, use map
   std::map<float, AnimKeyframe> keyframes_;
-  //uint32_t fps_ = 30;
+  // uint32_t fps_ = 30;
   AnimInterp anim_interp_ = AnimInterp::LINEAR;
 
  public:
@@ -211,7 +208,27 @@ class Mesh {
 using Scene = std::vector<MeshPtr>;
 bool WriteGltfSeparate(Scene& scene, const std::string& gltf_dir,
                        const std::string& gltf_basename, bool is_unlit = false);
-bool WriteGlb(Scene& scene, const std::string& glb_dir, const std::string& glb_name,
-              bool is_unlit = false);
+bool WriteGlb(Scene& scene, const std::string& glb_dir,
+              const std::string& glb_name, bool is_unlit = false);
+
+std::tuple<int, std::vector<int>, std::vector<Eigen::Vector3f>,
+           std::vector<Eigen::Vector3f>, std::vector<Eigen::Vector2f>,
+           std::vector<Eigen::Vector3i>, std::vector<int>, bool, bool>
+RemoveVerticesBase(const std::vector<Eigen::Vector3f>& vertices,
+                   const std::vector<Eigen::Vector3i>& vertex_indices,
+                   const std::vector<Eigen::Vector3f>& vertex_colors,
+                   const std::vector<Eigen::Vector2f>& uv,
+                   const std::vector<Eigen::Vector3i>& uv_indices,
+                   const std::vector<bool>& valid_vertex_table);
+
+std::tuple<int, std::vector<int>, std::vector<Eigen::Vector3f>,
+           std::vector<Eigen::Vector3f>, std::vector<Eigen::Vector2f>,
+           std::vector<Eigen::Vector3i>, std::vector<int>, bool, bool>
+RemoveUnreferencedVerticesBase(
+    const std::vector<Eigen::Vector3f>& vertices,
+    const std::vector<Eigen::Vector3i>& vertex_indices,
+    const std::vector<Eigen::Vector3f>& vertex_colors,
+    const std::vector<Eigen::Vector2f>& uv,
+    const std::vector<Eigen::Vector3i>& uv_indices);
 
 }  // namespace ugu

@@ -1005,6 +1005,7 @@ int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
     return -1;
   }
 
+#if 0
   int num_removed{0};
   std::vector<int> valid_table(vertices_.size(), -1);
   std::vector<Eigen::Vector3f> valid_vertices, valid_vertex_colors;
@@ -1049,6 +1050,12 @@ int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
     valid_face_table[i] = valid_face_count;
     valid_face_count++;
   }
+#endif
+
+  auto [num_removed, valid_table, valid_vertices, valid_vertex_colors, valid_uv,
+        valid_indices, valid_face_table, with_uv, with_vertex_color] =
+      RemoveVerticesBase(vertices_, vertex_indices_, vertex_colors_, uv_,
+                         uv_indices_, valid_vertex_table);
 
   set_vertices(valid_vertices);
   set_vertex_indices(valid_indices);
@@ -2011,6 +2018,94 @@ bool WriteGlb(Scene& scene, const std::string& glb_dir,
 
   return false;
 #endif
+}
+
+std::tuple<int, std::vector<int>, std::vector<Eigen::Vector3f>,
+           std::vector<Eigen::Vector3f>, std::vector<Eigen::Vector2f>,
+           std::vector<Eigen::Vector3i>, std::vector<int>, bool, bool>
+RemoveVerticesBase(const std::vector<Eigen::Vector3f>& vertices,
+                   const std::vector<Eigen::Vector3i>& vertex_indices,
+                   const std::vector<Eigen::Vector3f>& vertex_colors,
+                   const std::vector<Eigen::Vector2f>& uv,
+                   const std::vector<Eigen::Vector3i>& uv_indices,
+                   const std::vector<bool>& valid_vertex_table) {
+  int num_removed{0};
+  std::vector<int> valid_table(vertices.size(), -1);
+  std::vector<Eigen::Vector3f> valid_vertices, valid_vertex_colors;
+  std::vector<Eigen::Vector2f> valid_uv;
+  std::vector<Eigen::Vector3i> valid_indices;
+  std::vector<int> valid_face_table(vertex_indices.size(), -1);
+
+  if (valid_vertex_table.size() != vertices.size()) {
+    ugu::LOGE("valid_vertex_table must be same size to vertices");
+    return {-1,       valid_table,   valid_vertices,   valid_vertex_colors,
+            valid_uv, valid_indices, valid_face_table, false,
+            false};
+  }
+
+  bool with_uv = !uv.empty() && !uv_indices.empty();
+  bool with_vertex_color = !vertex_colors.empty();
+  int valid_count = 0;
+  for (size_t i = 0; i < vertices.size(); i++) {
+    if (valid_vertex_table[i]) {
+      valid_table[i] = valid_count;
+      valid_vertices.push_back(vertices[i]);
+      if (with_uv) {
+        valid_uv.push_back(uv[i]);
+      }
+      if (with_vertex_color) {
+        valid_vertex_colors.push_back(vertex_colors[i]);
+      }
+      valid_count++;
+    } else {
+      num_removed++;
+    }
+  }
+
+  int valid_face_count{0};
+
+  for (size_t i = 0; i < vertex_indices.size(); i++) {
+    Eigen::Vector3i face;
+    bool valid{true};
+    for (int j = 0; j < 3; j++) {
+      int new_index = valid_table[vertex_indices[i][j]];
+      if (new_index < 0) {
+        valid = false;
+        break;
+      }
+      face[j] = new_index;
+    }
+    if (!valid) {
+      continue;
+    }
+    valid_indices.push_back(face);
+    valid_face_table[i] = valid_face_count;
+    valid_face_count++;
+  }
+
+  return {num_removed,         valid_table, valid_vertices,
+          valid_vertex_colors, valid_uv,    valid_indices,
+          valid_face_table,    with_uv,     with_vertex_color};
+}
+
+std::tuple<int, std::vector<int>, std::vector<Eigen::Vector3f>,
+           std::vector<Eigen::Vector3f>, std::vector<Eigen::Vector2f>,
+           std::vector<Eigen::Vector3i>, std::vector<int>, bool, bool>
+RemoveUnreferencedVerticesBase(
+    const std::vector<Eigen::Vector3f>& vertices,
+    const std::vector<Eigen::Vector3i>& vertex_indices,
+    const std::vector<Eigen::Vector3f>& vertex_colors,
+    const std::vector<Eigen::Vector2f>& uv,
+    const std::vector<Eigen::Vector3i>& uv_indices) {
+  std::vector<bool> reference_table(vertices.size(), false);
+  for (const auto& f : vertex_indices) {
+    for (int i = 0; i < 3; i++) {
+      reference_table[f[i]] = true;
+    }
+  }
+
+  return RemoveVerticesBase(vertices, vertex_indices, vertex_colors, uv,
+                            uv_indices, reference_table);
 }
 
 }  // namespace ugu
