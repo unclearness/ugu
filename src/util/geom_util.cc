@@ -1538,12 +1538,12 @@ bool CleanGeom(const std::vector<Eigen::Vector3f>& vertices,
   ugu::FaceAdjacency fa;
   fa.Init(static_cast<int>(vertices.size()), faces);
   std::set<int32_t> nonmanifold_vtx = fa.GetNonManifoldVertices();
+  clean_vertices = vertices;
+  clean_faces = faces;
   if (nonmanifold_vtx.empty()) {
     return true;
   }
 
-  clean_vertices = vertices;
-  clean_faces = faces;
   while (!nonmanifold_vtx.empty()) {
     std::vector<bool> valid_vertex_table(clean_vertices.size(), true);
     for (const auto& vid : nonmanifold_vtx) {
