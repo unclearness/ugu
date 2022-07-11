@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 #include <limits>
 #include <string>

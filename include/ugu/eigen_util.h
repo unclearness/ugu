@@ -8,6 +8,16 @@
 #include <Eigen/Core>
 #include <functional>
 
+static_assert(3 <= EIGEN_WORLD_VERSION);
+
+// From 3.3, Eigen::Index is provided
+// http://eigen.tuxfamily.org/index.php?title=3.3
+#if (EIGEN_MAJOR_VERSION < 3)
+namespace Eigen {
+typedef std::ptrdiff_t Index;
+}
+#endif
+
 namespace std {
 
 template <typename Scalar, int Rows, int Cols>

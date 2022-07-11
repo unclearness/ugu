@@ -135,7 +135,9 @@ Image3b DrawPackedRects(const std::vector<Rect>& packed_rects, int w, int h) {
   std::vector<Eigen::Vector3f> random_colors =
       GenRandomColors(static_cast<int32_t>(packed_rects.size()), 0.f, 255.f, 0);
   for (size_t i = 0; i < packed_rects.size(); i++) {
-    Vec3b c{random_colors[i][0], random_colors[i][1], random_colors[i][2]};
+    Vec3b c{static_cast<uint8_t>(random_colors[i][0]),
+            static_cast<uint8_t>(random_colors[i][1]),
+            static_cast<uint8_t>(random_colors[i][2])};
     const auto& r = packed_rects[i];
     for (int y = r.y; y < r.y + r.height; y++) {
       for (int x = r.x; x < r.x + r.width; x++) {

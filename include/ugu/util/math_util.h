@@ -5,12 +5,13 @@
 
 #pragma once
 
-#include <Eigen/Eigenvalues>
 #include <algorithm>
 #include <cassert>
 #include <numeric>
+#include <unordered_map>
 #include <vector>
 
+#include "Eigen/Eigenvalues"
 #include "Eigen/Geometry"
 #include "ugu/util/raster_util.h"
 

@@ -21,9 +21,30 @@ int main(int argc, char* argv[]) {
   std::string data_dir = "../data/bunny/";
   std::string obj_path = data_dir + "bunny.obj";
 
+
   // load mesh
   ugu::MeshPtr input_mesh = ugu::Mesh::Create();
   input_mesh->LoadObj(obj_path, data_dir);
+
+std::vector<Eigen::Vector3f> clean_vertices;
+      std::vector<Eigen::Vector3i> clean_faces;
+  ugu::CleanGeom(input_mesh->vertices(), input_mesh->vertex_indices(), clean_vertices, clean_faces);
+
+  auto clean_mesh = ugu::Mesh::Create();
+  clean_mesh->set_vertices(clean_vertices);
+  clean_mesh->set_vertex_indices(clean_faces);
+  clean_mesh->set_default_material();
+
+  clean_mesh->CalcNormal();
+
+  clean_mesh->CalcStats();
+  ugu::FaceAdjacency fa;
+  fa.Init(static_cast<int>(clean_mesh->vertices().size()),
+          clean_mesh->vertex_indices());
+  auto nonmanifold_vtx = fa.GetNonManifoldVertices();
+  for (const auto& v : nonmanifold_vtx) {
+    ugu::LOGI("nonmanifold vid %d\n", v);
+  }
 
   int tex_w = 512;
   int tex_h = 512;

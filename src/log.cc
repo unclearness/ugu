@@ -27,27 +27,36 @@ void set_log_level(LogLevel level) { g_log_level_ = level; }
 
 LogLevel get_log_level() { return g_log_level_; }
 
+#ifndef LOGD
 void LOGD(const char *format, ...) {
   if (LogLevel::kDebug >= g_log_level_) {
     PRINT_MACRO;
   }
 }
+#endif
 
+#ifndef LOGI
 void LOGI(const char *format, ...) {
   if (LogLevel::kInfo >= g_log_level_) {
     PRINT_MACRO;
   }
 }
+#endif
 
+#ifndef LOGW
 void LOGW(const char *format, ...) {
   if (LogLevel::kWarning >= g_log_level_) {
     PRINT_MACRO;
   }
 }
+#endif
+
+#ifndef LOGE
 void LOGE(const char *format, ...) {
   if (LogLevel::kError >= g_log_level_) {
     PRINT_MACRO;
   }
 }
+#endif
 
 }  // namespace ugu

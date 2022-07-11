@@ -188,8 +188,15 @@ FindBestLineCrossingPointLeastSquares(const std::vector<Line3<T>>& lines) {
     rhs(i) = sum;
   }
 
+#if (EIGEN_MAJOR_VERSION < 3)
+  // https://gitlab.com/libeigen/eigen/-/issues/2021
+  // BDCSVD is supported from 3.3
+  Eigen::VectorXd ans =
+      lhs.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(rhs);
+#else
   Eigen::VectorXd ans =
       lhs.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(rhs);
+#endif
 
   p.x() = ans.cast<T>()[lines.size()];
   p.y() = ans.cast<T>()[lines.size() + 1];
@@ -227,12 +234,11 @@ struct Plane {
     return true;
   }
 
-   Eigen::Matrix<T, 3, 1>  Project(const Eigen::Matrix<T, 3, 1>& p) const {
-      // (p + tn).dot(n) + d = 0
-    T t = - d - p.dot(n);
+  Eigen::Matrix<T, 3, 1> Project(const Eigen::Matrix<T, 3, 1>& p) const {
+    // (p + tn).dot(n) + d = 0
+    T t = -d - p.dot(n);
     return p + t * n;
   }
-
 };
 using Planef = Plane<float>;
 using Planed = Plane<double>;

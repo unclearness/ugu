@@ -18,9 +18,18 @@ enum class LogLevel {
 
 void set_log_level(LogLevel level);
 LogLevel get_log_level();
+// To avoid conflict with macro
+#ifndef LOGD
 void LOGD(const char *format, ...);
+#endif
+#ifndef LOGI
 void LOGI(const char *format, ...);
+#endif
+#ifndef LOGW
 void LOGW(const char *format, ...);
+#endif
+#ifndef LOGE
 void LOGE(const char *format, ...);
+#endif
 
 }  // namespace ugu
