@@ -188,7 +188,7 @@ FindBestLineCrossingPointLeastSquares(const std::vector<Line3<T>>& lines) {
     rhs(i) = sum;
   }
 
-#if (EIGEN_MAJOR_VERSION < 3)
+#if (3 == EIGEN_WORLD_VERSION) && (EIGEN_MAJOR_VERSION < 3)
   // https://gitlab.com/libeigen/eigen/-/issues/2021
   // BDCSVD is supported from 3.3
   Eigen::VectorXd ans =
