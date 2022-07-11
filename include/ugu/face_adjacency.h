@@ -46,6 +46,7 @@ class FaceAdjacency {
 
     mat_ = Eigen::SparseMatrix<int>(num_vertices, num_vertices);
     num_vertices_ = num_vertices;
+    maniforld_test_mat_ = Eigen::SparseMatrix<int>();
 
 #if 1
     std::vector<Eigen::Triplet<int>> triplet_list;

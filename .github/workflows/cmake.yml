@@ -27,7 +27,7 @@ jobs:
         env:
           CC: clang
           CXX: clang++
-        run: cmake -B ${{github.workspace}}/build_clang -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}  -DCMAKE_CXX_COMPILER=clang++
+        run: cmake -B ${{github.workspace}}/build_clang -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
       - name: Build Clang
         env:
@@ -52,7 +52,7 @@ jobs:
         env:
           CC: gcc
           CXX: g++
-        run: cmake -B ${{github.workspace}}/build_gcc -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_CXX_COMPILER=g++
+        run: cmake -B ${{github.workspace}}/build_gcc -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
       - name: Build GCC
         env:
