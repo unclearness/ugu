@@ -74,4 +74,25 @@ bool stream_read_string(std::istream& f,
   return true;
 }
 
+std::string ExtractPathWithoutExt(const std::string& fn) {
+  std::string::size_type pos;
+  if ((pos = fn.find_last_of(".")) == std::string::npos) {
+    return fn;
+  }
+
+  return fn.substr(0, pos);
+}
+
+std::string ExtractPathExt(const std::string& fn) {
+  std::string::size_type pos;
+  if ((pos = fn.find_last_of(".")) == std::string::npos) {
+    return "";
+  }
+  return fn.substr(pos + 1, fn.size());
+}
+
+std::string ReplaceExtention(const std::string& path, const std::string& ext) {
+  return ExtractPathWithoutExt(path) + ext;
+}
+
 }  // namespace ugu

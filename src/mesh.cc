@@ -14,6 +14,7 @@
 #include "gltf.h"
 #include "ugu/face_adjacency.h"
 #include "ugu/util/image_util.h"
+#include "ugu/util/string_util.h"
 
 #ifdef UGU_USE_TINYOBJLOADER
 #include "tiny_obj_loader.h"
@@ -29,40 +30,6 @@ void CopyVec(const std::vector<T>& src, std::vector<T>* dst,
     dst->reserve(src.size());
   }
   std::copy(src.begin(), src.end(), std::back_inserter(*dst));
-}
-
-std::vector<std::string> SplitStr(const std::string& s, char delim) {
-  std::vector<std::string> elems;
-  std::stringstream ss(s);
-  std::string item;
-  while (std::getline(ss, item, delim)) {
-    if (!item.empty()) {
-      elems.push_back(item);
-    }
-  }
-  return elems;
-}
-
-inline std::string ExtractPathWithoutExt(const std::string& fn) {
-  std::string::size_type pos;
-  if ((pos = fn.find_last_of(".")) == std::string::npos) {
-    return fn;
-  }
-
-  return fn.substr(0, pos);
-}
-
-inline std::string ExtractPathExt(const std::string& fn) {
-  std::string::size_type pos;
-  if ((pos = fn.find_last_of(".")) == std::string::npos) {
-    return "";
-  }
-  return fn.substr(pos + 1, fn.size());
-}
-
-inline std::string ReplaceExtention(const std::string& path,
-                                    const std::string& ext) {
-  return ExtractPathWithoutExt(path) + ext;
 }
 
 bool WriteMtl(const std::string& path,
@@ -689,7 +656,7 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   std::int64_t vertex_num = 0;
   while (getline(ifs, str)) {
     if (str.find("element vertex") != std::string::npos) {
-      std::vector<std::string> splitted = SplitStr(str, ' ');
+      std::vector<std::string> splitted = Split(str, ' ');
       if (splitted.size() == 3) {
         vertex_num = std::atol(splitted[2].c_str());
         ret = true;
@@ -711,7 +678,7 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   std::int64_t face_num = 0;
   while (getline(ifs, str)) {
     if (str.find("element face") != std::string::npos) {
-      std::vector<std::string> splitted = SplitStr(str, ' ');
+      std::vector<std::string> splitted = Split(str, ' ');
       if (splitted.size() == 3) {
         face_num = std::atol(splitted[2].c_str());
         ret = true;
@@ -738,7 +705,7 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   vertices_.resize(vertex_num);
   int vertex_count = 0;
   while (getline(ifs, str)) {
-    std::vector<std::string> splitted = SplitStr(str, ' ');
+    std::vector<std::string> splitted = Split(str, ' ');
     vertices_[vertex_count][0] =
         static_cast<float>(std::atof(splitted[0].c_str()));
     vertices_[vertex_count][1] =
@@ -763,7 +730,7 @@ bool Mesh::LoadPly(const std::string& ply_path) {
   vertex_indices_.resize(face_num);
   int face_count = 0;
   while (getline(ifs, str)) {
-    std::vector<std::string> splitted = SplitStr(str, ' ');
+    std::vector<std::string> splitted = Split(str, ' ');
     vertex_indices_[face_count][0] = std::atoi(splitted[1].c_str());
     vertex_indices_[face_count][1] = std::atoi(splitted[2].c_str());
     vertex_indices_[face_count][2] = std::atoi(splitted[3].c_str());
