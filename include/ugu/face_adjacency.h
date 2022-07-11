@@ -284,7 +284,7 @@ class FaceAdjacency {
   }
 
   std::set<int32_t> GetNonManifoldVertices(bool force = false) {
-    if (maniforld_test_mat_.rows() || 1 && maniforld_test_mat_.cols() < 1 ||
+    if ((maniforld_test_mat_.rows() < 1) || (maniforld_test_mat_.cols() < 1) ||
         force) {
       maniforld_test_mat_ =
           Eigen::SparseMatrix<int>(num_vertices_, num_vertices_);

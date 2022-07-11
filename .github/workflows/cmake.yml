@@ -22,30 +22,17 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Set up Clang
-        uses: egor-tensin/setup-clang@v1
-        with:
-          version: latest
-          platform: x64
+        run: |
+          sudo apt update; sudo apt install clang
+        shell: bash
 
-      - name: Configure CMake GCC
-        # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-        # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-        run: git submodule update --init --recursive; cmake -B ${{github.workspace}}/build_gcc -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_CXX_COMPILER=g++
-
-      - name: Build GCC
-        # Build your program with the given configuration
-        run: cmake --build ${{github.workspace}}/build_gcc --config ${{env.BUILD_TYPE}}
-
-      - name: Test GCC
-        working-directory: ${{github.workspace}}/build_gcc
-        # Execute tests defined by the CMake configuration.
-        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-        run: ctest -C ${{env.BUILD_TYPE}}
+      - name: Submodule Update
+        run: git submodule update --init --recursive
 
       - name: Configure CMake Clang
         # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
         # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-        run: git submodule update --init --recursive; cmake -B ${{github.workspace}}/build_clang -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_CXX_COMPILER=clang
+        run: cmake -B ${{github.workspace}}/build_clang -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_CXX_COMPILER=clang
 
       - name: Build Clang
         # Build your program with the given configuration
@@ -53,6 +40,21 @@ jobs:
 
       - name: Test Clang
         working-directory: ${{github.workspace}}/build_clang
+        # Execute tests defined by the CMake configuration.
+        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+        run: ctest -C ${{env.BUILD_TYPE}}
+
+      - name: Configure CMake GCC
+        # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+        # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+        run: cmake -B ${{github.workspace}}/build_gcc -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_CXX_COMPILER=g++
+
+      - name: Build GCC
+        # Build your program with the given configuration
+        run: cmake --build ${{github.workspace}}/build_gcc --config ${{env.BUILD_TYPE}}
+
+      - name: Test GCC
+        working-directory: ${{github.workspace}}/build_gcc
         # Execute tests defined by the CMake configuration.
         # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
         run: ctest -C ${{env.BUILD_TYPE}}

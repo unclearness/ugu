@@ -5,12 +5,12 @@
 
 #include "ugu/sfs/extract_voxel.h"
 
-#include "ugu/util/geom_util.h"
-
 #include <algorithm>
 #include <limits>
 #include <memory>
 #include <vector>
+
+#include "ugu/util/geom_util.h"
 
 namespace {
 
@@ -80,6 +80,7 @@ void UpdateOnSurface(ugu::VoxelGrid* voxel_grid) {
   }
 }
 
+#if 0
 void UpdateOnSurfaceWithPseudo(ugu::VoxelGrid* voxel_grid) {
   // raycast like surface detection
   // search xyz axes bidirectionally to detect the voxel whose sign changes from
@@ -254,6 +255,7 @@ void UpdateOnSurfaceWithPseudo(ugu::VoxelGrid* voxel_grid) {
     }
   }
 }
+#endif
 }  // namespace
 
 namespace ugu {

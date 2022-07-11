@@ -3,8 +3,6 @@
  * All rights reserved.
  */
 
-#pragma once
-
 #include "ugu/util/camera_util.h"
 
 #include <fstream>

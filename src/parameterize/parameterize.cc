@@ -181,7 +181,10 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
   int bin_packing_try_num = 0;
   const float start_scale = 2.f;
   const float pyramid_ratio = 0.95f;
-  float best_fill_rate = 0.f;
+
+  // TODO: Check fill rate
+  // float best_fill_rate = 0.f;
+
   std::vector<ugu::Rect2f> start_rects = rects;
   float current_scale = start_scale;
 
@@ -219,7 +222,6 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
     size_t cid = indices[k];
 
     auto [min_bound, max_bound] = min_max_local_uvs[cid];
-    Eigen::Vector2f len = max_bound - min_bound;
     float scale = scales[cid] * current_scale;
 
     Eigen::Vector2f uv_offset(rect.x, rect.y);

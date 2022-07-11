@@ -105,7 +105,7 @@ void InpaintNaive(const ugu::Image1b& mask, ugu::Image<T>& color,
       }
     }
 
-    if (cur_dist < dist_pix_table.size()) {
+    if (static_cast<size_t>(cur_dist) < dist_pix_table.size()) {
       cur_dist++;
     }
 

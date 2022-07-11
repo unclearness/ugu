@@ -204,11 +204,11 @@ bool FindSimilarityTransformFromPointCorrespondences(
   constexpr double assert_eps = 0.001;
   assert(std::abs(std::abs(det_orgR) - 1.0) < assert_eps);
 
-  int rank_A = static_cast<int>(svd.rank());
+  size_t rank_A = static_cast<size_t>(svd.rank());
   if (rank_A == 0) {
     // null matrix case
     return false;
-  } else if (rank_A == n_dim - 1) {
+  } else if (rank_A == (n_dim - 1)) {
     if (det_orgR > 0) {
       // Valid rotation case
       R = U * V.transpose();

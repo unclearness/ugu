@@ -1082,7 +1082,7 @@ struct QSlimHandler {
       const auto& face = faces[fid];
       // std::vector<int32_t> dst_vids;
       std::vector<std::vector<int32_t>> dst_uniqids;
-      int32_t count = 0;
+      //int32_t count = 0;
       for (int32_t i = 0; i < 3; i++) {
         if (face[i] != vid) {
           std::vector<int32_t> dst_uniq;

@@ -398,7 +398,7 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
 
   return true;
 #else
-  (void)keyframes, ugu_mesh, debug_mesh;
+  (void)keyframes, (void)ugu_mesh, (void)debug_mesh;
   ugu::LOGE("Not available in current configuration\n");
   return false;
 #endif

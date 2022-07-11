@@ -335,7 +335,7 @@ bool ComputeStereoBruteForceImpl(const Image<T>& left, const Image<T>& right,
   }
   best_cost->setTo(std::numeric_limits<float>::max());
 
-  if (keep_all_cost && all_cost->size() != h) {
+  if (keep_all_cost && all_cost->size() != static_cast<size_t>(h)) {
     InitAllDisparityCost(all_cost, h, w, max_disparity_i,
                          std::numeric_limits<float>::max());
   }

@@ -24,4 +24,8 @@ std::string zfill(const T& val, int num = 5) {
   return sout.str();
 }
 
+// Optimized C++ 11.1.6
+std::streamoff stream_size(std::istream& f);
+bool stream_read_string(std::istream& f, std::string& result);
+
 }  // namespace ugu
