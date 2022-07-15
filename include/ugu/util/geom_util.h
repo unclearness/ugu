@@ -12,6 +12,7 @@
 #include "ugu/face_adjacency.h"
 #include "ugu/line.h"
 #include "ugu/mesh.h"
+#include "ugu/plane.h"
 
 namespace ugu {
 

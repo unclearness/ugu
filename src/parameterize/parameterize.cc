@@ -7,7 +7,7 @@
 
 #include "ugu/clustering/clustering.h"
 #include "ugu/discrete/bin_packer_2d.h"
-#include "ugu/line.h"
+#include "ugu/plane.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
 

@@ -213,34 +213,4 @@ FindBestLineCrossingPointLeastSquares(const std::vector<Line3<T>>& lines) {
   return {p, errors};
 }
 
-UGU_FLOATING_POINT_ONLY_TEMPLATE
-struct Plane {
-  // nx + d = 0
-  Eigen::Matrix<T, 3, 1> n;
-  T d;
-
-  Plane(const Eigen::Matrix<T, 3, 1>& n, T d) : n(n.normalized()), d(d) {}
-
-  bool IsNormalSide(const Eigen::Matrix<T, 3, 1>& p) const {
-    return d > -(n.dot(p));
-  }
-
-  bool CalcIntersctionPoint(const Line3<T>& line, T& t,
-                            Eigen::Matrix<T, 3, 1>& p) const {
-    // https://risalc.info/src/line-plane-intersection-point.html
-    T h = -d;
-    t = (h - n.dot(line.a)) / (n.dot(line.d));
-    p = line.a + t * line.d;
-    return true;
-  }
-
-  Eigen::Matrix<T, 3, 1> Project(const Eigen::Matrix<T, 3, 1>& p) const {
-    // (p + tn).dot(n) + d = 0
-    T t = -d - p.dot(n);
-    return p + t * n;
-  }
-};
-using Planef = Plane<float>;
-using Planed = Plane<double>;
-
 }  // namespace ugu

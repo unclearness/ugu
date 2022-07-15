@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -64,6 +65,8 @@ class Camera {
   virtual void ray_c(int x, int y, Eigen::Vector3f* dir) const = 0;
   virtual void ray_w(int x, int y, Eigen::Vector3f* dir) const = 0;
 };
+
+using CameraPtr = std::shared_ptr<Camera>;
 
 // Pinhole camera model with pixel-scale principal point and focal length
 // Widely used in computer vision community as perspective camera model

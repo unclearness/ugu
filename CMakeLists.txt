@@ -259,6 +259,7 @@ set(
   include/ugu/face_adjacency.h
   include/ugu/image.h
   include/ugu/line.h
+  include/ugu/plane.h
   include/ugu/rect.h
   include/ugu/log.h
   include/ugu/util/camera_util.h
@@ -275,6 +276,7 @@ set(
 
   src/common.cc
   src/camera.cc
+  src/plane.cc
   src/mesh.cc
   src/gltf.h
   src/ugu_stb.h
@@ -435,6 +437,7 @@ if (UGU_BUILD_EXAMPLES)
   setup_exe(ex18_bvh examples/ex18_bvh.cc)
   setup_exe(ex19_parameterize examples/ex19_parameterize.cc)
   setup_exe(ex20_manifold examples/ex20_manifold.cc)
+  setup_exe(ex21_fusion examples/ex21_fusion.cc)
 endif()
 
 if (UGU_BUILD_APP)

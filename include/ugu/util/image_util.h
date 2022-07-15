@@ -127,6 +127,7 @@ Image3b DrawUv(const std::vector<Eigen::Vector2f>& uvs,
                const Image3b& bkg_img = Image3b(), int32_t tex_w = 512,
                int32_t tex_h = 512, int32_t thickness = 1);
 
+
 template <typename T>
 T BilinearInterpolation(float x, float y, const ugu::Image<T>& image) {
   std::array<int, 2> pos_min = {{0, 0}};

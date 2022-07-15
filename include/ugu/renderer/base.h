@@ -98,4 +98,6 @@ class Renderer {
   virtual bool RenderDepthW(Image1w* depth) const = 0;
 };
 
+using RendererPtr = std::shared_ptr<Renderer>;
+
 }  // namespace ugu
