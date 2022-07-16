@@ -31,6 +31,15 @@ void UpdateCandidates(std::vector<ugu::PlaneEstimationResult>& candidates,
   }
 }
 
+float ComputeProjectedArea(const std::vector<Eigen::Vector3f>& ps_3d,
+                           const Eigen::Vector3f& n) {
+  std::vector<Eigen::Vector2f> ps_2d;
+  ugu::OrthoProjectToXY(n, ps_3d, ps_2d, true, false, false, false);
+  Eigen::Vector2f bb_len =
+      ugu::ComputeMaxBound(ps_2d) - ugu::ComputeMinBound(ps_2d);
+  return bb_len[0] * bb_len[1];
+}
+
 }  // namespace
 
 namespace ugu {
@@ -127,14 +136,13 @@ bool EstimateGroundPlaneRansac(const std::vector<Eigen::Vector3f>& points,
 
   // Sort by projected area
   for (auto& c : candidates) {
-    std::vector<Eigen::Vector3f> ps_3d;
+    std::vector<Eigen::Vector3f> inliers;
     for (const auto& i : c.stat.inliers) {
-      ps_3d.push_back(points[i]);
+      inliers.push_back(points[i]);
     }
-    std::vector<Eigen::Vector2f> ps_2d;
-    OrthoProjectToXY(c.estimation.n, ps_3d, ps_2d, true, false, false, false);
-    Eigen::Vector2f bb_len = ComputeMaxBound(ps_2d) - ComputeMinBound(ps_2d);
-    c.stat.area = bb_len[0] * bb_len[1];
+    c.stat.area = ComputeProjectedArea(inliers, c.estimation.n);
+    float all_area = ComputeProjectedArea(points, c.estimation.n);
+    c.stat.area_ratio = all_area > 0 ? c.stat.area / all_area : -1.f;
   }
 
   using per = ugu::PlaneEstimationResult;

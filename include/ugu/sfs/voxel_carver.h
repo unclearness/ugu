@@ -75,6 +75,11 @@ class VoxelGrid {
   Eigen::Vector3i voxel_num_{0, 0, 0};
   int xy_slice_num_{0};
 
+  // index to pos
+  std::vector<float> x_pos_list;
+  std::vector<float> y_pos_list;
+  std::vector<float> z_pos_list;
+
  public:
   VoxelGrid();
   ~VoxelGrid();
@@ -86,6 +91,7 @@ class VoxelGrid {
   float resolution() const;
   void ResetOnSurface();
   bool initialized() const;
+  Eigen::Vector3i get_index(const Eigen::Vector3f& p) const;
 };
 
 class VoxelCarver {
@@ -108,5 +114,8 @@ class VoxelCarver {
   void ExtractVoxel(Mesh* mesh, bool inside_empty = false);
   void ExtractIsoSurface(Mesh* mesh, double iso_level = 0.0);
 };
+
+bool FuseDepth(const Camera& camera, const Image1f& depth,
+               const VoxelUpdateOption& option, VoxelGrid& voxel_grid);
 
 }  // namespace ugu

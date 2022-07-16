@@ -8,6 +8,9 @@
 #include "ugu/plane.h"
 #include "ugu/renderer/rasterizer.h"
 #include "ugu/renderer/raytracer.h"
+#include "ugu/sfs/extract_voxel.h"
+#include "ugu/sfs/marching_cubes.h"
+#include "ugu/sfs/voxel_carver.h"
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/rgbd_util.h"
@@ -46,7 +49,7 @@ int main(int argc, char* argv[]) {
 
   const float bb_len_max =
       (object->stats().bb_max - object->stats().bb_min).maxCoeff();
-  const float plane_len = bb_len_max * 3;
+  const float plane_len = bb_len_max * 1.3f;
   ugu::Image3b plane_texture =
       ugu::imread<ugu::Image3b>("../data/inpaint/fruits.jpg");
   auto plane = ugu::MakeTexturedPlane(plane_texture, plane_len);
@@ -69,26 +72,29 @@ int main(int argc, char* argv[]) {
   //    std::make_shared<ugu::Rasterizer>(renderer_option);
   ugu::RendererPtr renderer = std::make_shared<ugu::Raytracer>(renderer_option);
 
-  constexpr float fov_y_deg = 30.f;
-  ugu::CameraPtr camera =
-      std::make_shared<ugu::PinholeCamera>(160, 120, fov_y_deg);
+  constexpr float fov_y_deg = 20.f;
 
-  renderer->set_camera(camera);
   renderer->set_mesh(combined);
   renderer->PrepareMesh();
 
   const float cam_radius = bb_len_max * 3;
   const float cam_height = bb_len_max * 2;
   const Eigen::Vector3f up{0, 1.f, 0.f};
-  ugu::Image1f depth;
-  ugu::Image3b color;
+
+  std::vector<ugu::Image1f> depths;
+  std::vector<ugu::Image3b> colors;
+  std::vector<ugu::CameraPtr> cameras;
   std::vector<ugu::MeshPtr> depth_meshes;
   ugu::MeshPtr depth_merged = ugu::Mesh::Create();
+  ugu::MeshPtr depth_fused = ugu::Mesh::Create();
   const float mu = 0.f;
-  const float sigma = bb_len_max * 0.01f;
+  const float sigma = bb_len_max * 0.02f;
+
   for (size_t i = 0; i < view_num; i++) {
     Eigen::Matrix3f R;
     Eigen::Vector3f pos;
+    ugu::Image1f depth;
+    ugu::Image3b color;
     const float rad =
         static_cast<float>(i) / static_cast<float>(view_num) * ugu::pi * 2;
     pos.x() = cam_radius * std::cos(rad);
@@ -97,49 +103,93 @@ int main(int argc, char* argv[]) {
     ugu::c2w(pos, object->stats().center, up, &R);
 
     Eigen::Affine3d c2w = (Eigen::Translation3f(pos) * R).cast<double>();
+    ugu::CameraPtr camera =
+        std::make_shared<ugu::PinholeCamera>(160, 120, fov_y_deg);
+    renderer->set_camera(camera);
     camera->set_c2w(c2w);
 
     renderer->Render(&color, &depth, nullptr, nullptr, nullptr);
 
-    AddDepthNoise(depth, mu, sigma, 0.01f, i);
+    AddDepthNoise(depth, mu, sigma, 0.02f, i);
 
-    ugu::MeshPtr depth_mesh = ugu::Mesh::Create();
-    ugu::Depth2Mesh(depth, color, *camera, depth_mesh.get(), 100.f, 1, 1, false,
-                    "Depth2Mesh_mat", true);
-
-    depth_mesh->Transform(R, pos);
-
-    depth_meshes.push_back(depth_mesh);
-
-    depth_mesh->WriteObj(data_dir, "depthmesh" + std::to_string(i));
+    depths.push_back(depth.clone());
+    colors.push_back(color.clone());
+    cameras.push_back(camera);
   }
 
-  ugu::MergeMeshes(depth_meshes, depth_merged.get());
-  depth_merged->WriteObj(data_dir, "depthmesh");
+  {
+    ugu::VoxelGrid voxel_grid;
+    float resolution = 10.f;
+    Eigen::Vector3f offset = Eigen::Vector3f::Ones() * resolution * 2;
+    voxel_grid.Init(combined->stats().bb_max + offset,
+                    combined->stats().bb_min - offset, resolution);
+    ugu::VoxelUpdateOption option;
+    option.voxel_update = ugu::VoxelUpdate::kWeightedAverage;
+    option.use_truncation = true;
+    // Followed OpenCV kinfu
+    // https://github.com/opencv/opencv_contrib/blob/9d0a451bee4cdaf9d3f76912e5abac6000865f1a/modules/rgbd/src/kinfu.cpp#L66
+    option.truncation_band = resolution * 7.f;
+    for (size_t i = 0; i < view_num; i++) {
+#if 0
+      ugu::Mesh pc;
+      ugu::Depth2PointCloud(depths[i], *cameras[i], &pc);
+      pc.Transform(cameras[i]->c2w().cast<float>());
+      pc.WritePly(data_dir + "pc" + std::to_string(i) + ".ply");
+#endif
+
+      ugu::FuseDepth(*cameras[i], depths[i], option, voxel_grid);
+    }
+
+
+    ugu::MarchingCubes(voxel_grid, depth_fused.get());
+    depth_fused->set_default_material();
+    depth_fused->CalcNormal();
+    depth_fused->WriteObj(data_dir, "depthfuse");
+
+  }
+
+  // Merge naive
+  {
+    for (size_t i = 0; i < view_num; i++) {
+      ugu::MeshPtr depth_mesh = ugu::Mesh::Create();
+      ugu::Depth2Mesh(depths[i], colors[i], *cameras[i], depth_mesh.get(),
+                      100.f, 1, 1, false, "Depth2Mesh_mat", true);
+
+      depth_mesh->Transform(cameras[i]->c2w().rotation().cast<float>(),
+                            cameras[i]->c2w().translation().cast<float>());
+
+      depth_meshes.push_back(depth_mesh);
+
+      depth_mesh->WriteObj(data_dir, "depthmesh" + std::to_string(i));
+    }
+    ugu::MergeMeshes(depth_meshes, depth_merged.get());
+    depth_merged->WriteObj(data_dir, "depthmesh");
+  }
 
   ugu::EstimateGroundPlaneRansacParam param;
   std::vector<ugu::PlaneEstimationResult> candidates;
   param.inliner_dist_th = 10.f;
   ugu::Timer timer;
   timer.Start();
-  ugu::EstimateGroundPlaneRansac(depth_merged->vertices(),
-                                 depth_merged->normals(), param, candidates);
+  ugu::EstimateGroundPlaneRansac(depth_fused->vertices(),
+                                 depth_fused->normals(), param, candidates);
   timer.End();
   ugu::LOGI("EstimateGroundPlaneRansac %f ms\n", timer.elapsed_msec());
   for (const auto& c : candidates) {
     ugu::LOGI("Ground plane candidate (%f %f,%f) %f\n", c.estimation.n.x(),
               c.estimation.n.y(), c.estimation.n.z(), c.estimation.d);
-    ugu::LOGI("inlier_ratio %f, upper_ratio %f, area %f\n\n",
-              c.stat.inlier_ratio, c.stat.upper_ratio, c.stat.area);
+    ugu::LOGI("inlier_ratio %f, upper_ratio %f, area %f area_ratio %f\n\n",
+              c.stat.inlier_ratio, c.stat.upper_ratio, c.stat.area,
+              c.stat.area_ratio);
   }
 
-  std::vector<bool> keep_vertices(depth_merged->vertices().size(), false);
+  std::vector<bool> keep_vertices(depth_fused->vertices().size(), false);
   for (size_t i = 0; i < candidates[0].stat.outliers.size(); i++) {
     keep_vertices[candidates[0].stat.outliers[i]] = true;
   }
 
-  depth_merged->RemoveVertices(keep_vertices);
-  depth_merged->WriteObj(data_dir, "depthmesh_remove_plane");
+  depth_fused->RemoveVertices(keep_vertices);
+  depth_fused->WriteObj(data_dir, "depthmesh_remove_plane");
 
   return 0;
 }

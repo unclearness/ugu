@@ -11,6 +11,7 @@
 #include "ugu/sfs/marching_cubes.h"
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
+#include "ugu/util/rgbd_util.h"
 
 namespace {
 
@@ -140,6 +141,10 @@ bool VoxelGrid::Init(const Eigen::Vector3f& bb_max,
 
   float offset = resolution_ * 0.5f;
 
+  x_pos_list.resize(voxel_num_.x());
+  y_pos_list.resize(voxel_num_.y());
+  z_pos_list.resize(voxel_num_.z());
+
 #if defined(_OPENMP) && defined(VACANCY_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
@@ -147,15 +152,22 @@ bool VoxelGrid::Init(const Eigen::Vector3f& bb_max,
     float z_pos = diff.z() * (static_cast<float>(z) /
                               static_cast<float>(voxel_num_.z())) +
                   bb_min_.z() + offset;
-
+    z_pos_list[z] = z_pos;
     for (int y = 0; y < voxel_num_.y(); y++) {
       float y_pos = diff.y() * (static_cast<float>(y) /
                                 static_cast<float>(voxel_num_.y())) +
                     bb_min_.y() + offset;
+      if (z == 0) {
+        y_pos_list[y] = y_pos;
+      }
       for (int x = 0; x < voxel_num_.x(); x++) {
         float x_pos = diff.x() * (static_cast<float>(x) /
                                   static_cast<float>(voxel_num_.x())) +
                       bb_min_.x() + offset;
+
+        if (z == 0 && y == 0) {
+          x_pos_list[x] = x_pos;
+        }
 
         Voxel* voxel = get_ptr(x, y, z);
         voxel->index.x() = x;
@@ -195,6 +207,58 @@ void VoxelGrid::ResetOnSurface() {
 }
 
 bool VoxelGrid::initialized() const { return !voxels_.empty(); }
+
+Eigen::Vector3i VoxelGrid::get_index(const Eigen::Vector3f& p) const {
+  // TODO: Better way to handle voxel indices
+  // Real-time 3D reconstruction at scale using voxel hashing
+  // https://niessnerlab.org/papers/2013/4hashing/niessner2013hashing.pdf
+
+  Eigen::Vector3i index{-1, -1, -1};
+
+  // Return -1 if any of xyz is out of range
+  auto x_it = std::lower_bound(x_pos_list.begin(), x_pos_list.end(), p.x());
+  if (x_it == x_pos_list.end()) {
+    return index;
+  }
+  auto y_it = std::lower_bound(y_pos_list.begin(), y_pos_list.end(), p.y());
+  if (y_it == y_pos_list.end()) {
+    return index;
+  }
+  auto z_it = std::lower_bound(z_pos_list.begin(), z_pos_list.end(), p.z());
+  if (z_it == z_pos_list.end()) {
+    return index;
+  }
+
+  if (x_it != x_pos_list.begin()) {
+    float x0 = std::abs(*x_it - p.x());
+    float x1 = std::abs(*(x_it - 1) - p.x());
+    if (x1 < x0) {
+      x_it--;
+    }
+  }
+
+  if (y_it != y_pos_list.begin()) {
+    float y0 = std::abs(*y_it - p.y());
+    float y1 = std::abs(*(y_it - 1) - p.y());
+    if (y1 < y0) {
+      y_it--;
+    }
+  }
+
+  if (z_it != z_pos_list.begin()) {
+    float z0 = std::abs(*z_it - p.z());
+    float z1 = std::abs(*(z_it - 1) - p.z());
+    if (z1 < z0) {
+      z_it--;
+    }
+  }
+
+  index.x() = std::distance(x_pos_list.begin(), x_it);
+  index.y() = std::distance(y_pos_list.begin(), y_it);
+  index.z() = std::distance(z_pos_list.begin(), z_it);
+
+  return index;
+}
 
 VoxelCarver::VoxelCarver() {}
 
@@ -360,6 +424,128 @@ void VoxelCarver::ExtractVoxel(Mesh* mesh, bool inside_empty) {
 
 void VoxelCarver::ExtractIsoSurface(Mesh* mesh, double iso_level) {
   MarchingCubes(*voxel_grid_, mesh, iso_level);
+}
+
+bool FuseDepth(const Camera& camera, const Image1f& depth,
+               const VoxelUpdateOption& option, VoxelGrid& voxel_grid) {
+  if (!voxel_grid.initialized()) {
+    return false;
+  }
+
+#if 0
+  Mesh pc;
+  Depth2PointCloud(depth, camera, &pc);
+  pc.Transform(camera.c2w().cast<float>());
+
+  Eigen::Vector3f ray;
+  // TODO: Set principal point properly
+  camera.ray_w(static_cast<float>(camera.width()) * 0.5f,
+               static_cast<float>(camera.height()) * 0.5f, &ray);
+
+  for (const auto& p : pc.vertices()) {
+    auto index = voxel_grid.get_index(p);
+    if (index.x() < 0 || index.y() < 0 || index.z() < 0) {
+      continue;
+    }
+    auto voxel = voxel_grid.get_ptr(index.x(), index.y(), index.z());
+
+    const Eigen::Vector3f diff = voxel->pos - p;
+    // If dot is negative, point is behind the voxel
+    float sdf = diff.dot(ray) < 0 ? diff.norm() : -diff.norm();
+
+    // skip if dist is truncated
+    if (option.use_truncation) {
+      if (-option.truncation_band >= sdf) {
+        sdf = InvalidSdf::kVal;
+      } else {
+        sdf = std::min(1.0f, sdf / option.truncation_band);
+      }
+
+      if (sdf < -1.f) {
+        continue;
+      }
+    }
+
+    if (voxel->update_num < 1) {
+      voxel->sdf = sdf;
+      voxel->update_num++;
+      continue;
+    }
+
+    UpdateVoxelWeightedAverage(voxel, option, sdf);
+  }
+#endif
+
+  Eigen::Affine3f w2c = camera.w2c().cast<float>();
+
+#if defined(_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
+
+  for (int z = 0; z < voxel_grid.voxel_num().z(); z++) {
+    for (int y = 0; y < voxel_grid.voxel_num().y(); y++) {
+      for (int x = 0; x < voxel_grid.voxel_num().x(); x++) {
+        Voxel* voxel = voxel_grid.get_ptr(x, y, z);
+
+        if (voxel->outside || voxel->update_num > option.voxel_max_update_num) {
+          continue;
+        }
+
+        Eigen::Vector2f image_p_f;
+        Eigen::Vector3f voxel_pos_c = w2c * voxel->pos;
+
+        // skip if the voxel is in the back of the camera
+        if (voxel_pos_c.z() < 0) {
+          continue;
+        }
+
+        camera.Project(voxel_pos_c, &image_p_f);
+
+        float dist = InvalidSdf::kVal;
+        float d = 0.f;
+        if (image_p_f.x() < 0 || image_p_f.y() < 0 ||
+            depth.cols - 1 < image_p_f.x() || depth.rows - 1 < image_p_f.y()) {
+          continue;
+        } else {
+          d = SdfInterpolationNn(image_p_f, depth, {0, 0},
+                                 {depth.cols - 1, depth.rows - 1});
+        }
+
+        if (d < std::numeric_limits<float>::epsilon()) {
+          continue;
+        }
+
+        float sign = std::signbit(d - voxel_pos_c.z()) ? -1.f : 1.f;
+#if 0
+        dist = d - voxel_pos_c.z();
+#else
+        // Use distance along ray
+        Eigen::Vector3f camera_p;
+        camera.Unproject({image_p_f.x(), image_p_f.y(), d}, &camera_p);
+        dist = (voxel_pos_c - camera_p).norm() * sign;
+#endif
+
+        // skip if dist is truncated
+        if (option.use_truncation) {
+          if (dist >= -option.truncation_band) {
+            dist = std::min(1.0f, dist / option.truncation_band);
+          } else {
+            continue;
+          }
+        }
+
+        if (voxel->update_num < 1) {
+          voxel->sdf = dist;
+          voxel->update_num++;
+          continue;
+        }
+
+        UpdateVoxelWeightedAverage(voxel, option, dist);
+      }
+    }
+  }
+
+  return true;
 }
 
 }  // namespace ugu

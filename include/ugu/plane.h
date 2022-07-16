@@ -78,6 +78,7 @@ struct PlaneEstimationStat {
       -1.f;  // upper points ratio, possibly for objects on the ground plane
 
   float area = -1.f;
+  float area_ratio = -1.f;
 };
 
 struct PlaneEstimationResult {
