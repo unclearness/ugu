@@ -8,22 +8,23 @@
 #include "ugu/plane.h"
 #include "ugu/renderer/rasterizer.h"
 #include "ugu/renderer/raytracer.h"
-#include "ugu/sfs/extract_voxel.h"
-#include "ugu/sfs/marching_cubes.h"
-#include "ugu/sfs/voxel_carver.h"
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/rgbd_util.h"
+#include "ugu/voxel/extract_voxel.h"
+#include "ugu/voxel/marching_cubes.h"
+#include "ugu/voxel/voxel.h"
 
 namespace {
 
 void AddDepthNoise(ugu::Image1f& depth, float mu, float sigma, float lack_ratio,
-                   size_t seed = 0) {
+                   uint32_t seed = 0) {
   std::default_random_engine engine(seed);
   std::normal_distribution<float> noise_dist(mu, sigma);
   std::uniform_real_distribution<float> lack_dist;
 
   depth.forEach<float>([&](float& val, const int* pos) {
+    (void)pos;
     if (val < std::numeric_limits<float>::epsilon()) {
       return;
     }
@@ -95,8 +96,8 @@ int main(int argc, char* argv[]) {
     Eigen::Vector3f pos;
     ugu::Image1f depth;
     ugu::Image3b color;
-    const float rad =
-        static_cast<float>(i) / static_cast<float>(view_num) * ugu::pi * 2;
+    const float rad = static_cast<float>(i) / static_cast<float>(view_num) *
+                      static_cast<float>(ugu::pi * 2);
     pos.x() = cam_radius * std::cos(rad);
     pos.y() = cam_height;
     pos.z() = cam_radius * std::sin(rad);
@@ -110,7 +111,7 @@ int main(int argc, char* argv[]) {
 
     renderer->Render(&color, &depth, nullptr, nullptr, nullptr);
 
-    AddDepthNoise(depth, mu, sigma, 0.02f, i);
+    AddDepthNoise(depth, mu, sigma, 0.02f, static_cast<uint32_t>(i));
 
     depths.push_back(depth.clone());
     colors.push_back(color.clone());
@@ -123,12 +124,7 @@ int main(int argc, char* argv[]) {
     Eigen::Vector3f offset = Eigen::Vector3f::Ones() * resolution * 2;
     voxel_grid.Init(combined->stats().bb_max + offset,
                     combined->stats().bb_min - offset, resolution);
-    ugu::VoxelUpdateOption option;
-    option.voxel_update = ugu::VoxelUpdate::kWeightedAverage;
-    option.use_truncation = true;
-    // Followed OpenCV kinfu
-    // https://github.com/opencv/opencv_contrib/blob/9d0a451bee4cdaf9d3f76912e5abac6000865f1a/modules/rgbd/src/kinfu.cpp#L66
-    option.truncation_band = resolution * 7.f;
+    ugu::VoxelUpdateOption option = ugu::GenFuseDepthDefaultOption(resolution);
     for (size_t i = 0; i < view_num; i++) {
 #if 0
       ugu::Mesh pc;
@@ -140,14 +136,13 @@ int main(int argc, char* argv[]) {
       ugu::FuseDepth(*cameras[i], depths[i], option, voxel_grid);
     }
 
-
     ugu::MarchingCubes(voxel_grid, depth_fused.get());
     depth_fused->set_default_material();
     depth_fused->CalcNormal();
     depth_fused->WriteObj(data_dir, "depthfuse");
-
   }
 
+#if 0
   // Merge naive
   {
     for (size_t i = 0; i < view_num; i++) {
@@ -165,10 +160,13 @@ int main(int argc, char* argv[]) {
     ugu::MergeMeshes(depth_meshes, depth_merged.get());
     depth_merged->WriteObj(data_dir, "depthmesh");
   }
+#endif
 
   ugu::EstimateGroundPlaneRansacParam param;
   std::vector<ugu::PlaneEstimationResult> candidates;
   param.inliner_dist_th = 10.f;
+  param.max_iter = 1000;
+  param.candidates_num = 10;
   ugu::Timer timer;
   timer.Start();
   ugu::EstimateGroundPlaneRansac(depth_fused->vertices(),
@@ -189,6 +187,37 @@ int main(int argc, char* argv[]) {
   }
 
   depth_fused->RemoveVertices(keep_vertices);
+
+  depth_fused->RemoveUnreferencedVertices();
+
+  auto [clusters, non_orphans, orphans, clusters_f] =
+      ugu::ClusterByConnectivity(
+          depth_fused->vertex_indices(),
+          static_cast<int32_t>(depth_fused->vertices().size()));
+
+  size_t small_th = 100;
+  std::vector<bool> big_cluster_vertices(depth_fused->vertices().size(), true);
+  for (size_t i = 0; i < clusters.size(); i++) {
+    const auto& c = clusters[i];
+    if (c.size() > small_th) {
+      ugu::LOGI("Cluster %d is big. Keep.: %d\n", i, c.size());
+      continue;
+    }
+
+    ugu::LOGI("Cluster %d is small. Will be removed: %d\n", i, c.size());
+    for (const auto& v : c) {
+      big_cluster_vertices[v] = false;
+    }
+  }
+  depth_fused->RemoveVertices(big_cluster_vertices);
+
+  std::vector<Eigen::Vector3f> clean_vertices;
+  std::vector<Eigen::Vector3i> clean_faces;
+  ugu::CleanGeom(depth_fused->vertices(), depth_fused->vertex_indices(),
+                 clean_vertices, clean_faces);
+  depth_fused->set_vertices(clean_vertices);
+  depth_fused->set_vertex_indices(clean_faces);
+
   depth_fused->WriteObj(data_dir, "depthmesh_remove_plane");
 
   return 0;

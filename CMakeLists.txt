@@ -300,14 +300,18 @@ set(
   include/ugu/renderer/util_private.h
   src/renderer/util_private.cc
 
+  
+  include/ugu/voxel/voxel.h
+  src/voxel/voxel.cc
+  include/ugu/voxel/extract_voxel.h
+  src/voxel/extract_voxel.cc
+  include/ugu/voxel/marching_cubes.h
+  src/voxel/marching_cubes.cc
+  include/ugu/voxel/marching_cubes_lut.h
+  src/voxel/marching_cubes_lut.cc
+
   include/ugu/sfs/voxel_carver.h
   src/sfs/voxel_carver.cc
-  include/ugu/sfs/extract_voxel.h
-  src/sfs/extract_voxel.cc
-  include/ugu/sfs/marching_cubes.h
-  src/sfs/marching_cubes.cc
-  include/ugu/sfs/marching_cubes_lut.h
-  src/sfs/marching_cubes_lut.cc
 
   include/ugu/texturing/visibility_tester.h
   src/texturing/visibility_tester.cc

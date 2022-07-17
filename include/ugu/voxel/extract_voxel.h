@@ -5,7 +5,8 @@
 
 #pragma once
 
-#include "ugu/sfs/voxel_carver.h"
+#include "ugu/mesh.h"
+#include "ugu/voxel/voxel.h"
 
 namespace ugu {
 

@@ -6,13 +6,10 @@
 // original code is from
 // http://paulbourke.net/geometry/polygonise/
 
-#pragma once
+#include "ugu/voxel/marching_cubes_lut.h"
 
 #include <array>
 
 namespace ugu {
-namespace marching_cubes_lut {
-extern const std::array<int, 256> kEdgeTable;
-extern const std::array<std::array<int, 16>, 256> kTriTable;
-}  // namespace marching_cubes_lut
+namespace marching_cubes_lut {}
 }  // namespace ugu

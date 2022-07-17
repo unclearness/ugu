@@ -146,9 +146,11 @@ bool EstimateGroundPlaneRansac(const std::vector<Eigen::Vector3f>& points,
   }
 
   using per = ugu::PlaneEstimationResult;
-  std::sort(
-      candidates.begin(), candidates.end(),
-      [&](const per& a, const per& b) { return a.stat.area > b.stat.area; });
+  std::sort(candidates.begin(), candidates.end(),
+            [&](const per& a, const per& b) {
+              return std::abs(a.stat.area_ratio - 1.f) <
+                     std::abs(b.stat.area_ratio - 1.f);
+            });
 
   return true;
 }

@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "ugu/sfs/extract_voxel.h"
+#include "ugu/voxel/extract_voxel.h"
 
 #include <algorithm>
 #include <limits>

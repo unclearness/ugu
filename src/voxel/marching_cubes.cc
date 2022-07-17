@@ -6,16 +6,16 @@
 // original code is from
 // http://paulbourke.net/geometry/polygonise/
 
-#include "ugu/sfs/marching_cubes.h"
+#include "ugu/voxel/marching_cubes.h"
 
 #include <array>
 #include <map>
 #include <utility>
 #include <vector>
 
-#include "ugu/sfs/marching_cubes_lut.h"
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
+#include "ugu/voxel/marching_cubes_lut.h"
 
 namespace {
 

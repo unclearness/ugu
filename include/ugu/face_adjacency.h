@@ -314,8 +314,8 @@ class FaceAdjacency {
                     << it.index()  // inner index, here it is equal to it.row()
                     << std::endl;
 #endif
-          nonmanifold_vids.insert(it.row());
-          nonmanifold_vids.insert(it.col());
+          nonmanifold_vids.insert(static_cast<int>(it.row()));
+          nonmanifold_vids.insert(static_cast<int>(it.col()));
         }
       }
     }
