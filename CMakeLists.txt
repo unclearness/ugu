@@ -104,6 +104,12 @@ if(NOT DEFINED MVS_TEXTURING_INSTALL_DIR)
 endif()
 message("MVS_TEXTURING_INSTALL_DIR: ${MVS_TEXTURING_INSTALL_DIR}")
 
+
+if(NOT DEFINED LIBIGL_INSTALL_DIR)
+  set_with_parent(LIBIGL_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/libigl" "libigl installed directory")
+endif()
+message("LIBIGL_INSTALL_DIR: ${LIBIGL_INSTALL_DIR}")
+
 # switch for optional libraries
 option(UGU_USE_STB "Use stb to enable image i/o" ON)
 message("UGU_USE_STB: ${UGU_USE_STB}")
@@ -226,6 +232,14 @@ if(UGU_USE_MVS_TEXTURING)
   set(MvsTexturing_LIBS tex mve mve_util mrf)
   add_definitions(-DUGU_USE_MVS_TEXTURING)
   set_property(TARGET texrecon tex mve mve_sfm mve_math mve_fssr mve_dmrecon mve_util mrf PROPERTY FOLDER "mvs-texturing") 
+endif()
+
+
+option(UGU_USE_LIBGIL "Use libigl" OFF)
+message("UGU_USE_LIBGIL: ${UGU_USE_LIBGIL}")
+if(UGU_USE_LIBGIL)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${LIBIGL_INSTALL_DIR}/include)
+  add_definitions(-DUGU_USE_LIBGIL)
 endif()
 
 option(UGU_USE_OPENMP "Use OpenMP to enable parallelization" ON)
@@ -363,6 +377,7 @@ set(
   include/ugu/external/external.h
   src/external/fast_quadric_mesh_simplification.cc
   src/external/mvs_texturing.cc
+  src/external/libigl.cc
 
   # implementations of header-only library
   ${UGU_STB_IMPLEMENTATION_CC}

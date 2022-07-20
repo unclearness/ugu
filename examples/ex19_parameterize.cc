@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#include "ugu/external/external.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/parameterize/parameterize.h"
 #include "ugu/timer.h"
@@ -21,14 +22,47 @@ int main(int argc, char* argv[]) {
   std::string data_dir = "../data/bunny/";
   std::string obj_path = data_dir + "bunny.obj";
 
+  ugu::Timer<> timer;
 
   // load mesh
   ugu::MeshPtr input_mesh = ugu::Mesh::Create();
   input_mesh->LoadObj(obj_path, data_dir);
 
-std::vector<Eigen::Vector3f> clean_vertices;
-      std::vector<Eigen::Vector3i> clean_faces;
-  ugu::CleanGeom(input_mesh->vertices(), input_mesh->vertex_indices(), clean_vertices, clean_faces);
+#ifdef UGU_USE_LIBGIL
+
+  {
+    auto [boundary_edges_list, boundary_vertex_ids_list] =
+        ugu::FindBoundaryLoops(
+            input_mesh->vertex_indices(),
+            static_cast<int32_t>(input_mesh->vertices().size()));
+
+    std::vector<Eigen::Vector2f> uvs;
+    std::vector<Eigen::Vector3i> uv_indices;
+
+    timer.Start();
+    ugu::LibiglLscm(input_mesh->vertices(), input_mesh->vertex_indices(),
+                    boundary_vertex_ids_list[0], uvs);
+    timer.End();
+    ugu::LOGI("LibiglLscm %f ms\n", timer.elapsed_msec());
+
+    uv_indices = input_mesh->vertex_indices();
+
+    ugu::Mesh out_mesh = *input_mesh;
+
+    out_mesh.set_uv(uvs);
+    out_mesh.set_uv_indices(uv_indices);
+    out_mesh.WriteObj(data_dir, "bunny_lscm");
+
+    auto uv_img = ugu::DrawUv(uvs, uv_indices, {255, 255, 255}, {0, 0, 0});
+    ugu::imwrite(data_dir + "lscm_uv.jpg", uv_img);
+  }
+  return 0;
+#endif
+
+  std::vector<Eigen::Vector3f> clean_vertices;
+  std::vector<Eigen::Vector3i> clean_faces;
+  ugu::CleanGeom(input_mesh->vertices(), input_mesh->vertex_indices(),
+                 clean_vertices, clean_faces);
 
   auto clean_mesh = ugu::Mesh::Create();
   clean_mesh->set_vertices(clean_vertices);
@@ -49,7 +83,6 @@ std::vector<Eigen::Vector3f> clean_vertices;
   int tex_w = 512;
   int tex_h = 512;
 
-  ugu::Timer<> timer;
   timer.Start();
   ugu::Parameterize(*input_mesh, tex_w, tex_h,
                     ugu::ParameterizeUvType::kSmartUv);

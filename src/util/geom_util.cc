@@ -5,6 +5,7 @@
 
 #include "ugu/util/geom_util.h"
 
+#include <algorithm>
 #include <deque>
 #include <random>
 
@@ -440,6 +441,20 @@ FindBoundaryLoops(const std::vector<Eigen::Vector3i>& indices, int32_t vnum) {
       cur_edges.push_back(cur_edge);
     }
   }
+
+  // Sort by decending order. Use stable_sort to ensure the same orders to the
+  // two returns
+  // TODO: argsort
+  std::stable_sort(boundary_edges_list.begin(), boundary_edges_list.end(),
+                   [&](const std::vector<std::pair<int, int>>& a,
+                       const std::vector<std::pair<int, int>>& b) {
+                     return a.size() > b.size();
+                   });
+  std::stable_sort(boundary_vertex_ids_list.begin(),
+                   boundary_vertex_ids_list.end(),
+                   [&](const std::vector<int>& a, const std::vector<int>& b) {
+                     return a.size() > b.size();
+                   });
 
   return {boundary_edges_list, boundary_vertex_ids_list};
 }

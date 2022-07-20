@@ -19,4 +19,9 @@ bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
                   const std::string& save_path = "",
                   const std::string& save_debug_path = "");
 
+bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
+                const std::vector<Eigen::Vector3i>& vertex_indices,
+                const std::vector<int>& boundary,
+                std::vector<Eigen::Vector2f>& uvs);
+
 }  // namespace ugu
