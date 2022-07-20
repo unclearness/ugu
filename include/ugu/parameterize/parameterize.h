@@ -28,4 +28,14 @@ bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
                       std::vector<Eigen::Vector2f>& points_2d,
                       bool align_longest_axis_x = true, bool normalize = true,
                       bool keep_aspect = true, bool align_top_y = true);
+
+bool PackUvIslands(
+    const std::vector<float>& cluster_areas,
+    const std::vector<std::vector<Eigen::Vector3i>>& clusters,
+    const std::vector<std::vector<Eigen::Vector2f>>& cluster_uvs,
+    const std::vector<std::vector<Eigen::Vector3i>>& cluster_sub_faces,
+    const std::vector<std::vector<uint32_t>>& cluster_fids, size_t num_faces,
+    int tex_w, int tex_h, std::vector<Eigen::Vector2f>& uvs,
+    std::vector<Eigen::Vector3i>& uv_faces, bool flip_v = true);
+
 }  // namespace ugu

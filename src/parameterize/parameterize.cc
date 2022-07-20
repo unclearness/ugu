@@ -133,124 +133,9 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
   }
 
   // Step 3: Pack segments
-  std::vector<float> normalized_areas;
-  double sum_area = 0.0;
-  for (const auto& a : res.cluster_areas) {
-    sum_area += a;
-  }
-
-  for (const auto& a : res.cluster_areas) {
-    normalized_areas.push_back(
-        static_cast<float>(static_cast<double>(a) / sum_area));
-  }
-
-  auto indices = ugu::argsort(normalized_areas, true);
-  const float one_pix_area =
-      std::pow(1.f / static_cast<float>(std::max(tex_w, tex_h)), 2.f);
-  const float smallest_area =
-      std::max(normalized_areas[indices.back()], one_pix_area);
-  const float padding =
-      std::min(std::sqrt(smallest_area), std::sqrt(one_pix_area));
-
-  for (auto& a : normalized_areas) {
-    a = std::max(a, one_pix_area);
-  }
-
-  std::vector<ugu::Rect2f> rects, packed_pos, available_rects;
-
-  std::vector<std::pair<Eigen::Vector2f, Eigen::Vector2f>> min_max_local_uvs(
-      res.clusters.size());
-
-  std::vector<float> scales(indices.size());
-  for (const auto& idx : indices) {
-    auto uvs = cluster_uvs[idx];
-    Eigen::Vector2f max_bound = ugu::ComputeMaxBound(uvs);
-    Eigen::Vector2f min_bound = ugu::ComputeMinBound(uvs);
-
-    min_max_local_uvs[idx] = {min_bound, max_bound};
-
-    Eigen::Vector2f len = max_bound - min_bound;
-
-    float r = std::sqrt(normalized_areas[idx]);
-    scales[idx] = r;
-    float w = len[0] * r + padding;
-    float h = len[1] * r + padding;
-    rects.push_back(ugu::Rect2f(0.f, 0.f, w, h));
-  }
-
-  int bin_packing_try_num = 0;
-  const float start_scale = 2.f;
-  const float pyramid_ratio = 0.95f;
-
-  // TODO: Check fill rate
-  // float best_fill_rate = 0.f;
-
-  std::vector<ugu::Rect2f> start_rects = rects;
-  float current_scale = start_scale;
-
-  auto rescale_rects = [&]() {
-    rects = start_rects;
-    current_scale = start_scale * std::pow(pyramid_ratio, bin_packing_try_num);
-    for (auto& rect : rects) {
-      rect.width *= current_scale;
-      rect.height *= current_scale;
-    }
-  };
-
-  rescale_rects();
-  while (!ugu::BinPacking2D(rects, &packed_pos, &available_rects, padding,
-                            1.f - padding, padding, 1.f - padding)) {
-    bin_packing_try_num++;
-
-    // Rescale rects
-    rescale_rects();
-  }
-
-  if (debug) {
-    auto vis = ugu::DrawPackedRects(packed_pos, tex_w, tex_h);
-    vis.WriteJpg("tmp.jpg");
-  }
-
-  uvs.clear();
-  uv_faces.clear();
-  uv_faces.resize(faces.size());
-
-  for (int k = 0; k < static_cast<int>(indices.size()); k++) {
-    int uv_index_offset = static_cast<int>(uvs.size());
-
-    const ugu::Rect2f& rect = packed_pos[k];
-    size_t cid = indices[k];
-
-    auto [min_bound, max_bound] = min_max_local_uvs[cid];
-    float scale = scales[cid] * current_scale;
-
-    Eigen::Vector2f uv_offset(rect.x, rect.y);
-    for (const auto& cuv : cluster_uvs[cid]) {
-      Eigen::Vector2f tmp;
-      tmp[0] = (cuv[0] - min_bound[0]) * scale + uv_offset[0];
-#if 0
-      // V is from top, y image coordinate used in BinPacking2D
-      tmp[1] = (cuv[1] - min_bound[1]) * scale + uv_offset[1];
-#else
-      // Flip V
-      tmp[1] = (1.f - cuv[1]) * scale + uv_offset[1];
-      tmp[1] = 1.f - tmp[1];
-#endif
-      uvs.push_back(tmp);
-    }
-
-    for (uint32_t j = 0; j < res.cluster_fids[cid].size(); j++) {
-      uint32_t fid = res.cluster_fids[cid][j];
-
-      // Add to global uv
-      Eigen::Vector3i global_index;
-      const Eigen::Vector3i& local_index = cluster_sub_faces[cid][j];
-      global_index[0] = uv_index_offset + local_index[0];
-      global_index[1] = uv_index_offset + local_index[1];
-      global_index[2] = uv_index_offset + local_index[2];
-      uv_faces[fid] = global_index;
-    }
-  }
+  ugu::PackUvIslands(res.cluster_areas, res.clusters, cluster_uvs,
+                     cluster_sub_faces, res.cluster_fids, faces.size(), tex_w,
+                     tex_h, uvs, uv_faces, true);
 
   return true;
 }
@@ -381,4 +266,138 @@ bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
 
   return true;
 }
+
+bool PackUvIslands(
+    const std::vector<float>& cluster_areas,
+    const std::vector<std::vector<Eigen::Vector3i>>& clusters,
+    const std::vector<std::vector<Eigen::Vector2f>>& cluster_uvs,
+    const std::vector<std::vector<Eigen::Vector3i>>& cluster_sub_faces,
+    const std::vector<std::vector<uint32_t>>& cluster_fids, size_t num_faces,
+    int tex_w, int tex_h, std::vector<Eigen::Vector2f>& uvs,
+    std::vector<Eigen::Vector3i>& uv_faces, bool flip_v) {
+  std::vector<float> normalized_areas;
+  double sum_area = 0.0;
+  for (const auto& a : cluster_areas) {
+    sum_area += a;
+  }
+
+  for (const auto& a : cluster_areas) {
+    normalized_areas.push_back(
+        static_cast<float>(static_cast<double>(a) / sum_area));
+  }
+
+  auto indices = ugu::argsort(normalized_areas, true);
+  const float one_pix_area =
+      std::pow(1.f / static_cast<float>(std::max(tex_w, tex_h)), 2.f);
+  const float smallest_area =
+      std::max(normalized_areas[indices.back()], one_pix_area);
+  const float padding =
+      std::min(std::sqrt(smallest_area), std::sqrt(one_pix_area));
+
+  for (auto& a : normalized_areas) {
+    a = std::max(a, one_pix_area);
+  }
+
+  std::vector<ugu::Rect2f> rects, packed_pos, available_rects;
+
+  std::vector<std::pair<Eigen::Vector2f, Eigen::Vector2f>> min_max_local_uvs(
+      clusters.size());
+
+  std::vector<float> scales(indices.size());
+  for (const auto& idx : indices) {
+    const auto& uvs = cluster_uvs[idx];
+    Eigen::Vector2f max_bound = ugu::ComputeMaxBound(uvs);
+    Eigen::Vector2f min_bound = ugu::ComputeMinBound(uvs);
+
+    min_max_local_uvs[idx] = {min_bound, max_bound};
+
+    Eigen::Vector2f len = max_bound - min_bound;
+
+    float r = std::sqrt(normalized_areas[idx]);
+    scales[idx] = r;
+    float w = len[0] * r + padding;
+    float h = len[1] * r + padding;
+    rects.push_back(ugu::Rect2f(0.f, 0.f, w, h));
+  }
+
+  int bin_packing_try_num = 0;
+  const float start_scale = 2.f;
+  const float pyramid_ratio = 0.95f;
+
+  // TODO: Check fill rate
+  // float best_fill_rate = 0.f;
+
+  std::vector<ugu::Rect2f> start_rects = rects;
+  float current_scale = start_scale;
+
+  auto rescale_rects = [&]() {
+    rects = start_rects;
+    current_scale = start_scale * std::pow(pyramid_ratio, bin_packing_try_num);
+    for (auto& rect : rects) {
+      rect.width *= current_scale;
+      rect.height *= current_scale;
+    }
+  };
+
+  rescale_rects();
+  while (!ugu::BinPacking2D(rects, &packed_pos, &available_rects, padding,
+                            1.f - padding, padding, 1.f - padding)) {
+    bin_packing_try_num++;
+
+    // Rescale rects
+    rescale_rects();
+  }
+
+  bool debug = false;
+  if (debug) {
+    auto vis = ugu::DrawPackedRects(packed_pos, tex_w, tex_h);
+    vis.WriteJpg("tmp.jpg");
+  }
+
+  uvs.clear();
+  uv_faces.clear();
+  uv_faces.resize(num_faces);
+
+  for (int k = 0; k < static_cast<int>(indices.size()); k++) {
+    int uv_index_offset = static_cast<int>(uvs.size());
+
+    const ugu::Rect2f& rect = packed_pos[k];
+    size_t cid = indices[k];
+
+    auto [min_bound, max_bound] = min_max_local_uvs[cid];
+    float scale = scales[cid] * current_scale;
+
+    Eigen::Vector2f uv_offset(rect.x, rect.y);
+    for (const auto& cuv : cluster_uvs[cid]) {
+      Eigen::Vector2f tmp;
+      tmp[0] = (cuv[0] - min_bound[0]) * scale + uv_offset[0];
+
+      if (flip_v) {
+        // Flip V
+        tmp[1] = (1.f - cuv[1]) * scale + uv_offset[1];
+        tmp[1] = 1.f - tmp[1];
+      } else {
+        // V is from top, y image coordinate used in BinPacking2D
+        tmp[1] = (cuv[1] - min_bound[1]) * scale + uv_offset[1];
+      }
+
+      uvs.push_back(tmp);
+    }
+
+    for (uint32_t j = 0; j < cluster_fids[cid].size(); j++) {
+      uint32_t fid = cluster_fids[cid][j];
+
+      // Add to global uv
+      Eigen::Vector3i global_index;
+      const Eigen::Vector3i& local_index = cluster_sub_faces[cid][j];
+      global_index[0] = uv_index_offset + local_index[0];
+      global_index[1] = uv_index_offset + local_index[1];
+      global_index[2] = uv_index_offset + local_index[2];
+      uv_faces[fid] = global_index;
+    }
+  }
+
+  return true;
+}
+
 }  // namespace ugu
