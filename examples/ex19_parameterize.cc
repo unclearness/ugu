@@ -30,6 +30,7 @@ int main(int argc, char* argv[]) {
 
 #ifdef UGU_USE_LIBGIL
 
+#if 1
   {
     auto [boundary_edges_list, boundary_vertex_ids_list] =
         ugu::FindBoundaryLoops(
@@ -43,9 +44,33 @@ int main(int argc, char* argv[]) {
     ugu::LibiglLscm(input_mesh->vertices(), input_mesh->vertex_indices(),
                     boundary_vertex_ids_list[0], uvs);
     timer.End();
-    ugu::LOGI("LibiglLscm %f ms\n", timer.elapsed_msec());
+    ugu::LOGI("LibiglLscm single %f ms\n", timer.elapsed_msec());
 
     uv_indices = input_mesh->vertex_indices();
+
+    ugu::Mesh out_mesh = *input_mesh;
+
+    out_mesh.set_uv(uvs);
+    out_mesh.set_uv_indices(uv_indices);
+    out_mesh.WriteObj(data_dir, "bunny_lscm_single");
+
+    auto uv_img = ugu::DrawUv(uvs, uv_indices, {255, 255, 255}, {0, 0, 0});
+    ugu::imwrite(data_dir + "lscm_single_uv.jpg", uv_img);
+  }
+#endif
+  {
+    input_mesh->RemoveUnreferencedVertices();
+    ugu::CleanGeom(*input_mesh);
+    input_mesh->RemoveUnreferencedVertices();
+
+    std::vector<Eigen::Vector2f> uvs;
+    std::vector<Eigen::Vector3i> uv_indices;
+
+    timer.Start();
+    ugu::LibiglLscm(input_mesh->vertices(), input_mesh->vertex_indices(), 512,
+                    512, uvs, uv_indices);
+    timer.End();
+    ugu::LOGI("LibiglLscm main %f ms\n", timer.elapsed_msec());
 
     ugu::Mesh out_mesh = *input_mesh;
 
@@ -56,7 +81,7 @@ int main(int argc, char* argv[]) {
     auto uv_img = ugu::DrawUv(uvs, uv_indices, {255, 255, 255}, {0, 0, 0});
     ugu::imwrite(data_dir + "lscm_uv.jpg", uv_img);
   }
-  return 0;
+  // return 0;
 #endif
 
   std::vector<Eigen::Vector3f> clean_vertices;

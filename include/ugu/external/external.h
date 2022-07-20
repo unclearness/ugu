@@ -24,4 +24,9 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
                 const std::vector<int>& boundary,
                 std::vector<Eigen::Vector2f>& uvs);
 
+bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
+                const std::vector<Eigen::Vector3i>& vertex_indices, int tex_w,
+                int tex_h, std::vector<Eigen::Vector2f>& uvs,
+                std::vector<Eigen::Vector3i>& uv_indices);
+
 }  // namespace ugu

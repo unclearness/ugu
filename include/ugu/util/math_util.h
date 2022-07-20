@@ -337,6 +337,16 @@ std::vector<size_t> argsort(const std::vector<T>& array, bool greater = false) {
   return indices;
 }
 
+template <typename T>
+std::vector<T> ApplyIndices(const std::vector<T>& array,
+                            const std::vector<size_t>& indices) {
+  std::vector<T> res(array.size());
+  for (size_t i = 0; i < indices.size(); i++) {
+    res[i] = array[indices[i]];
+  }
+  return res;
+}
+
 template <typename InputMatrixType>
 struct Pca {
   InputMatrixType cov;

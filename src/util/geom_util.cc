@@ -1587,4 +1587,20 @@ bool CleanGeom(const std::vector<Eigen::Vector3f>& vertices,
   return false;
 }
 
+bool CleanGeom(Mesh& mesh) {
+  std::vector<Eigen::Vector3f> clean_vertices;
+  std::vector<Eigen::Vector3i> clean_faces;
+  bool ret = ugu::CleanGeom(mesh.vertices(), mesh.vertex_indices(),
+                            clean_vertices, clean_faces);
+
+  // TODO:
+  // vertex color, uv (especially, multiple uv per vertex)
+  mesh.set_vertices(clean_vertices);
+  mesh.set_vertex_indices(clean_faces);
+
+  mesh.CalcNormal();
+
+  return ret;
+}
+
 }  // namespace ugu
