@@ -8,7 +8,7 @@
 #include "ugu/parameterize/parameterize.h"
 #include "ugu/util/math_util.h"
 
-#ifdef UGU_USE_LIBGIL
+#ifdef UGU_USE_LIBIGL
 
 //#include "igl/boundary_loop.h"
 #include "igl/lscm.h"
