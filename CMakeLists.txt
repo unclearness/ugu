@@ -235,11 +235,11 @@ if(UGU_USE_MVS_TEXTURING)
 endif()
 
 
-option(UGU_USE_LIBGIL "Use libigl" OFF)
-message("UGU_USE_LIBGIL: ${UGU_USE_LIBGIL}")
-if(UGU_USE_LIBGIL)
+option(UGU_USE_LIBIGL "Use libigl" OFF)
+message("UGU_USE_LIBIGL: ${UGU_USE_LIBIGL}")
+if(UGU_USE_LIBIGL)
   set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${LIBIGL_INSTALL_DIR}/include)
-  add_definitions(-DUGU_USE_LIBGIL)
+  add_definitions(-DUGU_USE_LIBIGL)
 endif()
 
 option(UGU_USE_OPENMP "Use OpenMP to enable parallelization" ON)
