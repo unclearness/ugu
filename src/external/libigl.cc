@@ -21,7 +21,7 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
                 const std::vector<Eigen::Vector3i>& vertex_indices,
                 const std::vector<int>& boundary,
                 std::vector<Eigen::Vector2f>& uvs) {
-#ifdef UGU_USE_LIBGIL
+#ifdef UGU_USE_LIBIGL
 
   Eigen::MatrixXd V(vertices.size(), 3);
   Eigen::MatrixXi F(vertex_indices.size(), 3);
@@ -76,7 +76,7 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
                 const std::vector<Eigen::Vector3i>& vertex_indices, int tex_w,
                 int tex_h, std::vector<Eigen::Vector2f>& uvs,
                 std::vector<Eigen::Vector3i>& uv_indices) {
-#ifdef UGU_USE_LIBGIL
+#ifdef UGU_USE_LIBIGL
 
   // Step 1: Clustering by connectivity
   std::vector<float> cluster_areas;
