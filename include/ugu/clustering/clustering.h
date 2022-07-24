@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "Eigen/Core"
+#include "ugu/mesh.h"
+#include "ugu/plane.h"
 
 namespace ugu {
 
@@ -59,5 +61,36 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
                  SegmentMeshResult& res, float angle_limit_deg = 66.4f,
                  float area_weight = 0.f, bool consider_connectiviy = true,
                  bool use_vertex_based_connectivity = false);
+
+bool DisconnectPlaneAndOthers(const std::vector<Eigen::Vector3f>& points,
+                              const Planef& plane, float dist_th,
+                              std::vector<size_t>& plane_ids,
+                              std::vector<size_t>& others_ids,
+                              const std::vector<Eigen::Vector3f>& normals =
+                                  std::vector<Eigen::Vector3f>(),
+                              float angle_th = radians(45.f));
+
+bool DisconnectPlaneAndOthers(const std::vector<Eigen::Vector3f>& vertices,
+                              const std::vector<Eigen::Vector3i>& indices,
+                              const Planef& plane, float dist_th,
+                              std::vector<size_t>& plane_vids,
+                              std::vector<size_t>& others_vids,
+                              std::vector<size_t>& boundary_vids,
+                              std::vector<Eigen::Vector3f>& plane_vertices,
+                              std::vector<Eigen::Vector3i>& plane_indices,
+                              std::vector<Eigen::Vector3f>& others_vertices,
+                              std::vector<Eigen::Vector3i>& others_indices,
+                              const std::vector<Eigen::Vector3f>& normals =
+                                  std::vector<Eigen::Vector3f>(),
+                              float angle_th = radians(45.f),
+                              bool keep_boundary_both = true);
+
+bool DisconnectPlaneAndOthers(const Mesh& mesh, const Planef& plane,
+                              float dist_th, std::vector<size_t>& plane_vids,
+                              std::vector<size_t>& others_vids,
+                              std::vector<size_t>& boundary_vids,
+                              Mesh& plane_mesh, Mesh& others_mesh,
+                              float angle_th = radians(45.f),
+                              bool keep_boundary_both = true);
 
 }  // namespace ugu

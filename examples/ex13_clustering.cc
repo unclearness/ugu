@@ -376,7 +376,6 @@ void SegmentMeshTest() {
     output_mesh->WriteObj(data_dir, name + "_segmented");
   }
 }
-
 }  // namespace
 
 int main(int argc, char* argv[]) {

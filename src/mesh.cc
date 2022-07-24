@@ -1978,7 +1978,7 @@ RemoveVerticesBase(const std::vector<Eigen::Vector3f>& vertices,
   std::vector<int> valid_face_table(vertex_indices.size(), -1);
 
   if (valid_vertex_table.size() != vertices.size()) {
-    ugu::LOGE("valid_vertex_table must be same size to vertices");
+    ugu::LOGE("valid_vertex_table must be same size to vertices\n");
     return {-1,       valid_table,   valid_vertices,   valid_vertex_colors,
             valid_uv, valid_indices, valid_face_table, false,
             false};

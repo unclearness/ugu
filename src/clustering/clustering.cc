@@ -799,4 +799,132 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
   return true;
 }
 
+bool DisconnectPlaneAndOthers(const std::vector<Eigen::Vector3f>& points,
+                              const Planef& plane, float dist_th,
+                              std::vector<size_t>& plane_ids,
+                              std::vector<size_t>& others_ids,
+                              const std::vector<Eigen::Vector3f>& normals,
+                              float angle_th) {
+  plane_ids.clear();
+  others_ids.clear();
+
+  const bool with_normal = points.size() == normals.size();
+
+  const float dot_th = std::cos(angle_th);
+
+  for (size_t i = 0; i < points.size(); i++) {
+    const auto& p = points[i];
+    const float dist = plane.SignedDist(p);
+
+    if (std::abs(dist) <= dist_th &&
+        (!with_normal || (with_normal && dot_th <= normals[i].dot(plane.n)))) {
+      plane_ids.push_back(i);
+    } else {
+      others_ids.push_back(i);
+    }
+  }
+
+  return true;
+}
+
+bool DisconnectPlaneAndOthers(const std::vector<Eigen::Vector3f>& vertices,
+                              const std::vector<Eigen::Vector3i>& indices,
+                              const Planef& plane, float dist_th,
+                              std::vector<size_t>& plane_vids,
+                              std::vector<size_t>& others_vids,
+                              std::vector<size_t>& boundary_vids,
+                              std::vector<Eigen::Vector3f>& plane_vertices,
+                              std::vector<Eigen::Vector3i>& plane_indices,
+                              std::vector<Eigen::Vector3f>& others_vertices,
+                              std::vector<Eigen::Vector3i>& others_indices,
+                              const std::vector<Eigen::Vector3f>& normals,
+                              float angle_th, bool keep_boundary_both) {
+  DisconnectPlaneAndOthers(vertices, plane, dist_th, plane_vids, others_vids,
+                           normals, angle_th);
+
+  if (keep_boundary_both) {
+    FaceAdjacency fa;
+    fa.Init(static_cast<int>(vertices.size()), indices);
+    Adjacency va = fa.GenerateVertexAdjacency();
+    std::set<size_t> others_vid_set, org_others_vid_set;
+    for (const auto& other_vid : others_vids) {
+      others_vid_set.insert(other_vid);
+      org_others_vid_set.insert(other_vid);
+      // Add one ring neighbor vid to include boundary vid in both
+      for (const int& neighbor_vid : va[other_vid]) {
+        others_vid_set.insert(static_cast<size_t>(neighbor_vid));
+      }
+    }
+
+    others_vids.clear();
+    std::copy(others_vid_set.begin(), others_vid_set.end(),
+              std::back_inserter(others_vids));
+
+    boundary_vids.clear();
+    std::set_difference(others_vid_set.begin(), others_vid_set.end(),
+                        org_others_vid_set.begin(), org_others_vid_set.end(),
+                        std::back_inserter(boundary_vids));
+  }
+
+  {
+    std::vector<bool> plane_vertices_table(vertices.size(), false);
+    for (const auto& vid : plane_vids) {
+      plane_vertices_table[vid] = true;
+    }
+    auto [num_removed, valid_table, valid_vertices, valid_vertex_colors,
+          valid_uv, valid_indices, valid_face_table, with_uv,
+          with_vertex_color] =
+        RemoveVerticesBase(vertices, indices, {}, {}, {}, plane_vertices_table);
+
+    plane_vertices = std::move(valid_vertices);
+    plane_indices = std::move(valid_indices);
+  }
+
+  {
+    std::vector<bool> others_vertices_table(vertices.size(), false);
+    for (const auto& vid : others_vids) {
+      others_vertices_table[vid] = true;
+    }
+    auto [num_removed, valid_table, valid_vertices, valid_vertex_colors,
+          valid_uv, valid_indices, valid_face_table, with_uv,
+          with_vertex_color] = RemoveVerticesBase(vertices, indices, {}, {}, {},
+                                                  others_vertices_table);
+
+    others_vertices = std::move(valid_vertices);
+    others_indices = std::move(valid_indices);
+  }
+
+  return true;
+}
+
+bool DisconnectPlaneAndOthers(const Mesh& mesh, const Planef& plane,
+                              float dist_th, std::vector<size_t>& plane_vids,
+                              std::vector<size_t>& others_vids,
+                              std::vector<size_t>& boundary_vids,
+                              Mesh& plane_mesh, Mesh& others_mesh,
+                              float angle_th, bool keep_boundary_both) {
+  std::vector<Eigen::Vector3f> plane_vertices;
+  std::vector<Eigen::Vector3i> plane_indices;
+  std::vector<Eigen::Vector3f> others_vertices;
+  std::vector<Eigen::Vector3i> others_indices;
+
+  DisconnectPlaneAndOthers(mesh.vertices(), mesh.vertex_indices(), plane,
+                           dist_th, plane_vids, others_vids, boundary_vids,
+                           plane_vertices, plane_indices, others_vertices,
+                           others_indices, mesh.normals(), angle_th,
+                           keep_boundary_both);
+
+  plane_mesh.Clear();
+  plane_mesh.set_vertices(plane_vertices);
+  plane_mesh.set_vertex_indices(plane_indices);
+  plane_mesh.set_default_material();
+
+  others_mesh.Clear();
+  others_mesh.set_vertices(others_vertices);
+  others_mesh.set_vertex_indices(others_indices);
+  others_mesh.set_default_material();
+
+  return true;
+}
+
 }  // namespace ugu

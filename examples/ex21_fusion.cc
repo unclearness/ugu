@@ -5,6 +5,7 @@
 
 #include <random>
 
+#include "ugu/clustering/clustering.h"
 #include "ugu/plane.h"
 #include "ugu/renderer/rasterizer.h"
 #include "ugu/renderer/raytracer.h"
@@ -180,6 +181,18 @@ int main(int argc, char* argv[]) {
               c.stat.inlier_ratio, c.stat.upper_ratio, c.stat.area,
               c.stat.area_ratio);
   }
+
+  std::vector<size_t> plane_vids;
+  std::vector<size_t> others_vids;
+  std::vector<size_t> boundary_vids;
+  ugu::Mesh plane_mesh, others_mesh;
+  ugu::DisconnectPlaneAndOthers(*depth_fused, candidates[0].estimation,
+                                param.inliner_dist_th * 2, plane_vids,
+                                others_vids, boundary_vids, plane_mesh,
+                                others_mesh, param.inlier_angle_th * 2, true);
+
+  plane_mesh.WriteObj(data_dir, "depthfuse_plane");
+  others_mesh.WriteObj(data_dir, "depthfuse_others");
 
   std::vector<bool> keep_vertices(depth_fused->vertices().size(), false);
   for (size_t i = 0; i < candidates[0].stat.outliers.size(); i++) {
