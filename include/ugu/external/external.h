@@ -26,6 +26,15 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
 
 bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
                 const std::vector<Eigen::Vector3i>& vertex_indices, int tex_w,
+                int tex_h, const std::vector<float>& cluster_areas,
+                const std::vector<std::vector<Eigen::Vector3i>>& clusters,
+                const std::vector<std::vector<uint32_t>>& cluster_fids,
+                const std::vector<float>& cluster_weights,
+                std::vector<Eigen::Vector2f>& uvs,
+                std::vector<Eigen::Vector3i>& uv_indices);
+
+bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
+                const std::vector<Eigen::Vector3i>& vertex_indices, int tex_w,
                 int tex_h, std::vector<Eigen::Vector2f>& uvs,
                 std::vector<Eigen::Vector3i>& uv_indices);
 

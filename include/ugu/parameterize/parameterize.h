@@ -36,6 +36,7 @@ bool PackUvIslands(
     const std::vector<std::vector<Eigen::Vector3i>>& cluster_sub_faces,
     const std::vector<std::vector<uint32_t>>& cluster_fids, size_t num_faces,
     int tex_w, int tex_h, std::vector<Eigen::Vector2f>& uvs,
-    std::vector<Eigen::Vector3i>& uv_faces, bool flip_v = true);
+    std::vector<Eigen::Vector3i>& uv_faces, bool flip_v = true,
+    const std::vector<float>& cluster_weights = std::vector<float>());
 
 }  // namespace ugu

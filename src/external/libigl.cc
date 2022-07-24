@@ -15,6 +15,46 @@
 
 #endif
 
+namespace {
+
+void ClusteringForParameterization(
+    const std::vector<Eigen::Vector3f>& vertices,
+    const std::vector<Eigen::Vector3i>& vertex_indices,
+    std::vector<float>& cluster_areas,
+    std::vector<std::vector<Eigen::Vector3i>>& clusters,
+    std::vector<std::vector<uint32_t>>& cluster_fids) {
+  auto [clusters_v, non_orphans, orphans, clusters_f] =
+      ugu::ClusterByConnectivity(vertex_indices, vertices.size(), false);
+
+  for (const auto& cluster_f : clusters_f) {
+    std::vector<uint32_t> cluster_fid;
+    std::vector<Eigen::Vector3i> cluster;
+    double cluster_area = 0.0;
+
+    for (const auto& f : cluster_f) {
+      cluster_fid.push_back(static_cast<uint32_t>(f));
+      cluster.push_back(vertex_indices[f]);
+
+      const auto& v0 = vertices[vertex_indices[f][0]];
+      const auto& v1 = vertices[vertex_indices[f][1]];
+      const auto& v2 = vertices[vertex_indices[f][2]];
+      const double area = std::abs(((v2 - v0).cross(v1 - v0)).norm()) * 0.5;
+      cluster_area += area;
+    }
+
+    cluster_areas.push_back(static_cast<float>(cluster_area));
+    clusters.push_back(std::move(cluster));
+    cluster_fids.push_back(std::move(cluster_fid));
+  }
+  // Sort by cluster_areas
+  auto indices = ugu::argsort(cluster_areas, true);
+  cluster_areas = ugu::ApplyIndices(cluster_areas, indices);
+  clusters = ugu::ApplyIndices(clusters, indices);
+  cluster_fids = ugu::ApplyIndices(cluster_fids, indices);
+}
+
+}  // namespace
+
 namespace ugu {
 
 bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
@@ -39,6 +79,7 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
   Eigen::VectorXi b(2, 1);
   // igl::boundary_loop(F, bnd);
   b(0) = boundary[0];
+  // TODO: Select based on geodesic distance?
   b(1) = boundary[boundary.size() / 2];
   Eigen::MatrixXd bc(2, 2);
   bc << 0, 0, 1, 0;
@@ -82,34 +123,32 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
   std::vector<float> cluster_areas;
   std::vector<std::vector<Eigen::Vector3i>> clusters;
   std::vector<std::vector<uint32_t>> cluster_fids;
-  auto [clusters_v, non_orphans, orphans, clusters_f] =
-      ClusterByConnectivity(vertex_indices, vertices.size(), false);
+  ClusteringForParameterization(vertices, vertex_indices, cluster_areas,
+                                clusters, cluster_fids);
 
-  for (const auto& cluster_f : clusters_f) {
-    std::vector<uint32_t> cluster_fid;
-    std::vector<Eigen::Vector3i> cluster;
-    double cluster_area = 0.0;
+  return LibiglLscm(vertices, vertex_indices, tex_w, tex_h, cluster_areas,
+                    clusters, cluster_fids, {}, uvs, uv_indices);
 
-    for (const auto& f : cluster_f) {
-      cluster_fid.push_back(static_cast<uint32_t>(f));
-      cluster.push_back(vertex_indices[f]);
-
-      const auto& v0 = vertices[vertex_indices[f][0]];
-      const auto& v1 = vertices[vertex_indices[f][1]];
-      const auto& v2 = vertices[vertex_indices[f][2]];
-      const double area = std::abs(((v2 - v0).cross(v1 - v0)).norm()) * 0.5;
-      cluster_area += area;
-    }
-
-    cluster_areas.push_back(static_cast<float>(cluster_area));
-    clusters.push_back(std::move(cluster));
-    cluster_fids.push_back(std::move(cluster_fid));
-  }
-  // Sort by cluster_areas
-  auto indices = ugu::argsort(cluster_areas, true);
-  cluster_areas = ApplyIndices(cluster_areas, indices);
-  clusters = ApplyIndices(clusters, indices);
-  cluster_fids = ApplyIndices(cluster_fids, indices);
+#else
+  (void)vertices;
+  (void)vertex_indices;
+  (void)tex_w;
+  (void)tex_h;
+  (void)uvs;
+  (void)uv_indices;
+  ugu::LOGE("Not available in current configuration\n");
+  return false;
+#endif
+}
+bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
+                const std::vector<Eigen::Vector3i>& vertex_indices, int tex_w,
+                int tex_h, const std::vector<float>& cluster_areas,
+                const std::vector<std::vector<Eigen::Vector3i>>& clusters,
+                const std::vector<std::vector<uint32_t>>& cluster_fids,
+                const std::vector<float>& cluster_weights,
+                std::vector<Eigen::Vector2f>& uvs,
+                std::vector<Eigen::Vector3i>& uv_indices) {
+#ifdef UGU_USE_LIBIGL
 
   // Step 2: Parameterize per segment
   std::vector<std::vector<Eigen::Vector2f>> cluster_uvs(cluster_fids.size());
@@ -137,7 +176,7 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
   // Step 3: Pack segments
   PackUvIslands(cluster_areas, clusters, cluster_uvs, cluster_sub_faces,
                 cluster_fids, vertex_indices.size(), tex_w, tex_h, uvs,
-                uv_indices, false);
+                uv_indices, false, cluster_weights);
 
   return true;
 #else

@@ -275,7 +275,8 @@ bool PackUvIslands(
     const std::vector<std::vector<Eigen::Vector3i>>& cluster_sub_faces,
     const std::vector<std::vector<uint32_t>>& cluster_fids, size_t num_faces,
     int tex_w, int tex_h, std::vector<Eigen::Vector2f>& uvs,
-    std::vector<Eigen::Vector3i>& uv_faces, bool flip_v) {
+    std::vector<Eigen::Vector3i>& uv_faces, bool flip_v,
+    const std::vector<float>& cluster_weights) {
   std::vector<float> normalized_areas;
   double sum_area = 0.0;
   for (const auto& a : cluster_areas) {
@@ -305,6 +306,7 @@ bool PackUvIslands(
       clusters.size());
 
   std::vector<float> scales(indices.size());
+  bool with_weights = cluster_areas.size() == cluster_weights.size();
   for (const auto& idx : indices) {
     const auto& uvs = cluster_uvs[idx];
     Eigen::Vector2f max_bound = ugu::ComputeMaxBound(uvs);
@@ -315,6 +317,9 @@ bool PackUvIslands(
     Eigen::Vector2f len = max_bound - min_bound;
 
     float r = std::sqrt(normalized_areas[idx]);
+    if (with_weights) {
+      r *= cluster_weights[idx];
+    }
     scales[idx] = r;
     float w = len[0] * r + padding;
     float h = len[1] * r + padding;
