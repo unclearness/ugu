@@ -170,6 +170,8 @@ int main(int argc, char* argv[]) {
   param.inliner_dist_th = 10.f;
   param.max_iter = 1000;
   param.candidates_num = 10;
+  //param.use_normal_hint = true;
+  //param.normal_hint = Eigen::Vector3f(0.f, 1.f, 0.f);
   ugu::Timer timer;
   timer.Start();
   ugu::EstimateGroundPlaneRansac(depth_fused->vertices(),
@@ -179,6 +181,9 @@ int main(int argc, char* argv[]) {
   for (const auto& c : candidates) {
     ugu::LOGI("Ground plane candidate (%f %f,%f) %f\n", c.estimation.n.x(),
               c.estimation.n.y(), c.estimation.n.z(), c.estimation.d);
+    ugu::LOGI("Refined by least squares (%f %f,%f) %f\n",
+              c.refined_least_squares.n.x(), c.refined_least_squares.n.y(),
+              c.refined_least_squares.n.z(), c.refined_least_squares.d);
     ugu::LOGI("inlier_ratio %f, upper_ratio %f, area %f area_ratio %f\n\n",
               c.stat.inlier_ratio, c.stat.upper_ratio, c.stat.area,
               c.stat.area_ratio);

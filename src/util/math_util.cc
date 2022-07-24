@@ -10,7 +10,8 @@ namespace {
 template <typename T, int N>
 void ComputeAxisForPointsImpl(const std::vector<Eigen::Matrix<T, N, 1>>& points,
                               std::array<Eigen::Matrix<T, N, 1>, N>& axis,
-                              std::array<T, N>& weights) {
+                              std::array<T, N>& weights,
+                              Eigen::Matrix<T, N, 1>& means) {
   ugu::Pca<Eigen::MatrixXd> pca;
   Eigen::MatrixXd pca_data;
   pca_data.resize(N, static_cast<Eigen::Index>(points.size()));
@@ -29,6 +30,8 @@ void ComputeAxisForPointsImpl(const std::vector<Eigen::Matrix<T, N, 1>>& points,
     weights[j] = T(pca.coeffs(j, 0));
     // ugu::LOGI("%d %f\n", j, weights[j]);
   }
+
+  means = pca.means.cast<T>();
   // ugu::LOGI("\n");
 }
 
@@ -258,14 +261,16 @@ Eigen::Vector3f MedianColor(const std::vector<Eigen::Vector3f>& colors) {
 
 void ComputeAxisForPoints(const std::vector<Eigen::Vector3f>& points,
                           std::array<Eigen::Vector3f, 3>& axes,
-                          std::array<float, 3>& weights) {
-  ComputeAxisForPointsImpl<float, 3>(points, axes, weights);
+                          std::array<float, 3>& weights,
+                          Eigen::Vector3f& means) {
+  ComputeAxisForPointsImpl<float, 3>(points, axes, weights, means);
 }
 
 void ComputeAxisForPoints(const std::vector<Eigen::Vector2f>& points,
                           std::array<Eigen::Vector2f, 2>& axes,
-                          std::array<float, 2>& weights) {
-  ComputeAxisForPointsImpl<float, 2>(points, axes, weights);
+                          std::array<float, 2>& weights,
+                          Eigen::Vector2f& means) {
+  ComputeAxisForPointsImpl<float, 2>(points, axes, weights, means);
 }
 
 }  // namespace ugu

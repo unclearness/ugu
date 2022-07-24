@@ -198,6 +198,7 @@ bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
   if (align_longest_axis_x && points_2d.size() > 1) {
     std::array<Eigen::Vector2f, 2> axes;
     std::array<float, 2> weights;
+    Eigen::Vector2f means;
 
     if (points_2d.size() <= 3) {
       // PCA may be unstable
@@ -216,7 +217,7 @@ bool OrthoProjectToXY(const Eigen::Vector3f& project_normal,
 
     } else {
       // Find the dominant axis by PCA
-      ComputeAxisForPoints(points_2d, axes, weights);
+      ComputeAxisForPoints(points_2d, axes, weights, means);
     }
 
     // Angle from X-axis, Y-axis is down in UV

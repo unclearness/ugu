@@ -9,6 +9,7 @@
 
 #include "ugu/parameterize/parameterize.h"
 #include "ugu/util/geom_util.h"
+#include "ugu/util/math_util.h"
 
 namespace {
 
@@ -43,6 +44,32 @@ float ComputeProjectedArea(const std::vector<Eigen::Vector3f>& ps_3d,
 }  // namespace
 
 namespace ugu {
+
+bool EstimatePlaneLeastSquares(const std::vector<Eigen::Vector3f>& points,
+                               Planef& plane,
+                               const Eigen::Vector3f& normal_hint) {
+  if (points.size() < 3) {
+    return false;
+  }
+
+  std::array<Eigen::Vector3f, 3> axes;
+  std::array<float, 3> weights;
+  Eigen::Vector3f centroid;
+  ComputeAxisForPoints(points, axes, weights, centroid);
+
+  Eigen::Vector3f n = axes[2];
+  if (normal_hint.norm() > 0.001f) {
+    if (n.dot(normal_hint) < 0.f) {
+      n = -1.f * n;
+    }
+  }
+
+  float d = -n.dot(centroid);
+
+  plane = Planef(n, d);
+
+  return true;
+}
 
 bool EstimateGroundPlaneRansac(const std::vector<Eigen::Vector3f>& points,
                                const std::vector<Eigen::Vector3f>& normals,
@@ -85,8 +112,7 @@ bool EstimateGroundPlaneRansac(const std::vector<Eigen::Vector3f>& points,
   const float inlier_angle_cos = std::cos(param_.inlier_angle_th);
   const float p_size_inverse = 1.f / static_cast<float>(points.size());
 
-  // Estimate planes with many inliners as possible
-  while (iter < param_.max_iter) {
+  auto generate_hypothesis_3_points = [&]() {
     int64_t idx0 = dist(engine);
     int64_t idx1 = dist(engine);
     int64_t idx2 = dist(engine);
@@ -95,8 +121,31 @@ bool EstimateGroundPlaneRansac(const std::vector<Eigen::Vector3f>& points,
     if (0.00001f < ave_n.norm()) {
       ave_n.normalize();
     }
-
     Planef hypothesis(points[idx0], points[idx1], points[idx2], ave_n);
+    return hypothesis;
+  };
+
+  auto generate_hypothesis_normal_hint = [&]() {
+    int64_t idx0 = dist(engine);
+    const auto& p = points[idx0];
+    float d = -param_.normal_hint.dot(p);
+    Planef hypothesis(param_.normal_hint, d);
+    return hypothesis;
+  };
+
+  std::function<Planef()> generate_hypothesis = generate_hypothesis_3_points;
+  bool use_normal_hint =
+      param_.use_normal_hint && param_.normal_hint.norm() > 0.001f;
+  Eigen::Vector3f normal_hint = Eigen::Vector3f::Zero();
+  if (use_normal_hint) {
+    generate_hypothesis = generate_hypothesis_normal_hint;
+    normal_hint = param_.normal_hint;
+  }
+
+  // Estimate planes with many inliners as possible
+  while (iter < param_.max_iter) {
+    Planef hypothesis = generate_hypothesis();
+
     PlaneEstimationStat cur_stat;
     for (size_t i = 0; i < points.size(); i++) {
       const auto& p = points[i];
@@ -127,7 +176,9 @@ bool EstimateGroundPlaneRansac(const std::vector<Eigen::Vector3f>& points,
     cur_stat.upper_ratio =
         static_cast<float>(cur_stat.uppers.size()) * p_size_inverse;
 
-    PlaneEstimationResult new_candidate{hypothesis, cur_stat};
+    Planef refined_least_squares;  // Not computed here
+    PlaneEstimationResult new_candidate{hypothesis, refined_least_squares,
+                                        cur_stat};
 
     UpdateCandidates(candidates, new_candidate, param);
 
@@ -151,6 +202,20 @@ bool EstimateGroundPlaneRansac(const std::vector<Eigen::Vector3f>& points,
               return std::abs(a.stat.area_ratio - 1.f) <
                      std::abs(b.stat.area_ratio - 1.f);
             });
+
+  if (param_.refine_least_squares) {
+    for (auto& c : candidates) {
+      std::vector<Eigen::Vector3f> inlier_points;
+      for (const auto& i : c.stat.inliers) {
+        inlier_points.push_back(points[i]);
+      }
+      Eigen::Vector3f n_hint = c.estimation.n;
+      if (use_normal_hint) {
+        n_hint = normal_hint;
+      }
+      EstimatePlaneLeastSquares(inlier_points, c.refined_least_squares, n_hint);
+    }
+  }
 
   return true;
 }

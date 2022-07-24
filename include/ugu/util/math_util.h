@@ -385,10 +385,12 @@ struct Pca {
 
 void ComputeAxisForPoints(const std::vector<Eigen::Vector3f>& points,
                           std::array<Eigen::Vector3f, 3>& axes,
-                          std::array<float, 3>& weights);
+                          std::array<float, 3>& weights,
+                          Eigen::Vector3f& means);
 
 void ComputeAxisForPoints(const std::vector<Eigen::Vector2f>& points,
                           std::array<Eigen::Vector2f, 2>& axes,
-                          std::array<float, 2>& weights);
+                          std::array<float, 2>& weights,
+                          Eigen::Vector2f& means);
 
 }  // namespace ugu

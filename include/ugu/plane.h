@@ -16,7 +16,8 @@ struct Plane {
   // nx + d = 0
   Eigen::Matrix<T, 3, 1> n;
   T d;
-
+  Plane(){};
+  ~Plane(){};
   Plane(const Eigen::Matrix<T, 3, 1>& n, T d) : n(n.normalized()), d(d) {}
   Plane(const Eigen::Matrix<T, 3, 1>& p0, const Eigen::Matrix<T, 3, 1>& p1,
         const Eigen::Matrix<T, 3, 1>& p2,
@@ -66,6 +67,10 @@ struct Plane {
 using Planef = Plane<float>;
 using Planed = Plane<double>;
 
+bool EstimatePlaneLeastSquares(
+    const std::vector<Eigen::Vector3f>& points, Planef& plane,
+    const Eigen::Vector3f& normal_hint = Eigen::Vector3f::Zero());
+
 struct PlaneEstimationStat {
   // Both
   std::vector<size_t> inliers;  // close & similar normal
@@ -83,6 +88,7 @@ struct PlaneEstimationStat {
 
 struct PlaneEstimationResult {
   Planef estimation;
+  Planef refined_least_squares;
   PlaneEstimationStat stat;
 };
 
@@ -93,6 +99,8 @@ struct EstimateGroundPlaneRansacParam {
   int32_t seed = 0;
   size_t candidates_num = 3;
   Eigen::Vector3f normal_hint = Eigen::Vector3f::Zero();
+  bool use_normal_hint = false;
+  bool refine_least_squares = true;
 };
 
 bool EstimateGroundPlaneRansac(const std::vector<Eigen::Vector3f>& points,
