@@ -14,8 +14,8 @@ namespace ugu {
 bool FastQuadricMeshSimplification(const Mesh& src, int target_face_num,
                                    Mesh* decimated);
 
-bool MvsTexturing(const std::vector<std::shared_ptr<ugu::Keyframe>>& keyframes,
-                  ugu::Mesh* mesh, ugu::Mesh* debug_mesh = nullptr,
+bool MvsTexturing(const std::vector<std::shared_ptr<Keyframe>>& keyframes,
+                  Mesh* mesh, Mesh* debug_mesh = nullptr,
                   const std::string& save_path = "",
                   const std::string& save_debug_path = "");
 
@@ -28,5 +28,7 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
                 const std::vector<Eigen::Vector3i>& vertex_indices, int tex_w,
                 int tex_h, std::vector<Eigen::Vector2f>& uvs,
                 std::vector<Eigen::Vector3i>& uv_indices);
+
+bool LibiglLscm(Mesh& mesh, int tex_w, int tex_h);
 
 }  // namespace ugu

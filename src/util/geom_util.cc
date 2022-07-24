@@ -1603,4 +1603,37 @@ bool CleanGeom(Mesh& mesh) {
   return ret;
 }
 
+bool RemoveSmallConnectedComponents(Mesh& mesh, size_t small_th,
+                                    bool pre_clean) {
+  if (pre_clean) {
+    mesh.RemoveUnreferencedVertices();
+    CleanGeom(mesh);
+    mesh.RemoveUnreferencedVertices();
+  }
+
+  auto [clusters, non_orphans, orphans, clusters_f] =
+      ugu::ClusterByConnectivity(mesh.vertex_indices(),
+                                 static_cast<int32_t>(mesh.vertices().size()));
+
+  std::vector<bool> big_cluster_vertices(mesh.vertices().size(), true);
+  for (size_t i = 0; i < clusters.size(); i++) {
+    const auto& c = clusters[i];
+    if (c.size() > small_th) {
+      ugu::LOGI("Cluster %d is big. Keep.: %d\n", i, c.size());
+      continue;
+    }
+
+    ugu::LOGI("Cluster %d is small. Will be removed: %d\n", i, c.size());
+    for (const auto& v : c) {
+      big_cluster_vertices[v] = false;
+    }
+  }
+  mesh.RemoveVertices(big_cluster_vertices);
+  mesh.RemoveUnreferencedVertices();
+  CleanGeom(mesh);
+  mesh.RemoveUnreferencedVertices();
+
+  return true;
+}
+
 }  // namespace ugu

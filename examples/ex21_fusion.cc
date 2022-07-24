@@ -6,11 +6,13 @@
 #include <random>
 
 #include "ugu/clustering/clustering.h"
+#include "ugu/external/external.h"
 #include "ugu/plane.h"
 #include "ugu/renderer/rasterizer.h"
 #include "ugu/renderer/raytracer.h"
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
+#include "ugu/util/image_util.h"
 #include "ugu/util/rgbd_util.h"
 #include "ugu/voxel/extract_voxel.h"
 #include "ugu/voxel/marching_cubes.h"
@@ -182,17 +184,41 @@ int main(int argc, char* argv[]) {
               c.stat.area_ratio);
   }
 
-  std::vector<size_t> plane_vids;
-  std::vector<size_t> others_vids;
-  std::vector<size_t> boundary_vids;
-  ugu::Mesh plane_mesh, others_mesh;
-  ugu::DisconnectPlaneAndOthers(*depth_fused, candidates[0].estimation,
-                                param.inliner_dist_th * 2, plane_vids,
-                                others_vids, boundary_vids, plane_mesh,
-                                others_mesh, param.inlier_angle_th * 2, true);
+  {
+    ugu::Mesh tmp = *depth_fused;
+    ugu::RemoveSmallConnectedComponents(tmp, 100, true);
 
-  plane_mesh.WriteObj(data_dir, "depthfuse_plane");
-  others_mesh.WriteObj(data_dir, "depthfuse_others");
+    std::vector<size_t> plane_vids;
+    std::vector<size_t> others_vids;
+    std::vector<size_t> boundary_vids;
+    ugu::Mesh plane_mesh, others_mesh;
+    ugu::DisconnectPlaneAndOthers(tmp, candidates[0].estimation,
+                                  param.inliner_dist_th * 2, plane_vids,
+                                  others_vids, boundary_vids, plane_mesh,
+                                  others_mesh, param.inlier_angle_th * 2, true);
+
+    plane_mesh.WriteObj(data_dir, "depthfuse_plane");
+    others_mesh.WriteObj(data_dir, "depthfuse_others");
+
+#ifdef UGU_USE_LIBIGL
+    {
+      ugu::Mesh merged;
+      ugu::MergeMeshes(others_mesh, plane_mesh, &merged);
+
+      ugu::LibiglLscm(merged, 512, 512);
+
+      auto mats = merged.materials();
+      // mats[0].diffuse_tex
+
+      merged.set_materials(object->materials());
+
+      merged.WriteObj(data_dir, "merged_plane_disconnect");
+      auto uv_img = ugu::DrawUv(merged.uv(), merged.uv_indices(),
+                                {255, 255, 255}, {0, 0, 0});
+      ugu::imwrite(data_dir + "merged_plane_disconnect.jpg", uv_img);
+    }
+#endif
+  }
 
   std::vector<bool> keep_vertices(depth_fused->vertices().size(), false);
   for (size_t i = 0; i < candidates[0].stat.outliers.size(); i++) {
@@ -201,35 +227,7 @@ int main(int argc, char* argv[]) {
 
   depth_fused->RemoveVertices(keep_vertices);
 
-  depth_fused->RemoveUnreferencedVertices();
-
-  auto [clusters, non_orphans, orphans, clusters_f] =
-      ugu::ClusterByConnectivity(
-          depth_fused->vertex_indices(),
-          static_cast<int32_t>(depth_fused->vertices().size()));
-
-  size_t small_th = 100;
-  std::vector<bool> big_cluster_vertices(depth_fused->vertices().size(), true);
-  for (size_t i = 0; i < clusters.size(); i++) {
-    const auto& c = clusters[i];
-    if (c.size() > small_th) {
-      ugu::LOGI("Cluster %d is big. Keep.: %d\n", i, c.size());
-      continue;
-    }
-
-    ugu::LOGI("Cluster %d is small. Will be removed: %d\n", i, c.size());
-    for (const auto& v : c) {
-      big_cluster_vertices[v] = false;
-    }
-  }
-  depth_fused->RemoveVertices(big_cluster_vertices);
-
-  std::vector<Eigen::Vector3f> clean_vertices;
-  std::vector<Eigen::Vector3i> clean_faces;
-  ugu::CleanGeom(depth_fused->vertices(), depth_fused->vertex_indices(),
-                 clean_vertices, clean_faces);
-  depth_fused->set_vertices(clean_vertices);
-  depth_fused->set_vertex_indices(clean_faces);
+  ugu::RemoveSmallConnectedComponents(*depth_fused, 100, true);
 
   depth_fused->WriteObj(data_dir, "depthmesh_remove_plane");
 

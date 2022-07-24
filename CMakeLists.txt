@@ -235,7 +235,7 @@ if(UGU_USE_MVS_TEXTURING)
 endif()
 
 
-option(UGU_USE_LIBIGL "Use libigl" OFF)
+option(UGU_USE_LIBIGL "Use libigl" ON)
 message("UGU_USE_LIBIGL: ${UGU_USE_LIBIGL}")
 if(UGU_USE_LIBIGL)
   set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${LIBIGL_INSTALL_DIR}/include)

@@ -147,6 +147,9 @@ bool CleanGeom(const std::vector<Eigen::Vector3f>& vertices,
 
 bool CleanGeom(Mesh& mesh);
 
+bool RemoveSmallConnectedComponents(Mesh& mesh, size_t small_th,
+                                    bool pre_clean);
+
 // https://github.com/isl-org/Open3D/blob/ed30e3b61fbe031e106fa64030bec3f698b316b4/cpp/open3d/geometry/Geometry3D.cpp#L41
 template <typename T>
 T ComputeMinBound(const std::vector<T>& points) {

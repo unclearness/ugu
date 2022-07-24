@@ -28,7 +28,7 @@ int main(int argc, char* argv[]) {
   ugu::MeshPtr input_mesh = ugu::Mesh::Create();
   input_mesh->LoadObj(obj_path, data_dir);
 
-#ifdef UGU_USE_LIBGIL
+#ifdef UGU_USE_LIBIGL
 
 #if 1
   {

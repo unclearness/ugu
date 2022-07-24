@@ -125,6 +125,8 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
 
     if (boundary_vertex_ids_list.empty()) {
       LOGE("Failed to find boundary for LSCM. Possibly water-tight?\n");
+      // Set (0, 0)
+      cluster_uvs[cid].resize(cluster_vtx.size(), Eigen::Vector2f::Zero());
       continue;
     }
 
@@ -148,6 +150,18 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
   ugu::LOGE("Not available in current configuration\n");
   return false;
 #endif
+}
+
+bool LibiglLscm(Mesh& mesh, int tex_w, int tex_h) {
+  std::vector<Eigen::Vector2f> uvs;
+  std::vector<Eigen::Vector3i> uv_indices;
+  bool ret = LibiglLscm(mesh.vertices(), mesh.vertex_indices(), tex_w, tex_h,
+                        uvs, uv_indices);
+
+  mesh.set_uv(uvs);
+  mesh.set_uv_indices(uv_indices);
+
+  return ret;
 }
 
 }  // namespace ugu
