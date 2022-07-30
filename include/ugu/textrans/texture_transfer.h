@@ -5,13 +5,10 @@
 
 #pragma once
 
-#ifdef UGU_USE_NANOFLANN
-
 #include "ugu/image.h"
 #include "ugu/mesh.h"
 
 namespace ugu {
-
 
 struct TexTransNoCorrespOutput {
   Image3f dst_tex;
@@ -43,5 +40,3 @@ bool TexTransNoCorresp(const Image3f& src_tex, const Mesh& src_mesh,
                        int32_t nn_num = 10);
 
 }  // namespace ugu
-
-#endif

@@ -6,8 +6,7 @@
 #pragma once
 
 #include "ugu/accel/kdtree.h"
-#include "ugu/image.h"
-#include "ugu/mesh.h"
+#include "ugu/common.h"
 
 namespace ugu {
 

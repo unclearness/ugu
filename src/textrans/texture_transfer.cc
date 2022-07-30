@@ -6,7 +6,7 @@
 
 #include "ugu/textrans/texture_transfer.h"
 
-#include "ugu/textrans/correspondence_finder.h"
+#include "ugu/correspondence/correspondence_finder.h"
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
 

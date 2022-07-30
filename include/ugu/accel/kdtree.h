@@ -12,6 +12,8 @@
 #include <numeric>
 #include <vector>
 
+#include "ugu/common.h"
+
 namespace ugu {
 
 struct KdTreeSearchResult {

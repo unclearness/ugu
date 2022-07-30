@@ -358,9 +358,10 @@ set(
   include/ugu/decimation/decimation.h
   src/decimation/decimation.cc
 
-  include/ugu/textrans/correspondence_finder.h
+  include/ugu/correspondence/correspondence_finder.h
+  src/correspondence/correspondence_finder.cc
+
   include/ugu/textrans/texture_transfer.h
-  src/textrans/correspondence_finder.cc
   src/textrans/texture_transfer.cc
 
   include/ugu/accel/kdtree.h

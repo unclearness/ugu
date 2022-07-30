@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "ugu/textrans/correspondence_finder.h"
+#include "ugu/correspondence/correspondence_finder.h"
 
 #include "ugu/accel/kdtree_nanoflann.h"
 #include "ugu/util/math_util.h"
