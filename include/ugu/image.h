@@ -44,28 +44,19 @@
 
 namespace ugu {
 
-inline bool WriteBinary(const std::string& path, void* data, size_t size) {
-  std::ofstream ofs(path, std::ios::binary);
-  ofs.write(reinterpret_cast<char*>(data), size);
-
-  if (ofs.bad()) {
-    return false;
-  }
-  return true;
-}
-
 #ifdef UGU_USE_OPENCV
 
 template <typename T>
 using Image = cv::Mat_<T>;
 
-using Image1b = cv::Mat1b;
-using Image3b = cv::Mat3b;
 using Image1w = cv::Mat1w;
 using Image1i = cv::Mat1i;
 using Image1f = cv::Mat1f;
+using Image1b = cv::Mat1b;
 using Image2f = cv::Mat2f;
 using Image3f = cv::Mat3f;
+using Image3b = cv::Mat3b;
+using Image4b = cv::Mat4b;
 
 using Vec1b = unsigned char;
 using Vec1f = float;
@@ -76,6 +67,7 @@ using Vec2d = cv::Vec2d;
 using Vec3f = cv::Vec3f;
 using Vec3b = cv::Vec3b;
 using Vec3d = cv::Vec3d;
+using Vec4b = cv::Vec4b;
 
 using Point = cv::Point;
 

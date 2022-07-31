@@ -8,8 +8,19 @@
 #include <fstream>
 
 #include "ugu/image.h"
+#include "ugu/util/io_util.h"
 
 namespace ugu {
+
+inline bool WriteBinary(const std::string& path, void* data, size_t size) {
+  std::ofstream ofs(path, std::ios::binary);
+  ofs.write(reinterpret_cast<char*>(data), size);
+
+  if (ofs.bad()) {
+    return false;
+  }
+  return true;
+}
 
 void WriteFaceIdAsText(const Image1i& face_id, const std::string& path);
 

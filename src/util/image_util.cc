@@ -232,11 +232,19 @@ void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
     VT& src_val = src.template at<VT>(index[1], index[0]);
     for (int i = 0; i < src.channels(); i++) {
       ugu::Image<VT2>& p = planes[i];
+#if UGU_USE_OPENCV
+      p.template at<VT2>(index[1], index[0]) = src_val[i];
+#else
       p.template at<VT2>(index[1], index[0])[0] = src_val[i];
+#endif
     }
   };
 
+#if UGU_USE_OPENCV
+  src.forEach(copy_pix);
+#else
   src.template forEach<VT>(copy_pix);
+#endif
 }
 
 template <typename T>
@@ -248,7 +256,11 @@ ugu::Image<T> MergeByteImpl(const std::vector<ugu::Image1b>& planes) {
       val[i] = p.at<uint8_t>(index[1], index[0]);
     }
   };
+#if UGU_USE_OPENCV
+  merged.forEach(f);
+#else
   merged.template forEach<T>(f);
+#endif
   return merged;
 }
 
@@ -941,7 +953,12 @@ bool AlignChannels(const Image4b& src, Image3b& dst) {
     val[1] = src_val[1];
     val[2] = src_val[2];
   };
+#if UGU_USE_OPENCV
+  dst.forEach(f);
+#else
   dst.forEach<Vec3b>(f);
+#endif
+
   return true;
 }
 

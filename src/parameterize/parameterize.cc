@@ -128,7 +128,7 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
     if (debug) {
       auto uv_img = ugu::DrawUv(cluster_uvs[cid], cluster_face, {255, 255, 255},
                                 {0, 0, 0});
-      uv_img.WritePng(std::to_string(cid) + ".png");
+      ugu::imwrite(std::to_string(cid) + ".png", uv_img);
     }
   }
 
@@ -357,7 +357,7 @@ bool PackUvIslands(
   bool debug = false;
   if (debug) {
     auto vis = ugu::DrawPackedRects(packed_pos, tex_w, tex_h);
-    vis.WriteJpg("tmp.jpg");
+    ugu::imwrite("tmp.jpg", vis);
   }
 
   uvs.clear();
