@@ -44,6 +44,16 @@
 
 namespace ugu {
 
+inline bool WriteBinary(const std::string& path, void* data, size_t size) {
+  std::ofstream ofs(path, std::ios::binary);
+  ofs.write(reinterpret_cast<char*>(data), size);
+
+  if (ofs.bad()) {
+    return false;
+  }
+  return true;
+}
+
 #ifdef UGU_USE_OPENCV
 
 template <typename T>
