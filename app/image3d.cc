@@ -156,11 +156,19 @@ int main(int argc, char* argv[]) {
       }
     }
   } else {
-    // jpeg is always 3 channel
     image = ugu::imread<ugu::Image3b>(src_path);
     w = image.cols;
     h = image.rows;
     c = image.channels();
+    if (image.empty()) {
+      ugu::Image1b gray_image = ugu::imread<ugu::Image1b>(src_path);
+      if (!gray_image.empty()) {
+        image = ugu::Merge(gray_image, gray_image, gray_image);
+        w = image.cols;
+        h = image.rows;
+        c = image.channels();
+      }
+    }
   }
 
   if (w < 0) {
