@@ -8,6 +8,7 @@
 #include <fstream>
 
 #include "ugu/image.h"
+#include "ugu/util/string_util.h"
 
 namespace ugu {
 
@@ -48,6 +49,71 @@ bool LoadBinary(const std::string& path, std::vector<T>* data) {
   std::memcpy(data->data(), internal_data.data(), internal_data.size());
 
   return true;
+}
+
+template <typename T>
+std::vector<T> LoadTxt(const std::string& path) {
+  std::ifstream ifs(path);
+  std::vector<T> data;
+
+  std::string line;
+  while (std::getline(ifs, line)) {
+    data.push_back(static_cast<T>(std::atof(line.c_str())));
+  }
+  return data;
+}
+
+template <typename T>
+std::vector<std::vector<T>> LoadTxt(const std::string& path,
+                                    const char sep = ' ') {
+  std::ifstream ifs(path);
+  std::vector<std::vector<T>> data_list;
+
+  std::string line;
+  while (std::getline(ifs, line)) {
+    std::vector<std::string> splited = Split(line, sep);
+
+    std::vector<T> data;
+    for (const auto& s : splited) {
+      data.push_back(static_cast<T>(std::atof(s.c_str())));
+    }
+
+    data_list.push_back(data);
+  }
+
+  return data_list;
+}
+
+template <typename T>
+std::vector<T> LoadTxtAsEigenVec(const std::string& path,
+                                 const char sep = ' ') {
+  std::ifstream ifs(path);
+  std::vector<T> data;
+
+  std::string line;
+  while (std::getline(ifs, line)) {
+    if (line.substr(0, 1) == "#") {
+      continue;
+    }
+
+    std::vector<std::string> splited = Split(line, sep);
+
+    if (splited.size() != T::RowsAtCompileTime) {
+      LOGW("load error\n");
+      continue;
+    }
+
+    std::vector<double> v;
+    for (const auto& s : splited) {
+      v.push_back(std::atof(s.c_str()));
+    }
+
+    Eigen::VectorXd v2 =
+        Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(v.data(), v.size());
+
+    data.push_back(T(v2.cast<T::Scalar>()));
+  }
+  return data;
 }
 
 #ifdef UGU_USE_OPENCV
