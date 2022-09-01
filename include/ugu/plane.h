@@ -33,7 +33,11 @@ struct Plane {
                             Eigen::Matrix<T, 3, 1>& p) const {
     // https://risalc.info/src/line-plane-intersection-point.html
     T h = -d;
-    t = (h - n.dot(line.a)) / (n.dot(line.d));
+    T denom = n.dot(line.d);
+    if (denom <= T(0)) {
+      return false;
+    }
+    t = (h - n.dot(line.a)) / denom;
     p = line.a + t * line.d;
     return true;
   }

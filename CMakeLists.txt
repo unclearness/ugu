@@ -290,6 +290,7 @@ set(
 
   src/common.cc
   src/camera.cc
+  src/line.cc
   src/plane.cc
   src/mesh.cc
   src/gltf.h
@@ -458,6 +459,7 @@ if (UGU_BUILD_EXAMPLES)
   setup_exe(ex19_parameterize examples/ex19_parameterize.cc)
   setup_exe(ex20_manifold examples/ex20_manifold.cc)
   setup_exe(ex21_fusion examples/ex21_fusion.cc)
+  setup_exe(ex22_line examples/ex22_line.cc)
 endif()
 
 if (UGU_BUILD_APP)

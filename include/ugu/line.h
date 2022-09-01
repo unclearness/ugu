@@ -213,4 +213,11 @@ FindBestLineCrossingPointLeastSquares(const std::vector<Line3<T>>& lines) {
   return {p, errors};
 }
 
+// "Strand-accurate Multi-view Hair Capture" CVPR2019
+// 5.1. 3D Line Fusion
+// Algorithm 2 3D Line Fusion with Mean-Shift
+bool LineClustering(const std::vector<Line3d>& unclean,
+                    std::vector<Line3d>& fused, double tau_s, double r_nei,
+                    double sigma_p, double sigma_d);
+
 }  // namespace ugu
