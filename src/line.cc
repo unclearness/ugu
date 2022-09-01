@@ -40,11 +40,12 @@ Line3<T> LocalMean(
   for (size_t i = 0; i < neighbors.size(); i++) {
     double pos_term = -((seed.a - intersections[i]).squaredNorm()) /
                       (2.0 * sigma_p * sigma_p);
-    double numerator = std::acos(std::clamp(seed.d.dot(unclean[neighbors[i].index].d), -1.0, 1.0));
+    double numerator = std::acos(
+        std::clamp(seed.d.dot(unclean[neighbors[i].index].d), -1.0, 1.0));
     double dir_term = -numerator * numerator / (2.0 * sigma_d * sigma_d);
     double w = std::exp(pos_term + dir_term);
 
-    //ugu::LOGI("%f %f %f\n", pos_term, dir_term, w);
+    // ugu::LOGI("%f %f %f\n", pos_term, dir_term, w);
     assert(std::isnormal(w));
     bilateral_weights.push_back(w);
     denom += w;
@@ -82,7 +83,8 @@ bool LineClusteringImpl(const std::vector<Line3<T>>& unclean,
 
   std::shared_ptr<ugu::KdTree<Eigen::Vector<float, 3>>> kdtree;
 #ifdef UGU_USE_NANOFLANN
-  kdtree = std::make_shared<ugu::KdTreeNanoflannVector<Eigen::Vector<float, 3>>>();
+  kdtree =
+      std::make_shared<ugu::KdTreeNanoflannVector<Eigen::Vector<float, 3>>>();
 #else
   kdtree = std::make_shared<ugu::KdTreeNaive<Eigen::Vector<float, 3>>>;
   ;
@@ -94,7 +96,9 @@ bool LineClusteringImpl(const std::vector<Line3<T>>& unclean,
   kdtree->Build();
 
   fused.clear();
-  for (size_t i = 0; i < unclean.size(); i++) {
+  fused.resize(unclean.size());
+#pragma omp parallel for
+  for (int64_t i = 0; i < static_cast<int64_t>(unclean.size()); i++) {
     const Line3<T>& P = unclean[i];
     Line3<T> Q_prev = P;
     Line3<T> Q_next = Q_prev;
@@ -104,7 +108,7 @@ bool LineClusteringImpl(const std::vector<Line3<T>>& unclean,
       d = (Q_next.a - Q_prev.a).norm();
       Q_prev = Q_next;
     }
-    fused.push_back(Q_next);
+    fused[i] = Q_next;
   }
 
   return true;
