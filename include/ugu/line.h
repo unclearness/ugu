@@ -220,4 +220,25 @@ bool LineClustering(const std::vector<Line3d>& unclean,
                     std::vector<Line3d>& fused, double tau_s, double r_nei,
                     double sigma_p, double sigma_d);
 
+// 5.2. Strand Generation
+bool GenerateStrands(const std::vector<Line3d>& lines,
+                     std::vector<std::vector<Line3d>>& strands, double s,
+                     double tau_r, double tau_a);
+
+bool WriteObjLine(const std::vector<std::vector<Line3f>>& lines,
+                  const std::string& path,
+                  const std::vector<std::vector<Eigen::Vector3f>>& colors = {});
+bool WriteObjLine(const std::vector<std::vector<Line3d>>& lines,
+                  const std::string& path,
+                  const std::vector<std::vector<Eigen::Vector3d>>& colors = {});
+bool WriteObjLine(
+    const std::vector<std::vector<Eigen::Vector3f>>& lines,
+    const std::string& path,
+    const std::vector<std::vector<Eigen::Vector3f>>& colors = {},
+    const std::vector<std::vector<Eigen::Vector3f>>& normals = {});
+bool WriteObjLine(
+    const std::vector<std::vector<Eigen::Vector3d>>& lines,
+    const std::string& path,
+    const std::vector<std::vector<Eigen::Vector3d>>& colors = {},
+    const std::vector<std::vector<Eigen::Vector3d>>& normals = {});
 }  // namespace ugu
