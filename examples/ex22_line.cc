@@ -42,15 +42,15 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  int num = 100;
+  int num = 1000;
   // mm scale
   Eigen::Vector3d d(1.0, 0.0, 0.0);
-  Eigen::Vector3d offset(0.1, 0.2, 0.2);
-  double step = 0.1;
+  Eigen::Vector3d offset(00, 0.33/2, 0.33/2);
+  double step = 0.01;
   double p_mu = 0.0;
   double p_sigma = 0.02;
   double d_mu = 0.0;
-  double d_sigma = ugu::pi / 20.0;
+  double d_sigma = ugu::pi / 6.0;
   std::normal_distribution<double> p_dist(p_mu, p_sigma);
   std::normal_distribution<double> d_dist(d_mu, d_sigma);
 
@@ -83,7 +83,12 @@ int main(int argc, char* argv[]) {
   SavePoints(unclean, "unclean.ply");
 
   std::vector<ugu::Line3d> fused;
-  ugu::LineClustering(unclean, fused, 0.002, 2.0, 0.1, ugu::pi / 6);
+  double tau_s = 0.002;
+  double r_nei = 0.2;  // 1/10 from the paper. Possibly the paper is wrong
+                       // because 2mm radius is too big for hair strands.
+  double sigma_p = 0.1;
+  double sigma_d = ugu::pi / 6.0;
+  ugu::LineClustering(unclean, fused, tau_s, r_nei, sigma_p, sigma_d);
   SavePoints(fused, "fused.ply");
 
   return 0;

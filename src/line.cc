@@ -18,8 +18,8 @@ Line3<T> LocalMean(
     const Line3<T>& seed, const std::vector<Line3<T>>& unclean,
     const std::shared_ptr<ugu::KdTree<Eigen::Vector<float, 3>>> kdtree,
     double r_nei, double sigma_p, double sigma_d) {
-  KdTreeSearchResults neighbors =
-      kdtree->SearchRadius(seed.a.cast<float>(), static_cast<double>(r_nei));
+  KdTreeSearchResults neighbors = kdtree->SearchRadius(
+      seed.a.template cast<float>(), static_cast<double>(r_nei));
 
   if (neighbors.empty()) {
     return seed;
@@ -28,30 +28,41 @@ Line3<T> LocalMean(
   Plane<T> plane(seed.d, -seed.a.dot(seed.d));
 
   std::vector<Eigen::Vector<T, 3>> intersections;
+  std::vector<bool> succeeded;
   for (const auto& n : neighbors) {
     Eigen::Vector<T, 3> intersection;
     T t;
-    plane.CalcIntersctionPoint(unclean[n.index], t, intersection);
+    bool ret = plane.CalcIntersctionPoint(unclean[n.index], t, intersection);
     intersections.push_back(intersection);
+    succeeded.push_back(ret);
   }
 
   std::vector<double> bilateral_weights;
   double denom = 0.0;
   for (size_t i = 0; i < neighbors.size(); i++) {
+    if (!succeeded[i]) {
+      bilateral_weights.push_back(0.0);
+      continue;
+    }
     double pos_term = -((seed.a - intersections[i]).squaredNorm()) /
                       (2.0 * sigma_p * sigma_p);
     double numerator = std::acos(
         std::clamp(seed.d.dot(unclean[neighbors[i].index].d), -1.0, 1.0));
     double dir_term = -numerator * numerator / (2.0 * sigma_d * sigma_d);
-    double w = std::exp(pos_term + dir_term);
+    double terms = std::clamp(pos_term + dir_term, -100.0,
+                              100.0);  // clamp to avoid illegal values by exp()
+    double w = std::exp(terms);
 
-    // ugu::LOGI("%f %f %f\n", pos_term, dir_term, w);
     assert(std::isnormal(w));
     bilateral_weights.push_back(w);
     denom += w;
   }
 
-  assert(denom > 0);
+  if (denom <= 0.0) {
+    return seed;
+  }
+
+  assert(denom > 0.0);
 
   const double inv_denom = 1.0 / denom;
   Line3<T> moved;
@@ -79,7 +90,7 @@ bool LineClusteringImpl(const std::vector<Line3<T>>& unclean,
 
   std::vector<Eigen::Vector3f> pos_list;
   std::transform(unclean.begin(), unclean.end(), std::back_inserter(pos_list),
-                 [&](const Line3<T>& l) { return l.a.cast<float>(); });
+                 [&](const Line3<T>& l) { return l.a.template cast<float>(); });
 
   std::shared_ptr<ugu::KdTree<Eigen::Vector<float, 3>>> kdtree;
 #ifdef UGU_USE_NANOFLANN
