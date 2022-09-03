@@ -59,15 +59,15 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
     if (to_ignore.count(i) != 0) {
       continue;
     }
-    vertices.push_back(points3d[i]);
+    vertices.push_back(points3d[i].cast<float>());
   }
   vertex_colors.resize(vertices.size(), {0.f, 0.f, 0.f});
 
-  vertices.push_back(query3d);
+  vertices.push_back(query3d.cast<float>());
   vertex_colors.push_back({0.f, 255.f, 0.f});
 
   for (const auto& rr : res) {
-    vertices.push_back(points3d[rr.index]);
+    vertices.push_back(points3d[rr.index].cast<float>());
     vertex_colors.push_back({255.f, 0.f, 0.f});
   }
 
@@ -75,7 +75,8 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
   mesh->set_vertex_colors(vertex_colors);
 
   if (0 < r) {
-    auto sphere = ugu::MakeUvSphere(query3d, static_cast<float>(r));
+    auto sphere =
+        ugu::MakeUvSphere(query3d.cast<float>(), static_cast<float>(r));
     sphere->set_uv({});
     sphere->set_uv_indices({});
     std::vector<Eigen::Vector3f> vc;
@@ -92,12 +93,12 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
 void Test2D() {
   std::default_random_engine engine;
   // 2D case
-  std::uniform_real_distribution<float> dist2d(0.0, 1.0);
-  std::vector<Eigen::Vector2f> points2d;
+  std::uniform_real_distribution<double> dist2d(0.0, 1.0);
+  std::vector<Eigen::Vector2d> points2d;
   for (int i = 0; i < 500; i++) {
     points2d.push_back({dist2d(engine), dist2d(engine)});
   }
-  ugu::KdTreeNaive<float, 2> kdtree;
+  ugu::KdTreeNaive<double, 2> kdtree;
   kdtree.SetData(points2d);
   kdtree.SetMaxLeafDataNum(10);
 
@@ -110,7 +111,7 @@ void Test2D() {
 
   ugu::KdTreeSearchResults res;
 
-  Eigen::Vector2f query2d{0.4f, 0.6f};
+  Eigen::Vector2d query2d{0.4f, 0.6f};
   int k = 20;
   timer.Start();
   res = kdtree.SearchKnn(query2d, k);
@@ -152,8 +153,8 @@ void Test3D() {
 #if 1
   std::default_random_engine engine;
   // 3D case
-  std::uniform_real_distribution<float> dist3d(0.0, 1.0);
-  std::vector<Eigen::Vector3f> points3d;
+  std::uniform_real_distribution<double> dist3d(0.0, 1.0);
+  std::vector<Eigen::Vector3d> points3d;
   for (int i = 0; i < 5000; i++) {
     points3d.push_back({dist3d(engine), dist3d(engine), dist3d(engine)});
   }
@@ -170,7 +171,7 @@ void Test3D() {
       ugu::LoadTxtAsEigenVec<Eigen::Vector3f>(path);
 #endif
 
-  ugu::KdTreeNaive<float, 3> kdtree;
+  ugu::KdTreeNaive<double, 3> kdtree;
   kdtree.SetData(points3d);
   kdtree.SetMaxLeafDataNum(10);
 
@@ -183,7 +184,7 @@ void Test3D() {
 
   ugu::KdTreeSearchResults res;
 
-  Eigen::Vector3f query3d{0.4f, 0.6f, 0.5f};
+  Eigen::Vector3d query3d{0.4f, 0.6f, 0.5f};
   int k = 20;
   timer.Start();
   res = kdtree.SearchKnn(query3d, k);
