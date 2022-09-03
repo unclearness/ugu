@@ -13,6 +13,7 @@
 #include "ugu/mesh.h"
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
+#include "ugu/util/io_util.h"
 
 namespace {
 
@@ -96,8 +97,7 @@ void Test2D() {
   for (int i = 0; i < 500; i++) {
     points2d.push_back({dist2d(engine), dist2d(engine)});
   }
-  ugu::KdTreeNaive<Eigen::Vector2f> kdtree;
-  kdtree.SetAxisNum(2);
+  ugu::KdTreeNaive<float, 2> kdtree;
   kdtree.SetData(points2d);
   kdtree.SetMaxLeafDataNum(10);
 
@@ -149,6 +149,7 @@ void Test2D() {
 }
 
 void Test3D() {
+#if 1
   std::default_random_engine engine;
   // 3D case
   std::uniform_real_distribution<float> dist3d(0.0, 1.0);
@@ -156,8 +157,20 @@ void Test3D() {
   for (int i = 0; i < 5000; i++) {
     points3d.push_back({dist3d(engine), dist3d(engine), dist3d(engine)});
   }
-  ugu::KdTreeNaive<Eigen::Vector3f> kdtree;
-  kdtree.SetAxisNum(3);
+
+  Eigen::IOFormat my_format(Eigen::StreamPrecision, Eigen::DontAlignCols, " ",
+                            " ", "", "", "", "");
+  std::ofstream ofs("tmp.txt");
+  for (const auto& p : points3d) {
+    ofs << p.format(my_format) << std::endl;
+  }
+#else
+  std::string path = "tmp.txt";
+  std::vector<Eigen::Vector3f> points3d =
+      ugu::LoadTxtAsEigenVec<Eigen::Vector3f>(path);
+#endif
+
+  ugu::KdTreeNaive<float, 3> kdtree;
   kdtree.SetData(points3d);
   kdtree.SetMaxLeafDataNum(10);
 

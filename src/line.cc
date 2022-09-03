@@ -7,6 +7,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <unordered_set>
 
 #include "ugu/accel/kdtree.h"
 #include "ugu/accel/kdtree_nanoflann.h"
@@ -20,7 +21,7 @@ template <typename T>
 Line3<T> LocalMean(
     const Line3<T>& seed, const Line3<T>& X0,
     const std::vector<Line3<T>>& unclean,
-    const std::shared_ptr<ugu::KdTree<Eigen::Vector<float, 3>>> kdtree,
+    const std::shared_ptr<ugu::KdTree<float, 3>> kdtree,
     double r_nei, double sigma_p, double sigma_d) {
   KdTreeSearchResults neighbors = kdtree->SearchRadius(
       seed.a.template cast<float>(), static_cast<double>(r_nei));
@@ -82,10 +83,9 @@ Line3<T> LocalMean(
 }
 
 auto GetKdtree(const std::vector<Eigen::Vector3f>& data) {
-  std::shared_ptr<ugu::KdTree<Eigen::Vector<float, 3>>> kdtree;
+  std::shared_ptr<ugu::KdTree<float, 3>> kdtree;
 #ifdef UGU_USE_NANOFLANN
-  kdtree =
-      std::make_shared<ugu::KdTreeNanoflannVector<Eigen::Vector<float, 3>>>();
+  kdtree = std::make_shared<ugu::KdTreeNanoflannVector<float, 3>>();
 #else
   kdtree = std::make_shared<ugu::KdTreeNaive<Eigen::Vector<float, 3>>>;
   ;

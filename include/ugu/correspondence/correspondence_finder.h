@@ -45,7 +45,7 @@ class KDTreeCorrespFinder : public ugu::CorrespFinder {
   void SetNnNum(uint32_t nn_num);
 
  private:
-  std::unique_ptr<KdTree<Eigen::Vector3f>> m_tree;
+  std::unique_ptr<KdTree<float, 3>> m_tree;
   uint32_t m_nn_num = 10;
 
   std::vector<Eigen::Vector3f> m_verts;

@@ -23,46 +23,46 @@ struct KdTreeSearchResult {
 
 using KdTreeSearchResults = std::vector<KdTreeSearchResult>;
 
-template <typename Point>
+template <typename Scalar, int Rows>
 class KdTree {
  public:
+  using KdPoint = Eigen::Matrix<Scalar, Rows, 1>;
   virtual ~KdTree() {}
   virtual bool Build() = 0;
   virtual void Clear() = 0;
-  virtual void SetData(const std::vector<Point>& data) = 0;
+  virtual void SetData(const std::vector<KdPoint>& data) = 0;
   virtual void SetMaxLeafDataNum(int max_leaf_data_num) = 0;
 
-  virtual KdTreeSearchResults SearchNn(const Point& query) const = 0;
-  virtual KdTreeSearchResults SearchKnn(const Point& query,
+  virtual KdTreeSearchResults SearchNn(const KdPoint& query) const = 0;
+  virtual KdTreeSearchResults SearchKnn(const KdPoint& query,
                                         const size_t& k) const = 0;
-  virtual KdTreeSearchResults SearchRadius(const Point& query,
+  virtual KdTreeSearchResults SearchRadius(const KdPoint& query,
                                            const double& r) const = 0;
 };
 
-template <typename Point>
-class KdTreeNaive : public KdTree<Point> {
+template <typename Scalar, int Rows>
+class KdTreeNaive : public KdTree<Scalar, Rows> {
  public:
+  using KdPoint = Eigen::Matrix<Scalar, Rows, 1>;
   KdTreeNaive() {}
   ~KdTreeNaive() {}
-  void SetAxisNum(int axis_num);
-  void SetData(const std::vector<Point>& data) override;
+  void SetData(const std::vector<KdPoint>& data) override;
   void SetMaxLeafDataNum(int max_leaf_data_num) override;
 
-  const std::vector<Point>& Data() const;
+  const std::vector<KdPoint>& Data() const;
   bool Build() override;
   void Clear() override;
 
-  KdTreeSearchResults SearchNn(const Point& query) const override;
-  KdTreeSearchResults SearchKnn(const Point& query,
+  KdTreeSearchResults SearchNn(const KdPoint& query) const override;
+  KdTreeSearchResults SearchKnn(const KdPoint& query,
                                 const size_t& k) const override;
-  KdTreeSearchResults SearchRadius(const Point& query,
+  KdTreeSearchResults SearchRadius(const KdPoint& query,
                                    const double& r) const override;
-  double EuclidDist(const Point& p1, const Point& p2) const;
+  double EuclidDist(const KdPoint& p1, const KdPoint& p2) const;
 
  private:
-  std::vector<Point> m_data;
+  std::vector<KdPoint> m_data;
   std::vector<size_t> m_indices;
-  int m_axis_num = -1;
   int m_max_leaf_data_num = 10;
 
   struct Node;
@@ -83,39 +83,35 @@ class KdTreeNaive : public KdTree<Point> {
   NodePtr root = nullptr;
 
   NodePtr BuildImpl(size_t start, size_t end, int depth);
-  void SearchKnnImpl(const Point& query, const size_t& k, const NodePtr node,
+  void SearchKnnImpl(const KdPoint& query, const size_t& k, const NodePtr node,
                      KdTreeSearchResults& result) const;
-  void SearchRadiusImpl(const Point& query, const double& r, const NodePtr node,
-                        KdTreeSearchResults& result) const;
+  void SearchRadiusImpl(const KdPoint& query, const double& r,
+                        const NodePtr node, KdTreeSearchResults& result) const;
 
   static void UpdateKdTreeSearchResult(KdTreeSearchResults& res,
                                        const size_t& index, const double& dist,
                                        const size_t& max_res_num);
 };
 
-template <typename Point>
-void KdTreeNaive<Point>::SetAxisNum(int axis_num) {
-  m_axis_num = axis_num;
-}
-
-template <typename Point>
-void KdTreeNaive<Point>::SetData(const std::vector<Point>& data) {
+template <typename Scalar, int Rows>
+void KdTreeNaive<Scalar, Rows>::SetData(const std::vector<KdPoint>& data) {
   m_data = data;
 }
 
-template <typename Point>
-void KdTreeNaive<Point>::SetMaxLeafDataNum(int max_leaf_data_num) {
+template <typename Scalar, int Rows>
+void KdTreeNaive<Scalar, Rows>::SetMaxLeafDataNum(int max_leaf_data_num) {
   m_max_leaf_data_num = max_leaf_data_num;
 }
 
-template <typename Point>
-const std::vector<Point>& KdTreeNaive<Point>::Data() const {
+template <typename Scalar, int Rows>
+const std::vector<Eigen::Matrix<Scalar, Rows, 1>>&
+KdTreeNaive<Scalar, Rows>::Data() const {
   return m_data;
 }
 
-template <typename Point>
-bool KdTreeNaive<Point>::Build() {
-  if (m_axis_num < 0 || m_data.empty()) {
+template <typename Scalar, int Rows>
+bool KdTreeNaive<Scalar, Rows>::Build() {
+  if (m_data.empty()) {
     return false;
   }
   m_indices.clear();
@@ -125,49 +121,50 @@ bool KdTreeNaive<Point>::Build() {
   return true;
 }
 
-template <typename Point>
-void KdTreeNaive<Point>::Clear() {
+template <typename Scalar, int Rows>
+void KdTreeNaive<Scalar, Rows>::Clear() {
   m_data.clear();
   m_indices.clear();
 }
 
-template <typename Point>
-KdTreeSearchResults KdTreeNaive<Point>::SearchNn(const Point& query) const {
+template <typename Scalar, int Rows>
+KdTreeSearchResults KdTreeNaive<Scalar, Rows>::SearchNn(
+    const KdPoint& query) const {
   return SearchKnn(query, 1);
 }
 
-template <typename Point>
-KdTreeSearchResults KdTreeNaive<Point>::SearchKnn(const Point& query,
-                                                  const size_t& k) const {
+template <typename Scalar, int Rows>
+KdTreeSearchResults KdTreeNaive<Scalar, Rows>::SearchKnn(
+    const KdPoint& query, const size_t& k) const {
   KdTreeSearchResults res;
   SearchKnnImpl(query, k, root, res);
   return res;
 }
 
-template <typename Point>
-KdTreeSearchResults KdTreeNaive<Point>::SearchRadius(const Point& query,
-                                                     const double& r) const {
+template <typename Scalar, int Rows>
+KdTreeSearchResults KdTreeNaive<Scalar, Rows>::SearchRadius(
+    const KdPoint& query, const double& r) const {
   KdTreeSearchResults res;
   SearchRadiusImpl(query, r, root, res);
   return res;
 }
 
-template <typename Point>
-double KdTreeNaive<Point>::EuclidDist(const Point& p1, const Point& p2) const {
+template <typename Scalar, int Rows>
+double KdTreeNaive<Scalar, Rows>::EuclidDist(const KdPoint& p1,
+                                             const KdPoint& p2) const {
   double d = 0.0;
-  for (int i = 0; i < m_axis_num; i++) {
+  for (int i = 0; i < Rows; i++) {
     double diff = static_cast<double>(double(p1[i]) - double(p2[i]));
     d += diff * diff;
   }
   return std::sqrt(d);
 }
 
-template <typename Point>
-typename KdTreeNaive<Point>::NodePtr KdTreeNaive<Point>::BuildImpl(size_t start,
-                                                                   size_t end,
-                                                                   int depth) {
+template <typename Scalar, int Rows>
+typename KdTreeNaive<Scalar, Rows>::NodePtr
+KdTreeNaive<Scalar, Rows>::BuildImpl(size_t start, size_t end, int depth) {
   const size_t points_num = end - start + 1;
-  const int axis = depth % m_axis_num;
+  const int axis = depth % Rows;
 
   if (m_max_leaf_data_num <= 0) {
     if (points_num <= 0) {
@@ -208,10 +205,10 @@ typename KdTreeNaive<Point>::NodePtr KdTreeNaive<Point>::BuildImpl(size_t start,
   return node;
 }
 
-template <typename Point>
-void KdTreeNaive<Point>::SearchKnnImpl(const Point& query, const size_t& k,
-                                       const NodePtr node,
-                                       KdTreeSearchResults& result) const {
+template <typename Scalar, int Rows>
+void KdTreeNaive<Scalar, Rows>::SearchKnnImpl(
+    const KdPoint& query, const size_t& k, const NodePtr node,
+    KdTreeSearchResults& result) const {
   if (node == nullptr) {
     return;
   }
@@ -234,10 +231,10 @@ void KdTreeNaive<Point>::SearchKnnImpl(const Point& query, const size_t& k,
   }
 }
 
-template <typename Point>
-void KdTreeNaive<Point>::SearchRadiusImpl(const Point& query, const double& r,
-                                          const NodePtr node,
-                                          KdTreeSearchResults& result) const {
+template <typename Scalar, int Rows>
+void KdTreeNaive<Scalar, Rows>::SearchRadiusImpl(
+    const KdPoint& query, const double& r, const NodePtr node,
+    KdTreeSearchResults& result) const {
   if (node == nullptr) {
     return;
   }
@@ -262,11 +259,10 @@ void KdTreeNaive<Point>::SearchRadiusImpl(const Point& query, const double& r,
   }
 }
 
-template <typename Point>
-void KdTreeNaive<Point>::UpdateKdTreeSearchResult(KdTreeSearchResults& res,
-                                                  const size_t& index,
-                                                  const double& dist,
-                                                  const size_t& max_res_num) {
+template <typename Scalar, int Rows>
+void KdTreeNaive<Scalar, Rows>::UpdateKdTreeSearchResult(
+    KdTreeSearchResults& res, const size_t& index, const double& dist,
+    const size_t& max_res_num) {
   res.push_back({index, dist});
   std::sort(res.begin(), res.end(),
             [](const KdTreeSearchResult& lfs, const KdTreeSearchResult& rfs) {

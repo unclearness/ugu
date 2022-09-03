@@ -34,7 +34,7 @@ struct Plane {
     // https://risalc.info/src/line-plane-intersection-point.html
     T h = -d;
     T denom = n.dot(line.d);
-    if (denom <= T(0)) {
+    if (std::abs(denom) < std::numeric_limits<T>::epsilon()) {
       return false;
     }
     t = (h - n.dot(line.a)) / denom;

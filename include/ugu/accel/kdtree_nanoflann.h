@@ -15,48 +15,50 @@
 
 namespace ugu {
 
-template <typename Point>
-class KdTreeNanoflannEigenX : public KdTree<Point> {
+template <typename Scalar>
+class KdTreeNanoflannEigenX : public KdTree<Scalar, Eigen::Dynamic> {
  public:
+  using KdPoint = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
   KdTreeNanoflannEigenX() {}
   ~KdTreeNanoflannEigenX() {}
   bool Build() override;
   void Clear() override;
 
-  void SetData(const std::vector<Point>& data) override;
+  void SetData(const std::vector<KdPoint>& data) override;
   void SetMaxLeafDataNum(int max_leaf_data_num) override;
 
-  KdTreeSearchResults SearchNn(const Point& query) const override;
-  KdTreeSearchResults SearchKnn(const Point& query,
+  KdTreeSearchResults SearchNn(const KdPoint& query) const override;
+  KdTreeSearchResults SearchKnn(const KdPoint& query,
                                 const size_t& k) const override;
-  KdTreeSearchResults SearchRadius(const Point& query,
+  KdTreeSearchResults SearchRadius(const KdPoint& query,
                                    const double& r) const override;
 
  private:
   using nf_eigen_adaptor = nanoflann::KDTreeEigenMatrixAdaptor<
-      Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>>;
+      Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>>;
 
   std::unique_ptr<nf_eigen_adaptor> m_mat_index;
   int m_max_leaf_data_num = 10;
-  std::vector<Point> m_data;
-  Eigen::MatrixXf m_mat;  // TODO: double
+  std::vector<KdPoint> m_data;
+  Eigen::MatrixX<Scalar> m_mat;  // TODO: double
 };
 
-template <typename Point>
-class KdTreeNanoflannVector : public KdTree<Point> {
+template <typename Scalar, int Rows>
+class KdTreeNanoflannVector : public KdTree<Scalar, Rows> {
  public:
+  using KdPoint = Eigen::Matrix<Scalar, Rows, 1>;
   KdTreeNanoflannVector() {}
   ~KdTreeNanoflannVector() {}
   bool Build() override;
   void Clear() override;
 
-  void SetData(const std::vector<Point>& data) override;
+  void SetData(const std::vector<KdPoint>& data) override;
   void SetMaxLeafDataNum(int max_leaf_data_num) override;
 
-  KdTreeSearchResults SearchNn(const Point& query) const override;
-  KdTreeSearchResults SearchKnn(const Point& query,
+  KdTreeSearchResults SearchNn(const KdPoint& query) const override;
+  KdTreeSearchResults SearchKnn(const KdPoint& query,
                                 const size_t& k) const override;
-  KdTreeSearchResults SearchRadius(const Point& query,
+  KdTreeSearchResults SearchRadius(const KdPoint& query,
                                    const double& r) const override;
 
  private:
@@ -140,15 +142,15 @@ class KdTreeNanoflannVector : public KdTree<Point> {
   };  // end of KDTreeVectorOfVectorsAdaptor
 
   using nf_vector_adaptor =
-      KDTreeVectorOfVectorsAdaptor<std::vector<Point>, float>;
+      KDTreeVectorOfVectorsAdaptor<std::vector<KdPoint>, Scalar>;
 
   std::unique_ptr<nf_vector_adaptor> m_index;
   int m_max_leaf_data_num = 10;
-  std::vector<Point> m_data;
+  std::vector<KdPoint> m_data;
 };
 
-template <typename Point, typename Adaptor, typename Index>
-KdTreeSearchResults RangeQueryKdTreeNanoflann(const Point& query,
+template <typename KdPoint, typename Scalar, typename Adaptor, typename Index>
+KdTreeSearchResults RangeQueryKdTreeNanoflann(const KdPoint& query,
                                               const Adaptor& index,
                                               float epsilon) {
   std::vector<std::pair<Index, float>> ret_matches;
@@ -162,15 +164,15 @@ KdTreeSearchResults RangeQueryKdTreeNanoflann(const Point& query,
   for (size_t i = 0; i < nMatches; i++) {
     const auto& m = ret_matches[i];
     results.push_back({static_cast<size_t>(m.first),
-                       static_cast<double>(std::sqrt(m.second))});
+                       static_cast<Scalar>(std::sqrt(m.second))});
   }
 
   return results;
 }
 
-template <typename Point, typename Adaptor, typename Index>
-KdTreeSearchResults QueryKnnNanoflann(const Point& query, const Adaptor& index,
-                                      size_t k) {
+template <typename KdPoint, typename Scalar, typename Adaptor, typename Index>
+KdTreeSearchResults QueryKnnNanoflann(const KdPoint& query,
+                                      const Adaptor& index, size_t k) {
   std::vector<Index> out_indices(k);
   std::vector<float> out_distances_sq(k);
   const size_t nMatches = index.index->knnSearch(
@@ -179,15 +181,15 @@ KdTreeSearchResults QueryKnnNanoflann(const Point& query, const Adaptor& index,
   KdTreeSearchResults results;
   for (size_t i = 0; i < nMatches; i++) {
     results.push_back({static_cast<size_t>(out_indices[i]),
-                       static_cast<double>(std::sqrt(out_distances_sq[i]))});
+                       static_cast<Scalar>(std::sqrt(out_distances_sq[i]))});
   }
 
   return results;
 }
 
-template <typename Point>
-bool KdTreeNanoflannEigenX<Point>::Build() {
-  Eigen::MatrixXf mat(m_data.size(), m_data[0].rows());
+template <typename Scalar>
+bool KdTreeNanoflannEigenX<Scalar>::Build() {
+  Eigen::MatrixX<Scalar> mat(m_data.size(), m_data[0].rows());
   for (size_t i = 0; i < m_data.size(); i++) {
     for (Eigen::Index j = 0; j < m_data[0].rows(); j++) {
       mat.coeffRef(i, j) = m_data[i][j];
@@ -200,83 +202,86 @@ bool KdTreeNanoflannEigenX<Point>::Build() {
   return true;
 }
 
-template <typename Point>
-void KdTreeNanoflannEigenX<Point>::Clear() {
+template <typename Scalar>
+void KdTreeNanoflannEigenX<Scalar>::Clear() {
   m_data.clear();
 }
 
-template <typename Point>
-void KdTreeNanoflannEigenX<Point>::SetMaxLeafDataNum(int max_leaf_data_num) {
+template <typename Scalar>
+void KdTreeNanoflannEigenX<Scalar>::SetMaxLeafDataNum(int max_leaf_data_num) {
   m_max_leaf_data_num = max_leaf_data_num;
 }
 
-template <typename Point>
-void KdTreeNanoflannEigenX<Point>::SetData(const std::vector<Point>& data) {
+template <typename Scalar>
+void KdTreeNanoflannEigenX<Scalar>::SetData(const std::vector<KdPoint>& data) {
   m_data = data;
 }
 
-template <typename Point>
-KdTreeSearchResults KdTreeNanoflannEigenX<Point>::SearchNn(
-    const Point& query) const {
-  return QueryKnnNanoflann<Point, nf_eigen_adaptor, Eigen::Index>(
+template <typename Scalar>
+KdTreeSearchResults KdTreeNanoflannEigenX<Scalar>::SearchNn(
+    const KdPoint& query) const {
+  return QueryKnnNanoflann<KdPoint, Scalar, nf_eigen_adaptor, Eigen::Index>(
       query, *m_mat_index, 1);
 }
 
-template <typename Point>
-KdTreeSearchResults KdTreeNanoflannEigenX<Point>::SearchKnn(
-    const Point& query, const size_t& k) const {
-  return QueryKnnNanoflann<Point, nf_eigen_adaptor, Eigen::Index>(
+template <typename Scalar>
+KdTreeSearchResults KdTreeNanoflannEigenX<Scalar>::SearchKnn(
+    const KdPoint& query, const size_t& k) const {
+  return QueryKnnNanoflann<KdPoint, Scalar, nf_eigen_adaptor, Eigen::Index>(
       query, *m_mat_index, k);
 }
 
-template <typename Point>
-KdTreeSearchResults KdTreeNanoflannEigenX<Point>::SearchRadius(
-    const Point& query, const double& r) const {
-  return RangeQueryKdTreeNanoflann<Point, nf_eigen_adaptor, Eigen::Index>(
-      query, *m_mat_index, static_cast<float>(r));
+template <typename Scalar>
+KdTreeSearchResults KdTreeNanoflannEigenX<Scalar>::SearchRadius(
+    const KdPoint& query, const double& r) const {
+  return RangeQueryKdTreeNanoflann<KdPoint, Scalar, nf_eigen_adaptor,
+                                   Eigen::Index>(query, *m_mat_index,
+                                                 static_cast<float>(r));
 }
 
-template <typename Point>
-bool KdTreeNanoflannVector<Point>::Build() {
+template <typename Scalar, int Rows>
+bool KdTreeNanoflannVector<Scalar, Rows>::Build() {
   m_index = std::make_unique<nf_vector_adaptor>(
       static_cast<size_t>(m_data.size()), m_data, m_max_leaf_data_num);
   m_index->index->buildIndex();
   return true;
 }
 
-template <typename Point>
-void KdTreeNanoflannVector<Point>::Clear() {
+template <typename Scalar, int Rows>
+void KdTreeNanoflannVector<Scalar, Rows>::Clear() {
   m_data.clear();
 }
 
-template <typename Point>
-void KdTreeNanoflannVector<Point>::SetMaxLeafDataNum(int max_leaf_data_num) {
+template <typename Scalar, int Rows>
+void KdTreeNanoflannVector<Scalar, Rows>::SetMaxLeafDataNum(
+    int max_leaf_data_num) {
   m_max_leaf_data_num = max_leaf_data_num;
 }
 
-template <typename Point>
-void KdTreeNanoflannVector<Point>::SetData(const std::vector<Point>& data) {
+template <typename Scalar, int Rows>
+void KdTreeNanoflannVector<Scalar, Rows>::SetData(
+    const std::vector<KdPoint>& data) {
   m_data = data;
 }
 
-template <typename Point>
-KdTreeSearchResults KdTreeNanoflannVector<Point>::SearchNn(
-    const Point& query) const {
-  return QueryKnnNanoflann<Point, nf_vector_adaptor, size_t>(query, *m_index,
-                                                             1);
+template <typename Scalar, int Rows>
+KdTreeSearchResults KdTreeNanoflannVector<Scalar, Rows>::SearchNn(
+    const KdPoint& query) const {
+  return QueryKnnNanoflann<KdPoint, Scalar, nf_vector_adaptor, size_t>(
+      query, *m_index, 1);
 }
 
-template <typename Point>
-KdTreeSearchResults KdTreeNanoflannVector<Point>::SearchKnn(
-    const Point& query, const size_t& k) const {
-  return QueryKnnNanoflann<Point, nf_vector_adaptor, size_t>(query, *m_index,
-                                                             k);
+template <typename Scalar, int Rows>
+KdTreeSearchResults KdTreeNanoflannVector<Scalar, Rows>::SearchKnn(
+    const KdPoint& query, const size_t& k) const {
+  return QueryKnnNanoflann<KdPoint, Scalar, nf_vector_adaptor, size_t>(
+      query, *m_index, k);
 }
 
-template <typename Point>
-KdTreeSearchResults KdTreeNanoflannVector<Point>::SearchRadius(
-    const Point& query, const double& r) const {
-  return RangeQueryKdTreeNanoflann<Point, nf_vector_adaptor, size_t>(
+template <typename Scalar, int Rows>
+KdTreeSearchResults KdTreeNanoflannVector<Scalar, Rows>::SearchRadius(
+    const KdPoint& query, const double& r) const {
+  return RangeQueryKdTreeNanoflann<KdPoint, Scalar, nf_vector_adaptor, size_t>(
       query, *m_index, static_cast<float>(r));
 }
 

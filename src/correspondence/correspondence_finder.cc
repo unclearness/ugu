@@ -50,7 +50,7 @@ bool KDTreeCorrespFinder::Init(
   m_face_planes = std::move(face_planes);
 
 #ifdef UGU_USE_NANOFLANN
-  m_tree = std::make_unique<KdTreeNanoflannVector<Eigen::Vector3f>>();
+  m_tree = std::make_unique<KdTreeNanoflannVector<float, 3>>();
 #else
   auto tmp_tree = std::make_unique<KdTreeNaive<Eigen::Vector3f>>();
   tmp_tree->SetAxisNum(3);

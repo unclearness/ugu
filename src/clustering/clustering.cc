@@ -415,10 +415,10 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
     return false;
   }
 
-  std::shared_ptr<KdTree<Eigen::VectorXf>> kdtree;
+  std::shared_ptr<KdTree<float, Eigen::Dynamic>> kdtree;
   if (use_kdtree) {
 #ifdef UGU_USE_NANOFLANN
-    kdtree = std::make_shared<KdTreeNanoflannEigenX<Eigen::VectorXf>>();
+    kdtree = std::make_shared<KdTreeNanoflannEigenX<float>>();
 #else
     kdtree = std::make_shared<KdTreeNaive<Eigen::VectorXf>>();
     std::dynamic_pointer_cast<KdTreeNaive<Eigen::VectorXf>>(kdtree)->SetAxisNum(
