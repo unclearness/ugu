@@ -59,15 +59,15 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
     if (to_ignore.count(i) != 0) {
       continue;
     }
-    vertices.push_back(points3d[i].cast<float>());
+    vertices.push_back(points3d[i]template .cast<float>());
   }
   vertex_colors.resize(vertices.size(), {0.f, 0.f, 0.f});
 
-  vertices.push_back(query3d.cast<float>());
+  vertices.push_back(query3d.template cast<float>());
   vertex_colors.push_back({0.f, 255.f, 0.f});
 
   for (const auto& rr : res) {
-    vertices.push_back(points3d[rr.index].cast<float>());
+    vertices.push_back(points3d[rr.index].template cast<float>());
     vertex_colors.push_back({255.f, 0.f, 0.f});
   }
 
@@ -76,7 +76,7 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
 
   if (0 < r) {
     auto sphere =
-        ugu::MakeUvSphere(query3d.cast<float>(), static_cast<float>(r));
+        ugu::MakeUvSphere(query3d.template cast<float>(), static_cast<float>(r));
     sphere->set_uv({});
     sphere->set_uv_indices({});
     std::vector<Eigen::Vector3f> vc;
