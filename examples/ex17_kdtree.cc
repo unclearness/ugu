@@ -184,7 +184,7 @@ void Test3D() {
   ugu::KdTreeSearchResults res;
 
   Eigen::Vector3d query3d{0.4f, 0.6f, 0.5f};
-  int k = 20;
+  size_t k = 20;
   timer.Start();
   res = kdtree.SearchKnn(query3d, k);
   timer.End();

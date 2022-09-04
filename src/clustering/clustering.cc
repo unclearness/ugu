@@ -656,7 +656,7 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
     float angle_best = f_normal.dot(project_normal_array[0]);
     size_t angle_best_index = 0;
 
-    for (int p_index = 1; p_index < project_normal_array.size(); p_index++) {
+    for (size_t p_index = 1; p_index < project_normal_array.size(); p_index++) {
       const float angle_test = f_normal.dot(project_normal_array[p_index]);
       if (angle_test > angle_best) {
         angle_best = angle_test;
