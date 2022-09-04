@@ -8,7 +8,6 @@
 #include <unordered_set>
 
 #include "ugu/accel/kdtree.h"
-#include "ugu/accel/kdtree_nanoflann.h"
 #include "ugu/image.h"
 #include "ugu/mesh.h"
 #include "ugu/timer.h"
@@ -112,7 +111,7 @@ void Test2D() {
   ugu::KdTreeSearchResults res;
 
   Eigen::Vector2d query2d{0.4f, 0.6f};
-  int k = 20;
+  size_t k = 20;
   timer.Start();
   res = kdtree.SearchKnn(query2d, k);
   timer.End();

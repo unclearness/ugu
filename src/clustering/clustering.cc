@@ -10,7 +10,6 @@
 #include <unordered_set>
 
 #include "ugu/accel/kdtree.h"
-#include "ugu/accel/kdtree_nanoflann.h"
 #include "ugu/common.h"
 #include "ugu/face_adjacency.h"
 #include "ugu/util/geom_util.h"
@@ -415,15 +414,9 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
     return false;
   }
 
-  std::shared_ptr<KdTree<float, Eigen::Dynamic>> kdtree;
+  KdTreePtr<float, Eigen::Dynamic> kdtree;
   if (use_kdtree) {
-#ifdef UGU_USE_NANOFLANN
-    kdtree = std::make_shared<KdTreeNanoflannEigenX<float>>();
-#else
-    kdtree = std::make_shared<KdTreeNaive<Eigen::VectorXf>>();
-    std::dynamic_pointer_cast<KdTreeNaive<Eigen::VectorXf>>(kdtree)->SetAxisNum(
-        points[0].rows());
-#endif
+    kdtree = GetDefaultKdTreeDynamic<float>();
 
     kdtree->SetData(points);
     if (!kdtree->Build()) {

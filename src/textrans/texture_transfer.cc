@@ -2,7 +2,6 @@
  * Copyright (C) 2021, unclearness
  * All rights reserved.
  */
-#ifdef UGU_USE_NANOFLANN
 
 #include "ugu/textrans/texture_transfer.h"
 
@@ -162,5 +161,3 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex, const ugu::Mesh& src_mesh,
 }
 
 }  // namespace ugu
-
-#endif

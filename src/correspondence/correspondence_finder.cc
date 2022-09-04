@@ -5,7 +5,6 @@
 
 #include "ugu/correspondence/correspondence_finder.h"
 
-#include "ugu/accel/kdtree_nanoflann.h"
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
 
@@ -49,13 +48,7 @@ bool KDTreeCorrespFinder::Init(
   m_face_centroids = std::move(face_centroids);
   m_face_planes = std::move(face_planes);
 
-#ifdef UGU_USE_NANOFLANN
-  m_tree = std::make_unique<KdTreeNanoflannVector<float, 3>>();
-#else
-  auto tmp_tree = std::make_unique<KdTreeNaive<Eigen::Vector3f>>();
-  tmp_tree->SetAxisNum(3);
-  m_tree = std::move(tmp_tree);
-#endif
+  m_tree = GetDefaultUniqueKdTree<float, 3>();
 
   m_tree->SetData(m_face_centroids);
 

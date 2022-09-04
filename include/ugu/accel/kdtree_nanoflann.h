@@ -11,7 +11,7 @@
 
 #include "Eigen/Core"
 #include "nanoflann.hpp"
-#include "ugu/accel/kdtree.h"
+#include "ugu/accel/kdtree_base.h"
 
 namespace ugu {
 
