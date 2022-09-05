@@ -218,12 +218,12 @@ FindBestLineCrossingPointLeastSquares(const std::vector<Line3<T>>& lines) {
 // Algorithm 2 3D Line Fusion with Mean-Shift
 bool LineClustering(const std::vector<Line3d>& unclean,
                     std::vector<Line3d>& fused, double tau_s, double r_nei,
-                    double sigma_p, double sigma_d, int max_iter = 100);
+                    double sigma_p, double sigma_d, int max_iter = 20);
 
 // 5.2. Strand Generation
 bool GenerateStrands(const std::vector<Line3d>& lines,
                      std::vector<std::vector<Line3d>>& strands, double s,
-                     double tau_r, double tau_a, int max_iter = 100);
+                     double tau_r, double tau_a, int max_iter = 10000);
 
 bool WriteObjLine(const std::vector<std::vector<Line3f>>& lines,
                   const std::string& path,

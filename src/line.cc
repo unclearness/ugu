@@ -12,6 +12,8 @@
 
 #include "ugu/accel/kdtree.h"
 #include "ugu/plane.h"
+#include "ugu/timer.h"
+#include "ugu/util/thread_util.h"
 
 namespace {
 
@@ -108,21 +110,45 @@ bool LineClusteringImpl(const std::vector<Line3<T>>& unclean,
 
   fused.clear();
   fused.resize(unclean.size());
-#pragma omp parallel for
-  for (int64_t i = 0; i < static_cast<int64_t>(unclean.size()); i++) {
+
+#if 0
+  std::vector<int> iters;
+  std::vector<double> times;
+#endif
+  auto func = [&](size_t i) {
     const Line3<T>& P = unclean[i];
     Line3<T> Q_prev = P;
     Line3<T> Q_next = Q_prev;
     int iter = 0;
     T d = std::numeric_limits<T>::max();
+
+#if 0
+    Timer timer;
+    timer.Start();
+#endif
     while (d > tau_s && iter < max_iter) {
       Q_next = LocalMean(Q_prev, P, unclean, kdtree, r_nei, sigma_p, sigma_d);
       d = (Q_next.a - Q_prev.a).norm();
       Q_prev = Q_next;
       iter++;
     }
+
+#if 0
+    timer.End();
+    iters.push_back(iter);
+    times.push_back(timer.elapsed_msec());
+#endif
     fused[i] = Q_next;
+  };
+
+  ugu::parallel_for(size_t(0), unclean.size(), func);
+
+#if 0
+  std::ofstream ofs("times.csv");
+  for (size_t i = 0; i < iters.size(); i++) {
+    ofs << iters[i] << "," << times[i] << std::endl;
   }
+#endif
 
   return true;
 }
