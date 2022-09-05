@@ -7,6 +7,7 @@
 
 #include "ugu/line.h"
 #include "ugu/mesh.h"
+#include "ugu/timer.h"
 
 namespace {
 
@@ -109,13 +110,17 @@ int main(int argc, char* argv[]) {
   }
   SavePoints(unclean, "unclean.ply");
 
+  ugu::Timer<> timer;
   std::vector<ugu::Line3d> fused;
   double tau_s = 0.002;
   double r_nei = 0.2;  // 1/10 from the paper. Possibly the paper is wrong
                        // because 2mm radius is too big for hair strands.
   double sigma_p = 0.1;
   double sigma_d = ugu::pi / 6.0;
+  timer.Start();
   ugu::LineClustering(unclean, fused, tau_s, r_nei, sigma_p, sigma_d);
+  timer.End();
+  ugu::LOGI("LineClustering: %f ms\n", timer.elapsed_msec());
   SavePoints(fused, "fused.ply");
 
   double s = 0.1;
@@ -123,9 +128,19 @@ int main(int argc, char* argv[]) {
   double tau_a = ugu::pi / 6.0;  // 30 deg
 
   std::vector<std::vector<ugu::Line3d>> strands;
+  timer.Start();
   ugu::GenerateStrands(fused, strands, s, tau_r, tau_a);
-
-  ugu::WriteObjLine(strands, "fused.obj");
+  timer.End();
+  ugu::LOGI("GenerateStrands: %f ms\n", timer.elapsed_msec());
+  std::vector<std::vector<Eigen::Vector3d>> colors;
+  for (const auto& line : strands) {
+    std::vector<Eigen::Vector3d> single;
+    for (const auto& l : line) {
+      single.push_back((l.d + Eigen::Vector3d::Constant(1.f)) * 0.5 * 255);
+    }
+    colors.push_back(single);
+  }
+  ugu::WriteObjLine(strands, "fused.obj", colors);
 
   return 0;
 }

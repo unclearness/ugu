@@ -7,7 +7,6 @@
 
 #include <fstream>
 #include <random>
-#include <set>
 #include <sstream>
 #include <unordered_set>
 
@@ -144,7 +143,7 @@ bool WriteObjLineImpl(const std::vector<Eigen::Vector3<T>>& points,
     ss << "v " << p[0] << " " << p[1] << " " << p[2];
     if (with_colors) {
       const auto& c = colors[i];
-      ss << " " << c[0] << " " << c[1] << " " << c[2];
+      ss << " " << c[0] / 255 << " " << c[1] / 255 << " " << c[2] / 255;
     }
     ss << "\n";
   }
@@ -213,56 +212,6 @@ bool WriteObjLineImpl(
 
   return WriteObjLineImpl(points_flat, indices, path, colors_flat,
                           normals_flat);
-
-#if 0
-  bool with_colors = points.size() == colors.size();
-  bool with_normals = points.size() == normals.size();
-
-  for (size_t i = 0; i < points.size(); i++) {
-    std::vector<int> single_index;
-    for (size_t j = 0; j < points[i].size(); j++) {
-      const auto& p = points[i][j];
-      ss << "v " << p[0] << " " << p[1] << " " << p[2];
-      if (with_colors) {
-        const auto& c = colors[i][j];
-        ss << " " << c[0] << " " << c[1] << " " << c[2];
-      }
-      ss << "\n";
-      single_index.push_back(index);
-      index++;
-    }
-  }
-
-#if 0
-  if (with_colors) {
-    for (const auto& l : colors) {
-      for (const auto& c : l) {
-        ss << "v " << c[0] << " " << c[1] << " " << c[2] << "\n";
-      }
-    }
-  }
-#endif
-
-  if (with_normals) {
-    for (size_t i = 0; i < normals.size(); i++) {
-      for (size_t j = 0; j < normals[i].size(); j++) {
-        const auto& n = normals[i][j];
-        ss << "vn " << n[0] << " " << n[1] << " " << n[2] << "\n";
-      }
-    }
-  }
-
-  for (const auto& i : indices) {
-    ss << "l";
-    for (size_t lidx = 0; lidx < i.size(); i++) {
-      ss << " " << i[lidx];
-    }
-    ss << "\n";
-  }
-
-  std::ofstream ofs(path, "w");
-  ofs << ss;
-#endif
 }
 
 template <typename T>
@@ -299,9 +248,9 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
                  [&](const Line3<T>& l) { return l.a.template cast<float>(); });
   auto kdtree = GetKdtree(pos_list);
 
-  // constexpr uint32_t rand_seed = 0;
-  // std::uniform_real_distribution<double> disr;
-  // std::default_random_engine engine(rand_seed);
+  constexpr uint32_t rand_seed = 0;
+  std::uniform_real_distribution<double> disr;
+  std::default_random_engine engine(rand_seed);
 
   size_t P_seed_index = size_t(disr(engine) * P.size());
   while (!P.empty()) {
@@ -377,6 +326,7 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
       break;
     }
 
+    // TODO: Randomly select valid index
     P_seed_index = *P.begin();
   }
 

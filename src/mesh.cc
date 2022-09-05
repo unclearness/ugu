@@ -714,6 +714,14 @@ bool Mesh::LoadPly(const std::string& ply_path) {
         static_cast<float>(std::atof(splitted[2].c_str()));
 
     // TODO
+    if (splitted.size() >= 6) {
+      auto vn = Eigen::Vector3f();
+      vn[0] = static_cast<float>(std::atof(splitted[3].c_str()));
+      vn[1] = static_cast<float>(std::atof(splitted[4].c_str()));
+      vn[2] = static_cast<float>(std::atof(splitted[5].c_str()));
+      normals_.push_back(vn);
+    }
+
     if (splitted.size() >= 9) {
       auto vc = Eigen::Vector3f();
       vc[0] = static_cast<float>(std::atof(splitted[6].c_str()));
