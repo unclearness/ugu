@@ -42,21 +42,34 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  int num = 2000;
-  // mm scale
-  Eigen::Vector3d d(1.0, 0.0, 0.0);
-  Eigen::Vector3d offset(0.0, 0.33 / 2, 0.33 / 2);
-  double step = 0.05;
+  int num = 1000;
+
   double p_mu = 0.0;
   double p_sigma = 0.02;
   double d_mu = 0.0;
   double d_sigma = ugu::pi / 6.0;
   std::normal_distribution<double> p_dist(p_mu, p_sigma);
   std::normal_distribution<double> d_dist(d_mu, d_sigma);
-
   std::uniform_real_distribution<double> a_dist;
 
+  auto spiral = [&](double a, double b, double t) {
+    double x = a * std::exp(b * t) * std::cos(t);
+    double y = a * std::exp(b * t) * std::sin(t);
+    double z = t;
+    double dxdt = x * b - y;
+    double dydt = y * b + x;
+    double dzdt = 1;
+    return std::tuple(Eigen::Vector3d(x, y, z),
+                      Eigen::Vector3d(dxdt, dydt, dzdt));
+  };
+
   std::vector<ugu::Line3d> clean;
+
+#if 0
+  // mm scale
+  Eigen::Vector3d d(1.0, 0.0, 0.0);
+  Eigen::Vector3d offset(0.0, 0.33 / 2, 0.33 / 2);
+  double step = 0.05;
   for (int i = 0; i < num; i++) {
     ugu::Line3d l;
     l.a = d * step * i;
@@ -68,6 +81,17 @@ int main(int argc, char* argv[]) {
     l2.d = d;
     clean.push_back(l2);
   }
+#endif
+  for (int i = 0; i < num; i++) {
+    double a = 1.27;
+    double b = 0.35;
+    double t = double(i) / num * ugu::pi * 2;
+    ugu::Line3d l;
+    std::tie(l.a, l.d) = spiral(a, b, t);
+    l.d.normalize();
+    clean.push_back(l);
+  }
+
   SavePoints(clean, "clean.ply");
 
   std::vector<ugu::Line3d> unclean;
@@ -96,7 +120,7 @@ int main(int argc, char* argv[]) {
 
   double s = 0.1;
   double tau_r = 0.1;
-  double tau_a = ugu::pi / 6;  // 30 deg
+  double tau_a = ugu::pi / 6.0;  // 30 deg
 
   std::vector<std::vector<ugu::Line3d>> strands;
   ugu::GenerateStrands(fused, strands, s, tau_r, tau_a);

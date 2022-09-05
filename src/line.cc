@@ -6,6 +6,8 @@
 #include "ugu/line.h"
 
 #include <fstream>
+#include <random>
+#include <set>
 #include <sstream>
 #include <unordered_set>
 
@@ -90,7 +92,8 @@ auto GetKdtree(const std::vector<Eigen::Vector3f>& data) {
 template <typename T>
 bool LineClusteringImpl(const std::vector<Line3<T>>& unclean,
                         std::vector<Line3<T>>& fused, double tau_s,
-                        double r_nei, double sigma_p, double sigma_d) {
+                        double r_nei, double sigma_p, double sigma_d,
+                        int max_iter) {
   if (unclean.size() < 2) {
     return false;
   }
@@ -111,11 +114,13 @@ bool LineClusteringImpl(const std::vector<Line3<T>>& unclean,
     const Line3<T>& P = unclean[i];
     Line3<T> Q_prev = P;
     Line3<T> Q_next = Q_prev;
+    int iter = 0;
     T d = std::numeric_limits<T>::max();
-    while (d > tau_s) {
+    while (d > tau_s && iter < max_iter) {
       Q_next = LocalMean(Q_prev, P, unclean, kdtree, r_nei, sigma_p, sigma_d);
       d = (Q_next.a - Q_prev.a).norm();
       Q_prev = Q_next;
+      iter++;
     }
     fused[i] = Q_next;
   }
@@ -282,20 +287,26 @@ bool WriteObjLineImpl(const std::vector<std::vector<Line3<T>>>& lines,
 template <typename T>
 bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
                          std::vector<std::vector<Line3<T>>>& strands, double s,
-                         double tau_r, double tau_a) {
+                         double tau_r, double tau_a, int max_iter) {
   strands.clear();
   std::unordered_set<size_t> P;
   for (size_t i = 0; i < lines.size(); i++) {
     P.insert(i);
   }
+
   std::vector<Eigen::Vector3f> pos_list;
   std::transform(lines.begin(), lines.end(), std::back_inserter(pos_list),
                  [&](const Line3<T>& l) { return l.a.template cast<float>(); });
   auto kdtree = GetKdtree(pos_list);
 
-  size_t P_seed_index = 0;
+  // constexpr uint32_t rand_seed = 0;
+  // std::uniform_real_distribution<double> disr;
+  // std::default_random_engine engine(rand_seed);
+
+  size_t P_seed_index = size_t(disr(engine) * P.size());
   while (!P.empty()) {
-    P.erase(P_seed_index);
+    size_t to_erase = P_seed_index;
+    P.erase(to_erase);
     std::vector<Line3<T>> strand{lines[P_seed_index]};
 
     const auto& P_seed_forward = lines[P_seed_index];
@@ -304,7 +315,9 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
 
     for (const Line3<T>& P_seed : {P_seed_forward, P_seed_backward}) {
       Line3<T> P_cur = P_seed;
-      while (true) {
+      int iter = 0;
+      while (iter < max_iter) {
+        iter++;
         Eigen::Vector3<T> stepped = P_cur.a + s * P_cur.d;
         KdTreeSearchResults neighbors_ =
             kdtree->SearchRadius(stepped.template cast<float>(), tau_r);
@@ -346,16 +359,9 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
         }
 
         strand.push_back(P_cur);
-
-#if 0
-        for (const auto& n : neighbors) {
-          P.erase(n.index);
-        }
-#endif
       }
     }
 
-#if 1
     // Erase near points
     for (const auto& s : strand) {
       KdTreeSearchResults neighbors =
@@ -364,11 +370,8 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
         P.erase(n.index);
       }
     }
-#endif
 
-    // if (strand.size() > 1) {
     strands.push_back(strand);
-    // }
 
     if (P.empty()) {
       break;
@@ -386,8 +389,9 @@ namespace ugu {
 
 bool LineClustering(const std::vector<Line3d>& unclean,
                     std::vector<Line3d>& fused, double tau_s, double r_nei,
-                    double sigma_p, double sigma_d) {
-  return LineClusteringImpl(unclean, fused, tau_s, r_nei, sigma_p, sigma_d);
+                    double sigma_p, double sigma_d, int max_iter) {
+  return LineClusteringImpl(unclean, fused, tau_s, r_nei, sigma_p, sigma_d,
+                            max_iter);
 }
 
 bool WriteObjLine(const std::vector<std::vector<Line3f>>& lines,
@@ -415,8 +419,8 @@ bool WriteObjLine(const std::vector<std::vector<Eigen::Vector3d>>& lines,
 
 bool GenerateStrands(const std::vector<Line3d>& lines,
                      std::vector<std::vector<Line3d>>& strands, double s,
-                     double tau_r, double tau_a) {
-  return GenerateStrandsImpl(lines, strands, s, tau_r, tau_a);
+                     double tau_r, double tau_a, int max_iter) {
+  return GenerateStrandsImpl(lines, strands, s, tau_r, tau_a, max_iter);
 }
 
 }  // namespace ugu
