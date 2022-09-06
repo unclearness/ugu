@@ -20,6 +20,18 @@ namespace {
 using namespace ugu;
 
 template <typename T>
+std::pair<double, double> MinAngle(const T& a, const T& b) {
+  double inv_mag = 1.0 / (a.norm() * b.norm());
+  double v0 = std::acos(std::clamp(a.dot(b) * inv_mag, -1.0, 1.0));
+  double v1 = ugu::pi - v0;
+  if (v0 < v1) {
+    return {v0, 1.0};
+  }
+
+  return {v1, -1.0};
+}
+
+template <typename T>
 Line3<T> LocalMean(const Line3<T>& seed, const Line3<T>& X0,
                    const std::vector<Line3<T>>& unclean,
                    const std::shared_ptr<ugu::KdTree<T, 3>> kdtree,
@@ -43,16 +55,18 @@ Line3<T> LocalMean(const Line3<T>& seed, const Line3<T>& X0,
   }
 
   std::vector<double> bilateral_weights;
+  std::vector<double> direction_weights;
   double denom = 0.0;
   for (size_t i = 0; i < neighbors.size(); i++) {
     if (!succeeded[i]) {
       bilateral_weights.push_back(0.0);
+      direction_weights.push_back(0.0);
       continue;
     }
     double pos_term =
         -((X0.a - intersections[i]).squaredNorm()) / (2.0 * sigma_p * sigma_p);
-    double numerator = std::acos(
-        std::clamp(X0.d.dot(unclean[neighbors[i].index].d), -1.0, 1.0));
+    auto [numerator, direction_w] =
+        MinAngle(X0.d, unclean[neighbors[i].index].d);
     double dir_term = -numerator * numerator / (2.0 * sigma_d * sigma_d);
     double terms = std::clamp(pos_term + dir_term, -100.0,
                               100.0);  // clamp to avoid illegal values by exp()
@@ -60,6 +74,7 @@ Line3<T> LocalMean(const Line3<T>& seed, const Line3<T>& X0,
 
     assert(std::isnormal(w));
     bilateral_weights.push_back(w);
+    direction_weights.push_back(direction_w);
     denom += w;
   }
 
@@ -75,7 +90,8 @@ Line3<T> LocalMean(const Line3<T>& seed, const Line3<T>& X0,
   moved.d = Eigen::Vector<T, 3>::Zero();
   for (size_t i = 0; i < neighbors.size(); i++) {
     moved.a += unclean[neighbors[i].index].a * bilateral_weights[i] * inv_denom;
-    moved.d += unclean[neighbors[i].index].d * bilateral_weights[i] * inv_denom;
+    moved.d += unclean[neighbors[i].index].d * bilateral_weights[i] *
+               inv_denom * direction_weights[i];
   }
   moved.d = moved.d.normalized();
 
@@ -288,7 +304,9 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
     Line3<T> P_seed_backward = P_seed_forward;
     P_seed_backward.d *= -1.0;
 
-    for (const Line3<T>& P_seed : {P_seed_forward, P_seed_backward}) {
+    std::array<Line3<T>, 2> P_seeds = {P_seed_forward, P_seed_backward};
+    for (size_t i = 0; i < 2; i++) {
+      const Line3<T>& P_seed = P_seeds[i];
       Line3<T> P_cur = P_seed;
       int iter = 0;
       while (iter < max_iter) {
@@ -296,15 +314,16 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
         Eigen::Vector3<T> stepped = P_cur.a + s * P_cur.d;
         KdTreeSearchResults neighbors_ = kdtree->SearchRadius(stepped, tau_r);
         KdTreeSearchResults neighbors;
+        std::vector<double> weights;
         for (const auto& n : neighbors_) {
           if (P.find(n.index) == P.end()) {
             continue;
           }
-          if (std::acos(std::clamp(lines[n.index].d.dot(P_cur.d), -1.0, 1.0)) >
-              tau_a) {
+          auto [rad, w] = MinAngle(lines[n.index].d, P_cur.d);
+          if (rad > tau_a) {
             continue;
           }
-
+          weights.push_back(w);
           neighbors.push_back(n);
         }
         if (neighbors.empty()) {
@@ -313,9 +332,11 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
 
         P_cur.a = Eigen::Vector3<T>::Zero();
         P_cur.d = Eigen::Vector3<T>::Zero();
-        for (const auto& n : neighbors) {
+        for (size_t j = 0; j < neighbors.size(); j++) {
+          const auto& n = neighbors[j];
+          const auto& w = weights[j];
           P_cur.a += lines[n.index].a;
-          P_cur.d += lines[n.index].d;
+          P_cur.d += lines[n.index].d * w;
         }
         P_cur.a /= static_cast<double>(neighbors.size());
         P_cur.d /= static_cast<double>(neighbors.size());
@@ -325,14 +346,21 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
           // No description in the paper. My original method.
           // Sometimes the algorithm stucks at the same position.
           // To avoid the stuck, check movement is small or not
-          double movement = (P_cur.a - strand.back().a).norm();
+          auto latest = strand.back().a;
+          if (i == 1) {
+            latest = strand.front().a;
+          }
+          double movement = (P_cur.a - latest).norm();
           const double stop_th = tau_r * 0.01;
           if (movement < stop_th) {
             break;
           }
         }
-
-        strand.push_back(P_cur);
+        if (i == 0) {
+          strand.push_back(P_cur);
+        } else {
+          strand.insert(strand.begin(), P_cur);
+        }
       }
     }
 
