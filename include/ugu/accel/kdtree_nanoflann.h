@@ -62,7 +62,7 @@ class KdTreeNanoflannVector : public KdTree<Scalar, Rows> {
                                    const double& r) const override;
 
  private:
-  template <class VectorOfVectorsType, typename num_t = double, int DIM = -1,
+  template <class VectorOfVectorsType, typename num_t = Scalar, int DIM = -1,
             class Distance = nanoflann::metric_L2, typename IndexType = size_t>
   struct KDTreeVectorOfVectorsAdaptor {
     using self_t =
@@ -152,11 +152,11 @@ class KdTreeNanoflannVector : public KdTree<Scalar, Rows> {
 template <typename KdPoint, typename Scalar, typename Adaptor, typename Index>
 KdTreeSearchResults RangeQueryKdTreeNanoflann(const KdPoint& query,
                                               const Adaptor& index,
-                                              float epsilon) {
-  std::vector<std::pair<Index, float>> ret_matches;
+                                              Scalar epsilon) {
+  std::vector<std::pair<Index, Scalar>> ret_matches;
   nanoflann::SearchParams params;
   // For squared L2 distance
-  const float sq_epsilon = epsilon * epsilon;
+  const Scalar sq_epsilon = epsilon * epsilon;
   const size_t nMatches =
       index.index->radiusSearch(query.data(), sq_epsilon, ret_matches, params);
 
@@ -174,7 +174,7 @@ template <typename KdPoint, typename Scalar, typename Adaptor, typename Index>
 KdTreeSearchResults QueryKnnNanoflann(const KdPoint& query,
                                       const Adaptor& index, size_t k) {
   std::vector<Index> out_indices(k);
-  std::vector<float> out_distances_sq(k);
+  std::vector<Scalar> out_distances_sq(k);
   const size_t nMatches = index.index->knnSearch(
       query.data(), k, out_indices.data(), out_distances_sq.data());
 
@@ -236,7 +236,7 @@ KdTreeSearchResults KdTreeNanoflannEigenX<Scalar>::SearchRadius(
     const KdPoint& query, const double& r) const {
   return RangeQueryKdTreeNanoflann<KdPoint, Scalar, nf_eigen_adaptor,
                                    Eigen::Index>(query, *m_mat_index,
-                                                 static_cast<float>(r));
+                                                 static_cast<Scalar>(r));
 }
 
 template <typename Scalar, int Rows>
@@ -282,7 +282,7 @@ template <typename Scalar, int Rows>
 KdTreeSearchResults KdTreeNanoflannVector<Scalar, Rows>::SearchRadius(
     const KdPoint& query, const double& r) const {
   return RangeQueryKdTreeNanoflann<KdPoint, Scalar, nf_vector_adaptor, size_t>(
-      query, *m_index, static_cast<float>(r));
+      query, *m_index, static_cast<Scalar>(r));
 }
 
 }  // namespace ugu

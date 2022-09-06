@@ -22,10 +22,9 @@ using namespace ugu;
 template <typename T>
 Line3<T> LocalMean(const Line3<T>& seed, const Line3<T>& X0,
                    const std::vector<Line3<T>>& unclean,
-                   const std::shared_ptr<ugu::KdTree<float, 3>> kdtree,
+                   const std::shared_ptr<ugu::KdTree<T, 3>> kdtree,
                    double r_nei, double sigma_p, double sigma_d) {
-  KdTreeSearchResults neighbors = kdtree->SearchRadius(
-      seed.a.template cast<float>(), static_cast<double>(r_nei));
+  KdTreeSearchResults neighbors = kdtree->SearchRadius(seed.a, r_nei);
 
   if (neighbors.empty()) {
     return seed;
@@ -83,8 +82,9 @@ Line3<T> LocalMean(const Line3<T>& seed, const Line3<T>& X0,
   return moved;
 }
 
-auto GetKdtree(const std::vector<Eigen::Vector3f>& data) {
-  ugu::KdTreePtr<float, 3> kdtree = GetDefaultKdTree<float, 3>();
+template <typename T>
+auto GetKdtree(const std::vector<Eigen::Vector3<T>>& data) {
+  ugu::KdTreePtr<T, 3> kdtree = GetDefaultKdTree<T, 3>();
   kdtree->SetData(data);
   kdtree->Build();
   return kdtree;
@@ -102,9 +102,9 @@ bool LineClusteringImpl(const std::vector<Line3<T>>& unclean,
     return false;
   }
 
-  std::vector<Eigen::Vector3f> pos_list;
+  std::vector<Eigen::Vector3<T>> pos_list;
   std::transform(unclean.begin(), unclean.end(), std::back_inserter(pos_list),
-                 [&](const Line3<T>& l) { return l.a.template cast<float>(); });
+                 [&](const Line3<T>& l) { return l.a; });
 
   auto kdtree = GetKdtree(pos_list);
 
@@ -269,9 +269,9 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
     P.insert(i);
   }
 
-  std::vector<Eigen::Vector3f> pos_list;
+  std::vector<Eigen::Vector3<T>> pos_list;
   std::transform(lines.begin(), lines.end(), std::back_inserter(pos_list),
-                 [&](const Line3<T>& l) { return l.a.template cast<float>(); });
+                 [&](const Line3<T>& l) { return l.a; });
   auto kdtree = GetKdtree(pos_list);
 
   constexpr uint32_t rand_seed = 0;
@@ -294,8 +294,7 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
       while (iter < max_iter) {
         iter++;
         Eigen::Vector3<T> stepped = P_cur.a + s * P_cur.d;
-        KdTreeSearchResults neighbors_ =
-            kdtree->SearchRadius(stepped.template cast<float>(), tau_r);
+        KdTreeSearchResults neighbors_ = kdtree->SearchRadius(stepped, tau_r);
         KdTreeSearchResults neighbors;
         for (const auto& n : neighbors_) {
           if (P.find(n.index) == P.end()) {
@@ -318,8 +317,8 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
           P_cur.a += lines[n.index].a;
           P_cur.d += lines[n.index].d;
         }
-        P_cur.a /= neighbors.size();
-        P_cur.d /= neighbors.size();
+        P_cur.a /= static_cast<double>(neighbors.size());
+        P_cur.d /= static_cast<double>(neighbors.size());
         P_cur.d.normalize();
 
         if (!strand.empty()) {
@@ -338,9 +337,8 @@ bool GenerateStrandsImpl(const std::vector<Line3<T>>& lines,
     }
 
     // Erase near points
-    for (const auto& s : strand) {
-      KdTreeSearchResults neighbors =
-          kdtree->SearchRadius(s.a.template cast<float>(), tau_r);
+    for (const auto& st : strand) {
+      KdTreeSearchResults neighbors = kdtree->SearchRadius(st.a, tau_r);
       for (const auto& n : neighbors) {
         P.erase(n.index);
       }
