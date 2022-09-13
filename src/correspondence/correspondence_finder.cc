@@ -40,6 +40,10 @@ namespace ugu {
 bool KDTreeCorrespFinder::Init(
     const std::vector<Eigen::Vector3f>& verts,
     const std::vector<Eigen::Vector3i>& verts_faces) {
+  if (verts.empty() || verts_faces.empty()) {
+    return false;
+  }
+
   auto [face_centroids, face_planes] = ComputeFaceInfo(verts, verts_faces);
 
   m_verts = verts;

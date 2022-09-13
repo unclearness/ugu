@@ -96,10 +96,18 @@ int main(int argc, char* argv[]) {
     ugu::LOGI("Load mesh: %f ms\n", timer.elapsed_msec());
   }
 
+  if (src_mesh.vertices().empty() || dst_mesh.vertex_indices().empty()) {
+    std::cout << "src vertices and dst faces must not be empty" << std::endl;
+    exit(0);
+  }
+
   timer.Start();
   ugu::CorrespFinderPtr corresp_finder =
       ugu::KDTreeCorrespFinder::Create(nn_num);
-  corresp_finder->Init(dst_mesh.vertices(), dst_mesh.vertex_indices());
+
+  if (!corresp_finder->Init(dst_mesh.vertices(), dst_mesh.vertex_indices())) {
+    exit(0);
+  }
   timer.End();
   if (verbose) {
     ugu::LOGI("Init: %f ms\n", timer.elapsed_msec());
