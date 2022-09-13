@@ -116,6 +116,20 @@ std::vector<T> LoadTxtAsEigenVec(const std::string& path,
   return data;
 }
 
+template <typename T>
+bool WriteTxt(const std::string& path, const std::vector<T>& data) {
+  std::ofstream ofs(path);
+  if (!ofs.is_open()) {
+    return false;
+  }
+
+  for (const T& d : data) {
+    ofs << d << std::endl;
+  }
+
+  return true;
+}
+
 #ifdef UGU_USE_OPENCV
 template <typename T>
 bool WriteBinary(const std::string& path, ugu::Image<T>& image) {

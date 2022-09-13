@@ -468,6 +468,7 @@ if (UGU_BUILD_APP)
   setup_exe(textrans_cmd app/textrans.cc FOLDER_NAME "ugu_app")
   setup_exe(vc2tex_cmd app/vc2tex.cc FOLDER_NAME "ugu_app")
   setup_exe(image3d app/image3d.cc FOLDER_NAME "ugu_app")
+  setup_exe(point2mesh_cmd app/point2mesh.cc FOLDER_NAME "ugu_app")
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})
