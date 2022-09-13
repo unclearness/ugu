@@ -44,8 +44,8 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
   float src_w = static_cast<float>(src_tex.cols);
   float src_h = static_cast<float>(src_tex.rows);
 
-  CorrespFinderPtr coresp_finder = KDTreeCorrespFinder::Create(nn_num);
-  coresp_finder->Init(src_verts, src_verts_faces);
+  CorrespFinderPtr corresp_finder = KDTreeCorrespFinder::Create(nn_num);
+  corresp_finder->Init(src_verts, src_verts_faces);
 
   assert(dst_uv_faces.size() == dst_vert_faces.size());
 #pragma omp parallel for
@@ -99,7 +99,7 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
         // auto [foot, min_signed_dist, min_dist, min_index, bary] =
         //   CalcClosestSurfaceInfo(tree, dpos, src_verts, src_verts_faces,
         //                          src_face_planes, nn_num);
-        Corresp corresp = coresp_finder->Find(dpos, Eigen::Vector3f::Ones());
+        Corresp corresp = corresp_finder->Find(dpos, Eigen::Vector3f::Ones());
 
         if (corresp.fid < 0) {
           ugu::LOGE("min_index is None %d %d\n", bb_y, bb_x);

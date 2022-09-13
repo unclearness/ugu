@@ -97,9 +97,9 @@ int main(int argc, char* argv[]) {
   }
 
   timer.Start();
-  ugu::CorrespFinderPtr coresp_finder =
+  ugu::CorrespFinderPtr corresp_finder =
       ugu::KDTreeCorrespFinder::Create(nn_num);
-  coresp_finder->Init(dst_mesh.vertices(), dst_mesh.vertex_indices());
+  corresp_finder->Init(dst_mesh.vertices(), dst_mesh.vertex_indices());
   timer.End();
   if (verbose) {
     ugu::LOGI("Init: %f ms\n", timer.elapsed_msec());
@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
   const Eigen::Vector3f stub_normal(0.f, 0.f, 1.f);
   auto func = [&](size_t i) {
     correspondences[i] =
-        coresp_finder->Find(src_mesh.vertices()[i], stub_normal);
+        corresp_finder->Find(src_mesh.vertices()[i], stub_normal);
   };
   ugu::parallel_for(size_t(0), src_mesh.vertices().size(), func, num_threads);
   timer.End();
@@ -124,7 +124,7 @@ int main(int argc, char* argv[]) {
   std::vector<float> signed_dists;
   std::transform(correspondences.begin(), correspondences.end(),
                  std::back_inserter(signed_dists),
-                 [&](const ugu::Corresp& c) { return c.singed_dist; });
+                 [&](const ugu::Corresp& c) { return c.signed_dist; });
   ugu::WriteTxt(out_dir + "/" + basename + ".txt", signed_dists);
 
   // all info -> .json
@@ -141,7 +141,7 @@ int main(int argc, char* argv[]) {
                                               c.p[1],
                                               c.p[2],
                                           }},
-                                         {"singed_dist", c.singed_dist}};
+                                         {"singed_dist", c.signed_dist}};
       j.push_back(jj);
     }
     ofs << std::setw(4) << j.dump(-1, ' ', true) << std::endl;
@@ -160,7 +160,7 @@ int main(int argc, char* argv[]) {
 
     std::vector<Eigen::Vector3f> colors;
     for (size_t i = 0; i < correspondences.size(); i++) {
-      float d = correspondences[i].singed_dist;
+      float d = correspondences[i].signed_dist;
       Eigen::Vector3f c(255.f, 255.f, 255.f);
       if (d > 0.f) {
         c[0] = std::min(d, vis_max) / vis_max * 255.f;

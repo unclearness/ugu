@@ -104,7 +104,7 @@ ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
   ugu::Corresp corresp;
   corresp.fid = min_index;
   corresp.p = min_foot;
-  corresp.singed_dist = min_signed_dist;
+  corresp.signed_dist = min_signed_dist;
   corresp.abs_dist = min_dist;
   corresp.uv = min_bary;
 

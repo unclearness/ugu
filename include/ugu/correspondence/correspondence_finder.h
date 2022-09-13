@@ -15,7 +15,7 @@ struct Corresp {
   Eigen::Vector2f uv = Eigen::Vector2f::Zero();
   Eigen::Vector3f p =
       Eigen::Vector3f::Constant(std::numeric_limits<float>::lowest());
-  float singed_dist = std::numeric_limits<float>::lowest();
+  float signed_dist = std::numeric_limits<float>::lowest();
   float abs_dist = std::numeric_limits<float>::max();
 };
 
