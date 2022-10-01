@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <Eigen/Core>
+#include "Eigen/Core"
 #include <functional>
 
 static_assert(3 <= EIGEN_WORLD_VERSION);
