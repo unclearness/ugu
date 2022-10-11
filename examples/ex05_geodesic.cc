@@ -62,12 +62,17 @@ void SaveGeodesicDistance(const std::string& data_dir,
   int tex_len = 512;
   distance_mat.diffuse_tex = ugu::Image3b::zeros(tex_len, tex_len);
 
+  ugu::Timer<> timer;
   // This is rasterization for visualized colors.
   // So this does not accurately interpolate distances and the corresponding
   // colors and may have artifacts on blue border lines.
+  timer.Start();
   ugu::RasterizeVertexAttributeToTexture(
       mesh.vertex_colors(), mesh.vertex_indices(), mesh.uv(), mesh.uv_indices(),
       distance_mat.diffuse_tex);
+  timer.End();
+  ugu::LOGI("ugu::RasterizeVertexAttributeToTexture 1st time %f\n",
+            timer.elapsed_msec());
 
   distance_mat.diffuse_texname =
       prefix + "geodesic_distance_vertex_rasterized.png";
@@ -89,9 +94,13 @@ void SaveGeodesicDistance(const std::string& data_dir,
                  });
   // Rasterize float distance to float texture
   // This does not cause artifacts
+  timer.Start();
   ugu::RasterizeVertexAttributeToTexture(
       dists3, mesh.vertex_indices(), mesh.uv(), mesh.uv_indices(),
       geodesic_tex_f, tex_len, tex_len, &mask);
+  timer.End();
+  ugu::LOGI("ugu::RasterizeVertexAttributeToTexture 2nd time %f\n",
+            timer.elapsed_msec());
   // Convert to uchar from float
   geodesic_tex_f.forEach<ugu::Vec3f>([&](ugu::Vec3f& p, const int position[2]) {
     auto& c = geodesic_tex.at<ugu::Vec3b>(position[1], position[0]);

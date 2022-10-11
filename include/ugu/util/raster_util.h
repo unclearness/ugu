@@ -7,6 +7,7 @@
 
 #include "ugu/image.h"
 #include "ugu/util/image_util.h"
+#include "ugu/util/thread_util.h"
 
 namespace ugu {
 
@@ -155,7 +156,8 @@ bool RasterizeVertexAttributeToTexture(
     const std::vector<Eigen::Vector3i>& vertex_attr_indices,
     const std::vector<Eigen::Vector2f>& uvs,
     const std::vector<Eigen::Vector3i>& uv_indices, Image<T>& texture,
-    int width = 512, int height = 512, ugu::Image1b* mask = nullptr) {
+    int width = 512, int height = 512, ugu::Image1b* mask = nullptr,
+    int num_threads = -1) {
   if (vertex_attr_indices.empty() ||
       vertex_attr_indices.size() != uv_indices.size()) {
     return false;
@@ -168,7 +170,8 @@ bool RasterizeVertexAttributeToTexture(
   }
 
   const auto& face_num = vertex_attr_indices.size();
-  for (size_t i = 0; i < face_num; i++) {
+
+  auto face_func = [&](size_t i) {
     const auto& vc_face = vertex_attr_indices[i];
     const auto& uv_face = uv_indices[i];
 
@@ -184,7 +187,9 @@ bool RasterizeVertexAttributeToTexture(
     }
 
     RasterizeTriangle(src_vetex_color, target_tri, &texture, mask);
-  }
+  };
+
+  ugu::parallel_for(size_t(0), face_num, face_func, num_threads);
 
   return true;
 }
@@ -194,7 +199,8 @@ bool RasterizeFaceAttributeToTexture(
     const std::vector<Eigen::Vector3f>& face_attrs,
     const std::vector<Eigen::Vector2f>& uvs,
     const std::vector<Eigen::Vector3i>& uv_indices, Image<T>& texture,
-    int width = 512, int height = 512, ugu::Image1b* mask = nullptr) {
+    int width = 512, int height = 512, ugu::Image1b* mask = nullptr,
+    int num_threads = -1) {
   if (face_attrs.empty() || face_attrs.size() != uv_indices.size()) {
     return false;
   }
@@ -206,7 +212,7 @@ bool RasterizeFaceAttributeToTexture(
   }
 
   const auto& face_num = face_attrs.size();
-  for (size_t i = 0; i < face_num; i++) {
+  auto face_func = [&](size_t i) {
     const auto& face_attr = face_attrs[i];
     const auto& uv_face = uv_indices[i];
 
@@ -221,7 +227,9 @@ bool RasterizeFaceAttributeToTexture(
     }
 
     RasterizeTriangle(src_vetex_color, target_tri, &texture, mask);
-  }
+  };
+
+  ugu::parallel_for(size_t(0), face_num, face_func, num_threads);
 
   return true;
 }
@@ -230,19 +238,19 @@ template <typename T>
 bool GenerateUvMask(const std::vector<Eigen::Vector2f>& uvs,
                     const std::vector<Eigen::Vector3i>& uv_indices,
                     Image<T>& mask, const Eigen::Vector3f& color,
-                    int width = 512, int height = 512) {
+                    int width = 512, int height = 512, int num_threads = -1) {
   std::vector<Eigen::Vector3f> vertex_colors{color};
   std::vector<Eigen::Vector3i> vertex_color_indices(uv_indices.size(),
                                                     Eigen::Vector3i::Zero());
   return RasterizeVertexAttributeToTexture(vertex_colors, vertex_color_indices,
-                                           uvs, uv_indices, mask, width,
-                                           height);
+                                           uvs, uv_indices, mask, width, height,
+                                           nullptr, num_threads);
 }
 
 bool GenerateUvMask(const std::vector<Eigen::Vector2f>& uvs,
                     const std::vector<Eigen::Vector3i>& uv_indices,
                     Image1b& mask, uint8_t color, int width = 512,
-                    int height = 512);
+                    int height = 512, int num_threads = -1);
 
 template <typename T>
 bool FetchVertexAttributeFromTexture(const Image<T>& texture,
