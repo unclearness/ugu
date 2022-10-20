@@ -43,9 +43,10 @@ endif()
 
 function(set_with_parent ARG_NAME ARG_PATH ARG_TEXT)
     set(${ARG_NAME} ${ARG_PATH} CACHE PATH ${ARG_TEXT} FORCE)
-    if (hasParent)
-      set(${ARG_NAME} ${ARG_PATH} PARENT_SCOPE)
-    endif()
+    #if (hasParent)
+      #set(${ARG_NAME} ${ARG_PATH} PARENT_SCOPE)
+    #set(${ARG_NAME} ${ARG_PATH} ${ARG_TEXT} PARENT_SCOPE)
+    #endif()
 endfunction(set_with_parent)
 
 set(Ugu_LIBS)
@@ -59,56 +60,38 @@ message("EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR}")
 endif()
 set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
 
+set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs-texturing libigl)
+set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyobjloader
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lodepng
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinycolormap/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nanort
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/single_include
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nanoflann/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/Fast-Quadric-Mesh-Simplification/src.cmd
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cxxopts/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mvs-texturing
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/libigl/include
+  )
+
+function(ugu_set_install_dir LIB_NAME DEFAULT_INSTALL_DIR)
+  string(TOUPPER ${LIB_NAME} LIB_NAME)
+  set(LIB_VAR "${LIB_NAME}_INSTALL_DIR")
+  if(NOT DEFINED ${LIB_VAR})
+    set_with_parent(${LIB_VAR} ${DEFAULT_INSTALL_DIR} "${LIB_NAME} installed directory")
+  endif()
+  message("${LIB_VAR}: ${${LIB_VAR}}") 
+endfunction(ugu_set_install_dir)
+
 # optional
-if(NOT DEFINED STB_INSTALL_DIR)
-  set_with_parent(STB_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb" "stb installed directory")
-endif()
-message("STB_INSTALL_DIR: ${STB_INSTALL_DIR}") 
-if(NOT DEFINED TINYOBJLOADER_INSTALL_DIR)
-  set_with_parent(TINYOBJLOADER_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyobjloader" "tinyobjloader installed directory")
-endif()
-message("TINYOBJLOADER_INSTALL_DIR: ${TINYOBJLOADER_INSTALL_DIR}")
-if(NOT DEFINED LODEPNG_INSTALL_DIR)
-  set_with_parent(LODEPNG_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lodepng" "LodePNG installed directory")
-endif()
-message("LODEPNG_INSTALL_DIR: ${LODEPNG_INSTALL_DIR}")
-if(NOT DEFINED TINYCOLORMAP_INSTALL_DIR)
-  set_with_parent(TINYCOLORMAP_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinycolormap/include" "tinycolormap installed directory")
-endif()
-message("TINYCOLORMAP_INSTALL_DIR: ${TINYCOLORMAP_INSTALL_DIR}")
-if(NOT DEFINED NANORT_INSTALL_DIR)
-  set_with_parent(NANORT_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/nanort" "nanort installed directory")
-endif()
-message("NANORT_INSTALL_DIR: ${NANORT_INSTALL_DIR}") 
-if(NOT DEFINED JSON_INSTALL_DIR)
-  set_with_parent(JSON_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/single_include" "json installed directory")
-endif()
-message("JSON_INSTALL_DIR: ${JSON_INSTALL_DIR}") 
-if(NOT DEFINED NANOFLANN_INSTALL_DIR)
-  set_with_parent(NANOFLANN_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/nanoflann/include" "nanoflann installed directory")
-endif()
-message("NANOFLANN_INSTALL_DIR: ${NANOFLANN_INSTALL_DIR}")
-
-if(NOT DEFINED FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR)
-  set_with_parent(FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Fast-Quadric-Mesh-Simplification/src.cmd" "Fast-Quadric-Mesh-Simplification installed directory")
-endif()
-message("FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR: ${FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR}") 
-
-if(NOT DEFINED CXXOPTS_INSTALL_DIR)
-  set_with_parent(CXXOPTS_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/cxxopts/include" "cxxopts installed directory")
-endif()
-message("CXXOPTS_INSTALL_DIR: ${CXXOPTS_INSTALL_DIR}")
-
-if(NOT DEFINED MVS_TEXTURING_INSTALL_DIR)
-  set_with_parent(MVS_TEXTURING_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/mvs-texturing" "mvs-texturing installed directory")
-endif()
-message("MVS_TEXTURING_INSTALL_DIR: ${MVS_TEXTURING_INSTALL_DIR}")
-
-
-if(NOT DEFINED LIBIGL_INSTALL_DIR)
-  set_with_parent(LIBIGL_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/libigl" "libigl installed directory")
-endif()
-message("LIBIGL_INSTALL_DIR: ${LIBIGL_INSTALL_DIR}")
+list(LENGTH OPTIONAL_EXTERNAL_ALL OPTIONAL_LIB_NUM)
+math(EXPR OPTIONAL_LIB_NUM_1 "${OPTIONAL_LIB_NUM} - 1")
+foreach(I RANGE 0  ${OPTIONAL_LIB_NUM_1}) 
+    list(GET OPTIONAL_EXTERNAL_ALL ${I} LIB_NAME)
+    list(GET OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR ${I} DEFAULT_INSTALL_DIR)
+    ugu_set_install_dir(${LIB_NAME} ${DEFAULT_INSTALL_DIR})
+endforeach()
 
 # switch for optional libraries
 option(UGU_USE_STB "Use stb to enable image i/o" ON)
@@ -177,49 +160,6 @@ if(UGU_USE_LODEPNG)
   endif()
 endif()
 
-option(UGU_USE_TINYCOLORMAP "Use tinycolormap for visualization" ON)
-message("UGU_USE_TINYCOLORMAP: ${UGU_USE_TINYCOLORMAP}")
-if(UGU_USE_TINYCOLORMAP)
-  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${TINYCOLORMAP_INSTALL_DIR})
-  add_definitions(-DUGU_USE_TINYCOLORMAP)
-endif()
-
-option(UGU_USE_NANORT "Use nanort for raytrace" ON)
-message("UGU_USE_NANORT: ${UGU_USE_NANORT}")
-if(UGU_USE_NANORT)
-  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${NANORT_INSTALL_DIR})
-  add_definitions(-DUGU_USE_NANORT)
-endif()
-
-option(UGU_USE_JSON "Use nlohmann/json for json" ON)
-message("UGU_USE_JSON: ${UGU_USE_JSON}")
-if(UGU_USE_JSON)
-  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${JSON_INSTALL_DIR})
-  add_definitions(-DUGU_USE_JSON)
-endif()
-
-option(UGU_USE_NANOFLANN "Use nanoflann" ON)
-message("UGU_USE_NANOFLANN: ${UGU_USE_NANOFLANN}")
-if(UGU_USE_NANOFLANN)
-  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${NANOFLANN_INSTALL_DIR})
-  add_definitions(-DUGU_USE_NANOFLANN)
-endif()
-
-option(UGU_USE_CXXOPTS "Use cxxopts" ON)
-message("UGU_USE_CXXOPTS: ${UGU_USE_CXXOPTS}")
-if(UGU_USE_CXXOPTS)
-  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${CXXOPTS_INSTALL_DIR})
-  add_definitions(-DUGU_USE_CXXOPTS)
-endif()
-
-
-option(UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION "Use Fast-Quadric-Mesh-Simplification" OFF)
-message("UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION: ${UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION}")
-if(UGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION)
-  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${FAST_QUADRIC_MESH_SIMPLIFICATION_INSTALL_DIR})
-  add_definitions(-DUGU_USE_FAST_QUADRIC_MESH_SIMPLIFICATION)
-endif()
-
 option(UGU_USE_MVS_TEXTURING "Use mvs-texturing" OFF)
 message("UGU_USE_MVS_TEXTURING: ${UGU_USE_MVS_TEXTURING}")
 if(UGU_USE_MVS_TEXTURING)
@@ -234,13 +174,28 @@ if(UGU_USE_MVS_TEXTURING)
   set_property(TARGET texrecon tex mve mve_sfm mve_math mve_fssr mve_dmrecon mve_util mrf PROPERTY FOLDER "mvs-texturing") 
 endif()
 
+set(OPTIONAL_EXTERNAL_NO_COMPILE tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts libigl)
+set(OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ON ON ON ON OFF ON ON)
+function(ugu_set_default_option LIB_NAME DEFAULT_OPTION)
+  string(TOUPPER ${LIB_NAME} LIB_NAME)
+  set(OPTION_NAME "UGU_USE_${LIB_NAME}")
+  option(${OPTION_NAME} "Use ${LIB_NAME} for visualization" ${DEFAULT_OPTION})
+  message("${OPTION_NAME}: ${${OPTION_NAME}}")
+  if(${OPTION_NAME})
+    set(LIB_VAR "${LIB_NAME}_INSTALL_DIR")
+    set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${${LIB_VAR}} PARENT_SCOPE)
+    add_definitions("-D${OPTION_NAME}")
+  endif()
+endfunction(ugu_set_default_option)
 
-option(UGU_USE_LIBIGL "Use libigl" ON)
-message("UGU_USE_LIBIGL: ${UGU_USE_LIBIGL}")
-if(UGU_USE_LIBIGL)
-  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${LIBIGL_INSTALL_DIR}/include)
-  add_definitions(-DUGU_USE_LIBIGL)
-endif()
+list(LENGTH OPTIONAL_EXTERNAL_NO_COMPILE NO_COMPILE_NUM)
+math(EXPR NO_COMPILE_NUM_1 "${NO_COMPILE_NUM} - 1")
+foreach(I RANGE 0 ${NO_COMPILE_NUM_1}) 
+    list(GET OPTIONAL_EXTERNAL_NO_COMPILE ${I} LIB_NAME)
+    list(GET OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ${I} DEFAULT_OPTION)
+    ugu_set_default_option(${LIB_NAME} ${DEFAULT_OPTION})
+endforeach()
+
 
 option(UGU_USE_OPENMP "Use OpenMP to enable parallelization" ON)
 if(APPLE)
