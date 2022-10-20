@@ -22,7 +22,7 @@ if (WIN32)
 # https://docs.microsoft.com/en-us/cpp/build/reference/compiler-option-warning-level?view=vs-2017
 # "However, for a new project, it may be best to use /W4 in all compilations;
 # this will ensure the fewest possible hard-to-find code defects."
-set(CMAKE_CXX_FLAGS "/W4 /EHsc /MP")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /EHsc /MP")
 else()
 # g++/clang option for *nix
 set(CMAKE_CXX_EXTENSIONS OFF) #Set this to ON if you want to use GNU++
@@ -42,18 +42,24 @@ endfunction(set_as_cache)
 
 set(Ugu_LIBS)
 set(Ugu_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(Ugu_DEFINES)
 
 # Set up third_party install directries
 ############################## MUST Eigen ##############################
 if(NOT DEFINED EIGEN3_INCLUDE_DIR)
-  set_as_cache(EIGEN3_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen" "eigen installed directory" PARENT_SCOPE)
+  set_as_cache(EIGEN3_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen" "eigen installed directory")
 message("EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR}") 
 endif()
 set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
+if (WIN32)
+  # suppress C2338 for eigen
+  set(Ugu_DEFINES ${Ugu_DEFINES} _ENABLE_EXTENDED_ALIGNED_STORAGE)
+endif()
+
 ########################################################################
 
 ############################## Optional ################################
-set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs-texturing libigl)
+set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs_texturing libigl)
 set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyobjloader
@@ -77,12 +83,8 @@ function(ugu_set_install_dir LIB_NAME DEFAULT_INSTALL_DIR)
   message("${LIB_VAR}: ${${LIB_VAR}}") 
 endfunction(ugu_set_install_dir)
 
-list(LENGTH OPTIONAL_EXTERNAL_ALL OPTIONAL_LIB_NUM)
-math(EXPR OPTIONAL_LIB_NUM_1 "${OPTIONAL_LIB_NUM} - 1")
-foreach(I RANGE 0  ${OPTIONAL_LIB_NUM_1}) 
-    list(GET OPTIONAL_EXTERNAL_ALL ${I} LIB_NAME)
-    list(GET OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR ${I} DEFAULT_INSTALL_DIR)
-    ugu_set_install_dir(${LIB_NAME} ${DEFAULT_INSTALL_DIR})
+foreach(pair IN ZIP_LISTS OPTIONAL_EXTERNAL_ALL OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR)
+  ugu_set_install_dir(${pair_0} ${pair_1})
 endforeach()
 ########################################################################
 
@@ -92,7 +94,7 @@ option(UGU_USE_STB "Use stb to enable image i/o" ON)
 message("UGU_USE_STB: ${UGU_USE_STB}")
 if(UGU_USE_STB)
   set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${STB_INSTALL_DIR})
-  add_definitions(-DUGU_USE_STB)
+  set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_STB)
   option(UGU_USE_STB_BUT_NO_IMPLEMENTATION "Include stb but implement somewhere else" OFF)
   if (NOT UGU_USE_STB_BUT_NO_IMPLEMENTATION)
     option(UGU_USE_STB_AS_STATIC_LIB "Use stb as static lib" OFF)
@@ -113,7 +115,7 @@ option(UGU_USE_TINYOBJLOADER "Use tinyobjloader to enable .obj input" ON)
 message("UGU_USE_TINYOBJLOADER: ${UGU_USE_TINYOBJLOADER}")
 if(UGU_USE_TINYOBJLOADER)
   set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${TINYOBJLOADER_INSTALL_DIR})
-  add_definitions(-DUGU_USE_TINYOBJLOADER)
+  set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_TINYOBJLOADER)
   option(UGU_USE_TINYOBJLOADER_BUT_NO_IMPLEMENTATION "Include tinyobjloader but implement somewhere else" OFF)
   if (NOT UGU_USE_TINYOBJLOADER_BUT_NO_IMPLEMENTATION)
     option(UGU_USE_TINYOBJLOADER_AS_STATIC_LIB "Use tinyobjloader as static lib" OFF)
@@ -131,7 +133,7 @@ option(UGU_USE_LODEPNG "Use LodePNG to enable image i/o, especially for 16bit" O
 message("UGU_USE_LODEPNG: ${UGU_USE_LODEPNG}")
 if(UGU_USE_LODEPNG)
   set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${LODEPNG_INSTALL_DIR})
-  add_definitions(-DUGU_USE_LODEPNG)
+  set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_LODEPNG)
   option(UGU_USE_LODEPNG_AS_STATIC_LIB "Use LodePNG as static lib" OFF)
   if(UGU_USE_LODEPNG_AS_STATIC_LIB)
     add_library(lodepng
@@ -156,7 +158,7 @@ if(UGU_USE_MVS_TEXTURING)
         ${MVS_TEXTURING_INSTALL_DIR}/third_party/mve/libs
         ${MVS_TEXTURING_INSTALL_DIR}/third_party/rayint/libs)
   set(MvsTexturing_LIBS tex mve mve_util mrf)
-  add_definitions(-DUGU_USE_MVS_TEXTURING)
+  set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_MVS_TEXTURING)
   set_property(TARGET texrecon tex mve mve_sfm mve_math mve_fssr mve_dmrecon mve_util mrf PROPERTY FOLDER "mvs-texturing") 
 endif()
 ########################################################################
@@ -173,16 +175,12 @@ function(ugu_set_default_option LIB_NAME DEFAULT_OPTION)
   if(${OPTION_NAME})
     set(LIB_VAR "${LIB_NAME}_INSTALL_DIR")
     set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${${LIB_VAR}} PARENT_SCOPE)
-    add_definitions("-D${OPTION_NAME}")
+    set(Ugu_DEFINES ${Ugu_DEFINES} ${OPTION_NAME} PARENT_SCOPE)
   endif()
 endfunction(ugu_set_default_option)
 
-list(LENGTH OPTIONAL_EXTERNAL_NO_COMPILE NO_COMPILE_NUM)
-math(EXPR NO_COMPILE_NUM_1 "${NO_COMPILE_NUM} - 1")
-foreach(I RANGE 0 ${NO_COMPILE_NUM_1}) 
-    list(GET OPTIONAL_EXTERNAL_NO_COMPILE ${I} LIB_NAME)
-    list(GET OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ${I} DEFAULT_OPTION)
-    ugu_set_default_option(${LIB_NAME} ${DEFAULT_OPTION})
+foreach(pair IN ZIP_LISTS OPTIONAL_EXTERNAL_NO_COMPILE OPTIONAL_EXTERNAL_NO_COMPILE_OPTION)
+  ugu_set_default_option(${pair_0} ${pair_1})
 endforeach()
 ########################################################################
 
@@ -193,6 +191,7 @@ message("UGU_USE_OPENCV: ${UGU_USE_OPENCV}")
 if(UGU_USE_OPENCV)
   find_package(OpenCV REQUIRED)
   add_definitions(-DUGU_USE_OPENCV)
+  set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_OPENCV)
   set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
   set(Ugu_LIBS ${Ugu_LIBS} ${OpenCV_LIBS})
 endif()
@@ -203,7 +202,7 @@ set(UGU_USE_OPENMP OFF)
 endif()
 message("UGU_USE_OPENMP: ${UGU_USE_OPENMP}")
 if(UGU_USE_OPENMP)
-  add_definitions(-DUGU_USE_OPENMP)
+  set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_OPENMP)
 endif()
 
 # For OpenMP
@@ -352,8 +351,9 @@ add_library(${Ugu_LIB}
   ${UGU_SOURCE}
 )
 set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB} ${MvsTexturing_LIBS}) # This order is important in Ubuntu...
-
 set(SOURCE_LIST ${SOURCE_LIST} ${UGU_SOURCE})
+
+target_compile_definitions(ugu PUBLIC ${Ugu_DEFINES})
 
 set_as_cache(Ugu_LIBS "${Ugu_LIBS}" "Ugu_LIBS")
 set_as_cache(Ugu_INCLUDE_DIRS "${Ugu_INCLUDE_DIRS}" "Ugu_INCLUDE_DIRS")
@@ -363,7 +363,7 @@ message("Ugu_INCLUDE_DIRS: ${Ugu_INCLUDE_DIRS}")
 target_include_directories(${Ugu_LIB} PUBLIC ${Ugu_INCLUDE_DIRS})
 set_target_properties(${Ugu_LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 
-set_property( GLOBAL PROPERTY USE_FOLDERS ON)
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 function(setup_exe EXE_NAME EXE_SRC)
   set(SETUP_EXE_FOLDER_NAME "ugu_examples")
@@ -423,12 +423,6 @@ if (UGU_BUILD_APP)
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})
-
-if (WIN32)
-  #set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${EXAMPLES_EXE})
-  # suppress C2338 for eigen
-  add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
-endif()
 
 # make test data directory
 if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data)
