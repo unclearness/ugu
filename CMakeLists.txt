@@ -12,6 +12,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 # .dll and .exe
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin) 
 
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
+
 if (WIN32)
 # option for Visual Studio
 # -EHsc (enable proper Exxeption Handling) needs to avoid C4530
@@ -19,19 +22,11 @@ if (WIN32)
 # https://docs.microsoft.com/en-us/cpp/build/reference/compiler-option-warning-level?view=vs-2017
 # "However, for a new project, it may be best to use /W4 in all compilations;
 # this will ensure the fewest possible hard-to-find code defects."
-set(CMAKE_CXX_FLAGS "/std:c++17 /W4 /EHsc /MP")
-
-
+set(CMAKE_CXX_FLAGS "/W4 /EHsc /MP")
 else()
-# g++ option for *nix
-
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# g++/clang option for *nix
 set(CMAKE_CXX_EXTENSIONS OFF) #Set this to ON if you want to use GNU++
-set(CMAKE_CXX_STANDARD 17)
-
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++17 -Wall -O2")
-
-
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -O2")
 endif()
 
 get_directory_property(hasParent PARENT_DIRECTORY)
@@ -41,25 +36,23 @@ else()
   message(STATUS "Doesn't have a parent scope.")
 endif()
 
-function(set_with_parent ARG_NAME ARG_PATH ARG_TEXT)
+function(set_as_cache ARG_NAME ARG_PATH ARG_TEXT)
     set(${ARG_NAME} ${ARG_PATH} CACHE PATH ${ARG_TEXT} FORCE)
-    #if (hasParent)
-      #set(${ARG_NAME} ${ARG_PATH} PARENT_SCOPE)
-    #set(${ARG_NAME} ${ARG_PATH} ${ARG_TEXT} PARENT_SCOPE)
-    #endif()
-endfunction(set_with_parent)
+endfunction(set_as_cache)
 
 set(Ugu_LIBS)
 set(Ugu_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# third_party directries
-# must
+# Set up third_party install directries
+############################## MUST Eigen ##############################
 if(NOT DEFINED EIGEN3_INCLUDE_DIR)
-  set_with_parent(EIGEN3_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen" "eigen installed directory" PARENT_SCOPE)
+  set_as_cache(EIGEN3_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen" "eigen installed directory" PARENT_SCOPE)
 message("EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR}") 
 endif()
 set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
+########################################################################
 
+############################## Optional ################################
 set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs-texturing libigl)
 set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
@@ -79,12 +72,11 @@ function(ugu_set_install_dir LIB_NAME DEFAULT_INSTALL_DIR)
   string(TOUPPER ${LIB_NAME} LIB_NAME)
   set(LIB_VAR "${LIB_NAME}_INSTALL_DIR")
   if(NOT DEFINED ${LIB_VAR})
-    set_with_parent(${LIB_VAR} ${DEFAULT_INSTALL_DIR} "${LIB_NAME} installed directory")
+    set_as_cache(${LIB_VAR} ${DEFAULT_INSTALL_DIR} "${LIB_NAME} installed directory")
   endif()
   message("${LIB_VAR}: ${${LIB_VAR}}") 
 endfunction(ugu_set_install_dir)
 
-# optional
 list(LENGTH OPTIONAL_EXTERNAL_ALL OPTIONAL_LIB_NUM)
 math(EXPR OPTIONAL_LIB_NUM_1 "${OPTIONAL_LIB_NUM} - 1")
 foreach(I RANGE 0  ${OPTIONAL_LIB_NUM_1}) 
@@ -92,8 +84,10 @@ foreach(I RANGE 0  ${OPTIONAL_LIB_NUM_1})
     list(GET OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR ${I} DEFAULT_INSTALL_DIR)
     ugu_set_install_dir(${LIB_NAME} ${DEFAULT_INSTALL_DIR})
 endforeach()
+########################################################################
 
-# switch for optional libraries
+# Setup third_party libraries
+###################### With manual compilation #########################
 option(UGU_USE_STB "Use stb to enable image i/o" ON)
 message("UGU_USE_STB: ${UGU_USE_STB}")
 if(UGU_USE_STB)
@@ -114,14 +108,6 @@ if(UGU_USE_STB)
   endif()
 endif()
 
-option(UGU_USE_OPENCV "Use OpenCV as Image class" OFF)
-message("UGU_USE_OPENCV: ${UGU_USE_OPENCV}")
-if(UGU_USE_OPENCV)
-  find_package(OpenCV REQUIRED)
-  add_definitions(-DUGU_USE_OPENCV)
-  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
-  set(Ugu_LIBS ${Ugu_LIBS} ${OpenCV_LIBS})
-endif()
 
 option(UGU_USE_TINYOBJLOADER "Use tinyobjloader to enable .obj input" ON)
 message("UGU_USE_TINYOBJLOADER: ${UGU_USE_TINYOBJLOADER}")
@@ -173,7 +159,10 @@ if(UGU_USE_MVS_TEXTURING)
   add_definitions(-DUGU_USE_MVS_TEXTURING)
   set_property(TARGET texrecon tex mve mve_sfm mve_math mve_fssr mve_dmrecon mve_util mrf PROPERTY FOLDER "mvs-texturing") 
 endif()
+########################################################################
 
+
+########################### Include only ###############################
 set(OPTIONAL_EXTERNAL_NO_COMPILE tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts libigl)
 set(OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ON ON ON ON OFF ON ON)
 function(ugu_set_default_option LIB_NAME DEFAULT_OPTION)
@@ -195,7 +184,18 @@ foreach(I RANGE 0 ${NO_COMPILE_NUM_1})
     list(GET OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ${I} DEFAULT_OPTION)
     ugu_set_default_option(${LIB_NAME} ${DEFAULT_OPTION})
 endforeach()
+########################################################################
 
+
+######################### Link only ####################################
+option(UGU_USE_OPENCV "Use OpenCV as Image class" OFF)
+message("UGU_USE_OPENCV: ${UGU_USE_OPENCV}")
+if(UGU_USE_OPENCV)
+  find_package(OpenCV REQUIRED)
+  add_definitions(-DUGU_USE_OPENCV)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
+  set(Ugu_LIBS ${Ugu_LIBS} ${OpenCV_LIBS})
+endif()
 
 option(UGU_USE_OPENMP "Use OpenMP to enable parallelization" ON)
 if(APPLE)
@@ -214,10 +214,9 @@ if(UGU_USE_OPENMP)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
   endif()
 endif()
+########################################################################
 
 
-option(UGU_STATIC_LIBRARY "Build UGU as static library" ON)
-message("UGU_STATIC_LIBRARY: ${UGU_STATIC_LIBRARY}")
 set(
   UGU_SOURCE
 
@@ -346,21 +345,18 @@ set(
   ${UGU_LODEPNG_SOURCES}
 
 )
-if(UGU_STATIC_LIBRARY)
-  set(Ugu_LIB ugu)
-  add_definitions(-DUGU_STATIC_LIBRARY)
-  add_library(${Ugu_LIB}
-    STATIC
-    ${UGU_SOURCE}
-  )
 
-  set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB} ${MvsTexturing_LIBS}) # This order is important in Ubuntu...
-endif()
+set(Ugu_LIB ugu)
+add_library(${Ugu_LIB}
+  STATIC
+  ${UGU_SOURCE}
+)
+set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB} ${MvsTexturing_LIBS}) # This order is important in Ubuntu...
 
 set(SOURCE_LIST ${SOURCE_LIST} ${UGU_SOURCE})
 
-set_with_parent(Ugu_LIBS "${Ugu_LIBS}" "Ugu_LIBS")
-set_with_parent(Ugu_INCLUDE_DIRS "${Ugu_INCLUDE_DIRS}" "Ugu_INCLUDE_DIRS")
+set_as_cache(Ugu_LIBS "${Ugu_LIBS}" "Ugu_LIBS")
+set_as_cache(Ugu_INCLUDE_DIRS "${Ugu_INCLUDE_DIRS}" "Ugu_INCLUDE_DIRS")
 message("Ugu_LIBS: ${Ugu_LIBS}") 
 message("Ugu_INCLUDE_DIRS: ${Ugu_INCLUDE_DIRS}") 
 

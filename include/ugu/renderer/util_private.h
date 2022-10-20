@@ -20,7 +20,3 @@ bool ValidateAndInitBeforeRender(bool mesh_initialized,
                                  Image1i* face_id);
 
 }  // namespace ugu
-
-#ifndef UGU_STATIC_LIBRARY
-#include "util_private.cc"
-#endif
