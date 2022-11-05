@@ -11,6 +11,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <typeinfo>
 #include <vector>
 
 #include "ugu/common.h"
@@ -150,8 +151,425 @@ using Vec4b = Vec_<unsigned char, 4>;
 template <typename TT, int N>
 using Point_ = Vec_<TT, N>;
 
+#define CV_CN_MAX 512
+#define CV_CN_SHIFT 3
+#define CV_DEPTH_MAX (1 << CV_CN_SHIFT)
+
+#define CV_8U 0
+#define CV_8S 1
+#define CV_16U 2
+#define CV_16S 3
+#define CV_32S 4
+#define CV_32F 5
+#define CV_64F 6
+#define CV_16F 7
+
+#define CV_MAT_DEPTH_MASK (CV_DEPTH_MAX - 1)
+#define CV_MAT_DEPTH(flags) ((flags)&CV_MAT_DEPTH_MASK)
+
+#define CV_MAKETYPE(depth, cn) (CV_MAT_DEPTH(depth) + (((cn)-1) << CV_CN_SHIFT))
+#define CV_MAKE_TYPE CV_MAKETYPE
+
+#define CV_8UC1 CV_MAKETYPE(CV_8U, 1)
+#define CV_8UC2 CV_MAKETYPE(CV_8U, 2)
+#define CV_8UC3 CV_MAKETYPE(CV_8U, 3)
+#define CV_8UC4 CV_MAKETYPE(CV_8U, 4)
+#define CV_8UC(n) CV_MAKETYPE(CV_8U, (n))
+
+#define CV_8SC1 CV_MAKETYPE(CV_8S, 1)
+#define CV_8SC2 CV_MAKETYPE(CV_8S, 2)
+#define CV_8SC3 CV_MAKETYPE(CV_8S, 3)
+#define CV_8SC4 CV_MAKETYPE(CV_8S, 4)
+#define CV_8SC(n) CV_MAKETYPE(CV_8S, (n))
+
+#define CV_16UC1 CV_MAKETYPE(CV_16U, 1)
+#define CV_16UC2 CV_MAKETYPE(CV_16U, 2)
+#define CV_16UC3 CV_MAKETYPE(CV_16U, 3)
+#define CV_16UC4 CV_MAKETYPE(CV_16U, 4)
+#define CV_16UC(n) CV_MAKETYPE(CV_16U, (n))
+
+#define CV_16SC1 CV_MAKETYPE(CV_16S, 1)
+#define CV_16SC2 CV_MAKETYPE(CV_16S, 2)
+#define CV_16SC3 CV_MAKETYPE(CV_16S, 3)
+#define CV_16SC4 CV_MAKETYPE(CV_16S, 4)
+#define CV_16SC(n) CV_MAKETYPE(CV_16S, (n))
+
+#define CV_32SC1 CV_MAKETYPE(CV_32S, 1)
+#define CV_32SC2 CV_MAKETYPE(CV_32S, 2)
+#define CV_32SC3 CV_MAKETYPE(CV_32S, 3)
+#define CV_32SC4 CV_MAKETYPE(CV_32S, 4)
+#define CV_32SC(n) CV_MAKETYPE(CV_32S, (n))
+
+#define CV_32FC1 CV_MAKETYPE(CV_32F, 1)
+#define CV_32FC2 CV_MAKETYPE(CV_32F, 2)
+#define CV_32FC3 CV_MAKETYPE(CV_32F, 3)
+#define CV_32FC4 CV_MAKETYPE(CV_32F, 4)
+#define CV_32FC(n) CV_MAKETYPE(CV_32F, (n))
+
+#define CV_64FC1 CV_MAKETYPE(CV_64F, 1)
+#define CV_64FC2 CV_MAKETYPE(CV_64F, 2)
+#define CV_64FC3 CV_MAKETYPE(CV_64F, 3)
+#define CV_64FC4 CV_MAKETYPE(CV_64F, 4)
+#define CV_64FC(n) CV_MAKETYPE(CV_64F, (n))
+
+#define CV_16FC1 CV_MAKETYPE(CV_16F, 1)
+#define CV_16FC2 CV_MAKETYPE(CV_16F, 2)
+#define CV_16FC3 CV_MAKETYPE(CV_16F, 3)
+#define CV_16FC4 CV_MAKETYPE(CV_16F, 4)
+#define CV_16FC(n) CV_MAKETYPE(CV_16F, (n))
+
+#define CV_GETCN(type) ((type >> CV_CN_SHIFT) + 1)
+//#define CV_GETCN(type) (type)
+
+//#define GET_ACTUAL_TYPE(type) ((type == ))
+
+static int GetBitsFromCvType(int cv_type) {
+  int cv_depth = CV_MAT_DEPTH(cv_type);
+
+  if (cv_depth < 0) {
+    throw std::runtime_error("");
+  }
+
+  if (cv_depth <= CV_8S) {
+    return 8;
+  } else if (cv_depth <= CV_16S) {
+    return 16;
+  } else if (cv_depth <= CV_32F) {
+    return 32;
+  } else if (cv_depth <= CV_64F) {
+    return 64;
+  } else if (cv_depth <= CV_16F) {
+    return 16;
+  }
+
+  throw std::runtime_error("");
+}
+
+static const std::type_info& GetTypeidFromCvType(int cv_type) {
+  // int cv_depth = CV_MAT_DEPTH(cv_type);
+
+  // typeid(uint8_t) == typeid(int);
+
+  if (cv_type < CV_8S) {
+    return typeid(uint8_t);
+  } else if (cv_type < CV_16U) {
+    return typeid(int8_t);
+  } else if (cv_type < CV_16S) {
+    return typeid(uint16_t);
+  } else if (cv_type < CV_32F) {
+    return typeid(int16_t);
+  } else if (cv_type < CV_64F) {
+    return typeid(float);
+  } else if (cv_type < CV_16F) {
+    return typeid(double);
+  }
+
+  throw std::runtime_error("");
+}
+
+enum {
+  ACCESS_READ = 1 << 24,
+  ACCESS_WRITE = 1 << 25,
+  ACCESS_RW = 3 << 24,
+  ACCESS_MASK = ACCESS_RW,
+  ACCESS_FAST = 1 << 26
+};
+
+#if 0
+
+class ImageBase;
+
 template <typename T>
-class Image {
+class Image;
+
+class _InputArray {
+ public:
+  enum KindFlag {
+    KIND_SHIFT = 16,
+    FIXED_TYPE = 0x8000 << KIND_SHIFT,
+    FIXED_SIZE = 0x4000 << KIND_SHIFT,
+    KIND_MASK = 31 << KIND_SHIFT,
+
+    NONE = 0 << KIND_SHIFT,
+    MAT = 1 << KIND_SHIFT,
+#if 0
+    MATX = 2 << KIND_SHIFT,
+
+    STD_VECTOR = 3 << KIND_SHIFT,
+    STD_VECTOR_VECTOR = 4 << KIND_SHIFT,
+    STD_VECTOR_MAT = 5 << KIND_SHIFT,
+#if OPENCV_ABI_COMPATIBILITY < 500
+    EXPR = 6 << KIND_SHIFT,  //!< removed:
+                             //!< https://github.com/opencv/opencv/pull/17046
+#endif
+    OPENGL_BUFFER = 7 << KIND_SHIFT,
+    CUDA_HOST_MEM = 8 << KIND_SHIFT,
+    CUDA_GPU_MAT = 9 << KIND_SHIFT,
+    UMAT = 10 << KIND_SHIFT,
+    STD_VECTOR_UMAT = 11 << KIND_SHIFT,
+    STD_BOOL_VECTOR = 12 << KIND_SHIFT,
+    STD_VECTOR_CUDA_GPU_MAT = 13 << KIND_SHIFT,
+#if OPENCV_ABI_COMPATIBILITY < 500
+    STD_ARRAY =
+        14 << KIND_SHIFT,  //!< removed:
+                           //!< https://github.com/opencv/opencv/issues/18897
+#endif
+    STD_ARRAY_MAT = 15 << KIND_SHIFT
+#endif
+  };
+  _InputArray() { init(0 + NONE, 0); };
+  _InputArray(const ImageBase& m) { init(MAT + ACCESS_READ, &m); };
+
+  bool isMat() const { return kind() == MAT; }
+
+  _InputArray::KindFlag kind() const {
+    return static_cast<KindFlag>(flags & static_cast<int>(KIND_MASK));
+  }
+
+ protected:
+  int flags;
+  void* obj;
+  Size sz;
+
+  void init(int _flags, const void* _obj) {
+    flags = _flags;
+    obj = const_cast<void*>(_obj);
+  }
+  // void init(int _flags, const void* _obj, Size _sz);
+};
+
+class _OutputArray : public _InputArray {
+ public:
+  _OutputArray() {};
+  _OutputArray(ImageBase& m) {};
+};
+
+class _InputOutputArray : public _OutputArray {
+ public:
+  _InputOutputArray() {};
+};
+
+#endif
+
+class ImageBase;
+
+typedef ImageBase _InputArray;
+typedef ImageBase _OutputArray;
+typedef ImageBase _InputOutputArray;
+
+typedef const _InputArray& InputArray;
+typedef InputArray InputArrayOfArrays;
+typedef const _OutputArray& OutputArray;
+typedef OutputArray OutputArrayOfArrays;
+typedef const _InputOutputArray& InputOutputArray;
+typedef InputOutputArray InputOutputArrayOfArrays;
+
+static inline InputOutputArray noArray();
+static inline size_t SizeInBytes(const ImageBase& mat);
+
+class ImageBase {
+ private:
+  int cv_type = CV_8UC1;
+  int cv_depth = -1;
+  int cv_ch = -1;
+  int bit_depth_ = -1;
+  const std::type_info* cpp_type;
+  // std::type_info type = typeid(int);
+  // int bit_depth_{sizeof(typename T::value_type)};
+  // int channels_{std::tuple_size<T>::value};
+  // int width_{-1};
+  // int height_{-1};
+  std::shared_ptr<std::vector<uint8_t> > data_{nullptr};
+
+ public:
+  ImageBase(int rows, int cols, int type)
+      : rows(rows), cols(cols), cv_type(type) {
+    cv_depth = CV_MAT_DEPTH(type);
+    cv_ch = CV_GETCN(type);
+    bit_depth_ = GetBitsFromCvType(cv_type) / 8;
+    cpp_type = &GetTypeidFromCvType(cv_type);
+    data_->resize(static_cast<size_t>(rows) * static_cast<size_t>(cols) *
+                  cv_ch * bit_depth_);
+    data = reinterpret_cast<uint8_t*>(data_->data());
+
+    step[0] = size_t(cols * bit_depth_ * cv_ch);
+    step[1] = 1;
+  }
+  ImageBase(){
+    cpp_type = &typeid(void);
+    step[0] = 0;
+    step[1] = 0;
+  };
+  ImageBase(const ImageBase& src) = default;
+  ~ImageBase() {}
+  int channels() const { return cv_ch; }
+  int rows{-1};
+  int cols{-1};
+  std::array<size_t, 2> step;  // Not compatible
+  uint8_t* data{nullptr};
+  int type() const { return cv_type; };
+
+  bool empty() const {
+    if (rows < 1 || cols < 1 || data_->empty()) {
+      return true;
+    }
+    return false;
+  }
+
+  size_t elemSize() const { return size_t(bit_depth_ * channels()); }
+
+  size_t elemSize1() const { return size_t(bit_depth_); }
+
+  size_t total() const { return rows * cols; }
+
+  bool isContinuous() const {
+    // Always true for this implementation
+    return true;
+  }
+
+  template <typename TT>
+  TT& at(int y, int x) {
+    return *(reinterpret_cast<TT*>(data_->data()) +
+             ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
+  }
+
+  template <typename TT>
+  const TT& at(int y, int x) const {
+    return *(reinterpret_cast<TT*>(data_->data()) +
+             ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
+  }
+
+#if 0
+  template<typename T>
+  void setTo(T value, const Image1b& mask = Image1b()) {
+
+    if (mask.empty()) {
+      *this = value; 
+      return;
+    }
+
+    auto func = [&](T& val, const int[2] xy) {
+      //if (!mask.empty() )
+          if (mask.at)
+    }
+
+    this->forEach<T>(func);
+  }
+
+#endif
+
+  void setTo(InputArray value, InputArray mask = noArray()) {
+    if (mask.empty()) {
+      *this = value;
+      return;
+    }
+
+    if (this->cols != mask.cols || this->rows != mask.rows ||
+        mask.cv_type != CV_8U) {
+      throw std::runtime_error("Type error");
+    }
+
+    auto copy_func = [&](int index_) {
+      int x = index_ % cols;
+      int y = index_ / cols;
+      if (mask.at<uint8_t>(y, x) != 255) {
+        return;
+      }
+
+      size_t index = (x + y * cols) * this->channels();
+      size_t offset = index * bit_depth_;
+      size_t size = channels() * bit_depth_;
+      std::memcpy(this->data + offset, value.data + offset, size);
+    };
+
+    // for (int y = 0; y < rows; y++) {
+    //  auto copy_funcs2 = std::bind(copy_func, std::placeholders::_1, y);
+    //
+    //}
+    parallel_for(0, cols * rows, copy_func);
+  }
+
+  static ImageBase zeros(int height, int width, int type) {
+    ImageBase zero(width, height, type);
+    zero = 0;
+    return zero;
+  }
+
+  void copyTo(ImageBase& dst) const {  // NOLINT
+    if (dst.cols != cols || dst.rows != rows) {
+      dst = zeros(rows, cols, cv_type);
+    }
+    std::memcpy(dst.data_->data(), data_->data(),
+                bit_depth_ * rows * cols * channels());
+  }
+
+  ImageBase clone() const {
+    ImageBase dst;
+    this->copyTo(dst);
+    return dst;
+  }
+
+  template <typename TT>
+  void forEach(std::function<void(TT&, const int[2])> f) {
+    if (empty()) {
+      return;
+    }
+    size_t st(0);
+    size_t ed = static_cast<size_t>(cols * rows * sizeof(T) / sizeof(TT));
+    auto f2 = [&](const size_t& i) {
+      const int xy[2] = {static_cast<int32_t>(i) % cols,
+                         static_cast<int32_t>(i) / cols};
+      f(reinterpret_cast<TT*>(data)[i], xy);
+    };
+    parallel_for(st, ed, f2);
+  }
+
+  ImageBase& operator=(const ImageBase& rhs) {
+    *this = rhs;
+    return *this;
+  }
+
+  ImageBase& operator=(const double& rhs) {
+    size_t size = step[0] * rows;
+
+#define UGU_FILL_CAST(type)                                              \
+  (std::fill(reinterpret_cast<std::vector<type>*>(data_.get())->begin(), \
+             reinterpret_cast<std::vector<type>*>(data_.get())->end(),   \
+             static_cast<type>(rhs)));
+
+    if (*cpp_type == typeid(uint8_t)) {
+      std::memset(data, static_cast<uint8_t>(rhs), size);
+    } else if (*cpp_type == typeid(int8_t)) {
+      //     std::fill(reinterpret_cast<std::vector<int8_t>*>(data_.get())->begin(),
+      //                reinterpret_cast<std::vector<int8_t>*>(data_.get())->end(),
+      //                static_cast<int8_t>(rhs));
+      UGU_FILL_CAST(int8_t);
+    } else if (*cpp_type == typeid(uint16_t)) {
+      UGU_FILL_CAST(uint16_t);
+    } else if (*cpp_type == typeid(int16_t)) {
+      UGU_FILL_CAST(int16_t);
+    } else if (*cpp_type == typeid(float)) {
+      UGU_FILL_CAST(float);
+    } else if (*cpp_type == typeid(double)) {
+      UGU_FILL_CAST(double);
+    } else {
+    }
+
+#undef UGU_FILL_CAST
+
+    return *this;
+  }
+};
+
+size_t SizeInBytes(const ImageBase& mat) {
+  // https://stackoverflow.com/questions/26441072/finding-the-size-in-bytes-of-cvmat
+  return size_t(mat.step[0] * mat.rows);
+}
+
+InputOutputArray noArray() { return _InputOutputArray(); }
+
+template <typename T>
+class Image : public ImageBase {
  private:
   int bit_depth_{sizeof(typename T::value_type)};
   int channels_{std::tuple_size<T>::value};
