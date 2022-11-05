@@ -457,7 +457,7 @@ class ImageBase {
       return;
     }
     size_t st(0);
-    size_t ed = static_cast<size_t>(cols * rows * sizeof(T) / sizeof(TT));
+    size_t ed = static_cast<size_t>(cols * rows * bit_depth_ / sizeof(TT));
     auto f2 = [&](const size_t& i) {
       const int xy[2] = {static_cast<int32_t>(i) % cols,
                          static_cast<int32_t>(i) / cols};
@@ -502,7 +502,10 @@ size_t SizeInBytes(const ImageBase& mat) {
   return size_t(mat.step[0] * mat.rows);
 }
 
-InputOutputArray noArray() { return _InputOutputArray(); }
+InputOutputArray noArray() {
+  static _InputOutputArray no_array;
+  return no_array;
+}
 
 inline int MakeCvType(const std::type_info* info, int ch) {
   int code = -1;
@@ -540,7 +543,7 @@ template <typename T,
           std::enable_if_t<std::is_compound_v<T>, std::nullptr_t> = nullptr>
 int ParseVec() {
   const int ch = T().size();
-  const std::type_info* info = &typeid(T::value_type);
+  const std::type_info* info = &typeid(typename T::value_type);
   return MakeCvType(info, ch);
 }
 
@@ -832,7 +835,7 @@ inline void Init(Image<T>* image, int width, int height,
 }
 
 template <typename T>
-inline void Init(Image<T>* image, int width, int height, typename T val) {
+inline void Init(Image<T>* image, int width, int height, T val) {
   if (image->cols != width || image->rows != height) {
     *image = Image<T>::zeros(height, width);
   }
