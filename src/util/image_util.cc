@@ -559,7 +559,7 @@ void MakeSignedDistanceField(const Image1b& mask,
       }
     }
   }
-
+ 
   Image1b inv_mask = Image1b::zeros(mask.rows, mask.cols);
   mask.copyTo(inv_mask);
   for (int y = roi_min.y(); y <= roi_max.y(); y++) {

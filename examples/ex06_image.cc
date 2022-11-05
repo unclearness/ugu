@@ -15,10 +15,13 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
+
   std::string data_dir = "../data/bunny/";
   std::string mask_path = data_dir + "00000_mask.png";
 
   ugu::Image1b mask = ugu::imread<ugu::Image1b>(mask_path);
+  ugu::imwrite("hoge.png",  mask);
+
 
   // 2D SDF
   ugu::Image1f sdf;

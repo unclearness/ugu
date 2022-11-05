@@ -234,6 +234,8 @@ static int GetBitsFromCvType(int cv_type) {
     return 8;
   } else if (cv_depth <= CV_16S) {
     return 16;
+  } else if (cv_depth <= CV_32S) {
+    return 32;
   } else if (cv_depth <= CV_32F) {
     return 32;
   } else if (cv_depth <= CV_64F) {
@@ -246,21 +248,23 @@ static int GetBitsFromCvType(int cv_type) {
 }
 
 static const std::type_info& GetTypeidFromCvType(int cv_type) {
-  // int cv_depth = CV_MAT_DEPTH(cv_type);
+  int cv_depth = CV_MAT_DEPTH(cv_type);
 
   // typeid(uint8_t) == typeid(int);
 
-  if (cv_type < CV_8S) {
+  if (cv_depth < CV_8S) {
     return typeid(uint8_t);
-  } else if (cv_type < CV_16U) {
+  } else if (cv_depth < CV_16U) {
     return typeid(int8_t);
-  } else if (cv_type < CV_16S) {
+  } else if (cv_depth < CV_16S) {
     return typeid(uint16_t);
-  } else if (cv_type < CV_32F) {
+  } else if (cv_depth < CV_32S) {
     return typeid(int16_t);
-  } else if (cv_type < CV_64F) {
+  } else if (cv_depth < CV_32F) {
+    return typeid(int32_t);
+  } else if (cv_depth < CV_64F) {
     return typeid(float);
-  } else if (cv_type < CV_16F) {
+  } else if (cv_depth < CV_16F) {
     return typeid(double);
   }
 
@@ -290,11 +294,6 @@ class ImageBase {
   int cv_ch = -1;
   int bit_depth_ = -1;
   const std::type_info* cpp_type;
-  // std::type_info type = typeid(int);
-  // int bit_depth_{sizeof(typename T::value_type)};
-  // int channels_{std::tuple_size<T>::value};
-  // int width_{-1};
-  // int height_{-1};
   std::shared_ptr<std::vector<uint8_t> > data_{nullptr};
 
   void Init(int rows_, int cols_, int type) {
@@ -306,6 +305,7 @@ class ImageBase {
     cv_ch = CV_GETCN(type);
     bit_depth_ = GetBitsFromCvType(cv_type) / 8;
     cpp_type = &GetTypeidFromCvType(cv_type);
+    data_ = std::make_shared<std::vector<uint8_t> >();
     data_->resize(static_cast<size_t>(rows) * static_cast<size_t>(cols) *
                   cv_ch * bit_depth_);
     data = reinterpret_cast<uint8_t*>(data_->data());
@@ -417,6 +417,8 @@ class ImageBase {
         UGU_SET(uint16_t);
       } else if (*cpp_type == typeid(int16_t)) {
         UGU_SET(int16_t);
+      } else if (*cpp_type == typeid(int32_t)) {
+        UGU_SET(int32_t);
       } else if (*cpp_type == typeid(float)) {
         UGU_SET(float);
       } else if (*cpp_type == typeid(double)) {
@@ -431,7 +433,7 @@ class ImageBase {
   }
 
   static ImageBase zeros(int height, int width, int type) {
-    ImageBase zero(width, height, type);
+    ImageBase zero(height, width, type);
     zero = 0;
     return zero;
   }
@@ -464,28 +466,23 @@ class ImageBase {
     parallel_for(st, ed, f2);
   }
 
-  ImageBase& operator=(const ImageBase& rhs) {
-    *this = rhs;
-    return *this;
+  ImageBase& operator=(const double& rhs) {
+
+#define UGU_FILL_CAST(type)                                                 \
+  for (size_t i = 0; i < total() * channels(); i++) {                       \
+    *(reinterpret_cast<type*>(data_->data()) + i) = static_cast<type>(rhs); \
   }
 
-  ImageBase& operator=(const double& rhs) {
-#define UGU_FILL_CAST(type)                                                \
-  (std::fill(reinterpret_cast<std::vector<type>*>(data_->data())->begin(), \
-             reinterpret_cast<std::vector<type>*>(data_->data())->end(),   \
-             static_cast<type>(rhs)));
-
     if (*cpp_type == typeid(uint8_t)) {
-      std::memset(data, static_cast<uint8_t>(rhs), SizeInBytes(*this));
+      UGU_FILL_CAST(uint8_t);
     } else if (*cpp_type == typeid(int8_t)) {
-      //     std::fill(reinterpret_cast<std::vector<int8_t>*>(data_.get())->begin(),
-      //                reinterpret_cast<std::vector<int8_t>*>(data_.get())->end(),
-      //                static_cast<int8_t>(rhs));
       UGU_FILL_CAST(int8_t);
     } else if (*cpp_type == typeid(uint16_t)) {
       UGU_FILL_CAST(uint16_t);
     } else if (*cpp_type == typeid(int16_t)) {
       UGU_FILL_CAST(int16_t);
+    } else if (*cpp_type == typeid(int32_t)) {
+      UGU_FILL_CAST(int32_t);
     } else if (*cpp_type == typeid(float)) {
       UGU_FILL_CAST(float);
     } else if (*cpp_type == typeid(double)) {
@@ -507,42 +504,6 @@ size_t SizeInBytes(const ImageBase& mat) {
 
 InputOutputArray noArray() { return _InputOutputArray(); }
 
-#if 0
-template <typename T,
-          std::enable_if_t<std::is_scalar_v<T>, std::nullptr_t> = nullptr>
-int ParseVec() {
-  int ch = 0;
-  std::type_info* info;
-  if (std::is_scalar<T>()) {
-    ch = 1;
-    info = const_cast<std::type_info*>(&typeid(T));
-  } else {
-    ch = T().size();
-    info = const_cast<std::type_info*>(&typeid(T::value_type));
-  }
-
-  int code = -1;
-
-  if (info == &typeid(uint8_t)) {
-    code = CV_MAKETYPE(CV_8U, ch);
-  } else if (info == &typeid(int8_t)) {
-    code = CV_MAKETYPE(CV_8S, ch);
-  } else if (info == &typeid(uint16_t)) {
-    code = CV_MAKETYPE(CV_16U, ch);
-  } else if (info == &typeid(int16_t)) {
-    code = CV_MAKETYPE(CV_16S, ch);
-  } else if (info == &typeid(float)) {
-    code = CV_MAKETYPE(CV_32F, ch);
-  } else if (info == &typeid(double)) {
-    code = CV_MAKETYPE(CV_64F, ch);
-  } else {
-    throw std::runtime_error("type error");
-  }
-
-  return code;
-}
-#endif
-
 inline int MakeCvType(const std::type_info* info, int ch) {
   int code = -1;
 
@@ -554,6 +515,8 @@ inline int MakeCvType(const std::type_info* info, int ch) {
     code = CV_MAKETYPE(CV_16U, ch);
   } else if (info == &typeid(int16_t)) {
     code = CV_MAKETYPE(CV_16S, ch);
+  } else if (info == &typeid(int32_t)) {
+    code = CV_MAKETYPE(CV_32S, ch);
   } else if (info == &typeid(float)) {
     code = CV_MAKETYPE(CV_32F, ch);
   } else if (info == &typeid(double)) {
@@ -590,12 +553,15 @@ class Image : public ImageBase {
     int code = ParseVec<T>();
     Init(rows, cols, code);
   };
-  Image() { Init(0, 0, 0); }
+  Image() {
+    int code = ParseVec<T>();
+    Init(0, 0, code);
+  }
 
   ~Image(){};
 
   static Image<T> zeros(int height, int width) {
-    Image<T> zero(width, height);
+    Image<T> zero(height, width);
     zero = 0.0;
     return zero;
   }
@@ -613,7 +579,7 @@ class Image : public ImageBase {
     LOGE("Please implement!\n");
   }
 
-#ifndef UGU_USE_STB
+#ifdef UGU_USE_STB
   bool Load(const std::string& path) {
     uint8_t* in_pixels_tmp;
     int width;
@@ -622,24 +588,24 @@ class Image : public ImageBase {
 
     if (bit_depth_ == 2) {
       in_pixels_tmp = reinterpret_cast<uint8_t*>(
-          stbi_load_16(path.c_str(), &width, &height, &bpp, channels_));
+          stbi_load_16(path.c_str(), &width, &height, &bpp, cv_ch));
     } else if (bit_depth_ == 1) {
-      in_pixels_tmp = stbi_load(path.c_str(), &width, &height, &bpp, channels_);
+      in_pixels_tmp = stbi_load(path.c_str(), &width, &height, &bpp, cv_ch);
     } else {
       LOGE("Load() for bit_depth %d and channel %d is not supported\n",
-           bit_depth_, channels_);
+           bit_depth_, cv_ch);
       return false;
     }
 
-    if (bpp != channels_) {
+    if (bpp != cv_ch) {
       stbi_image_free(in_pixels_tmp);
-      LOGE("desired channel %d, actual %d\n", channels_, bpp);
+      LOGE("desired channel %d, actual %d\n", cv_ch, bpp);
       return false;
     }
 
-    Init(width, height);
+    Init(height, width, MakeCvType(&typeid(uint8_t), cv_ch));
 
-    std::memcpy(data_->data(), in_pixels_tmp, sizeof(T) * width_ * height_);
+    std::memcpy(data_->data(), in_pixels_tmp, sizeof(T) * cols * rows);
     stbi_image_free(in_pixels_tmp);
 
     return true;
@@ -648,26 +614,26 @@ class Image : public ImageBase {
 #ifdef UGU_USE_LODEPNG
   // https://github.com/lvandeve/lodepng/issues/74#issuecomment-405049566
   bool WritePng16Bit1Channel(const std::string& path) const {
-    if (bit_depth_ != 2 || channels_ != 1) {
+    if (bit_depth_ != 2 || cv_ch != 1) {
       LOGE("WritePng16Bit1Channel invalid bit_depth %d or channel %d\n",
-           bit_depth_, channels_);
+           bit_depth_, cv_ch);
       return false;
     }
     std::vector<uint8_t> data_8bit;
-    data_8bit.resize(width_ * height_ * 2);  // 2 bytes per pixel
+    data_8bit.resize(cols * rows * 2);  // 2 bytes per pixel
     const int kMostMask = 0b1111111100000000;
     const int kLeastMask = ~kMostMask;
-    for (int y = 0; y < height_; y++) {
-      for (int x = 0; x < width_; x++) {
+    for (int y = 0; y < rows; y++) {
+      for (int x = 0; x < cols; x++) {
         std::uint16_t d = this->at<std::uint16_t>(y, x);  // At(*this, x, y, 0);
-        data_8bit[2 * width_ * y + 2 * x + 0] =
+        data_8bit[2 * cols * y + 2 * x + 0] =
             static_cast<uint8_t>((d & kMostMask) >> 8);  // most significant
-        data_8bit[2 * width_ * y + 2 * x + 1] =
+        data_8bit[2 * cols * y + 2 * x + 1] =
             static_cast<uint8_t>(d & kLeastMask);  // least significant
       }
     }
     unsigned error = lodepng::encode(
-        path, data_8bit, width_, height_, LCT_GREY,
+        path, data_8bit, cols, rows, LCT_GREY,
         16);  // note that the LCT_GREY and 16 parameters are of the std::vector
               // we filled in, lodepng will choose its output format itself
               // based on the colors it gets, it will choose 16-bit greyscale in
@@ -682,7 +648,7 @@ class Image : public ImageBase {
 
   bool WritePng(const std::string& path) const {
 #ifdef UGU_USE_LODEPNG
-    if (bit_depth_ == 2 && channels_ == 1) {
+    if (bit_depth_ == 2 && cv_ch == 1) {
       return WritePng16Bit1Channel(path);
     }
 #endif
@@ -693,13 +659,13 @@ class Image : public ImageBase {
       return false;
     }
 
-    if (width_ < 0 || height_ < 0) {
+    if (cols < 0 || rows < 0) {
       LOGE("image is empty\n");
       return false;
     }
 
-    int ret = stbi_write_png(path.c_str(), width_, height_, channels_,
-                             data_->data(), width_ * sizeof(T));
+    int ret = stbi_write_png(path.c_str(), cols, rows, cv_ch, data_->data(),
+                             cols * sizeof(T));
     return ret != 0;
   }
 
@@ -710,22 +676,21 @@ class Image : public ImageBase {
       return false;
     }
 
-    if (width_ < 0 || height_ < 0) {
+    if (cols < 0 || rows < 0) {
       LOGE("image is empty\n");
       return false;
     }
 
-    if (channels_ > 3) {
-      LOGW("alpha channel is ignored to save as .jpg. channels(): %d\n",
-           channels_);
+    if (cv_ch > 3) {
+      LOGW("alpha channel is ignored to save as .jpg. channels(): %d\n", cv_ch);
     }
 
     // JPEG does ignore alpha channels in input data; quality is between 1
     // and 100. Higher quality looks better but results in a bigger image.
     const int max_quality{100};
 
-    int ret = stbi_write_jpg(path.c_str(), width_, height_, channels_,
-                             data_->data(), max_quality);
+    int ret = stbi_write_jpg(path.c_str(), cols, rows, cv_ch, data_->data(),
+                             max_quality);
     return ret != 0;
   }
 #else
@@ -790,8 +755,17 @@ class Image : public ImageBase {
 
 template <typename T>
 Image<T>& Image<T>::operator=(const T& rhs) {
-  std::fill(reinterpret_cast<std::vector<T>*>(data_->data())->begin(),
-            reinterpret_cast<std::vector<T>*>(data_->data())->end(), rhs);
+  // std::fill(reinterpret_cast<std::vector<T>*>(data_->data())->begin(),
+  //          reinterpret_cast<std::vector<T>*>(data_->data())->end(), rhs);
+
+  // std::vector<T> tmp;
+  // tmp.data() = reinterpret_cast<T*>(data_->data());
+  // std::fill(tmp.begin(), tmp.end(), rhs);
+
+  for (size_t i = 0; i < total(); i++) {
+    *(reinterpret_cast<T*>(data_->data()) + i) = rhs;
+  }
+
   return *this;
 }
 
@@ -960,6 +934,8 @@ bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
           val = UGU_CAST1(uint16_t);
         } else if (*cpp_type_src == typeid(int16_t)) {
           val = UGU_CAST1(int16_t);
+        } else if (*cpp_type_src == typeid(int32_t)) {
+          val = UGU_CAST1(int32_t);
         } else if (*cpp_type_src == typeid(float)) {
           val = UGU_CAST1(float);
         } else if (*cpp_type_src == typeid(double)) {
@@ -976,6 +952,8 @@ bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
           UGU_CAST2(uint16_t);
         } else if (*cpp_type_dst == typeid(int16_t)) {
           UGU_CAST2(int16_t);
+        } else if (*cpp_type_dst == typeid(int32_t)) {
+          UGU_CAST2(int32_t);
         } else if (*cpp_type_dst == typeid(float)) {
           UGU_CAST2(float);
         } else if (*cpp_type_dst == typeid(double)) {
