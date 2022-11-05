@@ -170,8 +170,8 @@ int main(int argc, char* argv[]) {
   param.inliner_dist_th = 10.f;
   param.max_iter = 1000;
   param.candidates_num = 10;
-  //param.use_normal_hint = true;
-  //param.normal_hint = Eigen::Vector3f(0.f, 1.f, 0.f);
+  // param.use_normal_hint = true;
+  // param.normal_hint = Eigen::Vector3f(0.f, 1.f, 0.f);
   ugu::Timer timer;
   timer.Start();
   ugu::EstimateGroundPlaneRansac(depth_fused->vertices(),
