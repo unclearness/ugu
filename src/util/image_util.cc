@@ -243,7 +243,7 @@ void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
 #if UGU_USE_OPENCV
   src.forEach(copy_pix);
 #else
-  src.template forEach<VT>(copy_pix);
+  src.forEach(copy_pix);
 #endif
 }
 
@@ -259,7 +259,7 @@ ugu::Image<T> MergeByteImpl(const std::vector<ugu::Image1b>& planes) {
 #if UGU_USE_OPENCV
   merged.forEach(f);
 #else
-  merged.template forEach<T>(f);
+  merged.forEach(f);
 #endif
   return merged;
 }
@@ -351,7 +351,7 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
   assert(min_d < max_d);
   assert(vis_depth != nullptr);
 
-  Init(vis_depth, depth.cols, depth.rows, static_cast<unsigned char>(0));
+  *vis_depth = Image1b::zeros(depth.rows, depth.cols);
 
   float inv_denom = 1.0f / (max_d - min_d);
   for (int y = 0; y < vis_depth->rows; y++) {
@@ -956,7 +956,7 @@ bool AlignChannels(const Image4b& src, Image3b& dst) {
 #if UGU_USE_OPENCV
   dst.forEach(f);
 #else
-  dst.forEach<Vec3b>(f);
+  dst.forEach(f);
 #endif
 
   return true;

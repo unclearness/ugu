@@ -499,13 +499,13 @@ inline bool LeftRightConsistencyCheck(Image1f* ldisparity, Image1f* rdisparity,
       lvalid_mask->cols != ldisparity->cols) {
     *lvalid_mask = Image1b::zeros(ldisparity->rows, ldisparity->cols);
   }
-  lvalid_mask->setTo(255);
+  lvalid_mask->setTo(uint8_t(255));
 
   if (rvalid_mask->rows != rdisparity->rows ||
       rvalid_mask->cols != rdisparity->cols) {
     *rvalid_mask = Image1b::zeros(rdisparity->rows, rdisparity->cols);
   }
-  rvalid_mask->setTo(255);
+  rvalid_mask->setTo(uint8_t(255));
 
   // Check left to right
   for (int j = 0; j < ldisparity->rows; j++) {

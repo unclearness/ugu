@@ -69,7 +69,7 @@ using Image3f = cv::Mat3f;
 using Image3b = cv::Mat3b;
 using Image4b = cv::Mat4b;
 
-using Vec1b = unsigned char;
+using Vec1b = uint8_t;
 using Vec1f = float;
 using Vec1i = int;
 using Vec1w = std::uint16_t;
@@ -139,14 +139,14 @@ using Vec_ = std::array<TT, N>;
 
 using Vec1f = Vec_<float, 1>;
 using Vec1i = Vec_<int, 1>;
+using Vec1b = Vec_<uint8_t, 1>;
 using Vec1w = Vec_<std::uint16_t, 1>;
-using Vec1b = Vec_<unsigned char, 1>;
 using Vec2f = Vec_<float, 2>;
 using Vec2d = Vec_<double, 2>;
-using Vec3b = Vec_<unsigned char, 3>;
+using Vec3b = Vec_<uint8_t, 3>;
 using Vec3f = Vec_<float, 3>;
 using Vec3d = Vec_<double, 3>;
-using Vec4b = Vec_<unsigned char, 4>;
+using Vec4b = Vec_<uint8_t, 4>;
 
 template <typename TT, int N>
 using Point_ = Vec_<TT, N>;
@@ -267,90 +267,6 @@ static const std::type_info& GetTypeidFromCvType(int cv_type) {
   throw std::runtime_error("");
 }
 
-enum {
-  ACCESS_READ = 1 << 24,
-  ACCESS_WRITE = 1 << 25,
-  ACCESS_RW = 3 << 24,
-  ACCESS_MASK = ACCESS_RW,
-  ACCESS_FAST = 1 << 26
-};
-
-#if 0
-
-class ImageBase;
-
-template <typename T>
-class Image;
-
-class _InputArray {
- public:
-  enum KindFlag {
-    KIND_SHIFT = 16,
-    FIXED_TYPE = 0x8000 << KIND_SHIFT,
-    FIXED_SIZE = 0x4000 << KIND_SHIFT,
-    KIND_MASK = 31 << KIND_SHIFT,
-
-    NONE = 0 << KIND_SHIFT,
-    MAT = 1 << KIND_SHIFT,
-#if 0
-    MATX = 2 << KIND_SHIFT,
-
-    STD_VECTOR = 3 << KIND_SHIFT,
-    STD_VECTOR_VECTOR = 4 << KIND_SHIFT,
-    STD_VECTOR_MAT = 5 << KIND_SHIFT,
-#if OPENCV_ABI_COMPATIBILITY < 500
-    EXPR = 6 << KIND_SHIFT,  //!< removed:
-                             //!< https://github.com/opencv/opencv/pull/17046
-#endif
-    OPENGL_BUFFER = 7 << KIND_SHIFT,
-    CUDA_HOST_MEM = 8 << KIND_SHIFT,
-    CUDA_GPU_MAT = 9 << KIND_SHIFT,
-    UMAT = 10 << KIND_SHIFT,
-    STD_VECTOR_UMAT = 11 << KIND_SHIFT,
-    STD_BOOL_VECTOR = 12 << KIND_SHIFT,
-    STD_VECTOR_CUDA_GPU_MAT = 13 << KIND_SHIFT,
-#if OPENCV_ABI_COMPATIBILITY < 500
-    STD_ARRAY =
-        14 << KIND_SHIFT,  //!< removed:
-                           //!< https://github.com/opencv/opencv/issues/18897
-#endif
-    STD_ARRAY_MAT = 15 << KIND_SHIFT
-#endif
-  };
-  _InputArray() { init(0 + NONE, 0); };
-  _InputArray(const ImageBase& m) { init(MAT + ACCESS_READ, &m); };
-
-  bool isMat() const { return kind() == MAT; }
-
-  _InputArray::KindFlag kind() const {
-    return static_cast<KindFlag>(flags & static_cast<int>(KIND_MASK));
-  }
-
- protected:
-  int flags;
-  void* obj;
-  Size sz;
-
-  void init(int _flags, const void* _obj) {
-    flags = _flags;
-    obj = const_cast<void*>(_obj);
-  }
-  // void init(int _flags, const void* _obj, Size _sz);
-};
-
-class _OutputArray : public _InputArray {
- public:
-  _OutputArray() {};
-  _OutputArray(ImageBase& m) {};
-};
-
-class _InputOutputArray : public _OutputArray {
- public:
-  _InputOutputArray() {};
-};
-
-#endif
-
 class ImageBase;
 
 typedef ImageBase _InputArray;
@@ -368,7 +284,7 @@ static inline InputOutputArray noArray();
 static inline size_t SizeInBytes(const ImageBase& mat);
 
 class ImageBase {
- private:
+ protected:
   int cv_type = CV_8UC1;
   int cv_depth = -1;
   int cv_ch = -1;
@@ -381,9 +297,11 @@ class ImageBase {
   // int height_{-1};
   std::shared_ptr<std::vector<uint8_t> > data_{nullptr};
 
- public:
-  ImageBase(int rows, int cols, int type)
-      : rows(rows), cols(cols), cv_type(type) {
+  void Init(int rows, int cols, int type) {
+    this->rows = rows;
+    this->cols = cols;
+    cv_type = type;
+
     cv_depth = CV_MAT_DEPTH(type);
     cv_ch = CV_GETCN(type);
     bit_depth_ = GetBitsFromCvType(cv_type) / 8;
@@ -395,13 +313,14 @@ class ImageBase {
     step[0] = size_t(cols * bit_depth_ * cv_ch);
     step[1] = 1;
   }
-  ImageBase(){
-    cpp_type = &typeid(void);
-    step[0] = 0;
-    step[1] = 0;
-  };
+
+ public:
+  ImageBase(int rows, int cols, int type) { Init(rows, cols, type); }
+  ImageBase() { Init(0, 0, 0); };
+
   ImageBase(const ImageBase& src) = default;
-  ~ImageBase() {}
+  virtual ~ImageBase() {}
+
   int channels() const { return cv_ch; }
   int rows{-1};
   int cols{-1};
@@ -439,25 +358,6 @@ class ImageBase {
              ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
   }
 
-#if 0
-  template<typename T>
-  void setTo(T value, const Image1b& mask = Image1b()) {
-
-    if (mask.empty()) {
-      *this = value; 
-      return;
-    }
-
-    auto func = [&](T& val, const int[2] xy) {
-      //if (!mask.empty() )
-          if (mask.at)
-    }
-
-    this->forEach<T>(func);
-  }
-
-#endif
-
   void setTo(InputArray value, InputArray mask = noArray()) {
     if (mask.empty()) {
       *this = value;
@@ -466,6 +366,10 @@ class ImageBase {
 
     if (this->cols != mask.cols || this->rows != mask.rows ||
         mask.cv_type != CV_8U) {
+      throw std::runtime_error("Type error");
+    }
+
+    if (cv_type != value.cv_type) {
       throw std::runtime_error("Type error");
     }
 
@@ -482,10 +386,47 @@ class ImageBase {
       std::memcpy(this->data + offset, value.data + offset, size);
     };
 
-    // for (int y = 0; y < rows; y++) {
-    //  auto copy_funcs2 = std::bind(copy_func, std::placeholders::_1, y);
-    //
-    //}
+    parallel_for(0, cols * rows, copy_func);
+  }
+
+  void setTo(double value, InputArray mask = noArray()) {
+    if (mask.empty()) {
+      *this = value;
+      return;
+    }
+
+    if (this->cols != mask.cols || this->rows != mask.rows ||
+        mask.cv_type != CV_8U) {
+      throw std::runtime_error("Type error");
+    }
+
+#define UGU_SET(type) (this->at<type>(y, x) = static_cast<type>(value))
+
+    auto copy_func = [&](int index_) {
+      int x = index_ % cols;
+      int y = index_ / cols;
+      if (mask.at<uint8_t>(y, x) != 255) {
+        return;
+      }
+
+      if (*cpp_type == typeid(uint8_t)) {
+        UGU_SET(uint8_t);
+      } else if (*cpp_type == typeid(int8_t)) {
+        UGU_SET(int8_t);
+      } else if (*cpp_type == typeid(uint16_t)) {
+        UGU_SET(uint16_t);
+      } else if (*cpp_type == typeid(int16_t)) {
+        UGU_SET(int16_t);
+      } else if (*cpp_type == typeid(float)) {
+        UGU_SET(float);
+      } else if (*cpp_type == typeid(double)) {
+        UGU_SET(double);
+      } else {
+        throw std::runtime_error("type error");
+      }
+    };
+#undef UGU_SET
+
     parallel_for(0, cols * rows, copy_func);
   }
 
@@ -499,8 +440,7 @@ class ImageBase {
     if (dst.cols != cols || dst.rows != rows) {
       dst = zeros(rows, cols, cv_type);
     }
-    std::memcpy(dst.data_->data(), data_->data(),
-                bit_depth_ * rows * cols * channels());
+    std::memcpy(dst.data_->data(), data_->data(), SizeInBytes(*this));
   }
 
   ImageBase clone() const {
@@ -532,9 +472,9 @@ class ImageBase {
   ImageBase& operator=(const double& rhs) {
     size_t size = step[0] * rows;
 
-#define UGU_FILL_CAST(type)                                              \
-  (std::fill(reinterpret_cast<std::vector<type>*>(data_.get())->begin(), \
-             reinterpret_cast<std::vector<type>*>(data_.get())->end(),   \
+#define UGU_FILL_CAST(type)                                                \
+  (std::fill(reinterpret_cast<std::vector<type>*>(data_->data())->begin(), \
+             reinterpret_cast<std::vector<type>*>(data_->data())->end(),   \
              static_cast<type>(rhs)));
 
     if (*cpp_type == typeid(uint8_t)) {
@@ -553,6 +493,7 @@ class ImageBase {
     } else if (*cpp_type == typeid(double)) {
       UGU_FILL_CAST(double);
     } else {
+      throw std::runtime_error("type error");
     }
 
 #undef UGU_FILL_CAST
@@ -568,93 +509,122 @@ size_t SizeInBytes(const ImageBase& mat) {
 
 InputOutputArray noArray() { return _InputOutputArray(); }
 
+#if 0
+template <typename T,
+          std::enable_if_t<std::is_scalar_v<T>, std::nullptr_t> = nullptr>
+int ParseVec() {
+  int ch = 0;
+  std::type_info* info;
+  if (std::is_scalar<T>()) {
+    ch = 1;
+    info = const_cast<std::type_info*>(&typeid(T));
+  } else {
+    ch = T().size();
+    info = const_cast<std::type_info*>(&typeid(T::value_type));
+  }
+
+  int code = -1;
+
+  if (info == &typeid(uint8_t)) {
+    code = CV_MAKETYPE(CV_8U, ch);
+  } else if (info == &typeid(int8_t)) {
+    code = CV_MAKETYPE(CV_8S, ch);
+  } else if (info == &typeid(uint16_t)) {
+    code = CV_MAKETYPE(CV_16U, ch);
+  } else if (info == &typeid(int16_t)) {
+    code = CV_MAKETYPE(CV_16S, ch);
+  } else if (info == &typeid(float)) {
+    code = CV_MAKETYPE(CV_32F, ch);
+  } else if (info == &typeid(double)) {
+    code = CV_MAKETYPE(CV_64F, ch);
+  } else {
+    throw std::runtime_error("type error");
+  }
+
+  return code;
+}
+#endif
+
+
+inline int MakeCvType(const std::type_info* info, int ch) {
+  int code = -1;
+
+  if (info == &typeid(uint8_t)) {
+    code = CV_MAKETYPE(CV_8U, ch);
+  } else if (info == &typeid(int8_t)) {
+    code = CV_MAKETYPE(CV_8S, ch);
+  } else if (info == &typeid(uint16_t)) {
+    code = CV_MAKETYPE(CV_16U, ch);
+  } else if (info == &typeid(int16_t)) {
+    code = CV_MAKETYPE(CV_16S, ch);
+  } else if (info == &typeid(float)) {
+    code = CV_MAKETYPE(CV_32F, ch);
+  } else if (info == &typeid(double)) {
+    code = CV_MAKETYPE(CV_64F, ch);
+  } else {
+    throw std::runtime_error("type error");
+  }
+
+  return code;
+}
+
+template <typename T,
+          std::enable_if_t<std::is_scalar_v<T>, std::nullptr_t> = nullptr>
+int ParseVec() {
+  const int ch = 1;
+  const std::type_info* info = &typeid(T);
+  return MakeCvType(info, ch);
+}
+
+template <typename T,
+          std::enable_if_t<std::is_compound_v<T>, std::nullptr_t> = nullptr>
+int ParseVec() {
+  const int ch = T().size();
+  const std::type_info* info = &typeid(T::value_type);
+  return MakeCvType(info, ch);
+}
+
 template <typename T>
 class Image : public ImageBase {
  private:
-  int bit_depth_{sizeof(typename T::value_type)};
-  int channels_{std::tuple_size<T>::value};
-  int width_{-1};
-  int height_{-1};
-  std::shared_ptr<std::vector<T> > data_{nullptr};
-
-  void Init(int width, int height) {
-    if (width < 1 || height < 1) {
-      LOGE("wrong width or height\n");
-      return;
-    }
-
-    width_ = width;
-    height_ = height;
-    data_->resize(static_cast<size_t>(height_) * static_cast<size_t>(width_));
-    data = reinterpret_cast<unsigned char*>(data_->data());
-    rows = height;
-    cols = width;
-
-    channels_ = static_cast<int>((*data_)[0].size());
-  }
-
-  void Init(int width, int height, typename T::value_type val) {
-    if (width < 1 || height < 1) {
-      LOGE("wrong width or height\n");
-      return;
-    }
-
-    Init(width, height);
-
-    this->setTo(val);
-  }
-
  public:
-  Image() : data_(new std::vector<T>) {}
-  Image(const Image<T>& src) = default;
-  ~Image() {}
-  int channels() const { return channels_; }
+  Image(int rows, int cols, int type) = delete;
+  Image(int rows, int cols) {
+    int code = ParseVec<T>();
+    Init(rows, cols, code);
+  };
+  Image() { Init(0, 0, 0); }
 
-  int rows{-1};
-  int cols{-1};
-  unsigned char* data{nullptr};
-
-  bool empty() const {
-    if (width_ < 0 || height_ < 0 || data_->empty()) {
-      return true;
-    }
-    return false;
-  }
-
-  template <typename TT>
-  TT& at(int y, int x) {
-    return *(reinterpret_cast<TT*>(data_->data()) +
-             ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
-  }
-  template <typename TT>
-  const TT& at(int y, int x) const {
-    return *(reinterpret_cast<TT*>(data_->data()) +
-             ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
-  }
-
-  void setTo(typename T::value_type val) {
-    for (auto& v : *data_) {
-      for (auto& vv : v) {
-        vv = val;
-      }
-    }
-  }
+  ~Image(){};
 
   static Image<T> zeros(int height, int width) {
-    Image<T> tmp;
-    tmp.Init(width, height, static_cast<typename T::value_type>(0));
-    return tmp;
+    Image<T> zero(width, height);
+    zero = 0.0;
+    return zero;
   }
 
-#ifdef UGU_USE_STB
+  Image<T> clone() const {
+    return *dynamic_cast<Image<T>*>(&ImageBase::clone());
+  }
+
+  using ImageBase::setTo;
+  void setTo(T value, InputArray mask = noArray()) {
+    if (mask.empty()) {
+      *this = value;
+      return;
+    }
+    LOGE("Please implement!\n");
+  }
+
+#ifndef UGU_USE_STB
   bool Load(const std::string& path) {
-    unsigned char* in_pixels_tmp;
+    uint8_t* in_pixels_tmp;
     int width;
     int height;
     int bpp;
 
     if (bit_depth_ == 2) {
-      in_pixels_tmp = reinterpret_cast<unsigned char*>(
+      in_pixels_tmp = reinterpret_cast<uint8_t*>(
           stbi_load_16(path.c_str(), &width, &height, &bpp, channels_));
     } else if (bit_depth_ == 1) {
       in_pixels_tmp = stbi_load(path.c_str(), &width, &height, &bpp, channels_);
@@ -686,17 +656,17 @@ class Image : public ImageBase {
            bit_depth_, channels_);
       return false;
     }
-    std::vector<unsigned char> data_8bit;
+    std::vector<uint8_t> data_8bit;
     data_8bit.resize(width_ * height_ * 2);  // 2 bytes per pixel
     const int kMostMask = 0b1111111100000000;
     const int kLeastMask = ~kMostMask;
     for (int y = 0; y < height_; y++) {
       for (int x = 0; x < width_; x++) {
         std::uint16_t d = this->at<std::uint16_t>(y, x);  // At(*this, x, y, 0);
-        data_8bit[2 * width_ * y + 2 * x + 0] = static_cast<unsigned char>(
-            (d & kMostMask) >> 8);  // most significant
+        data_8bit[2 * width_ * y + 2 * x + 0] =
+            static_cast<uint8_t>((d & kMostMask) >> 8);  // most significant
         data_8bit[2 * width_ * y + 2 * x + 1] =
-            static_cast<unsigned char>(d & kLeastMask);  // least significant
+            static_cast<uint8_t>(d & kLeastMask);  // least significant
       }
     }
     unsigned error = lodepng::encode(
@@ -785,11 +755,12 @@ class Image : public ImageBase {
     return ugu::WriteBinary(path, data, bit_depth_ * cols * rows);
   }
 
+#if 0
   void copyTo(Image<T>& dst) const {  // NOLINT
     if (dst.cols != cols || dst.rows != rows) {
       // dst = Image<T>::zeros(rows, cols);
       dst.data_ = std::make_shared<std::vector<T> >();
-      dst.Init(cols, rows);
+      dst.Init(cols, rows, cv_type);
     }
     std::memcpy(dst.data_->data(), data_->data(), sizeof(T) * rows * cols);
   }
@@ -799,40 +770,56 @@ class Image : public ImageBase {
     this->copyTo(dst);
     return dst;
   }
+#endif
 
-  template <typename TT>
-  void forEach(std::function<void(TT&, const int[2])> f) {
+  void forEach(std::function<void(T&, const int[2])> f) {
     if (empty()) {
       return;
     }
     size_t st(0);
-    size_t ed = static_cast<size_t>(cols * rows * sizeof(T) / sizeof(TT));
+    size_t ed = static_cast<size_t>(cols * rows * sizeof(T));
     auto f2 = [&](const size_t& i) {
       const int xy[2] = {static_cast<int32_t>(i) % cols,
                          static_cast<int32_t>(i) / cols};
-      f(reinterpret_cast<TT*>(data)[i], xy);
+      f(reinterpret_cast<T*>(data)[i], xy);
     };
     ugu::parallel_for(st, ed, f2);
   }
 
   Image<T>& operator=(const T& rhs);
+  Image<T>& operator=(const ImageBase& rhs);
+  Image<T>& operator=(const double& rhs);
 };
 
 template <typename T>
 Image<T>& Image<T>::operator=(const T& rhs) {
-  std::fill(data_->begin(), data_->end(), rhs);
+  std::fill(reinterpret_cast<T*>(data_->data())->begin(),
+            reinterpret_cast<T*>(data_->data())->end(), rhs);
   return *this;
 }
 
-using Image1b = Image<Vec1b>;  // For gray image.
-using Image3b = Image<Vec3b>;  // For color image. RGB order.
-using Image4b = Image<Vec4b>;  // For color image. RGBA order.
-using Image1w = Image<Vec1w>;  // For depth image with 16 bit (unsigned
-                               // short) mm-scale format
-using Image1i = Image<Vec1i>;  // For face visibility. face id is within int32_t
-using Image1f = Image<Vec1f>;  // For depth image with any scale
+template <typename T>
+Image<T>& Image<T>::operator=(const ImageBase& rhs) {
+  *this = rhs;
+  return *this;
+}
+
+template <typename T>
+Image<T>& Image<T>::operator=(const double& rhs) {
+  ImageBase::operator=(rhs);
+  return *this;
+}
+
+using Image1b = Image<uint8_t>;   // For gray image.
+using Image1w = Image<uint16_t>;  // For depth image with 16 bit (unsigned
+                                  // short) mm-scale format
+using Image1i =
+    Image<int32_t>;            // For face visibility. face id is within int32_t
+using Image1f = Image<float>;  // For depth image with any scale
 using Image2f = Image<Vec2f>;
 using Image3f = Image<Vec3f>;  // For normal or point cloud. XYZ order.
+using Image3b = Image<Vec3b>;  // For color image. RGB order.
+using Image4b = Image<Vec4b>;  // For color image. RGBA order.
 
 enum ImreadModes {
   IMREAD_UNCHANGED = -1,
@@ -892,8 +879,18 @@ inline void Init(Image<T>* image, int width, int height,
   if (image->cols != width || image->rows != height) {
     *image = Image<T>::zeros(height, width);
   }
+  image->setTo(static_cast<double>(val));
+}
+
+template <typename T>
+inline void Init(Image<T>* image, int width, int height,
+                 typename T val) {
+  if (image->cols != width || image->rows != height) {
+    *image = Image<T>::zeros(height, width);
+  }
   image->setTo(val);
 }
+
 
 template <typename T>
 inline bool imwrite(const std::string& filename, const T& img,

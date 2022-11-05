@@ -26,7 +26,7 @@ void AddDepthNoise(ugu::Image1f& depth, float mu, float sigma, float lack_ratio,
   std::normal_distribution<float> noise_dist(mu, sigma);
   std::uniform_real_distribution<float> lack_dist;
 
-  depth.forEach<float>([&](float& val, const int* pos) {
+  depth.forEach([&](float& val, const int* pos) {
     (void)pos;
     if (val < std::numeric_limits<float>::epsilon()) {
       return;

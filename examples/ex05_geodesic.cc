@@ -102,7 +102,7 @@ void SaveGeodesicDistance(const std::string& data_dir,
   ugu::LOGI("ugu::RasterizeVertexAttributeToTexture 2nd time %f\n",
             timer.elapsed_msec());
   // Convert to uchar from float
-  geodesic_tex_f.forEach<ugu::Vec3f>([&](ugu::Vec3f& p, const int position[2]) {
+  geodesic_tex_f.forEach([&](ugu::Vec3f& p, const int position[2]) {
     auto& c = geodesic_tex.at<ugu::Vec3b>(position[1], position[0]);
     auto color = dist2color(p[0]);
     c[0] = static_cast<unsigned char>(color[0]);
