@@ -567,7 +567,9 @@ class Image : public ImageBase {
   }
 
   Image<T> clone() const {
-    return *dynamic_cast<Image<T>*>(&ImageBase::clone());
+    Image<T> dst;
+    copyTo(dst);
+    return dst;
   }
 
   using ImageBase::setTo;
@@ -717,29 +719,12 @@ class Image : public ImageBase {
     return ugu::WriteBinary(path, data, bit_depth_ * cols * rows);
   }
 
-#if 0
-  void copyTo(Image<T>& dst) const {  // NOLINT
-    if (dst.cols != cols || dst.rows != rows) {
-      // dst = Image<T>::zeros(rows, cols);
-      dst.data_ = std::make_shared<std::vector<T> >();
-      dst.Init(cols, rows, cv_type);
-    }
-    std::memcpy(dst.data_->data(), data_->data(), sizeof(T) * rows * cols);
-  }
-
-  Image<T> clone() const {
-    Image<T> dst;
-    this->copyTo(dst);
-    return dst;
-  }
-#endif
-
   void forEach(std::function<void(T&, const int[2])> f) {
     if (empty()) {
       return;
     }
     size_t st(0);
-    size_t ed = static_cast<size_t>(cols * rows * sizeof(T));
+    size_t ed = static_cast<size_t>(cols * rows);
     auto f2 = [&](const size_t& i) {
       const int xy[2] = {static_cast<int32_t>(i) % cols,
                          static_cast<int32_t>(i) / cols};
@@ -755,13 +740,6 @@ class Image : public ImageBase {
 
 template <typename T>
 Image<T>& Image<T>::operator=(const T& rhs) {
-  // std::fill(reinterpret_cast<std::vector<T>*>(data_->data())->begin(),
-  //          reinterpret_cast<std::vector<T>*>(data_->data())->end(), rhs);
-
-  // std::vector<T> tmp;
-  // tmp.data() = reinterpret_cast<T*>(data_->data());
-  // std::fill(tmp.begin(), tmp.end(), rhs);
-
   for (size_t i = 0; i < total(); i++) {
     *(reinterpret_cast<T*>(data_->data()) + i) = rhs;
   }
@@ -918,12 +896,6 @@ bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
       TT& dst_at = dst->template at<TT>(y, x);
       const T& src_at = src.template at<T>(y, x);
       for (int c = 0; c < dst->channels(); c++) {
-        //(&dst_at)[c] =
-        //    static_cast<typename TT::value_type>(scale * (&src_at)[c]);
-
-// UGU_CAST(uint8_t);
-// reinterpret_cast<uint8_t*>(&dst_at)[c] = 255;//static_cast<uint8_t>(scale *
-// ((&src_at)[c]));
 #if 1
         double val = 0.0;
         if (*cpp_type_src == typeid(uint8_t)) {
