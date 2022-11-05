@@ -637,8 +637,7 @@ bool ComputeStereoBruteForceCensus(const Image1b& lcensus,
 bool ComputeStereoSgm(const Image1b& left, const Image1b& right,
                       Image1f* disparity, Image1f* cost, Image1f* depth,
                       const SgmParam& param) {
-  return ComputeStereoSgmImpl<Vec1b>(left, right, disparity, cost, depth,
-                                     param);
+  return ComputeStereoSgmImpl(left, right, disparity, cost, depth, param);
 }
 
 bool ComputeStereoSgm(const Image3b& left, const Image3b& right,

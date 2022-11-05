@@ -297,9 +297,9 @@ class ImageBase {
   // int height_{-1};
   std::shared_ptr<std::vector<uint8_t> > data_{nullptr};
 
-  void Init(int rows, int cols, int type) {
-    this->rows = rows;
-    this->cols = cols;
+  void Init(int rows_, int cols_, int type) {
+    rows = rows_;
+    cols = cols_;
     cv_type = type;
 
     cv_depth = CV_MAT_DEPTH(type);
@@ -470,15 +470,13 @@ class ImageBase {
   }
 
   ImageBase& operator=(const double& rhs) {
-    size_t size = step[0] * rows;
-
 #define UGU_FILL_CAST(type)                                                \
   (std::fill(reinterpret_cast<std::vector<type>*>(data_->data())->begin(), \
              reinterpret_cast<std::vector<type>*>(data_->data())->end(),   \
              static_cast<type>(rhs)));
 
     if (*cpp_type == typeid(uint8_t)) {
-      std::memset(data, static_cast<uint8_t>(rhs), size);
+      std::memset(data, static_cast<uint8_t>(rhs), SizeInBytes(*this));
     } else if (*cpp_type == typeid(int8_t)) {
       //     std::fill(reinterpret_cast<std::vector<int8_t>*>(data_.get())->begin(),
       //                reinterpret_cast<std::vector<int8_t>*>(data_.get())->end(),
@@ -544,7 +542,6 @@ int ParseVec() {
   return code;
 }
 #endif
-
 
 inline int MakeCvType(const std::type_info* info, int ch) {
   int code = -1;
@@ -793,8 +790,8 @@ class Image : public ImageBase {
 
 template <typename T>
 Image<T>& Image<T>::operator=(const T& rhs) {
-  std::fill(reinterpret_cast<T*>(data_->data())->begin(),
-            reinterpret_cast<T*>(data_->data())->end(), rhs);
+  std::fill(reinterpret_cast<std::vector<T>*>(data_->data())->begin(),
+            reinterpret_cast<std::vector<T>*>(data_->data())->end(), rhs);
   return *this;
 }
 
@@ -883,14 +880,12 @@ inline void Init(Image<T>* image, int width, int height,
 }
 
 template <typename T>
-inline void Init(Image<T>* image, int width, int height,
-                 typename T val) {
+inline void Init(Image<T>* image, int width, int height, typename T val) {
   if (image->cols != width || image->rows != height) {
     *image = Image<T>::zeros(height, width);
   }
   image->setTo(val);
 }
-
 
 template <typename T>
 inline bool imwrite(const std::string& filename, const T& img,
@@ -934,17 +929,67 @@ bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
          dst->channels());
     return false;
   }
-
   Init(dst, src.cols, src.rows);
+
+#define UGU_CAST1(type) \
+  (static_cast<double>(reinterpret_cast<const type*>(&src_at)[c]))
+#define UGU_CAST2(type) \
+  (reinterpret_cast<type*>(&dst_at)[c] = static_cast<type>(scale * val))
+
+  const std::type_info* cpp_type_src = &GetTypeidFromCvType(src.type());
+  const std::type_info* cpp_type_dst = &GetTypeidFromCvType(dst->type());
 
   for (int y = 0; y < src.rows; y++) {
     for (int x = 0; x < src.cols; x++) {
+      TT& dst_at = dst->template at<TT>(y, x);
+      const T& src_at = src.template at<T>(y, x);
       for (int c = 0; c < dst->channels(); c++) {
-        dst->template at<TT>(y, x)[c] = static_cast<typename TT::value_type>(
-            scale * src.template at<T>(y, x)[c]);
+        //(&dst_at)[c] =
+        //    static_cast<typename TT::value_type>(scale * (&src_at)[c]);
+
+// UGU_CAST(uint8_t);
+// reinterpret_cast<uint8_t*>(&dst_at)[c] = 255;//static_cast<uint8_t>(scale *
+// ((&src_at)[c]));
+#if 1
+        double val = 0.0;
+        if (*cpp_type_src == typeid(uint8_t)) {
+          val = UGU_CAST1(uint8_t);
+        } else if (*cpp_type_src == typeid(int8_t)) {
+          val = UGU_CAST1(int8_t);
+        } else if (*cpp_type_src == typeid(uint16_t)) {
+          val = UGU_CAST1(uint16_t);
+        } else if (*cpp_type_src == typeid(int16_t)) {
+          val = UGU_CAST1(int16_t);
+        } else if (*cpp_type_src == typeid(float)) {
+          val = UGU_CAST1(float);
+        } else if (*cpp_type_src == typeid(double)) {
+          val = UGU_CAST1(double);
+        } else {
+          throw std::runtime_error("type error");
+        }
+
+        if (*cpp_type_dst == typeid(uint8_t)) {
+          UGU_CAST2(uint8_t);
+        } else if (*cpp_type_dst == typeid(int8_t)) {
+          UGU_CAST2(int8_t);
+        } else if (*cpp_type_dst == typeid(uint16_t)) {
+          UGU_CAST2(uint16_t);
+        } else if (*cpp_type_dst == typeid(int16_t)) {
+          UGU_CAST2(int16_t);
+        } else if (*cpp_type_dst == typeid(float)) {
+          UGU_CAST2(float);
+        } else if (*cpp_type_dst == typeid(double)) {
+          UGU_CAST2(double);
+        } else {
+          throw std::runtime_error("type error");
+        }
+
+#endif
       }
     }
   }
+
+#undef UGU_CAST
 
   return true;
 }
@@ -973,8 +1018,9 @@ void minMaxLoc(const Image<T>& src, double* minVal, double* maxVal = nullptr,
 
   for (int y = 0; y < src.rows; y++) {
     for (int x = 0; x < src.cols; x++) {
+      const T& val_c = src.template at<T>(y, x);
       for (int c = 0; c < src.channels(); c++) {
-        const auto& val = src.template at<T>(y, x)[c];
+        const auto& val = (&val_c)[c];
         if (val < minVal_) {
           minVal_ = val;
           minLoc_.x = x;

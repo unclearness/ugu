@@ -232,19 +232,19 @@ void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
     VT& src_val = src.template at<VT>(index[1], index[0]);
     for (int i = 0; i < src.channels(); i++) {
       ugu::Image<VT2>& p = planes[i];
-#if UGU_USE_OPENCV
+//#if UGU_USE_OPENCV
       p.template at<VT2>(index[1], index[0]) = src_val[i];
-#else
-      p.template at<VT2>(index[1], index[0])[0] = src_val[i];
-#endif
+//#else
+ //     p.template at<VT2>(index[1], index[0])[0] = (&src_val_c)[i];
+//#endif
     }
   };
 
-#if UGU_USE_OPENCV
+//#if UGU_USE_OPENCV
   src.forEach(copy_pix);
-#else
-  src.forEach(copy_pix);
-#endif
+//#else
+//  src.forEach(copy_pix);
+//#endif
 }
 
 template <typename T>
