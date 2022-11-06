@@ -223,7 +223,10 @@ set(
   include/ugu/camera.h
   include/ugu/mesh.h
   include/ugu/face_adjacency.h
+  include/ugu/point.h
   include/ugu/image.h
+  include/ugu/image_io.h
+  include/ugu/image_proc.h
   include/ugu/line.h
   include/ugu/plane.h
   include/ugu/rect.h
@@ -244,6 +247,9 @@ set(
   src/camera.cc
   src/line.cc
   src/plane.cc
+  src/image.cc
+  src/image_io.cc
+  src/image_proc.cc
   src/mesh.cc
   src/gltf.h
   src/ugu_stb.h

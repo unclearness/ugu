@@ -17,6 +17,8 @@
 #include "ugu/voxel/extract_voxel.h"
 #include "ugu/voxel/marching_cubes.h"
 #include "ugu/voxel/voxel.h"
+#include "ugu/image_io.h"
+#include "ugu/image_proc.h"
 
 namespace {
 
@@ -55,7 +57,7 @@ int main(int argc, char* argv[]) {
       (object->stats().bb_max - object->stats().bb_min).maxCoeff();
   const float plane_len = bb_len_max * 1.3f;
   ugu::Image3b plane_texture =
-      ugu::imread<ugu::Image3b>("../data/inpaint/fruits.jpg");
+      ugu::Imread<ugu::Image3b>("../data/inpaint/fruits.jpg");
   auto plane = ugu::MakeTexturedPlane(plane_texture, plane_len);
   plane->Rotate(
       Eigen::AngleAxisf(ugu::radians(-90.f), Eigen::Vector3f(1.f, 0.f, 0.f))

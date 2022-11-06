@@ -7,6 +7,8 @@
 #include "ugu/timer.h"
 #include "ugu/util/rgbd_util.h"
 #include "ugu/util/image_util.h"
+#include "ugu/image_io.h"
+#include "ugu/image_proc.h"
 
 // test by bunny data
 int main(int argc, char* argv[]) {
@@ -35,13 +37,13 @@ int main(int argc, char* argv[]) {
   param.maxd = 1000.0f;
 
   ugu::Image3b left_c, right_c;
-  left_c = ugu::imread<ugu::Image3b>(data_dir + "00000_color.png");
-  right_c = ugu::imread<ugu::Image3b>(data_dir + "r_00000_color.png");
+  left_c = ugu::Imread<ugu::Image3b>(data_dir + "00000_color.png");
+  right_c = ugu::Imread<ugu::Image3b>(data_dir + "r_00000_color.png");
 
 #if 0
   data_dir = "../data/scenes2005/Art/";
-  left_c = ugu::imread<ugu::Image3b>(data_dir + "view1.png");
-  right_c = ugu::imread<ugu::Image3b>(data_dir + "view5.png");
+  left_c = ugu::Imread<ugu::Image3b>(data_dir + "view1.png");
+  right_c = ugu::Imread<ugu::Image3b>(data_dir + "view5.png");
 #endif
 
   ugu::Image1b left, right;

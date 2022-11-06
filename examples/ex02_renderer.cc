@@ -9,6 +9,8 @@
 #include <iostream>
 #include <vector>
 
+#include "ugu/image_io.h"
+#include "ugu/image_proc.h"
 #include "ugu/renderer/rasterizer.h"
 #include "ugu/renderer/raytracer.h"
 #include "ugu/util/camera_util.h"

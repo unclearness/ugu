@@ -8,6 +8,7 @@
 #include <random>
 
 #include "patchmatch_stereo_impl.h"
+#include "ugu/image_proc.h"
 
 namespace {
 

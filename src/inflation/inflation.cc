@@ -10,6 +10,7 @@
 
 #include "Eigen/Sparse"
 #include "ugu/camera.h"
+#include "ugu/image_proc.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/rgbd_util.h"

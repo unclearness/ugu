@@ -10,16 +10,16 @@
 #include <iostream>
 
 #include "ugu/image.h"
+#include "ugu/image_io.h"
 #include "ugu/synthesis/bdsim.h"
 
-// test by bunny data with 6 views
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
   std::string data_dir = "../data/synthesis/";
   std::string data_name = "217_s.png";
-  ugu::Image3b src = ugu::imread<ugu::Image3b>(data_dir + data_name);
+  ugu::Image3b src = ugu::Imread<ugu::Image3b>(data_dir + data_name);
   ugu::Image3b dst;
 
   ugu::BdsimParams params;

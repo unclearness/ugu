@@ -7,9 +7,9 @@
 
 #include <cassert>
 
+#include "ugu/image_proc.h"
 #include "ugu/renderer/pixel_shader.h"
 #include "ugu/renderer/util_private.h"
-
 #include "ugu/timer.h"
 
 namespace {
@@ -141,8 +141,6 @@ bool Rasterizer::Impl::Render(Image3b* color, Image1f* depth, Image3f* normal,
     depth_ = &depth_internal;
   }
   Init(depth_, camera_->width(), camera_->height(), 0.0f);
-  
-
 
   Image1i face_id_internal;
   Image1i* face_id_{face_id};

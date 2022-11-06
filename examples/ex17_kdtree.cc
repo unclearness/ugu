@@ -9,6 +9,8 @@
 
 #include "ugu/accel/kdtree.h"
 #include "ugu/image.h"
+#include "ugu/image_io.h"
+#include "ugu/image_proc.h"
 #include "ugu/mesh.h"
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"

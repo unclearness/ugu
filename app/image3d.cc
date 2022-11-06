@@ -9,6 +9,8 @@
 #include "cxxopts.hpp"
 #include "ugu/mesh.h"
 #include "ugu/timer.h"
+#include "ugu/image_io.h"
+#include "ugu/image_proc.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/path_util.h"
@@ -31,11 +33,11 @@ void LoadMask(const std::string& path, ugu::Image1b& mask) {
   ugu::Image4b tmp4b;
   std::vector<ugu::Image1b> planes;
   if (ext == "png") {
-    mask = ugu::imread<ugu::Image1b>(path);
+    mask = ugu::Imread<ugu::Image1b>(path);
     if (mask.empty()) {
-      tmp3b = ugu::imread<ugu::Image3b>(path);
+      tmp3b = ugu::Imread<ugu::Image3b>(path);
       if (tmp3b.empty()) {
-        tmp4b = ugu::imread<ugu::Image4b>(path);
+        tmp4b = ugu::Imread<ugu::Image4b>(path);
         if (tmp4b.empty()) {
           return;
         } else {
@@ -47,7 +49,7 @@ void LoadMask(const std::string& path, ugu::Image1b& mask) {
     }
   } else {
     // jpeg is always 3 channel
-    tmp3b = ugu::imread<ugu::Image3b>(path);
+    tmp3b = ugu::Imread<ugu::Image3b>(path);
     ugu::Split(tmp3b, planes);
   }
 
@@ -136,18 +138,18 @@ int main(int argc, char* argv[]) {
   int h = -1;
   int c = -1;
   if (ext == "png") {
-    image = ugu::imread<ugu::Image3b>(src_path);
+    image = ugu::Imread<ugu::Image3b>(src_path);
     w = image.cols;
     h = image.rows;
     c = image.channels();
     if (image.empty()) {
-      alpha_image = ugu::imread<ugu::Image4b>(src_path);
+      alpha_image = ugu::Imread<ugu::Image4b>(src_path);
       w = alpha_image.cols;
       h = alpha_image.rows;
       c = alpha_image.channels();
     }
     if (image.empty() && alpha_image.empty()) {
-      ugu::Image1b gray_image = ugu::imread<ugu::Image1b>(src_path);
+      ugu::Image1b gray_image = ugu::Imread<ugu::Image1b>(src_path);
       if (!gray_image.empty()) {
         image = ugu::Merge(gray_image, gray_image, gray_image);
         w = image.cols;
@@ -156,12 +158,12 @@ int main(int argc, char* argv[]) {
       }
     }
   } else {
-    image = ugu::imread<ugu::Image3b>(src_path);
+    image = ugu::Imread<ugu::Image3b>(src_path);
     w = image.cols;
     h = image.rows;
     c = image.channels();
     if (image.empty()) {
-      ugu::Image1b gray_image = ugu::imread<ugu::Image1b>(src_path);
+      ugu::Image1b gray_image = ugu::Imread<ugu::Image1b>(src_path);
       if (!gray_image.empty()) {
         image = ugu::Merge(gray_image, gray_image, gray_image);
         w = image.cols;

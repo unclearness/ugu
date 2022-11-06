@@ -7,13 +7,12 @@
 
 #include <array>
 
+#include "ugu/image_proc.h"
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/rgbd_util.h"
 #include "ugu/voxel/extract_voxel.h"
 #include "ugu/voxel/marching_cubes.h"
-
-namespace {}  // namespace
 
 namespace ugu {
 

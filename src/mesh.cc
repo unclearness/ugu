@@ -15,6 +15,7 @@
 #include "ugu/face_adjacency.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/string_util.h"
+#include "ugu/image_io.h"
 
 #ifdef UGU_USE_TINYOBJLOADER
 #include "tiny_obj_loader.h"
@@ -605,7 +606,7 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
 #if defined(UGU_USE_STB) || defined(UGU_USE_OPENCV)
         // todo: force convert to Image3b
         materials_[i].diffuse_tex =
-            imread<Image3b>(materials_[i].diffuse_texpath);
+            Imread<Image3b>(materials_[i].diffuse_texpath);
         ret = !materials_[i].diffuse_tex.empty();
 #else
         LOGW("define UGU_USE_STB to load diffuse texture.\n");

@@ -9,6 +9,7 @@
 
 #include "ugu/camera.h"
 #include "ugu/external/external.h"
+#include "ugu/image_io.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/texturing/texture_mapper.h"
 #include "ugu/texturing/vertex_colorizer.h"
@@ -76,7 +77,7 @@ int main(int argc, char* argv[]) {
     std::string color_path =
         data_dir + ugu::zfill(poses[i].first) + "_color.png";
     keyframes[i]->color_path = color_path;
-    keyframes[i]->color = ugu::imread<ugu::Image3b>(keyframes[i]->color_path);
+    keyframes[i]->color = ugu::Imread<ugu::Image3b>(keyframes[i]->color_path);
   }
 
   tester.set_data(input_mesh->vertices(), input_mesh->normals(),

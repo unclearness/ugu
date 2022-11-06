@@ -8,6 +8,8 @@
 #include <fstream>
 
 #include "ugu/image.h"
+#include "ugu/image_io.h"
+#include "ugu/image_proc.h"
 #include "ugu/util/image_util.h"
 
 // test by bunny data with 6 views
@@ -15,13 +17,10 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-
   std::string data_dir = "../data/bunny/";
   std::string mask_path = data_dir + "00000_mask.png";
 
-  ugu::Image1b mask = ugu::imread<ugu::Image1b>(mask_path);
-  ugu::imwrite("hoge.png",  mask);
-
+  ugu::Image1b mask = ugu::Imread<ugu::Image1b>(mask_path);
 
   // 2D SDF
   ugu::Image1f sdf;

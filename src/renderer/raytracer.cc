@@ -9,6 +9,7 @@
 
 #include "ugu/accel/bvh.h"
 #include "ugu/accel/bvh_nanort.h"
+#include "ugu/image_proc.h"
 #include "ugu/renderer/pixel_shader.h"
 #include "ugu/renderer/util_private.h"
 #include "ugu/timer.h"

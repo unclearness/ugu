@@ -6,11 +6,12 @@
 #pragma once
 
 #include "ugu/image.h"
+#include "ugu/point.h"
 
 namespace ugu {
 
 #ifdef UGU_USE_OPENCV
-template<typename T>
+template <typename T>
 using Rect_ = cv::Rect_<T>;
 
 using Rect2i = cv::Rect2i;

@@ -8,6 +8,7 @@
 #include <fstream>
 
 #include "ugu/camera.h"
+#include "ugu/image_io.h"
 #include "ugu/sfs/voxel_carver.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/string_util.h"
@@ -124,7 +125,7 @@ int main(int argc, char* argv[]) {
     std::string num = ugu::zfill(i);
 
     ugu::Image1b silhouette =
-        ugu::imread<ugu::Image1b>(data_dir + "/mask_" + num + ".png");
+        ugu::Imread<ugu::Image1b>(data_dir + "/mask_" + num + ".png");
 
     ugu::Image1f sdf;
     // Carve() is the main process to update voxels. Corresponds to the fusion

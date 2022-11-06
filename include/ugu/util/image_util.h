@@ -8,6 +8,17 @@
 #include "ugu/image.h"
 #include "ugu/util/camera_util.h"
 
+#ifdef UGU_USE_TINYCOLORMAP
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(disable : 4067)
+#endif
+#include "tinycolormap.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+#endif
+
 namespace ugu {
 
 template <typename T>
@@ -126,7 +137,6 @@ Image3b DrawUv(const std::vector<Eigen::Vector2f>& uvs,
                const Vec3b& line_col, const Vec3b& bkg_col,
                const Image3b& bkg_img = Image3b(), int32_t tex_w = 512,
                int32_t tex_h = 512, int32_t thickness = 1);
-
 
 template <typename T>
 T BilinearInterpolation(float x, float y, const ugu::Image<T>& image) {

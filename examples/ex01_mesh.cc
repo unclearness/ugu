@@ -17,6 +17,7 @@
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
 #include "ugu/util/rgbd_util.h"
+#include "ugu/image_io.h"
 
 namespace {
 
@@ -419,7 +420,7 @@ void TestMakeGeom() {
   frustum->WriteObj(data_dir, "frustum");
 
   ugu::Image3b view0_image =
-      ugu::imread<ugu::Image3b>("../data/bunny/00000_color.png");
+      ugu::Imread<ugu::Image3b>("../data/bunny/00000_color.png");
   auto view_frustum =
       ugu::MakeViewFrustum(ugu::radians(30.f), poses[0].cast<float>(), 200.f,
                            view0_image, ugu::CoordinateType::OpenCV, 10.f);

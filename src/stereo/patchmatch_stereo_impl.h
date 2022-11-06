@@ -16,6 +16,7 @@
 #include "ugu/stereo/base.h"
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
+#include "ugu/image_io.h"
 
 namespace {
 

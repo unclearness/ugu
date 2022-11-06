@@ -4,6 +4,7 @@
  */
 
 #include "ugu/image.h"
+#include "ugu/image_io.h"
 #include "ugu/timer.h"
 #include "ugu/util/thread_util.h"
 
@@ -11,7 +12,7 @@ namespace {
 
 void ForSpeedTest() {
   const ugu::Image3b color_org =
-      ugu::imread<ugu::Image3b>("../data/inpaint/fruits.jpg");
+      ugu::Imread<ugu::Image3b>("../data/inpaint/fruits.jpg");
   ugu::Image3b color;
   const int ksize = 31;
   const int hksize = ksize / 2;

@@ -9,6 +9,7 @@
 #include <queue>
 
 #include "ugu/util/image_util.h"
+#include "ugu/image_proc.h"
 
 namespace {
 

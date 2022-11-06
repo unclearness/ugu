@@ -10,6 +10,7 @@
 #include "ugu/util/geom_util.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/raster_util.h"
+#include "ugu/image_io.h"
 
 namespace {}  // namespace
 

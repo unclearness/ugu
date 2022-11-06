@@ -6,6 +6,8 @@
 #include <iostream>
 
 #include "cxxopts.hpp"
+#include "ugu/image_io.h"
+#include "ugu/image_proc.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/textrans/texture_transfer.h"
 #include "ugu/timer.h"
@@ -60,7 +62,7 @@ cv::Mat3f LoadTex(const std::string& path) {
 }
 #else
 ugu::Image3f LoadTex(const std::string& path) {
-  ugu::Image3b tmp = ugu::imread<ugu::Image3b>(path, -1);
+  ugu::Image3b tmp = ugu::Imread<ugu::Image3b>(path, -1);
   ugu::Image3f tmp_f;
 
   ugu::ConvertTo(tmp, &tmp_f);

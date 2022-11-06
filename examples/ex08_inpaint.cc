@@ -9,6 +9,8 @@
 
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/util/image_util.h"
+#include "ugu/image_io.h"
+#include "ugu/image_proc.h"
 
 // test by bunny data with 6 views
 int main(int argc, char* argv[]) {
@@ -19,8 +21,8 @@ int main(int argc, char* argv[]) {
   std::string color_path = data_dir + "fruits.jpg";
   std::string mask_path = data_dir + "fruits_scrabble.png";
 
-  ugu::Image1b mask = ugu::imread<ugu::Image1b>(mask_path);
-  ugu::Image3b color = ugu::imread<ugu::Image3b>(color_path);
+  ugu::Image1b mask = ugu::Imread<ugu::Image1b>(mask_path);
+  ugu::Image3b color = ugu::Imread<ugu::Image3b>(color_path);
   ugu::Image3b color_gt = color;
   ugu::Image3b color_scrabbled = color.clone();
 
