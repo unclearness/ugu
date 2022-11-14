@@ -15,7 +15,6 @@ namespace ugu {
 std::string ExtractDir(const std::string& path);
 std::string ExtractExt(const std::string& path, bool no_dot = true);
 std::string ExtractPathWithoutExt(const std::string& fn);
-std::string ExtractPathExt(const std::string& fn);
 std::string ReplaceExtention(const std::string& path, const std::string& ext);
 
 std::vector<std::string> Split(const std::string& input, char delimiter);

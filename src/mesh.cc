@@ -13,9 +13,9 @@
 
 #include "gltf.h"
 #include "ugu/face_adjacency.h"
+#include "ugu/image_io.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/string_util.h"
-#include "ugu/image_io.h"
 
 #ifdef UGU_USE_TINYOBJLOADER
 #include "tiny_obj_loader.h"
@@ -1178,7 +1178,7 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name,
     }
     gltf::Image image;
     image.is_glb = true;
-    std::string ext = ExtractPathExt(tex_path);
+    std::string ext = ExtractExt(tex_path);
     if (ext == "jpg" || ext == "jpeg") {
       image.mimeType = "image/jpeg";
     } else if (ext == "png") {
@@ -1822,7 +1822,7 @@ bool WriteGlb(Scene& scene, const std::string& glb_dir,
         tex_path = tex_name;
       }
       if (mat.with_alpha_compressed.empty()) {
-        std::string ext = ExtractPathExt(tex_path);
+        std::string ext = ExtractExt(tex_path);
         if (ext == "png") {
           mat.with_alpha_compressed = PngData(mat.with_alpha_tex);
         }
@@ -1835,7 +1835,7 @@ bool WriteGlb(Scene& scene, const std::string& glb_dir,
           tex_path = tex_name;
         }
         if (mat.diffuse_compressed.empty()) {
-          std::string ext = ExtractPathExt(tex_path);
+          std::string ext = ExtractExt(tex_path);
           if (ext == "jpg" || ext == "jpeg") {
             mat.diffuse_compressed = JpgData(mat.diffuse_tex);
           } else if (ext == "png") {
@@ -1850,7 +1850,7 @@ bool WriteGlb(Scene& scene, const std::string& glb_dir,
 
       gltf::Image image;
       image.is_glb = true;
-      std::string ext = ExtractPathExt(tex_path);
+      std::string ext = ExtractExt(tex_path);
       if (ext == "jpg" || ext == "jpeg") {
         image.mimeType = "image/jpeg";
       } else if (ext == "png") {

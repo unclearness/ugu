@@ -33,7 +33,7 @@ std::string ExtractDir(const std::string& path) {
 std::string ExtractExt(const std::string& path, bool no_dot) {
   size_t ext_i = path.find_last_of(".");
   if (ext_i == std::string::npos) {
-    // TODO
+    return "";
   }
   std::string extname = no_dot ? path.substr(ext_i + 1, path.size() - ext_i)
                                : path.substr(ext_i, path.size() - ext_i);
@@ -81,14 +81,6 @@ std::string ExtractPathWithoutExt(const std::string& fn) {
   }
 
   return fn.substr(0, pos);
-}
-
-std::string ExtractPathExt(const std::string& fn) {
-  std::string::size_type pos;
-  if ((pos = fn.find_last_of(".")) == std::string::npos) {
-    return "";
-  }
-  return fn.substr(pos + 1, fn.size());
 }
 
 std::string ReplaceExtention(const std::string& path, const std::string& ext) {

@@ -9,7 +9,7 @@
 
 namespace ugu {
 
-enum ParameterizeUvType { kSimpleTriangles = 0, kSmartUv = 1 };
+enum class ParameterizeUvType { kSimpleTriangles = 0, kSmartUv = 1 };
 
 bool Parameterize(
     Mesh& mesh, int tex_w = 1024, int tex_h = 1024,
