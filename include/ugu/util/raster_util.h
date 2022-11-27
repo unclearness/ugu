@@ -189,7 +189,7 @@ bool RasterizeVertexAttributeToTexture(
     RasterizeTriangle(src_vetex_color, target_tri, &texture, mask);
   };
 
-  ugu::parallel_for(size_t(0), face_num, face_func, num_threads);
+  parallel_for(size_t(0), face_num, face_func, num_threads);
 
   return true;
 }
@@ -229,7 +229,7 @@ bool RasterizeFaceAttributeToTexture(
     RasterizeTriangle(src_vetex_color, target_tri, &texture, mask);
   };
 
-  ugu::parallel_for(size_t(0), face_num, face_func, num_threads);
+  parallel_for(size_t(0), face_num, face_func, num_threads);
 
   return true;
 }

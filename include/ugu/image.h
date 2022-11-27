@@ -42,23 +42,23 @@ using ImageBase = cv::Mat;
 template <typename T>
 using Image = cv::Mat_<T>;
 
+using Image1b = cv::Mat1b;
 using Image1w = cv::Mat1w;
 using Image1i = cv::Mat1i;
 using Image1f = cv::Mat1f;
-using Image1b = cv::Mat1b;
 using Image2f = cv::Mat2f;
-using Image3f = cv::Mat3f;
 using Image3b = cv::Mat3b;
+using Image3f = cv::Mat3f;
 using Image4b = cv::Mat4b;
 
 using Vec1b = uint8_t;
+using Vec1w = uint16_t;
+using Vec1i = int32_t;
 using Vec1f = float;
-using Vec1i = int;
-using Vec1w = std::uint16_t;
 using Vec2f = cv::Vec2f;
 using Vec2d = cv::Vec2d;
-using Vec3f = cv::Vec3f;
 using Vec3b = cv::Vec3b;
+using Vec3f = cv::Vec3f;
 using Vec3d = cv::Vec3d;
 using Vec4b = cv::Vec4b;
 
@@ -82,10 +82,10 @@ inline void Init(Image<T>* image, int width, int height, TT val) {
 template <typename TT, int N>
 using Vec_ = std::array<TT, N>;
 
-using Vec1f = Vec_<float, 1>;
-using Vec1i = Vec_<int, 1>;
-using Vec1b = Vec_<uint8_t, 1>;
-using Vec1w = Vec_<std::uint16_t, 1>;
+using Vec1b = uint8_t;
+using Vec1w = uint16_t;
+using Vec1i = int32_t;
+using Vec1f = float;
 using Vec2f = Vec_<float, 2>;
 using Vec2d = Vec_<double, 2>;
 using Vec3b = Vec_<uint8_t, 3>;
@@ -479,7 +479,7 @@ class Image : public ImageBase {
                          static_cast<int32_t>(i) / cols};
       f(reinterpret_cast<T*>(data)[i], xy);
     };
-    ugu::parallel_for(st, ed, f2);
+    parallel_for(st, ed, f2);
   }
 
   Image<T>& operator=(const T& rhs);

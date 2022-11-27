@@ -157,7 +157,7 @@ bool LineClusteringImpl(const std::vector<Line3<T>>& unclean,
     fused[i] = Q_next;
   };
 
-  ugu::parallel_for(size_t(0), unclean.size(), func);
+  parallel_for(size_t(0), unclean.size(), func);
 
 #if 0
   std::ofstream ofs("times.csv");
