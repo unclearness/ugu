@@ -16,6 +16,11 @@ namespace ugu {
 
 #ifdef UGU_USE_OPENCV
 
+using InterpolationFlags = cv::InterpolationFlags;
+
+using cv::circle;
+using cv::line;
+
 template <typename T>
 void resize(const ugu::Image<T>& src, ugu::Image<T>& dst, Size dsize,
             double fx = 0, double fy = 0,
@@ -37,6 +42,19 @@ inline void minMaxLoc(const cv::InputArray& src, double* minVal,
 }
 
 #else
+
+enum InterpolationFlags {
+  INTER_NEAREST = 0,
+  INTER_LINEAR = 1,
+  INTER_CUBIC = 2,
+  INTER_AREA = 3,
+  INTER_LANCZOS4 = 4,
+  INTER_LINEAR_EXACT = 5,
+  INTER_NEAREST_EXACT = 6,
+  INTER_MAX = 7,
+  WARP_FILL_OUTLIERS = 8,
+  WARP_INVERSE_MAP = 16
+};
 
 enum LineTypes { FILLED = -1, LINE_4 = 4, LINE_8 = 8, LINE_AA = 16 };
 

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "ugu/image.h"
+#include "ugu/image_proc.h"
 #include "ugu/mesh.h"
 
 namespace ugu {

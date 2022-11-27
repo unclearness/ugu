@@ -1383,6 +1383,11 @@ bool Mesh::SplitMultipleUvVertices() {
     return false;
   }
 
+  if (uv_.empty()) {
+    LOGE("uv indices exists but uv is empty\n");
+    return false;
+  }
+
   this->CalcNormal();
   std::vector<Eigen::Vector3f> vertices, normals;
   std::vector<Eigen::Vector2f> uv;

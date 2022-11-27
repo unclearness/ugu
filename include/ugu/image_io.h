@@ -17,8 +17,8 @@ namespace ugu {
 
 using ImreadModes = cv::ImreadModes;
 
-using imwrite = cv::imwrite;
-using imread = cv::imread;
+using cv::imread;
+using cv::imwrite;
 
 #else
 

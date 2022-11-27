@@ -6,6 +6,7 @@
 #pragma once
 
 #include "ugu/image.h"
+#include "ugu/image_proc.h"
 #include "ugu/util/camera_util.h"
 
 #ifdef UGU_USE_TINYCOLORMAP

@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
   std::string data_dir = "../data/bunny/";
   std::string mask_path = data_dir + "00000_mask.png";
 
-  ugu::Image1b mask = ugu::Imread<ugu::Image1b>(mask_path);
+  ugu::Image1b mask = ugu::Imread<ugu::Image1b>(mask_path, -1);
 
   // 2D SDF
   ugu::Image1f sdf;

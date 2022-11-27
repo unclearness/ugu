@@ -38,6 +38,7 @@
 #include "ugu_stb.h"
 
 #ifdef UGU_USE_OPENCV
+#include "opencv2/imgcodecs.hpp"
 #include "opencv2/imgproc.hpp"
 #endif
 
@@ -285,7 +286,7 @@ bool CompressedDataImpl(
     int width, int height, int channels, uint8_t* data,
     std::vector<uint8_t>& compressed_data,
     std::function<int(int, int, int, uint8_t*, custom_stbi_mem_context&)> cb) {
-#ifdef UGU_USE_STB
+#if defined(UGU_USE_STB) && !defined(UGU_USE_OPENCV)
   size_t bitmap_bytes = static_cast<size_t>(width) *
                         static_cast<size_t>(height) *
                         static_cast<size_t>(channels) * sizeof(uint8_t);
@@ -306,6 +307,12 @@ bool CompressedDataImpl(
   compressed_data.resize(context.last_pos);
   return true;
 #else
+  (void)width;
+  (void)height;
+  (void)channels;
+  (void)data;
+  (void)compressed_data;
+  (void)cb;
   ugu::LOGE("not suppored in this configration\n");
   return false;
 #endif
@@ -313,7 +320,10 @@ bool CompressedDataImpl(
 
 bool JpgDataImpl(int width, int height, int channels, uint8_t* data,
                  std::vector<uint8_t>& jpg_data) {
-#ifdef UGU_USE_STB
+#ifdef UGU_USE_OPENCV
+  cv::Mat tmp(height, width, CV_MAKETYPE(CV_8U, channels), data);
+  return cv::imencode(".jpg", tmp, jpg_data);
+#elif defined(UGU_USE_STB)
   auto cb = [](int width, int height, int channels, uint8_t* data,
                custom_stbi_mem_context& context) {
     const int max_quality{100};
@@ -322,6 +332,11 @@ bool JpgDataImpl(int width, int height, int channels, uint8_t* data,
   };
   return CompressedDataImpl(width, height, channels, data, jpg_data, cb);
 #else
+  (void)width;
+  (void)height;
+  (void)channels;
+  (void)data;
+  (void)jpg_data;
   ugu::LOGE("not suppored in this configration\n");
   return false;
 #endif
@@ -329,7 +344,10 @@ bool JpgDataImpl(int width, int height, int channels, uint8_t* data,
 
 bool PngDataImpl(int width, int height, int channels, uint8_t* data,
                  std::vector<uint8_t>& png_data) {
-#ifdef UGU_USE_STB
+#ifdef UGU_USE_OPENCV
+  cv::Mat tmp(height, width, CV_MAKETYPE(CV_8U, channels), data);
+  return cv::imencode(".png", tmp, png_data);
+#elif defined(UGU_USE_STB)
   auto cb = [](int width, int height, int channels, uint8_t* data,
                custom_stbi_mem_context& context) {
     int stride = width * channels * sizeof(uint8_t);
@@ -338,6 +356,11 @@ bool PngDataImpl(int width, int height, int channels, uint8_t* data,
   };
   return CompressedDataImpl(width, height, channels, data, png_data, cb);
 #else
+  (void)width;
+  (void)height;
+  (void)channels;
+  (void)data;
+  (void)png_data;
   ugu::LOGE("not suppored in this configration\n");
   return false;
 #endif

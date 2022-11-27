@@ -7,6 +7,9 @@
 
 #include "ugu/util/io_util.h"
 
+#ifdef UGU_USE_OPENCV
+#else
+
 namespace {
 using namespace ugu;
 
@@ -200,3 +203,4 @@ ImageBase imread(const std::string& filename, int flags) {
 }
 
 }  // namespace ugu
+#endif

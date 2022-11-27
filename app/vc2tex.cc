@@ -127,7 +127,7 @@ int main(int argc, char* argv[]) {
   if (with_vc) {
     timer.Start();
     ugu::Image1b mask = ugu::Image1b::zeros(height, width);
-    auto rasterized = ugu::Image3b::zeros(height, width);
+    ugu::Image3b rasterized = ugu::Image3b::zeros(height, width);
     ugu::RasterizeVertexAttributeToTexture(
         src_mesh.vertex_colors(), src_mesh.vertex_indices(), src_mesh.uv(),
         src_mesh.uv_indices(), rasterized, width, height, &mask);

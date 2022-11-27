@@ -6,6 +6,8 @@
 #include "ugu/image.h"
 
 namespace ugu {
+#ifdef UGU_USE_OPENCV
+#else
 int GetBitsFromCvType(int cv_type) {
   int cv_depth = CV_MAT_DEPTH(cv_type);
 
@@ -85,5 +87,6 @@ int MakeCvType(const std::type_info* info, int ch) {
 
   return code;
 }
+#endif
 
 }  // namespace ugu

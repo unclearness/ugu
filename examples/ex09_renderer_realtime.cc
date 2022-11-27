@@ -6,6 +6,7 @@
 #ifdef UGU_USE_OPENCV
 
 #include <fstream>
+#include <iomanip>
 #include <memory>
 #include <thread>
 

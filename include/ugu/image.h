@@ -35,8 +35,6 @@ namespace ugu {
 
 #ifdef UGU_USE_OPENCV
 
-using InterpolationFlags = cv::InterpolationFlags;
-
 using ImageBase = cv::Mat;
 
 template <typename T>
@@ -184,19 +182,6 @@ typedef InputOutputArray InputOutputArrayOfArrays;
 size_t SizeInBytes(const ImageBase& mat);
 InputOutputArray noArray();
 int MakeCvType(const std::type_info* info, int ch);
-
-enum InterpolationFlags {
-  INTER_NEAREST = 0,
-  INTER_LINEAR = 1,
-  INTER_CUBIC = 2,
-  INTER_AREA = 3,
-  INTER_LANCZOS4 = 4,
-  INTER_LINEAR_EXACT = 5,
-  INTER_NEAREST_EXACT = 6,
-  INTER_MAX = 7,
-  WARP_FILL_OUTLIERS = 8,
-  WARP_INVERSE_MAP = 16
-};
 
 class ImageBase {
  protected:
