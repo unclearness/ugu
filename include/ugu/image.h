@@ -424,7 +424,7 @@ int ParseVec() {
 template <typename T,
           std::enable_if_t<std::is_compound_v<T>, std::nullptr_t> = nullptr>
 int ParseVec() {
-  const int ch = T().size();
+  const int ch = static_cast<int>(T().size());
   const std::type_info* info = &typeid(typename T::value_type);
   return MakeCvType(info, ch);
 }
@@ -443,21 +443,7 @@ class Image : public ImageBase {
     Init(0, 0, code);
   }
   Image(const Image& other) = default;
-  Image(const ImageBase& other) : ImageBase(other) {
-#if 0
-    cv_type = other.cv_type;
-    cv_depth = other.cv_depth;
-    cv_ch = other.cv_ch;
-    bit_depth_ = other.bit_depth_;
-    cpp_type = other.cpp_type;
-    data_ = other.data_;
-
-    rows = other.rows;
-    cols = other.cols;
-    step = other.step;
-    data = other.data;
-#endif
-  }
+  Image(const ImageBase& other) : ImageBase(other) {}
 
   ~Image(){};
 

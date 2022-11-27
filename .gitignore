@@ -1,5 +1,6 @@
 #
 /win_build/
+/build/
 /bin/
 /lib/
 
@@ -10,7 +11,7 @@
 *.slo
 *.lo
 *.o
-*.obj
+# *.obj
 
 # Precompiled Headers
 *.gch
