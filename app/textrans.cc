@@ -16,33 +16,6 @@
 
 namespace {
 
-std::string Path2Dir(const std::string& path) {
-  std::string::size_type pos = std::string::npos;
-  const std::string::size_type unix_pos = path.find_last_of('/');
-  const std::string::size_type windows_pos = path.find_last_of('\\');
-  if (unix_pos != std::string::npos) {
-    if (pos == std::string::npos) {
-      pos = unix_pos;
-    } else {
-      pos = std::max(pos, unix_pos);
-    }
-  }
-  if (windows_pos != std::string::npos) {
-    if (pos == std::string::npos) {
-      pos = windows_pos;
-    } else {
-      pos = std::max(pos, unix_pos);
-    }
-  }
-  return (pos == std::string::npos) ? "./" : path.substr(0, pos + 1);
-}
-
-std::string GetExt(const std::string& path) {
-  size_t ext_i = path.find_last_of(".");
-  std::string extname = path.substr(ext_i, path.size() - ext_i);
-  return extname;
-}
-
 #ifdef UGU_USE_OPENCV
 cv::Mat3f LoadTex(const std::string& path) {
   cv::Mat tmp = cv::imread(path, -1);
@@ -140,8 +113,8 @@ int main(int argc, char* argv[]) {
   ugu::Timer<> timer;
   ugu::Mesh src_mesh, dst_mesh;
 
-  std::string src_dir = Path2Dir(src_obj_path);
-  std::string dst_dir = Path2Dir(dst_obj_path);
+  std::string src_dir = ugu::ExtractDir(src_obj_path);
+  std::string dst_dir = ugu::ExtractDir(dst_obj_path);
 
   src_mesh.LoadObj(src_obj_path, src_dir);
   dst_mesh.LoadObj(dst_obj_path, dst_dir);
@@ -151,10 +124,10 @@ int main(int argc, char* argv[]) {
   ugu::Image3f src_tex;
   if (src_tex_path != "") {
     src_tex = LoadTex(src_tex_path);
-    src_ext = GetExt(src_tex_path);
+    src_ext = ugu::ExtractExt(src_tex_path, false);
   } else {
     ugu::ConvertTo(src_mesh.materials()[0].diffuse_tex, &src_tex);
-    src_ext = GetExt(src_mesh.materials()[0].diffuse_texpath);
+    src_ext = ugu::ExtractExt(src_mesh.materials()[0].diffuse_texpath, false);
   }
 
   bool is_float_input = (src_ext == ".exr" || src_ext == ".hdr");

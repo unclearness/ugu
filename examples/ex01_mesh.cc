@@ -9,6 +9,7 @@
 
 #include "ugu/decimation/decimation.h"
 #include "ugu/external/external.h"
+#include "ugu/image_io.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/mesh.h"
 #include "ugu/parameterize/parameterize.h"
@@ -17,31 +18,19 @@
 #include "ugu/util/math_util.h"
 #include "ugu/util/raster_util.h"
 #include "ugu/util/rgbd_util.h"
-#include "ugu/image_io.h"
+#include "ugu/util/string_util.h"
 
 namespace {
 
-inline std::vector<std::string> Split(const std::string& s, char delim) {
-  std::vector<std::string> elems;
-  std::stringstream ss(s);
-  std::string item;
-  while (std::getline(ss, item, delim)) {
-    if (!item.empty()) {
-      elems.push_back(item);
-    }
-  }
-  return elems;
-}
-
-inline bool GetFileNames(std::string folderPath,
-                         std::vector<std::string>& file_names) {
+bool GetFileNames(std::string folderPath,
+                  std::vector<std::string>& file_names) {
   using namespace std::filesystem;
   directory_iterator iter(folderPath), end;
   std::error_code err;
 
   for (; iter != end && !err; iter.increment(err)) {
     const directory_entry entry = *iter;
-    std::string name = *(Split(entry.path().string(), '/').end() - 1);
+    std::string name = *(ugu::Split(entry.path().string(), '/').end() - 1);
     file_names.push_back(name);
   }
 
@@ -51,23 +40,6 @@ inline bool GetFileNames(std::string folderPath,
     return false;
   }
   return true;
-}
-
-inline std::string ExtractPathExt(const std::string& fn) {
-  std::string::size_type pos;
-  if ((pos = fn.find_last_of(".")) == std::string::npos) {
-    return "";
-  }
-  return fn.substr(pos + 1, fn.size());
-}
-
-inline std::string ExtractPathWithoutExt(const std::string& fn) {
-  std::string::size_type pos;
-  if ((pos = fn.find_last_of(".")) == std::string::npos) {
-    return fn;
-  }
-
-  return fn.substr(0, pos);
 }
 
 void TestBlendshapes() {
@@ -81,7 +53,7 @@ void TestBlendshapes() {
 
   std::vector<std::string> obj_names;
   for (auto& name : file_names) {
-    auto ext = ExtractPathExt(name);
+    auto ext = ugu::ExtractExt(name);
     if (name == base_name || ext != "obj") {
       continue;
     }
@@ -99,7 +71,7 @@ void TestBlendshapes() {
   std::vector<ugu::Blendshape> blendshapes;
   for (int i = 0; i < blendshape_meshes.size(); i++) {
     auto& blendshape_mesh = blendshape_meshes[i];
-    auto name = ExtractPathWithoutExt(obj_names[i]);
+    auto name = ugu::ExtractPathWithoutExt(obj_names[i]);
 
     ugu::Blendshape blendshape;
     std::vector<Eigen::Vector3f> displacement = base_mesh.vertices();

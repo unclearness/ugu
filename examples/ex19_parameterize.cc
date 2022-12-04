@@ -4,15 +4,13 @@
  */
 
 #include "ugu/external/external.h"
+#include "ugu/image_io.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/parameterize/parameterize.h"
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/raster_util.h"
-#include "ugu/image_io.h"
-
-namespace {}  // namespace
 
 int main(int argc, char* argv[]) {
   (void)argc;

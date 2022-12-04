@@ -14,8 +14,6 @@
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
 
-namespace {}  // namespace
-
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
