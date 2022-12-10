@@ -47,6 +47,7 @@ using Image1f = cv::Mat1f;
 using Image2f = cv::Mat2f;
 using Image3b = cv::Mat3b;
 using Image3f = cv::Mat3f;
+using Image3d = cv::Mat3d;
 using Image4b = cv::Mat4b;
 
 using Vec1b = uint8_t;
@@ -61,6 +62,8 @@ using Vec3d = cv::Vec3d;
 using Vec4b = cv::Vec4b;
 
 using Size = cv::Size;
+
+using cv::noArray;
 
 template <typename T, typename TT>
 inline void Init(Image<T>* image, int width, int height, TT val) {
@@ -77,8 +80,47 @@ inline void Init(Image<T>* image, int width, int height, TT val) {
 
 #else
 
+template <typename _Tp, int m, int n>
+class Imagex {
+ public:
+   using value_type = _Tp;
+  enum { rows = m, cols = n, channels = rows * cols };
+  Imagex(){};
+  Imagex(const Imagex<_Tp, n, m>& a) {
+    for (int i = 0; i < m; i++) {
+      for (int j = 0; j < n; j++) {
+        val[i * n + j] = a(j, i);
+      }
+    }
+  }
+  Imagex(std::initializer_list<_Tp> list) {
+    assert(list.size() == channels);
+    int i = 0;
+    for (const auto& elem : list) {
+      val[i++] = elem;
+    }
+  }
+  ~Imagex(){};
+
+  inline _Tp operator[](std::size_t index) const { return val[index]; }
+
+  inline _Tp& operator[](std::size_t index) { return val[index]; }
+
+  Imagex<_Tp, n, m> t() const { return Imagex<_Tp, n, m>(*this); }
+
+  Imagex<_Tp, m, n> div(const Imagex<_Tp, m, n>& a) const {
+    Imagex<_Tp, m, n> out = *this;
+    for (int i = 0; i < channels; i++) {
+      out.val[i] /= a.val[i];
+    }
+    return out;
+  }
+
+  std::array<_Tp, m * n> val;
+};
+
 template <typename TT, int N>
-using Vec_ = std::array<TT, N>;
+using Vec_ = Imagex<TT, N, 1>;
 
 using Vec1b = uint8_t;
 using Vec1w = uint16_t;
@@ -174,7 +216,7 @@ typedef ImageBase _InputOutputArray;
 
 typedef const _InputArray& InputArray;
 typedef InputArray InputArrayOfArrays;
-typedef const _OutputArray& OutputArray;
+typedef _OutputArray& OutputArray;
 typedef OutputArray OutputArrayOfArrays;
 typedef const _InputOutputArray& InputOutputArray;
 typedef InputOutputArray InputOutputArrayOfArrays;
@@ -352,6 +394,41 @@ class ImageBase {
     return dst;
   }
 
+  ImageBase mul(const ImageBase& a) const {
+    assert(rows == a.rows && cols == a.cols && cv_type == a.cv_type);
+    ImageBase dst = a.clone();
+    
+#define UGU_SET(type) (dst.at<type>(y, x) *= a.at<type>(y, x))
+
+    auto copy_func = [&](int index_) {
+      int x = index_ % cols;
+      int y = index_ / cols;
+
+      if (*cpp_type == typeid(uint8_t)) {
+        UGU_SET(uint8_t);
+      } else if (*cpp_type == typeid(int8_t)) {
+        UGU_SET(int8_t);
+      } else if (*cpp_type == typeid(uint16_t)) {
+        UGU_SET(uint16_t);
+      } else if (*cpp_type == typeid(int16_t)) {
+        UGU_SET(int16_t);
+      } else if (*cpp_type == typeid(int32_t)) {
+        UGU_SET(int32_t);
+      } else if (*cpp_type == typeid(float)) {
+        UGU_SET(float);
+      } else if (*cpp_type == typeid(double)) {
+        UGU_SET(double);
+      } else {
+        throw std::runtime_error("type error");
+      }
+    };
+#undef UGU_SET
+
+    parallel_for(0, cols * rows, copy_func);
+
+    return dst;
+  }
+
   template <typename TT>
   void forEach(std::function<void(TT&, const int[2])> f) {
     if (empty()) {
@@ -409,7 +486,7 @@ int ParseVec() {
 template <typename T,
           std::enable_if_t<std::is_compound_v<T>, std::nullptr_t> = nullptr>
 int ParseVec() {
-  const int ch = static_cast<int>(T().size());
+  const int ch = static_cast<int>(T().channels);
   const std::type_info* info = &typeid(typename T::value_type);
   return MakeCvType(info, ch);
 }
@@ -501,6 +578,7 @@ using Image1i =
 using Image1f = Image<float>;  // For depth image with any scale
 using Image2f = Image<Vec2f>;
 using Image3f = Image<Vec3f>;  // For normal or point cloud. XYZ order.
+using Image3d = Image<Vec3d>;
 using Image3b = Image<Vec3b>;  // For color image. RGB order.
 using Image4b = Image<Vec4b>;  // For color image. RGBA order.
 
