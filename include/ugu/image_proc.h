@@ -26,7 +26,6 @@ Image3b ColorTransfer(
     const Image1b& mask = Image1b(),
     ColorTransferSpace color_space = ColorTransferSpace::CIE_LAB);
 
-
 #ifdef UGU_USE_OPENCV
 
 using InterpolationFlags = cv::InterpolationFlags;
@@ -59,6 +58,22 @@ inline void minMaxLoc(const cv::InputArray& src, double* minVal,
 }
 
 #else
+
+void subtract(InputArray src1, InputArray src2, OutputArray dst,
+              InputArray mask = noArray(), int dtype = -1);
+void cvtColor(InputArray src, OutputArray dst, int code, int dstCn = 0);
+void meanStdDev(InputArray src, OutputArray mean, OutputArray stddev,
+                InputArray mask = noArray());
+template <int m>
+void meanStdDev(InputArray src, Vec_<double, m>& mean, Vec_<double, m>& stddev,
+                InputArray mask = noArray()) {
+  assert(src.channels() == m);
+  ImageBase mean_, stddev_;
+  meanStdDev(src, mean_, stddev_, mask);
+  std::memcpy(mean.val.data(), mean_.data, sizeof(double) * mean.channels);
+  std::memcpy(stddev.val.data(), stddev_.data,
+              sizeof(double) * stddev.channels);
+}
 
 enum ColorConversionCodes {
   COLOR_BGR2BGRA = 0,  //!< add alpha channel to RGB or BGR image
@@ -486,8 +501,8 @@ bool ConvertTo(const Image<T>& src, Image<TT>* dst, float scale = 1.0f) {
       }
     }
   }
-
-#undef UGU_CAST
+#undef UGU_CAST1
+#undef UGU_CAST2
 
   return true;
 }

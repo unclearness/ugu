@@ -5,7 +5,55 @@
 
 #include "ugu/image_proc.h"
 
+
+#include <iostream>
+#include "ugu/image_io.h"
+
 namespace {
+
+template <typename Index, class Func>
+void parallel_for_impl(Index st, Index ed, Func func, int num_theads = -1,
+                       Index inc = Index(1)) {
+  uint32_t num_cpu = num_theads > 0
+                         ? std::min(static_cast<unsigned int>(num_theads),
+                                    std::thread::hardware_concurrency())
+                         : std::thread::hardware_concurrency();
+
+  // Prefer to UGU_THREADS_NUM
+  if (ugu::UGU_THREADS_NUM > 0) {
+    num_cpu = ugu::UGU_THREADS_NUM;
+  }
+
+  assert(num_cpu > 0);
+
+  if (num_cpu == 1) {
+    for (Index j = st; j < ed; j += inc) {
+      func(j);
+    }
+    return;
+  }
+
+  const Index jobs_per_thread =
+      static_cast<Index>((ed - st + num_cpu - 1) / num_cpu);
+
+  std::vector<std::thread> threads;
+
+  for (Index i = st; i < ed; i += jobs_per_thread) {
+    Index end_this_thread = std::min(i + jobs_per_thread, ed);
+    threads.emplace_back([i, end_this_thread, inc, &func]() {
+      for (Index j = i; j < end_this_thread; j += inc) {
+        func(j);
+      }
+    });
+  }
+
+  // Wait all threads...
+  for (auto& t : threads) {
+    if (t.joinable()) {
+      t.join();
+    }
+  }
+}
 
 // https://stackoverflow.com/questions/7880264/convert-lab-color-to-rgb
 
@@ -167,18 +215,118 @@ ugu::Image3b LabToRgb(const ugu::Image3b& src) {
 
 namespace ugu {
 
-void cvtColor(InputArray src, OutputArray dst, int code, int dstCn = 0) {
+void cvtColor(InputArray src, OutputArray dst, int code, int dstCn) {
+  (void)dstCn;
   if (code == ColorConversionCodes::COLOR_RGB2Lab) {
     dst = RgbToLab(src);
     return;
   }
 
-  if (code == ColorConversionCodes::COLOR_Lab2LRGB) {
+  if (code == ColorConversionCodes::COLOR_Lab2RGB) {
     dst = LabToRgb(src);
     return;
   }
 
   throw std::runtime_error("Not implemented");
+}
+
+Scalar sum(InputArray src) {
+  if (src.channels() > 4) {
+    std::runtime_error("Too many channels.");
+  }
+  Scalar s = 0.0;
+
+#define UGU_SUM(type, index)                                               \
+  type* data = reinterpret_cast<type*>(src.data) + index * src.channels(); \
+  for (int c = 0; c < src.channels(); c++) {                               \
+    s[c] += static_cast<double>(data[c]);                                  \
+  }
+
+  auto sum_func = [&](size_t index_) {
+    if (GetTypeidFromCvType(src.type()) == typeid(uint8_t)) {
+      UGU_SUM(uint8_t, index_);
+    } else if (GetTypeidFromCvType(src.type()) == typeid(int8_t)) {
+      UGU_SUM(int8_t, index_);
+    } else if (GetTypeidFromCvType(src.type()) == typeid(uint16_t)) {
+      UGU_SUM(uint16_t, index_);
+    } else if (GetTypeidFromCvType(src.type()) == typeid(int16_t)) {
+      UGU_SUM(int16_t, index_);
+    } else if (GetTypeidFromCvType(src.type()) == typeid(int32_t)) {
+      UGU_SUM(int32_t, index_);
+    } else if (GetTypeidFromCvType(src.type()) == typeid(float)) {
+      UGU_SUM(float, index_);
+    } else if (GetTypeidFromCvType(src.type()) == typeid(double)) {
+      UGU_SUM(double, index_);
+    } else {
+      throw std::runtime_error("type error");
+    }
+  };
+#undef UGU_SUM
+
+  parallel_for(size_t(0), src.total(), sum_func);
+
+  return s;
+}
+
+void subtract(InputArray src1, InputArray src2, OutputArray dst,
+              InputArray mask, int dtype) {
+  (void)dtype;
+  (void)mask;
+
+  if (src1.cols != src2.cols || src1.rows != src2.rows ||
+      src1.type() != src2.type()) {
+    throw std::runtime_error("Not supported");
+  }
+
+  dst = src1.clone();
+
+#define UGU_SUB(type)                                         \
+  for (size_t i = 0; i < dst.total() * dst.channels(); i++) { \
+    *(reinterpret_cast<type*>(dst.data) + i) -=               \
+        *(reinterpret_cast<type*>(src2.data) + i);            \
+  }
+  if (GetTypeidFromCvType(src1.type()) == typeid(uint8_t)) {
+    UGU_SUB(uint8_t);
+  } else if (GetTypeidFromCvType(src1.type()) == typeid(int8_t)) {
+    UGU_SUB(int8_t);
+  } else if (GetTypeidFromCvType(src1.type()) == typeid(uint16_t)) {
+    UGU_SUB(uint16_t);
+  } else if (GetTypeidFromCvType(src1.type()) == typeid(int16_t)) {
+    UGU_SUB(int16_t);
+  } else if (GetTypeidFromCvType(src1.type()) == typeid(int32_t)) {
+    UGU_SUB(int32_t);
+  } else if (GetTypeidFromCvType(src1.type()) == typeid(float)) {
+    UGU_SUB(float);
+  } else if (GetTypeidFromCvType(src1.type()) == typeid(double)) {
+    UGU_SUB(double);
+  } else {
+    throw std::runtime_error("type error");
+  }
+#undef UGU_SUB
+}
+
+void meanStdDev(InputArray src, OutputArray mean, OutputArray stddev,
+                InputArray mask) {
+  // TODO: use mask
+  (void)mask;
+
+  // Mean
+  Vec3d sum_ = sum(src);
+  mean = ImageBase(sum_);
+  mean = mean / static_cast<double>(src.total());
+
+
+  // Stddev
+  Vec3d sq_sum_vec = sum(src.mul(src));
+  ImageBase sq_sum_ = ImageBase(sq_sum_vec) / src.total();
+  subtract(sq_sum_, mean.mul(mean), stddev);
+  stddev.forEach<double>([&](double& v, const int* yx) {
+    (void)yx;
+    assert(v >= 0);
+    v = std::sqrt(v);
+    return;
+  });
+
 }
 
 Image3b ColorTransfer(const Image3b& refer, const Image3b& target,
@@ -204,9 +352,25 @@ Image3b ColorTransfer(const Image3b& refer, const Image3b& target,
   cvtColor(target, target_lab, ColorConversionCodes::COLOR_RGB2Lab);
 #endif
 
+  #if 0
+  ImageBase tmp1, tmp2;
+  cvtColor(target_lab, tmp2, ColorConversionCodes::COLOR_Lab2RGB);
+  cvtColor(refer_lab, tmp1, ColorConversionCodes::COLOR_Lab2RGB);
+  imwrite("target.jpg", tmp2);
+  imwrite("refer.jpg", tmp1);
+  #endif
+
   // Normalize to [0.0, 1.0]
   refer_lab.clone().convertTo(refer_lab, CV_64FC3, 1.0 / 255.0);
   target_lab.clone().convertTo(target_lab, CV_64FC3, 1.0 / 255.0);
+
+  //refer_lab.forEach<double>([&](double& v, const int* yx) {
+
+    //if (v > 0) {
+//      std::cout << yx[1] << " " << yx[0] << " " << v << std::endl; 
+   // }
+
+//  });
 
   // Calc statistics
   Vec3d r_mean, r_stddev;
@@ -219,7 +383,7 @@ Image3b ColorTransfer(const Image3b& refer, const Image3b& target,
   result = target_lab - t_mean.t();
 
   // 2. Multiply ratio of standard deviation
-  auto scale_vec = r_stddev.div(t_stddev);
+  Vec3d scale_vec = r_stddev.div(t_stddev);
   Image3d scale_mat = Image3d(target.rows, target.cols);
   scale_mat.setTo(scale_vec);
   result = result.mul(scale_mat);
@@ -244,6 +408,15 @@ Image3b ColorTransfer(const Image3b& refer, const Image3b& target,
 #endif
 
   return result;
+}
+
+void parallel_for(int st, int ed, std::function<void(int)> func, int num_theads,
+                  int inc) {
+  parallel_for_impl(st, ed, func, inc);
+}
+void parallel_for(size_t st, size_t ed, std::function<void(size_t)> func,
+                  int num_theads, size_t inc) {
+  parallel_for_impl(st, ed, func, inc);
 }
 
 }  // namespace ugu

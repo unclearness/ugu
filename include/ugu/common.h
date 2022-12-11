@@ -14,6 +14,10 @@
 #include "ugu/eigen_util.h"
 #include "ugu/log.h"
 
+#ifdef UGU_USE_OPENCV
+#include "opencv2/core.hpp"
+#endif
+
 #define UGU_FLOATING_POINT_ONLY_TEMPLATE                              \
   template <typename T,                                               \
             typename std::enable_if<std::is_floating_point<T>::value, \
@@ -40,6 +44,9 @@ double degrees(const double& radians);
 float Fov2FocalPix(float fov, float pix, bool is_deg = false);
 float FocalPix2Fov(float f, float pix, bool to_deg = false);
 
+#ifdef UGU_USE_OPENCV
+using cv::saturate_cast;
+#else
 template <typename T, typename TT>
 T saturate_cast(const TT& v);
 
@@ -49,5 +56,5 @@ T saturate_cast(const TT& v) {
       std::clamp(v, static_cast<TT>(std::numeric_limits<T>::lowest()),
                  static_cast<TT>(std::numeric_limits<T>::max())));
 }
-
+#endif
 }  // namespace ugu
