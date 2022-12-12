@@ -119,10 +119,7 @@ class Matx {
     }
   }
 
-  Matx(const ImageBase& a) {
-    assert(channels == a.total() * a.channels());
-    std::memcpy(val, a.data, sizeof(_Tp) * channels);
-  }
+  Matx(const ImageBase& a);
 
   ~Matx(){};
 
@@ -371,15 +368,15 @@ class ImageBase {
 
   template <typename TT>
   TT& at(int y, int x) {
-    //return *(reinterpret_cast<TT*>(data_->data()) +
-    //         ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
+    // return *(reinterpret_cast<TT*>(data_->data()) +
+    //          ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
     return ((TT*)(data + step[0] * y))[x];
   }
 
   template <typename TT>
   const TT& at(int y, int x) const {
-    //return *(reinterpret_cast<TT*>(data_->data()) +
-    //         ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
+    // return *(reinterpret_cast<TT*>(data_->data()) +
+    //          ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
     return ((TT*)(data + step[0] * y))[x];
   }
 
@@ -633,6 +630,12 @@ class ImageBase {
     return *this;
   }
 };
+
+template <typename _Tp, int m, int n>
+Matx<_Tp, m, n>::Matx(const ImageBase& a) {
+  assert(channels == a.total() * a.channels());
+  std::memcpy(val, a.data, sizeof(_Tp) * channels);
+}
 
 inline ImageBase& operator*(ImageBase& lhs, const double& rhs) {
 
