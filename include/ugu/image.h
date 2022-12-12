@@ -637,11 +637,12 @@ Matx<_Tp, m, n>::Matx(const ImageBase& a) {
   std::memcpy(val, a.data, sizeof(_Tp) * channels);
 }
 
-inline ImageBase& operator*(ImageBase& lhs, const double& rhs) {
+inline ImageBase operator*(const ImageBase& lhs, const double& rhs) {
+  ImageBase ret = lhs.clone();
 
 #define UGU_MUL(type)                                         \
   for (size_t i = 0; i < lhs.total() * lhs.channels(); i++) { \
-    type& v = *(reinterpret_cast<type*>(lhs.data) + i);       \
+    type& v = *(reinterpret_cast<type*>(ret.data) + i);       \
     v = static_cast<type>(v * rhs);                           \
   }
   if (GetTypeidFromCvType(lhs.type()) == typeid(uint8_t)) {
@@ -666,7 +667,7 @@ inline ImageBase& operator*(ImageBase& lhs, const double& rhs) {
   return lhs;
 }
 
-inline ImageBase& operator/(ImageBase& lhs, const double& rhs) {
+inline ImageBase& operator/(const ImageBase& lhs, const double& rhs) {
   return lhs * (1.0 / rhs);
 }
 
