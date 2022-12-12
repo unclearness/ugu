@@ -50,10 +50,6 @@ using Image3f = cv::Mat3f;
 using Image3d = cv::Mat3d;
 using Image4b = cv::Mat4b;
 
-using Vec1b = uint8_t;
-using Vec1w = uint16_t;
-using Vec1i = int32_t;
-using Vec1f = float;
 using Vec2f = cv::Vec2f;
 using Vec2d = cv::Vec2d;
 using Vec3b = cv::Vec3b;
@@ -80,14 +76,28 @@ inline void Init(Image<T>* image, int width, int height, TT val) {
 
 #else
 
+class ImageBase;
+
 template <typename _Tp, int m, int n>
 class Matx {
  public:
   using value_type = _Tp;
   enum { rows = m, cols = n, channels = rows * cols };
-  Matx() { std::fill(val.begin(), val.end(), 0); };
+  Matx() {  // std::fill(val.begin(), val.end(), 0);
+    for (int i = 0; i < m; i++) {
+      for (int j = 0; j < n; j++) {
+        val[i * n + j] = static_cast<_Tp>(0);
+      }
+    }
+  };
   Matx(const double& v) {
-    std::fill(val.begin(), val.end(), static_cast<_Tp>(v));
+    // std::fill(val.begin(), val.end(), static_cast<_Tp>(v));
+
+    for (int i = 0; i < m; i++) {
+      for (int j = 0; j < n; j++) {
+        val[i * n + j] = static_cast<_Tp>(v);
+      }
+    }
   };
   Matx(const Matx<_Tp, n, m>& a) {
     for (int i = 0; i < m; i++) {
@@ -108,11 +118,17 @@ class Matx {
       val[i++] = elem;
     }
   }
+
+  Matx(const ImageBase& a) {
+    assert(channels == a.total() * a.channels());
+    std::memcpy(val, a.data, sizeof(_Tp) * channels);
+  }
+
   ~Matx(){};
 
-  inline _Tp operator[](std::size_t index) const { return val[index]; }
+  inline _Tp operator[](size_t index) const { return val[index]; }
 
-  inline _Tp& operator[](std::size_t index) { return val[index]; }
+  inline _Tp& operator[](size_t index) { return val[index]; }
 
   Matx<_Tp, m, n>& operator=(const double& rhs) {
     for (int i = 0; i < channels; i++) {
@@ -150,16 +166,13 @@ class Matx {
     return out;
   }
 
-  std::array<_Tp, m * n> val;
+  // std::array<_Tp, m * n> val;
+  _Tp val[m * n];
 };
 
 template <typename TT, int N>
 using Vec_ = Matx<TT, N, 1>;
 
-using Vec1b = uint8_t;
-using Vec1w = uint16_t;
-using Vec1i = int32_t;
-using Vec1f = float;
 using Vec2f = Vec_<float, 2>;
 using Vec2d = Vec_<double, 2>;
 using Vec3b = Vec_<uint8_t, 3>;
@@ -330,7 +343,7 @@ class ImageBase {
   template <typename _Tp, int m, int n>
   ImageBase(const Matx<_Tp, m, n>& rhs) {
     Init(m, 1, CV_MAKETYPE(GetDepth<_Tp>(), n));
-    std::memcpy(data, rhs.val.data(), sizeof(_Tp) * rhs.channels);
+    std::memcpy(data, rhs.val, sizeof(_Tp) * rhs.channels);
   };
   ImageBase(const ImageBase& src) = default;
   virtual ~ImageBase() {}
@@ -358,14 +371,16 @@ class ImageBase {
 
   template <typename TT>
   TT& at(int y, int x) {
-    return *(reinterpret_cast<TT*>(data_->data()) +
-             ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
+    //return *(reinterpret_cast<TT*>(data_->data()) +
+    //         ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
+    return ((TT*)(data + step[0] * y))[x];
   }
 
   template <typename TT>
   const TT& at(int y, int x) const {
-    return *(reinterpret_cast<TT*>(data_->data()) +
-             ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
+    //return *(reinterpret_cast<TT*>(data_->data()) +
+    //         ((static_cast<size_t>(y) * static_cast<size_t>(cols)) + x));
+    return ((TT*)(data + step[0] * y))[x];
   }
 
   void setTo(InputArray value, InputArray mask = noArray()) {
@@ -464,7 +479,7 @@ class ImageBase {
   ImageBase mul(const ImageBase& a) const {
     assert(rows == a.rows && cols == a.cols && cv_type == a.cv_type);
     ImageBase dst = clone();
-  
+
 // #define UGU_SET(type) (dst.at<type>(y, x) *= a.at<type>(y, x))
 #define UGU_SET(type)                                                       \
   type* data = reinterpret_cast<type*>(dst.data) + index_ * dst.channels(); \
@@ -473,7 +488,6 @@ class ImageBase {
     data[c] = data[c] * src[c];                                             \
   }
     auto copy_func = [&](int index_) {
-
       if (*cpp_type == typeid(uint8_t)) {
         UGU_SET(uint8_t);
       } else if (*cpp_type == typeid(int8_t)) {

@@ -258,6 +258,7 @@ set(
   src/util/io_util.cc
   src/util/math_util.cc
   src/util/rgbd_util.cc
+  src/util/thread_util.cc
   src/util/geom_util.cc
   src/util/image_util.cc
   src/util/string_util.cc

@@ -70,8 +70,8 @@ void meanStdDev(InputArray src, Vec_<double, m>& mean, Vec_<double, m>& stddev,
   assert(src.channels() == m);
   ImageBase mean_, stddev_;
   meanStdDev(src, mean_, stddev_, mask);
-  std::memcpy(mean.val.data(), mean_.data, sizeof(double) * mean.channels);
-  std::memcpy(stddev.val.data(), stddev_.data,
+  std::memcpy(mean.val, mean_.data, sizeof(double) * mean.channels);
+  std::memcpy(stddev.val, stddev_.data,
               sizeof(double) * stddev.channels);
 }
 

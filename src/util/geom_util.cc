@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <mutex>
 #include <random>
 
 #include "ugu/face_adjacency.h"

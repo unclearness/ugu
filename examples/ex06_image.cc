@@ -43,5 +43,13 @@ int main(int argc, char* argv[]) {
                  images[i]);
   }
 
+  {
+    ugu::ImageBase refer =
+        ugu::imread("../data/color_transfer/reference_00.jpg");
+    ugu::ImageBase target = ugu::imread("../data/color_transfer/target_00.jpg");
+    ugu::Image3b res = ugu::ColorTransfer(refer, target);
+    ugu::imwrite("../data/color_transfer/result_00.jpg", res);
+  }
+
   return 0;
 }
