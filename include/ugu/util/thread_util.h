@@ -1,9 +1,11 @@
 /*
- * Copyright (C) 2021, unclearness
+ * Copyright (C) 2022, unclearness
  * All rights reserved.
  */
 
 #pragma once
+
+#include <stdint.h>
 
 #include <functional>
 

@@ -4,8 +4,8 @@
  */
 
 #include "ugu/util/thread_util.h"
-#include "ugu/common.h"
 
+#include <cassert>
 #include <mutex>
 #include <thread>
 #include <vector>
