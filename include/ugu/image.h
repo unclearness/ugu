@@ -664,10 +664,10 @@ inline ImageBase operator*(const ImageBase& lhs, const double& rhs) {
   }
 #undef UGU_MUL
 
-  return lhs;
+  return ret;
 }
 
-inline ImageBase& operator/(const ImageBase& lhs, const double& rhs) {
+inline ImageBase operator/(const ImageBase& lhs, const double& rhs) {
   return lhs * (1.0 / rhs);
 }
 
