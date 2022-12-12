@@ -140,15 +140,12 @@ inline bool WriteBinary(const std::string& path, void* data, size_t size) {
   return true;
 }
 
-#ifdef UGU_USE_OPENCV
-template <typename T>
-bool WriteBinary(const std::string& path, ugu::Image<T>& image) {
+inline bool WriteBinary(const std::string& path, ImageBase& image) {
   size_t size_in_bytes = image.total() * image.elemSize();
   return WriteBinary(path, image.data, size_in_bytes);
 }
 
-template <typename T>
-bool LoadBinary(const std::string& path, ugu::Image<T>& image) {
+inline bool LoadBinary(const std::string& path, ImageBase& image) {
   std::vector<char> internal_data;
   LoadBinaryBase(path, &internal_data);
 
@@ -162,7 +159,5 @@ bool LoadBinary(const std::string& path, ugu::Image<T>& image) {
 
   return true;
 }
-
-#endif
 
 }  // namespace ugu

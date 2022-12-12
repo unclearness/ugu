@@ -426,7 +426,7 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
 
   Init(vis_face_id, face_id.cols, face_id.rows, static_cast<unsigned char>(0));
 
-  std::unordered_map<int, std::array<uint8_t, 3>> id2color;
+  std::unordered_map<int, Vec3b> id2color;
 
   for (int y = 0; y < vis_face_id->rows; y++) {
     for (int x = 0; x < vis_face_id->cols; x++) {
@@ -435,7 +435,7 @@ void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id) {
         continue;
       }
 
-      std::array<uint8_t, 3> color;
+      Vec3b color;
       auto iter = id2color.find(fid);
       if (iter != id2color.end()) {
         color = iter->second;
