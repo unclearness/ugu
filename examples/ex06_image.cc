@@ -51,5 +51,15 @@ int main(int argc, char* argv[]) {
     ugu::imwrite("../data/color_transfer/result_00.jpg", res);
   }
 
+  {
+    ugu::ImageBase source =
+        ugu::imread("../data/poisson_blending/source.png");
+    ugu::ImageBase target = ugu::imread("../data/poisson_blending/target.png");
+    ugu::ImageBase mask = ugu::imread("../data/poisson_blending/mask.png");
+    ugu::Image3b res = ugu::PoissonBlend(mask, source, target, -35, 35);
+    ugu::imwrite("../data/poisson_blending/result.png", res);
+
+  }
+
   return 0;
 }

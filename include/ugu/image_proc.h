@@ -26,6 +26,9 @@ Image3b ColorTransfer(
     const Image1b& mask = Image1b(),
     ColorTransferSpace color_space = ColorTransferSpace::CIE_LAB);
 
+Image3b PoissonBlend(const Image1b& mask, const Image3b& soure,
+                     const Image3b& target, int32_t topx, int32_t topy);
+
 #ifdef UGU_USE_OPENCV
 
 using InterpolationFlags = cv::InterpolationFlags;
@@ -71,8 +74,7 @@ void meanStdDev(InputArray src, Vec_<double, m>& mean, Vec_<double, m>& stddev,
   ImageBase mean_, stddev_;
   meanStdDev(src, mean_, stddev_, mask);
   std::memcpy(mean.val, mean_.data, sizeof(double) * mean.channels);
-  std::memcpy(stddev.val, stddev_.data,
-              sizeof(double) * stddev.channels);
+  std::memcpy(stddev.val, stddev_.data, sizeof(double) * stddev.channels);
 }
 
 enum ColorConversionCodes {

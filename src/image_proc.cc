@@ -5,6 +5,8 @@
 
 #include "ugu/image_proc.h"
 
+#include "Eigen/Sparse"
+
 namespace {
 
 // https://stackoverflow.com/questions/7880264/convert-lab-color-to-rgb
@@ -59,8 +61,8 @@ void rgb2lab(float R, float G, float B, float& l_s, float& a_s, float& b_s) {
   b_s = static_cast<float>(200. * (var_Y - var_Z));
 }
 
-void rgb2lab(unsigned char R, unsigned char G, unsigned char B,
-             unsigned char& l_s, unsigned char& a_s, unsigned char& b_s) {
+void rgb2lab(uint8_t R, uint8_t G, uint8_t B, uint8_t& l_s, uint8_t& a_s,
+             uint8_t& b_s) {
   float l_, a_, b_;
   rgb2lab(R, G, B, l_, a_, b_);
 
@@ -68,9 +70,9 @@ void rgb2lab(unsigned char R, unsigned char G, unsigned char B,
   a_ = std::clamp(a_, -127.f, 127.f);  //  std::max(std::min(100.f, l_), 0.f);
   b_ = std::clamp(b_, -127.f, 127.f);
 
-  l_s = static_cast<unsigned char>(std::round(l_ / 100.f * 255));
-  a_s = static_cast<unsigned char>(std::round((a_ + 127.f) / 254.f * 255));
-  b_s = static_cast<unsigned char>(std::round((b_ + 127.f) / 254.f * 255));
+  l_s = static_cast<uint8_t>(std::round(l_ / 100.f * 255));
+  a_s = static_cast<uint8_t>(std::round((a_ + 127.f) / 254.f * 255));
+  b_s = static_cast<uint8_t>(std::round((b_ + 127.f) / 254.f * 255));
 }
 
 // http://www.easyrgb.com/index.php?X=MATH&H=01#text1
@@ -128,8 +130,8 @@ void lab2rgb(float l_s, float a_s, float b_s, float& R, float& G, float& B) {
   B = static_cast<float>(var_B * 255.);
 }
 
-void lab2rgb(unsigned char l_s, unsigned char a_s, unsigned char b_s,
-             unsigned char& R, unsigned char& G, unsigned char& B) {
+void lab2rgb(uint8_t l_s, uint8_t a_s, uint8_t b_s, uint8_t& R, uint8_t& G,
+             uint8_t& B) {
   float R_, G_, B_;
 
   float l_ = l_s / 255.f * 100.f;
@@ -138,9 +140,9 @@ void lab2rgb(unsigned char l_s, unsigned char a_s, unsigned char b_s,
 
   lab2rgb(l_, a_, b_, R_, G_, B_);
 
-  R = static_cast<unsigned char>(std::round(R_));
-  G = static_cast<unsigned char>(std::round(G_));
-  B = static_cast<unsigned char>(std::round(B_));
+  R = static_cast<uint8_t>(std::round(R_));
+  G = static_cast<uint8_t>(std::round(G_));
+  B = static_cast<uint8_t>(std::round(B_));
 }
 
 // TODO: These functions' outputs do not exactly match with OpenCV ones
@@ -348,6 +350,190 @@ Image3b ColorTransfer(const Image3b& refer, const Image3b& target,
 #else
   cvtColor(result.clone(), result, ColorConversionCodes::COLOR_Lab2RGB);
 #endif
+
+  return result;
+}
+
+Image3b PoissonBlend(const Image1b& mask, const Image3b& source,
+                     const Image3b& target, int32_t topx, int32_t topy) {
+  auto get_idx = [&](int x, int y) { return y * mask.cols + x; };
+  auto get_idx_ch = [&](int x, int y, int c, const Image3b& img) {
+    return (y * img.cols + x) * 3 + c;
+  };
+
+  if (mask.cols != source.cols || mask.rows != source.rows ||
+      target.rows <= mask.rows + topy || target.cols <= mask.cols + topx) {
+    LOGE("Invalid input\n");
+    return Image3b();
+  }
+
+  // Map from image index to parameter index
+  std::unordered_map<int, int> img2prm_idx;
+  {
+    int prm_idx = 0;
+    for (int y = 0; y < mask.rows; ++y) {
+      for (int x = 0; x < mask.cols; ++x) {
+        if (mask.at<uint8_t>(y, x) != 0) {
+          img2prm_idx[get_idx(x, y)] = prm_idx;
+          ++prm_idx;
+        }
+      }
+    }
+  }
+
+  const Eigen::Index num_param = static_cast<Eigen::Index>(img2prm_idx.size());
+
+  std::vector<Eigen::Triplet<double>> triplets;
+  {
+    int cur_row = 0;
+    // 4 neighbor laplacian
+    for (int j = 1; j < mask.rows - 1; j++) {
+      for (int i = 1; i < mask.cols - 1; i++) {
+        if (mask.at<uint8_t>(j, i) != 0) {
+          triplets.push_back({cur_row, img2prm_idx[get_idx(i, j)], 4.0});
+
+          if (mask.at<uint8_t>(j, i - 1) != 0) {
+            triplets.push_back({cur_row, img2prm_idx[get_idx(i - 1, j)], -1.0});
+          }
+          if (mask.at<uint8_t>(j, i + 1) != 0) {
+            triplets.push_back({cur_row, img2prm_idx[get_idx(i + 1, j)], -1.0});
+          }
+          if (mask.at<uint8_t>(j - 1, i) != 0) {
+            triplets.push_back({cur_row, img2prm_idx[get_idx(i, j - 1)], -1.0});
+          }
+          if (mask.at<uint8_t>(j + 1, i) != 0) {
+            triplets.push_back({cur_row, img2prm_idx[get_idx(i, j + 1)], -1.0});
+          }
+          cur_row++;  // Go to the next equation
+        }
+      }
+    }
+  }
+
+  Eigen::SparseMatrix<double> A(num_param, num_param);
+  A.setFromTriplets(triplets.begin(), triplets.end());
+  // TODO: Is this solver the best?
+  Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> solver;
+  // Prepare linear system
+  solver.compute(A);
+
+  Eigen::VectorXd b(num_param);
+  b.setZero();
+
+  std::array<Eigen::VectorXd, 3> solution_channels;
+
+  // Equation (11) in the paper.
+  auto grad_eq11 = [](const float& fpstar, const float& fqstar, const float& gp,
+                      const float& gq) {
+    (void)fpstar, fqstar;
+    const float gdiff = gp - gq;
+    return gdiff;
+  };
+
+  // Equation (13) in the paper.
+  auto grad_eq13 = [](const float& fpstar, const float& fqstar, const float& gp,
+                      const float& gq) {
+    const float fdiff = fpstar - fqstar;
+    const float gdiff = gp - gq;
+    if (std::abs(fdiff) > std::abs(gdiff)) {
+      return fdiff;
+    } else {
+      return gdiff;
+    }
+  };
+
+  constexpr bool use13 = false;
+  std::function<float(const float&, const float&, const float&, const float&)>
+      calc_grad = grad_eq11;
+  if (use13) {
+    calc_grad = grad_eq13;
+  }
+
+  for (int ic = 0; ic < 3; ++ic) {
+    uint32_t irow = 0;
+
+    for (int j = 1; j < mask.rows - 1; j++) {
+      for (int i = 1; i < mask.cols - 1; i++) {
+        if (j + topy < 0 || i + topx < 0 || target.rows <= j + topy ||
+            target.cols <= i + topx) {
+          continue;
+        }
+
+        if (mask.at<uint8_t>(j, i) != 0) {
+          const Vec3b& v = source.at<Vec3b>(j, i);
+          const Vec3b& u = target.at<Vec3b>(j + topy, i + topx);
+
+          // Right-hand side of (7)
+          double total_grad = 0.0;
+          total_grad += calc_grad(
+              u[ic],
+              target.data[get_idx_ch(i + topx, j - 1 + topy, ic, target)],
+              v[ic], source.data[get_idx_ch(i, j - 1, ic, source)]);
+          total_grad += calc_grad(
+              u[ic],
+              target.data[get_idx_ch(i - 1 + topx, j + topy, ic, target)],
+              v[ic], source.data[get_idx_ch(i - 1, j, ic, source)]);
+          total_grad += calc_grad(
+              u[ic],
+              target.data[get_idx_ch(i + topx, j + 1 + topy, ic, target)],
+              v[ic], source.data[get_idx_ch(i, j + 1, ic, source)]);
+          total_grad += calc_grad(
+              u[ic],
+              target.data[get_idx_ch(i + 1 + topx, j + topy, ic, target)],
+              v[ic], source.data[get_idx_ch(i + 1, j, ic, source)]);
+
+          b[irow] = total_grad;
+
+          // Boundary condition
+          if (mask.at<uint8_t>(j - 1, i) == 0) {
+            b[irow] += static_cast<double>(
+                target.data[get_idx_ch(i + topx, j - 1 + topy, ic, target)]);
+          }
+          if (mask.at<uint8_t>(j, i - 1) == 0) {
+            b[irow] += static_cast<double>(
+                target.data[get_idx_ch(i - 1 + topx, j + topy, ic, target)]);
+          }
+          if (mask.at<uint8_t>(j + 1, i) == 0) {
+            b[irow] += static_cast<double>(
+                target.data[get_idx_ch(i + topx, j + 1 + topy, ic, target)]);
+          }
+          if (mask.at<uint8_t>(j, i + 1) == 0) {
+            b[irow] += static_cast<double>(
+                target.data[get_idx_ch(i + 1 + topx, j + topy, ic, target)]);
+          }
+
+          // To [0, 1]
+          b[irow] /= 255.0;
+
+          irow++;
+        }
+      }
+    }
+
+    // Solve for this channel
+    solution_channels[ic] = solver.solve(b);
+  }
+
+  Image3b result = target.clone();
+  result.forEach([&](Vec3b& val, const int* xy) {
+    int x_m = xy[0] - topx;
+    int y_m = xy[1] - topy;
+    if (x_m < 1 || y_m < 1 || mask.cols - 1 < x_m || mask.rows < y_m) {
+      return;
+    }
+    const int index = get_idx(x_m, y_m);
+    if (mask.data[index] == 0) {
+      return;
+    }
+    const int prm_idx = img2prm_idx[index];
+    Eigen::Vector3d col(solution_channels[0][prm_idx],
+                        solution_channels[1][prm_idx],
+                        solution_channels[2][prm_idx]);
+    // To [0, 255]
+    val[0] = saturate_cast<uint8_t>(col[0] * 255.0);
+    val[1] = saturate_cast<uint8_t>(col[1] * 255.0);
+    val[2] = saturate_cast<uint8_t>(col[2] * 255.0);
+  });
 
   return result;
 }

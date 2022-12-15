@@ -581,6 +581,21 @@ class ImageBase {
   }
 
   template <typename TT>
+  void forEach(std::function<void(const TT&, const int[2])> f) const {
+    if (empty()) {
+      return;
+    }
+    size_t st(0);
+    size_t ed = static_cast<size_t>(cols * rows * bit_depth_ / sizeof(TT));
+    auto f2 = [&](const size_t& i) {
+      const int xy[2] = {static_cast<int32_t>(i) % cols,
+                         static_cast<int32_t>(i) / cols};
+      f(reinterpret_cast<TT*>(data)[i], xy);
+    };
+    parallel_for(st, ed, f2);
+  }
+
+  template <typename TT>
   void forEach(std::function<void(TT&, const int[2])> f) {
     if (empty()) {
       return;
@@ -810,6 +825,20 @@ class Image : public ImageBase {
       return;
     }
     LOGE("Please implement!\n");
+  }
+
+  void forEach(std::function<void(const T&, const int[2])> f) const {
+    if (empty()) {
+      return;
+    }
+    size_t st(0);
+    size_t ed = static_cast<size_t>(cols * rows);
+    auto f2 = [&](const size_t& i) {
+      const int xy[2] = {static_cast<int32_t>(i) % cols,
+                         static_cast<int32_t>(i) / cols};
+      f(reinterpret_cast<T*>(data)[i], xy);
+    };
+    parallel_for(st, ed, f2);
   }
 
   void forEach(std::function<void(T&, const int[2])> f) {
