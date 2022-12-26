@@ -8,6 +8,7 @@
 #include <random>
 
 #include "ugu/registration/registration.h"
+#include "ugu/timer.h"
 #include "ugu/util/string_util.h"
 
 namespace {
@@ -46,7 +47,7 @@ auto AddNoise(ugu::Mesh& mesh) {
   for (size_t i = 0; i < noised_vertices.size(); i++) {
     auto& v = noised_vertices[i];
     auto& n = mesh.normals()[i];
-    // v += gauss(engine) * n;
+    v += gauss(engine) * n;
   }
   noised_mesh.set_vertices(noised_vertices);
 
@@ -146,18 +147,43 @@ void TestAlignmentWithoutCorresp() {
 
   noised_mesh.WriteObj(data1_dir, "noised_init");
 
-  ugu::IcpTerminateCriteria tmc;
-  ugu::IcpOutput output;
-  ugu::RigidIcp(noised_mesh, bunny, ugu::IcpLossType::kPointToPoint, tmc,
-                output, false);
-
   ugu::Mesh org_noised_mesh = noised_mesh;
-
-  for (size_t i = 0; i < output.transform_histry.size(); i++) {
-    ugu::LOGI("iter %d: %f\n", i, output.loss_histroty[i]);
+  ugu::Timer<double> timer;
+  {
     noised_mesh = org_noised_mesh;
-    noised_mesh.Transform(output.transform_histry[i].cast<float>());
-    noised_mesh.WriteObj(data1_dir, "noised_rigidicp_" + std::to_string(i));
+    ugu::IcpTerminateCriteria tmc;
+    ugu::IcpOutput output;
+    timer.Start();
+    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpLossType::kPointToPoint, tmc,
+                  output, false);
+    timer.End();
+    ugu::LOGI("Point-To-Point ICP: %fms\n", timer.elapsed_msec());
+    for (size_t i = 0; i < output.transform_histry.size(); i++) {
+      ugu::LOGI("iter %d: %f\n", i, output.loss_histroty[i]);
+      noised_mesh = org_noised_mesh;
+      noised_mesh.Transform(output.transform_histry[i].cast<float>());
+      noised_mesh.WriteObj(data1_dir,
+                           "noised_rigidicp_point_" + std::to_string(i));
+    }
+  }
+
+  {
+    noised_mesh = org_noised_mesh;
+    ugu::IcpTerminateCriteria tmc;
+    ugu::IcpOutput output;
+    timer.Start();
+    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpLossType::kPointToPlane, tmc,
+                  output, false);
+    timer.End();
+
+    ugu::LOGI("Point-To-Plane ICP: %f ms\n", timer.elapsed_msec());
+    for (size_t i = 0; i < output.transform_histry.size(); i++) {
+      ugu::LOGI("iter %d: %f\n", i, output.loss_histroty[i]);
+      noised_mesh = org_noised_mesh;
+      noised_mesh.Transform(output.transform_histry[i].cast<float>());
+      noised_mesh.WriteObj(data1_dir,
+                           "noised_rigidicp_plane_" + std::to_string(i));
+    }
   }
 }
 

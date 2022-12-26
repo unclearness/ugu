@@ -6,6 +6,7 @@
 #pragma once
 
 #include "ugu/accel/kdtree.h"
+#include "ugu/correspondence/correspondence_finder.h"
 #include "ugu/mesh.h"
 
 namespace ugu {
@@ -67,8 +68,23 @@ bool RigidIcpPointToPoint(const std::vector<Eigen::Vector3d>& src,
                           IcpOutput& output, bool with_scale = false,
                           KdTreePtr<double, 3> kdtree = nullptr);
 
+bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3f>& src_points,
+                          const std::vector<Eigen::Vector3f>& dst_points,
+                          const std::vector<Eigen::Vector3i>& dst_faces,
+                          const IcpTerminateCriteria& terminate_criteria,
+                          IcpOutput& output, bool with_scale,
+                          CorrespFinderPtr corresp_finder = nullptr);
+
+bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3d>& src_points,
+                          const std::vector<Eigen::Vector3d>& dst_points,
+                          const std::vector<Eigen::Vector3i>& dst_faces,
+                          const IcpTerminateCriteria& terminate_criteria,
+                          IcpOutput& output, bool with_scale,
+                          CorrespFinderPtr corresp_finder = nullptr);
+
 bool RigidIcp(const Mesh& src, const Mesh& dst, const IcpLossType& loss_type,
               const IcpTerminateCriteria& terminate_criteria, IcpOutput& output,
-              bool with_scale = false, KdTreePtr<float, 3> kdtree = nullptr);
+              bool with_scale = false, KdTreePtr<float, 3> kdtree = nullptr,
+              CorrespFinderPtr corresp_finder = nullptr);
 
 }  // namespace ugu
