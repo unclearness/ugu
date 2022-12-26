@@ -30,6 +30,7 @@ class KdTree {
   virtual ~KdTree() {}
   virtual bool Build() = 0;
   virtual void Clear() = 0;
+  virtual bool IsInitialized() const = 0;
   virtual void SetData(const std::vector<KdPoint>& data) = 0;
   virtual void SetMaxLeafDataNum(int max_leaf_data_num) = 0;
 

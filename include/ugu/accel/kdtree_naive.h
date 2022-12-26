@@ -22,6 +22,7 @@ class KdTreeNaive : public KdTree<Scalar, Rows> {
   const std::vector<KdPoint>& Data() const;
   bool Build() override;
   void Clear() override;
+  bool IsInitialized() const override;
 
   KdTreeSearchResults SearchNn(const KdPoint& query) const override;
   KdTreeSearchResults SearchKnn(const KdPoint& query,
@@ -35,6 +36,7 @@ class KdTreeNaive : public KdTree<Scalar, Rows> {
   std::vector<size_t> m_indices;
   int m_max_leaf_data_num = 10;
   int m_axis_num = -1;
+  bool m_initialized = false;
 
   struct Node;
   using NodePtr = std::shared_ptr<Node>;
@@ -94,6 +96,7 @@ bool KdTreeNaive<Scalar, Rows>::Build() {
   m_indices.resize(m_data.size());
   std::iota(m_indices.begin(), m_indices.end(), 0);
   root = BuildImpl(0, m_indices.size(), 0);
+  m_initialized = true;
   return true;
 }
 
@@ -101,6 +104,12 @@ template <typename Scalar, int Rows>
 void KdTreeNaive<Scalar, Rows>::Clear() {
   m_data.clear();
   m_indices.clear();
+  m_initialized = false;
+}
+
+template <typename Scalar, int Rows>
+bool KdTreeNaive<Scalar, Rows>::IsInitialized() const {
+  return m_initialized;
 }
 
 template <typename Scalar, int Rows>

@@ -23,6 +23,7 @@ class KdTreeNanoflannEigenX : public KdTree<Scalar, Eigen::Dynamic> {
   ~KdTreeNanoflannEigenX() {}
   bool Build() override;
   void Clear() override;
+  bool IsInitialized() const override;
 
   void SetData(const std::vector<KdPoint>& data) override;
   void SetMaxLeafDataNum(int max_leaf_data_num) override;
@@ -41,6 +42,7 @@ class KdTreeNanoflannEigenX : public KdTree<Scalar, Eigen::Dynamic> {
   int m_max_leaf_data_num = 10;
   std::vector<KdPoint> m_data;
   Eigen::MatrixX<Scalar> m_mat;  // TODO: double
+  bool m_initialized = false;
 };
 
 template <typename Scalar, int Rows>
@@ -51,6 +53,7 @@ class KdTreeNanoflannVector : public KdTree<Scalar, Rows> {
   ~KdTreeNanoflannVector() {}
   bool Build() override;
   void Clear() override;
+  bool IsInitialized() const override;
 
   void SetData(const std::vector<KdPoint>& data) override;
   void SetMaxLeafDataNum(int max_leaf_data_num) override;
@@ -62,6 +65,7 @@ class KdTreeNanoflannVector : public KdTree<Scalar, Rows> {
                                    const double& r) const override;
 
  private:
+  bool m_initialized = false;
   template <class VectorOfVectorsType, typename num_t = Scalar, int DIM = -1,
             class Distance = nanoflann::metric_L2, typename IndexType = size_t>
   struct KDTreeVectorOfVectorsAdaptor {
@@ -138,7 +142,6 @@ class KdTreeNanoflannVector : public KdTree<Scalar, Rows> {
       return false;
     }
     /** @} */
-
   };  // end of KDTreeVectorOfVectorsAdaptor
 
   using nf_vector_adaptor =
@@ -199,12 +202,21 @@ bool KdTreeNanoflannEigenX<Scalar>::Build() {
   m_mat_index = std::make_unique<nf_eigen_adaptor>(
       static_cast<size_t>(m_data[0].size()), m_mat, m_max_leaf_data_num);
   m_mat_index->index->buildIndex();
+
+  m_initialized = true;
+
   return true;
 }
 
 template <typename Scalar>
 void KdTreeNanoflannEigenX<Scalar>::Clear() {
   m_data.clear();
+  m_initialized = false;
+}
+
+template <typename Scalar>
+bool KdTreeNanoflannEigenX<Scalar>::IsInitialized() const {
+  return m_initialized;
 }
 
 template <typename Scalar>
@@ -244,12 +256,19 @@ bool KdTreeNanoflannVector<Scalar, Rows>::Build() {
   m_index = std::make_unique<nf_vector_adaptor>(
       static_cast<size_t>(m_data.size()), m_data, m_max_leaf_data_num);
   m_index->index->buildIndex();
+  m_initialized = true;
   return true;
 }
 
 template <typename Scalar, int Rows>
 void KdTreeNanoflannVector<Scalar, Rows>::Clear() {
   m_data.clear();
+  m_initialized = false;
+}
+
+template <typename Scalar, int Rows>
+bool KdTreeNanoflannVector<Scalar, Rows>::IsInitialized() const {
+  return m_initialized;
 }
 
 template <typename Scalar, int Rows>

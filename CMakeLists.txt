@@ -22,7 +22,7 @@ if (WIN32)
 # https://docs.microsoft.com/en-us/cpp/build/reference/compiler-option-warning-level?view=vs-2017
 # "However, for a new project, it may be best to use /W4 in all compilations;
 # this will ensure the fewest possible hard-to-find code defects."
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /EHsc /MP")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /EHsc /MP /bigobj")
 else()
 # g++/clang option for *nix
 set(CMAKE_CXX_EXTENSIONS OFF) #Set this to ON if you want to use GNU++
@@ -337,6 +337,9 @@ set(
   include/ugu/parameterize/parameterize.h
   src/parameterize/parameterize.cc
 
+  include/ugu/registration/registration.h
+  src/registration/registration.cc
+
   include/ugu/external/external.h
   src/external/fast_quadric_mesh_simplification.cc
   src/external/mvs_texturing.cc
@@ -419,6 +422,7 @@ if (UGU_BUILD_EXAMPLES)
   setup_exe(ex20_manifold examples/ex20_manifold.cc)
   setup_exe(ex21_fusion examples/ex21_fusion.cc)
   setup_exe(ex22_line examples/ex22_line.cc)
+  setup_exe(ex23_registration examples/ex23_registration.cc)
 endif()
 
 if (UGU_BUILD_APP)
