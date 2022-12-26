@@ -12,23 +12,26 @@ namespace {
 
 auto ComputeFaceInfo(const std::vector<Eigen::Vector3f>& verts,
                      const std::vector<Eigen::Vector3i>& vert_faces) {
-  std::vector<Eigen::Vector3f> face_centroids;
+  std::vector<Eigen::Vector3f> face_centroids(vert_faces.size());
   // ax + by + cz + d = 0
-  std::vector<Eigen::Vector4f> face_planes;
+  std::vector<Eigen::Vector4f> face_planes(vert_faces.size());
 
-  for (const auto& face : vert_faces) {
+  auto compute_func = [&](size_t idx) {
+    const auto& face = vert_faces[idx];
     const Eigen::Vector3f& v0 = verts[face[0]];
     const Eigen::Vector3f& v1 = verts[face[1]];
     const Eigen::Vector3f& v2 = verts[face[2]];
     const auto centroid = (v0 + v1 + v2) / 3.0;
-    face_centroids.emplace_back(centroid);
+    face_centroids[idx] = centroid;
 
     Eigen::Vector3f vec10 = v1 - v0;
     Eigen::Vector3f vec20 = v2 - v0;
     Eigen::Vector3f n = vec10.cross(vec20).normalized();
     float d = -1.f * n.dot(v0);
-    face_planes.emplace_back(n[0], n[1], n[2], d);
-  }
+    face_planes[idx] = {n[0], n[1], n[2], d};
+  };
+
+  ugu::parallel_for(0u, vert_faces.size(), compute_func);
 
   return std::make_tuple(face_centroids, face_planes);
 }

@@ -117,7 +117,7 @@ bool RigidIcpImpl(const std::vector<Eigen::Vector3<T>>& src_points,
     // Update count
     iter++;
 
-    output.transform_histry.push_back(accum_transform.cast<double>());
+    output.transform_histry.push_back(accum_transform.template cast<double>());
     output.loss_histroty.push_back(loss_ave);
 
 #ifdef UGU_DEBUG_ICP
