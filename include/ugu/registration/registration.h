@@ -42,10 +42,9 @@ Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
 enum class IcpLossType { kPointToPoint = 0, kPointToPlane = 1 };
 
 struct IcpTerminateCriteria {
-  int iter_max = 100;
-  double loss_min = 0.01;
-  double loss_eps = 0.001;
-
+  int iter_max = 20;
+  double loss_min = 0.001;
+  double loss_eps = 0.0001;
 };
 
 struct IcpOutput {
@@ -53,22 +52,23 @@ struct IcpOutput {
   std::vector<double> loss_histroty;
 };
 
-
+// WARNING: with_scale = true is not recommended. In most cases, the
+// transformation will incorrectly converge to zero scale and a certain
+// translation, which corresponds to a certain target point.
 bool RigidIcpPointToPoint(const std::vector<Eigen::Vector3f>& src,
                           const std::vector<Eigen::Vector3f>& dst,
                           const IcpTerminateCriteria& terminate_criteria,
-                          IcpOutput& output, bool with_scale,
+                          IcpOutput& output, bool with_scale = false,
                           KdTreePtr<float, 3> kdtree = nullptr);
 
 bool RigidIcpPointToPoint(const std::vector<Eigen::Vector3d>& src,
                           const std::vector<Eigen::Vector3d>& dst,
                           const IcpTerminateCriteria& terminate_criteria,
-                          IcpOutput& output, bool with_scale,
+                          IcpOutput& output, bool with_scale = false,
                           KdTreePtr<double, 3> kdtree = nullptr);
 
 bool RigidIcp(const Mesh& src, const Mesh& dst, const IcpLossType& loss_type,
-              const IcpTerminateCriteria& terminate_criteria,
-              IcpOutput& output, bool with_scale,
-              KdTreePtr<float, 3> kdtree = nullptr);
+              const IcpTerminateCriteria& terminate_criteria, IcpOutput& output,
+              bool with_scale = false, KdTreePtr<float, 3> kdtree = nullptr);
 
 }  // namespace ugu

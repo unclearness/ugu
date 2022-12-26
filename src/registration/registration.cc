@@ -10,6 +10,8 @@
 #include "Eigen/Geometry"
 #include "ugu/accel/kdtree.h"
 
+// #define UGU_USE_OWN_UMEYAMA
+
 namespace {
 using namespace ugu;
 template <typename T>
@@ -52,15 +54,17 @@ bool RigidIcpPointToPointImpl(const std::vector<Eigen::Vector3<T>>& src,
   std::vector<KdTreeSearchResults> corresp(current.size());
   auto corresp_func = [&](size_t idx) {
     corresp[idx] = kdtree->SearchNn(current[idx]);
+    // std::cout << corresp[idx].size() << std::endl;
     target[idx] = dst[corresp[idx][0].index];
   };
   auto update_func = [&](size_t idx) {
     current[idx] = accum_transform * src[idx];
   };
   do {
+    Eigen::Transform<T, 3, Eigen::Affine> cur_transform =
+        Eigen::Transform<T, 3, Eigen::Affine>::Identity();
     if (iter > 0) {
       // Solve rotation, translation and scale by Umeyama closed-form method
-      Eigen::Transform<T, 3, Eigen::Affine> cur_transform;
       if (with_scale) {
         cur_transform =
             FindSimilarityTransformFrom3dCorrespondences(current, target)
@@ -73,11 +77,11 @@ bool RigidIcpPointToPointImpl(const std::vector<Eigen::Vector3<T>>& src,
       accum_transform = cur_transform * accum_transform;
 
       // Update current points
-      parallel_for(0u, current.size(), update_func);
+      parallel_for(0u, current.size(), update_func, 1);
     }
 
     // Find coressponding points
-    parallel_for(0u, current.size(), corresp_func);
+    parallel_for(0u, current.size(), corresp_func, 1);
 
     // Compute loss
     prev_loss_ave = loss_ave;
@@ -93,10 +97,19 @@ bool RigidIcpPointToPointImpl(const std::vector<Eigen::Vector3<T>>& src,
     output.transform_histry.push_back(accum_transform.cast<double>());
     output.loss_histroty.push_back(loss_ave);
 
+#ifdef UGU_DEBUG_ICP
     std::cout << iter << " " << loss_ave << std::endl;
-    // std::cout << best_transform. << std::endl;
+
+    std::cout << "cur_transform" << std::endl;
+    std::cout << cur_transform.translation() << std::endl;
+    std::cout << cur_transform.rotation().matrix() << std::endl;
+    std::cout << cur_transform.matrix() << std::endl << std::endl;
+
+    std::cout << "accum_transform" << std::endl;
     std::cout << accum_transform.translation() << std::endl;
-    std::cout << accum_transform.rotation().matrix() << std::endl << std::endl;
+    std::cout << accum_transform.rotation().matrix() << std::endl;
+    std::cout << accum_transform.matrix() << std::endl << std::endl;
+#endif
 
   } while (!terminated());
 
@@ -237,6 +250,7 @@ Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
 bool FindSimilarityTransformFromPointCorrespondences(
     const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst, Eigen::MatrixXd& R,
     Eigen::MatrixXd& t, Eigen::MatrixXd& scale, Eigen::MatrixXd& T) {
+#ifdef UGU_USE_OWN_UMEYAMA
   const size_t n_data = src.rows();
   const size_t n_dim = src.cols();
   if (n_data < 1 || n_dim < 1 || n_data < n_dim || src.rows() != dst.rows() ||
@@ -310,6 +324,21 @@ bool FindSimilarityTransformFromPointCorrespondences(
   T.block(0, n_dim, n_dim, 1) = t;
 
   return true;
+#else
+  T = Eigen::umeyama(src.transpose(), dst.transpose(), true);
+  Eigen::Affine3d tmp;
+  tmp.matrix() = T;
+  R = tmp.rotation();
+  t = tmp.translation();
+  double Sx = T.block<3, 1>(0, 0).norm();
+  double Sy = T.block<3, 1>(0, 1).norm();
+  double Sz = T.block<3, 1>(0, 2).norm();
+  scale = Eigen::MatrixXd::Identity(R.rows(), R.cols());
+  scale(0, 0) = Sx;
+  scale(1, 1) = Sy;
+  scale(2, 2) = Sz;
+  return true;
+#endif
 }
 
 bool RigidIcpPointToPoint(const std::vector<Eigen::Vector3f>& src,

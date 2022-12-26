@@ -46,15 +46,15 @@ auto AddNoise(ugu::Mesh& mesh) {
   for (size_t i = 0; i < noised_vertices.size(); i++) {
     auto& v = noised_vertices[i];
     auto& n = mesh.normals()[i];
-    v += gauss(engine) * n;
+    // v += gauss(engine) * n;
   }
   noised_mesh.set_vertices(noised_vertices);
 
-  Eigen::Vector3f noise_t{bb_mean, bb_mean * 2, bb_mean * -3};
+  Eigen::Vector3f noise_t{bb_mean / 10, bb_mean * 2 / 10, bb_mean * -3 / 10};
   Eigen::Vector3f axis(5, 2, 1);
   axis.normalize();
-  Eigen::AngleAxisf noise_R(ugu::radians(30.f), axis);
-  float noise_s = 0.45f;
+  Eigen::AngleAxisf noise_R(ugu::radians(10.f), axis);
+  float noise_s = 1.f;
   Eigen::Affine3f T_Rts_gt = Eigen::Translation3f(noise_t) * noise_R.matrix() *
                              Eigen::Scaling(noise_s);
   noised_mesh.Scale(noise_s);
@@ -148,17 +148,23 @@ void TestAlignmentWithoutCorresp() {
 
   ugu::IcpTerminateCriteria tmc;
   ugu::IcpOutput output;
-  ugu::RigidIcp(noised_mesh, bunny, ugu::IcpLossType::kPointToPoint,
-                tmc, output, false);
+  ugu::RigidIcp(noised_mesh, bunny, ugu::IcpLossType::kPointToPoint, tmc,
+                output, false);
 
-  noised_mesh.Transform(output.transform_histry.back().cast<float>());
-  noised_mesh.WriteObj(data1_dir, "noised_rigidicp");
+  ugu::Mesh org_noised_mesh = noised_mesh;
+
+  for (size_t i = 0; i < output.transform_histry.size(); i++) {
+    ugu::LOGI("iter %d: %f\n", i, output.loss_histroty[i]);
+    noised_mesh = org_noised_mesh;
+    noised_mesh.Transform(output.transform_histry[i].cast<float>());
+    noised_mesh.WriteObj(data1_dir, "noised_rigidicp_" + std::to_string(i));
+  }
 }
 
 }  // namespace
 
 int main() {
-  // TestAlignmentWithCorresp();
+  TestAlignmentWithCorresp();
 
   TestAlignmentWithoutCorresp();
 
