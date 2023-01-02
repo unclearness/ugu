@@ -338,7 +338,11 @@ set(
   src/parameterize/parameterize.cc
 
   include/ugu/registration/registration.h
+  include/ugu/registration/rigid.h
+  include/ugu/registration/nonrigid.h
   src/registration/registration.cc
+  src/registration/rigid.cc
+  src/registration/nonrigid.cc
 
   include/ugu/external/external.h
   src/external/fast_quadric_mesh_simplification.cc

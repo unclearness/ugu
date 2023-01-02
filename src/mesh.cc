@@ -232,6 +232,10 @@ void Mesh::Scale(float x_scale, float y_scale, float z_scale) {
   }
 }
 
+void Mesh::Scale(const Eigen::Vector3f& scale) {
+  Scale(scale[0], scale[1], scale[2]);
+}
+
 void Mesh::Clear() {
   vertices_.clear();
   vertex_colors_.clear();

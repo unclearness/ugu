@@ -142,6 +142,7 @@ class Mesh {
   void Transform(const Eigen::Affine3f& T);
   void Scale(float scale);
   void Scale(float x_scale, float y_scale, float z_scale);
+  void Scale(const Eigen::Vector3f& scale);
   const std::vector<Eigen::Vector3f>& vertices() const;
   const std::vector<Eigen::Vector3f>& vertex_colors() const;
   const std::vector<Eigen::Vector3i>& vertex_indices() const;
