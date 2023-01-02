@@ -5,13 +5,13 @@
 
 #include <iostream>
 
+#include "ugu/image_io.h"
+#include "ugu/image_proc.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/textrans/texture_transfer.h"
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/io_util.h"
-#include "ugu/image_io.h"
-#include "ugu/image_proc.h"
 
 int main(int argc, char* argv[]) {
   (void)argc;

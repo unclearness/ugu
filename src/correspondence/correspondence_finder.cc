@@ -42,7 +42,8 @@ namespace ugu {
 
 bool KDTreeCorrespFinder::Init(
     const std::vector<Eigen::Vector3f>& verts,
-    const std::vector<Eigen::Vector3i>& verts_faces) {
+    const std::vector<Eigen::Vector3i>& verts_faces,
+    const std::vector<Eigen::Vector3f>& vert_normals) {
   if (verts.empty() || verts_faces.empty()) {
     return false;
   }
@@ -51,6 +52,32 @@ bool KDTreeCorrespFinder::Init(
 
   m_verts = verts;
   m_verts_faces = verts_faces;
+  if (vert_normals.size() != m_verts.size()) {
+    const Eigen::Vector3f zero{0.0f, 0.0f, 0.0f};
+    m_vert_normals.resize(m_verts.size(), zero);
+
+    std::vector<int> add_count(m_verts.size(), 0);
+
+    for (size_t i = 0; i < m_verts.size(); i++) {
+      const auto& face = m_verts_faces[i];
+      for (int j = 0; j < 3; j++) {
+        int idx = face[j];
+        m_vert_normals[idx] += Extract3f(face_planes[i]);
+        add_count[idx]++;
+      }
+    }
+
+    // Get average normal
+    for (size_t i = 0; i < m_verts.size(); i++) {
+      if (add_count[i] > 0) {
+        m_vert_normals[i] /= static_cast<float>(add_count[i]);
+        m_vert_normals[i].normalize();
+      } else {
+        // for unreferenced vertices, set (0, 0, 0)
+        m_vert_normals[i].setZero();
+      }
+    }
+  }
 
   m_face_centroids = std::move(face_centroids);
   m_face_planes = std::move(face_planes);
@@ -67,7 +94,9 @@ bool KDTreeCorrespFinder::Init(
 void KDTreeCorrespFinder::SetNnNum(uint32_t nn_num) { m_nn_num = nn_num; }
 
 ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
-                                       const Eigen::Vector3f& src_n) const {
+                                       const Eigen::Vector3f& src_n,
+                                       CorrespFinderMode mode) const {
+  // TODO: Use src normal
   (void)src_n;
 
   // Get the closest src face
@@ -87,6 +116,8 @@ ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
   int32_t min_index = -1;
   Eigen::Vector2f min_bary(99.f, 99.f);
   Eigen::Vector3f min_foot(99.f, 99.f, 99.f);
+  float min_cos_dist = std::numeric_limits<float>::max();
+  float min_angle = std::numeric_limits<float>::max();
   for (const auto& index : indices) {
     const auto& vface = m_verts_faces[index];
     const auto& v0 = m_verts[vface[0]];
@@ -99,12 +130,27 @@ ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
         src_p, v0, v1, v2, plane[0], plane[1], plane[2], plane[3]);
     float abs_dist = std::abs(signed_dist);
 
-    if (abs_dist < min_dist) {
+    Eigen::Vector3f ray = (src_p - foot).normalized();
+    Eigen::Vector3f n =
+        (uv[0] * m_vert_normals[vface[0]] + uv[1] * m_vert_normals[vface[1]] +
+         (1.f - uv[0] - uv[1]) * m_vert_normals[vface[2]])
+            .normalized();
+    float angle_cos = n.dot(ray);
+    angle_cos = std::abs(angle_cos);  // Ignore sign
+    float cos_abs_dist = abs_dist * (1.f - angle_cos);
+    float angle = std::acos(angle_cos);
+
+    if ((mode == CorrespFinderMode::kMinDist && abs_dist < min_dist) ||
+        (mode == CorrespFinderMode::kMinAngleCosDist &&
+         cos_abs_dist < min_cos_dist) ||
+        (mode == CorrespFinderMode::kMinAngle && angle < min_angle)) {
       min_dist = abs_dist;
       min_signed_dist = signed_dist;
       min_index = static_cast<int32_t>(index);
       min_bary = uv;
       min_foot = foot;
+      min_angle = angle;
+      min_cos_dist = cos_abs_dist;
     }
   }
 
@@ -114,6 +160,8 @@ ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
   corresp.signed_dist = min_signed_dist;
   corresp.abs_dist = min_dist;
   corresp.uv = min_bary;
+  corresp.angle = min_angle;
+  corresp.cos_abs_dist = min_cos_dist;
 
   return corresp;
 }

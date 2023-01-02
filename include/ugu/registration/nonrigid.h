@@ -44,7 +44,7 @@ class NonRigidIcp {
 
   Eigen::Vector3f m_norm2org_scale, m_org2norm_scale;
 
-  CorrespFinderPtr m_corresp_finder = nullptr;
+  KDTreeCorrespFinderPtr m_corresp_finder = nullptr;
   std::vector<KdTreeSearchResults> m_corresp;
   std::vector<Eigen::Vector3f> m_target;
 

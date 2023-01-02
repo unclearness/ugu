@@ -22,6 +22,7 @@ namespace ugu {
 
 NonRigidIcp::NonRigidIcp() {
   m_corresp_finder = KDTreeCorrespFinder::Create();
+  m_corresp_finder->SetNnNum(100);
 };
 NonRigidIcp::~NonRigidIcp(){};
 
@@ -88,7 +89,8 @@ bool NonRigidIcp::Init() {
 bool NonRigidIcp::FindCorrespondences() {
   const std::vector<Eigen::Vector3f>& current = m_src_norm->vertices();
   auto point2plane_corresp_func = [&](size_t idx) {
-    Corresp c = m_corresp_finder->Find(current[idx], Eigen::Vector3f::Zero());
+    Corresp c = m_corresp_finder->Find(current[idx], Eigen::Vector3f::Zero(),
+                                       CorrespFinderMode::kMinAngleCosDist);
     m_target[idx] = c.p;
     m_corresp[idx].resize(1);
     m_corresp[idx][0].dist = c.abs_dist;
@@ -263,7 +265,7 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     timer.End();
     LOGI("Update data: %f ms\n", timer.elapsed_msec());
 
-    std::cout << "X Change:" << (X - TmpX).norm() << std::endl << std::endl;
+    //std::cout << "X Change:" << (X - TmpX).norm() << std::endl << std::endl;
     timer.End();
     iter_timer.End();
     LOGI("Registrate(): iter %d %f ms\n", iter, iter_timer.elapsed_msec());
