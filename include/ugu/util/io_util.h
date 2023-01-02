@@ -52,7 +52,7 @@ bool LoadBinary(const std::string& path, std::vector<T>* data) {
 }
 
 template <typename T>
-std::vector<T> LoadTxt(const std::string& path) {
+std::vector<T> LoadTxtAsVector(const std::string& path) {
   std::ifstream ifs(path);
   std::vector<T> data;
 
@@ -64,8 +64,8 @@ std::vector<T> LoadTxt(const std::string& path) {
 }
 
 template <typename T>
-std::vector<std::vector<T>> LoadTxt(const std::string& path,
-                                    const char sep = ' ') {
+std::vector<std::vector<T>> LoadTxtAsVectorVector(const std::string& path,
+                                                  const char sep = ' ') {
   std::ifstream ifs(path);
   std::vector<std::vector<T>> data_list;
 

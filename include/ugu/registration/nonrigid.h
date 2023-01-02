@@ -23,6 +23,9 @@ class NonRigidIcp {
               const Eigen::Affine3f& transform = Eigen::Affine3f::Identity());
   void SetDst(const Mesh& dst);
 
+  void SetSrcLandmakrVertexIds(const std::vector<int>& src_landmark_indices);
+  void SetDstLandmakrVertexIds(const std::vector<int>& dst_landmark_indices);
+
   bool Init();  // Initialize KDTree etc.
 
   bool FindCorrespondences();
@@ -55,6 +58,7 @@ class NonRigidIcp {
 
   std::vector<int> m_src_landmark_indices;
   std::vector<Eigen::Vector3f> m_src_landmark_positions;
+  std::vector<int> m_dst_landmark_indices;
   std::vector<Eigen::Vector3f> m_dst_landmark_positions;
 };
 

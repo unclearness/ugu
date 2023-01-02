@@ -31,18 +31,29 @@ void NonRigidIcp::SetThreadNum(int thread_num) { m_num_theads = thread_num; }
 void NonRigidIcp::SetSrc(const Mesh& src, const Eigen::Affine3f& transform) {
   m_src_org = Mesh::Create(src);
   m_src = Mesh::Create(src);
-  m_src_norm = Mesh::Create(src);
-  m_src_norm_deformed = Mesh::Create(src);
 
   m_transform = transform;
   m_src->Transform(transform);
   m_src->CalcStats();
   m_src_stats = m_src->stats();
+
+  m_src_norm = Mesh::Create(*m_src);
+  m_src_norm_deformed = Mesh::Create(*m_src);
 }
 
 void NonRigidIcp::SetDst(const Mesh& dst) {
   m_dst = Mesh::Create(dst);
   m_dst_norm = Mesh::Create(dst);
+}
+
+void NonRigidIcp::SetSrcLandmakrVertexIds(
+    const std::vector<int>& src_landmark_indices) {
+  m_src_landmark_indices = src_landmark_indices;
+}
+
+void NonRigidIcp::SetDstLandmakrVertexIds(
+    const std::vector<int>& dst_landmark_indices) {
+  m_dst_landmark_indices = dst_landmark_indices;
 }
 
 bool NonRigidIcp::Init() {
@@ -65,7 +76,9 @@ bool NonRigidIcp::Init() {
 
   // Init anisotropic scale to [0, 1] cube. Center translation was untouched.
   // In the orignal paper, [-1, 1] cube.
-  m_norm2org_scale = m_src_stats.bb_max - m_src_stats.bb_min;
+  m_norm2org_scale =
+      m_src_stats.bb_max - m_src_stats.bb_min +
+      Eigen::Vector3f::Constant(std::numeric_limits<float>::epsilon());
   m_org2norm_scale = m_norm2org_scale.cwiseInverse();
 
   // Scale mesh to make parameters scale-indepdendent
@@ -81,6 +94,20 @@ bool NonRigidIcp::Init() {
   m_target.resize(m_corresp.size());
   m_weights_per_node.resize(m_corresp.size(), 1.0);
 
+  // Set landmark positions
+  if (!m_src_landmark_indices.empty()) {
+    m_src_landmark_positions.resize(m_src_landmark_indices.size());
+    for (size_t i = 0; i < m_src_landmark_indices.size(); i++) {
+      int idx = m_src_landmark_indices[i];
+      m_src_landmark_positions[i] = m_src_norm_deformed->vertices()[idx];
+    }
+    m_dst_landmark_positions.resize(m_dst_landmark_indices.size());
+    for (size_t i = 0; i < m_dst_landmark_indices.size(); i++) {
+      int idx = m_dst_landmark_indices[i];
+      m_dst_landmark_positions[i] = m_dst_norm->vertices()[idx];
+    }
+  }
+
   // Init KD Tree
   return m_corresp_finder->Init(m_dst_norm->vertices(),
                                 m_dst_norm->vertex_indices());
@@ -90,7 +117,7 @@ bool NonRigidIcp::FindCorrespondences() {
   const std::vector<Eigen::Vector3f>& current = m_src_norm->vertices();
   auto point2plane_corresp_func = [&](size_t idx) {
     Corresp c = m_corresp_finder->Find(current[idx], Eigen::Vector3f::Zero(),
-                                       CorrespFinderMode::kMinAngleCosDist);
+                                       CorrespFinderMode::kMinDist);
     m_target[idx] = c.p;
     m_corresp[idx].resize(1);
     m_corresp[idx][0].dist = c.abs_dist;
@@ -100,7 +127,12 @@ bool NonRigidIcp::FindCorrespondences() {
   // Find coressponding points
   parallel_for(0u, current.size(), point2plane_corresp_func, m_num_theads);
 
-  // TODO: Edge check to set weight as 0
+  // TODO: 4.4. Missing data and robustness
+  // "A correspondence (Xivi, ui) is dropped if 1) ui lies on a border of the
+  // target mesh, 2) the
+  // angle between the normals of the meshes at Xivi and ui is
+  // larger than a fixed threshold, or 3) the line segment Xivi to ui
+  // intersects the deformed template."
 
   return true;
 }
@@ -109,16 +141,22 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
   Eigen::Index n = static_cast<Eigen::Index>(m_src->vertices().size());
   Eigen::Index m = static_cast<Eigen::Index>(m_edges.size());
   Eigen::Index l = 0;
-  // if (Dl.size() > 0 && Dl.size() == Ul.size()) l = Dl.size();
+  if (m_src_landmark_positions.size() > 0) {
+    if (m_src_landmark_positions.size() == m_dst_landmark_positions.size()) {
+      l = static_cast<Eigen::Index>(m_src_landmark_positions.size());
+    } else {
+      LOGW("Landmark size mismatch. Will not be used...\n");
+    }
+  }
 
   Eigen::MatrixX3d X(4 * n, 3);
   X.setZero();
 
-  // bool loop = true;
   int iter = 0;
-  int max_iter = 10;
+  constexpr int max_iter = 10;  // TODO: better terminate criteria
+  constexpr double min_frobenius_norm_diff = 2.0;
   Timer<> timer, iter_timer;
-  bool verbose = false;
+  bool verbose = true;
   LogLevel org_loglevel = get_log_level();
   if (!verbose) {
     set_log_level(LogLevel::kWarning);
@@ -172,7 +210,6 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
 
     // 3.beta_D_L
     std::vector<Eigen::Triplet<double> > beta_D_L;
-    // TODO: apply scale to landmarks
     for (Eigen::Index i = 0; i < l; i++) {
       for (int j = 0; j < 3; j++)
         beta_D_L.push_back(Eigen::Triplet<double>(
@@ -235,7 +272,6 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     LOGI("solver.compute(): %f ms\n", timer.elapsed_msec());
 
     timer.Start();
-    // temporal X
     Eigen::MatrixX3d TmpX(4 * n, 3);
     TmpX = X;
     X = solver.solve(AtB);
@@ -257,6 +293,7 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     m_src_deformed->set_vertices(updated_vertices);
     m_src_deformed->Scale(m_norm2org_scale);
 
+    m_src_landmark_positions.resize(m_src_landmark_indices.size());
     for (size_t i = 0; i < m_src_landmark_indices.size(); i++) {
       int idx = m_src_landmark_indices[i];
       m_src_landmark_positions[i] = m_src_norm_deformed->vertices()[idx];
@@ -265,13 +302,14 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     timer.End();
     LOGI("Update data: %f ms\n", timer.elapsed_msec());
 
-    //std::cout << "X Change:" << (X - TmpX).norm() << std::endl << std::endl;
-    timer.End();
+    double frobenius_norm_diff = (X - TmpX).norm();
+    LOGI("frobenius_norm_diff %f \n", frobenius_norm_diff);
+
     iter_timer.End();
     LOGI("Registrate(): iter %d %f ms\n", iter, iter_timer.elapsed_msec());
 
     iter++;
-    if ((X - TmpX).norm() < 2.0) {
+    if (frobenius_norm_diff < min_frobenius_norm_diff) {
       break;
     }
   }

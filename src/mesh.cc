@@ -213,13 +213,19 @@ void Mesh::Translate(const Eigen::Vector3f& t) {
   CalcStats();
 }
 
-void Mesh::Transform(const Eigen::Matrix3f& R, const Eigen::Vector3f& t) {
+void Mesh::Transform(const Eigen::Matrix3f& R, const Eigen::Vector3f& t,
+                     const Eigen::Vector3f& s) {
+  Scale(s);
   Rotate(R);
   Translate(t);
 }
 
 void Mesh::Transform(const Eigen::Affine3f& T) {
-  Transform(T.rotation(), T.translation());
+  float sx = T.matrix().block<3, 1>(0, 0).norm();
+  float sy = T.matrix().block<3, 1>(0, 1).norm();
+  float sz = T.matrix().block<3, 1>(0, 2).norm();
+  Eigen::Vector3f scale(sx, sy, sz);
+  Transform(T.rotation(), T.translation(), scale);
 }
 
 void Mesh::Scale(float scale) { Scale(scale, scale, scale); }

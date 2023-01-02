@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019, unclearness
+ * Copyright (C) 2023, unclearness
  * All rights reserved.
  */
 
@@ -7,7 +7,7 @@
 #include <iostream>
 #include <random>
 
-#include "ugu/registration/registration.h"
+#include "ugu/registration/rigid.h"
 #include "ugu/timer.h"
 #include "ugu/util/path_util.h"
 #include "ugu/util/string_util.h"
@@ -188,58 +188,12 @@ void TestAlignmentWithoutCorresp() {
   }
 }
 
-void TestNonRigid() {
-  std::string src_dir = "../data/sphere/";
-  std::string src_obj_path = src_dir + "icosphere5_smart_uv.obj";
-  ugu::Mesh src_mesh;
-  src_mesh.LoadObj(src_obj_path, src_dir);
-
-  std::string dst_dir = "../data/spot/";
-  std::string dst_obj_path = dst_dir + "spot_triangulated.obj";
-  ugu::Mesh dst_mesh;
-  dst_mesh.LoadObj(dst_obj_path, dst_dir);
-
-  ugu::EnsureDirExists("../out/");
-  std::string out_dir = "../out/ex23";
-  ugu::EnsureDirExists(out_dir);
-
-  ugu::NonRigidIcp nicp;
-
-  nicp.SetSrc(src_mesh);
-  nicp.SetDst(dst_mesh);
-
-  nicp.Init();
-
-  double max_alpha = 20.0;
-  double min_alpha = 2.0;
-  double beta = 10.0;
-  double gamma = 1.0;
-  int step = 100;
-  double decay_rate = 0.95;
-
-  for (int i = 1; i <= step; ++i) {
-    double alpha = max_alpha - i * (max_alpha - min_alpha) / step;
-    // double alpha = max_alpha * std::pow(decay_rate, i) + min_alpha;
-
-    ugu::LOGI("Iteration %d with alpha %f\n", i, alpha);
-
-    nicp.Registrate(alpha, beta, gamma);
-
-    if (i % 10 == 0) {
-      ugu::MeshPtr deformed = nicp.GetDeformedSrc();
-      deformed->WriteObj(out_dir, "deformed_" + ugu::zfill(i, 2));
-    }
-  }
-}
-
 }  // namespace
 
 int main() {
-  // TestAlignmentWithCorresp();
+  TestAlignmentWithCorresp();
 
-  // TestAlignmentWithoutCorresp();
-
-  TestNonRigid();
+  TestAlignmentWithoutCorresp();
 
   return 0;
 }

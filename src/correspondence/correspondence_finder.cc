@@ -134,12 +134,18 @@ ugu::Corresp KDTreeCorrespFinder::Find(const Eigen::Vector3f& src_p,
     Eigen::Vector3f n =
         (uv[0] * m_vert_normals[vface[0]] + uv[1] * m_vert_normals[vface[1]] +
          (1.f - uv[0] - uv[1]) * m_vert_normals[vface[2]])
-            .normalized();
+            .normalized();  // Barycentric interpolation
     float angle_cos = n.dot(ray);
-    angle_cos = std::abs(angle_cos);  // Ignore sign
+    // Ignore cos  sign because surfaces are close and could be both front or
+    // back.
+    angle_cos = std::abs(angle_cos);
     float cos_abs_dist = abs_dist * (1.f - angle_cos);
     float angle = std::acos(angle_cos);
 
+    // TODO:
+    // CorrespFinderMode::kMinAngleCosDist is wrong; Just evaluating a minmum
+    // distance point. Can we perform optimization to minimize it on a face by
+    // changing angle and point?
     if ((mode == CorrespFinderMode::kMinDist && abs_dist < min_dist) ||
         (mode == CorrespFinderMode::kMinAngleCosDist &&
          cos_abs_dist < min_cos_dist) ||
