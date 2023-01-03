@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "ugu/accel/bvh.h"
 #include "ugu/registration/rigid.h"
 
 namespace ugu {
@@ -26,7 +27,9 @@ class NonRigidIcp {
   void SetSrcLandmakrVertexIds(const std::vector<int>& src_landmark_indices);
   void SetDstLandmakrVertexIds(const std::vector<int>& dst_landmark_indices);
 
-  bool Init();  // Initialize KDTree etc.
+  bool Init(bool check_self_itersection = false,
+            float angle_cos_th = std::cos(radians(60.f)),
+            bool check_geometry_border = false);  // Initialize KDTree etc.
 
   bool FindCorrespondences();
   bool Registrate(double alpha = 1000.0, double beta = 10.0,
@@ -35,6 +38,8 @@ class NonRigidIcp {
   MeshPtr GetDeformedSrc() const;
 
  private:
+  bool ValidateCorrespondence(size_t src_idx, const Corresp& corresp) const;
+
   MeshPtr m_src_org = nullptr;
   Eigen::Affine3f m_transform = Eigen::Affine3f::Identity();
   MeshPtr m_src = nullptr;
@@ -51,7 +56,7 @@ class NonRigidIcp {
   std::vector<KdTreeSearchResults> m_corresp;
   std::vector<Eigen::Vector3f> m_target;
 
-  std::vector<std::pair<int, int> > m_edges;
+  std::vector<std::pair<int, int>> m_edges;
   std::vector<double> m_weights_per_node;
 
   int m_num_theads = -1;
@@ -60,6 +65,17 @@ class NonRigidIcp {
   std::vector<Eigen::Vector3f> m_src_landmark_positions;
   std::vector<int> m_dst_landmark_indices;
   std::vector<Eigen::Vector3f> m_dst_landmark_positions;
+
+  float m_angle_cos_th = std::cos(radians(60.f));
+
+  bool m_check_geometry_border = false;
+  std::unordered_set<int> m_dst_border_fids;
+  // [fid] -> {3d line, ...} {edge_pair, ...}
+  // std::unordered_map<int, std::vector<Line3f>> m_dst_border_edges;
+  std::unordered_map<int, std::vector<std::pair<int, int>>> m_dst_border_edges;
+
+  bool m_check_self_itersection = false;
+  BvhPtr<Eigen::Vector3f, Eigen::Vector3i> m_bvh = nullptr;
 };
 
 }  // namespace ugu

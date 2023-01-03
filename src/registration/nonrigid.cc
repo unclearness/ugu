@@ -12,10 +12,10 @@
 
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
+#include "ugu/util/math_util.h"
 
 namespace {
 using namespace ugu;
-
 }  // namespace
 
 namespace ugu {
@@ -23,6 +23,8 @@ namespace ugu {
 NonRigidIcp::NonRigidIcp() {
   m_corresp_finder = KDTreeCorrespFinder::Create();
   m_corresp_finder->SetNnNum(100);
+
+  m_bvh = GetDefaultBvh<Eigen::Vector3f, Eigen::Vector3i>();
 };
 NonRigidIcp::~NonRigidIcp(){};
 
@@ -56,11 +58,16 @@ void NonRigidIcp::SetDstLandmakrVertexIds(
   m_dst_landmark_indices = dst_landmark_indices;
 }
 
-bool NonRigidIcp::Init() {
+bool NonRigidIcp::Init(bool check_self_itersection, float angle_cos_th,
+                       bool check_geometry_border) {
   if (m_src == nullptr || m_dst == nullptr || m_corresp_finder == nullptr) {
     LOGE("Data was not set\n");
     return false;
   }
+
+  m_check_self_itersection = check_self_itersection;
+  m_angle_cos_th = angle_cos_th;
+  m_check_geometry_border = check_geometry_border;
 
   // Construct edges
   m_edges.clear();
@@ -72,6 +79,41 @@ bool NonRigidIcp::Init() {
     m_edges.push_back(std::pair<int, int>(v0, v1));
     m_edges.push_back(std::pair<int, int>(v1, v2));
     m_edges.push_back(std::pair<int, int>(v2, v0));
+  }
+
+  // TODO: Messy...
+  if (m_check_geometry_border) {
+    auto [boundary_edges_list, boundary_vertex_ids_list] =
+        FindBoundaryLoops(m_dst->vertex_indices(),
+                          static_cast<int32_t>(m_dst->vertices().size()));
+    std::unordered_map<int, std::vector<int>> v2f =
+        GenerateVertex2FaceMap(m_dst->vertex_indices(),
+                               static_cast<int32_t>(m_dst->vertices().size()));
+    for (const auto& boudary : boundary_edges_list) {
+      for (const auto& edge : boudary) {
+        auto fl0 = v2f[edge.first];
+        auto fl1 = v2f[edge.second];
+        // Find shared face
+        std::unordered_set<int> shared_faces;
+        for (const auto& f0 : fl0) {
+          for (const auto& f1 : fl1) {
+            if (f0 == f1) {
+              shared_faces.insert(f0);
+            }
+          }
+        }
+
+        // On boundaries, must be 1
+        assert(shared_faces.size() == 1);
+        int shared_fid = *shared_faces.begin();
+        if (m_dst_border_edges.find(shared_fid) == m_dst_border_edges.end()) {
+          m_dst_border_edges.insert(std::make_pair(
+              shared_fid, std::vector<std::pair<int, int>>{edge}));
+        } else {
+          m_dst_border_edges[shared_fid].push_back(edge);
+        }
+      }
+    }
   }
 
   // Init anisotropic scale to [0, 1] cube. Center translation was untouched.
@@ -109,30 +151,60 @@ bool NonRigidIcp::Init() {
   }
 
   // Init KD Tree
-  return m_corresp_finder->Init(m_dst_norm->vertices(),
-                                m_dst_norm->vertex_indices());
+  bool ret = m_corresp_finder->Init(m_dst_norm->vertices(),
+                                    m_dst_norm->vertex_indices());
+  // Init BVH
+  if (m_check_self_itersection) {
+    m_bvh->SetData(m_src_norm_deformed->vertices(),
+                   m_src_norm_deformed->vertex_indices());
+    ret &= m_bvh->Build();
+  }
+
+  return ret;
 }
 
 bool NonRigidIcp::FindCorrespondences() {
-  const std::vector<Eigen::Vector3f>& current = m_src_norm->vertices();
+  const std::vector<Eigen::Vector3f>& current = m_src_norm_deformed->vertices();
+  const std::vector<Eigen::Vector3f>& current_n =
+      m_src_norm_deformed->normals();
   auto point2plane_corresp_func = [&](size_t idx) {
-    Corresp c = m_corresp_finder->Find(current[idx], Eigen::Vector3f::Zero(),
-                                       CorrespFinderMode::kMinDist);
+#if 0
+    Corresp c = m_corresp_finder->Find(
+        current[idx], current_n[idx],  // Eigen::Vector3f::Zero(),
+        CorrespFinderMode::kMinAngleCosDist);
+#else
+    auto corresps = m_corresp_finder->FindAll(
+        current[idx], current_n[idx],  // Eigen::Vector3f::Zero(),
+        CorrespFinderMode::kMinAngleCosDist);
+
+    Corresp c = corresps[0];
+    for (const auto& corresp : corresps) {
+      if (std::cos(corresp.angle) < m_angle_cos_th) {
+        continue;
+      }
+      c = corresp;
+      break;
+    }
+#endif
     m_target[idx] = c.p;
     m_corresp[idx].resize(1);
     m_corresp[idx][0].dist = c.abs_dist;
     m_corresp[idx][0].index = size_t(~0);
+
+#if 1
+    // Validate correspondence
+    if (!ValidateCorrespondence(idx, c)) {
+      // Set 0 weight to invalid correspondences
+      m_weights_per_node[idx] = 0.0;
+    }
+#endif
   };
+
+  // Init weight as 1
+  std::fill(m_weights_per_node.begin(), m_weights_per_node.end(), 1.0);
 
   // Find coressponding points
   parallel_for(0u, current.size(), point2plane_corresp_func, m_num_theads);
-
-  // TODO: 4.4. Missing data and robustness
-  // "A correspondence (Xivi, ui) is dropped if 1) ui lies on a border of the
-  // target mesh, 2) the
-  // angle between the normals of the meshes at Xivi and ui is
-  // larger than a fixed threshold, or 3) the line segment Xivi to ui
-  // intersects the deformed template."
 
   return true;
 }
@@ -161,6 +233,15 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
   if (!verbose) {
     set_log_level(LogLevel::kWarning);
   }
+
+  if (m_check_self_itersection) {
+    // BVH construction is costly.
+    // So once per each stiffness
+    m_bvh->SetData(m_src_norm_deformed->vertices(),
+                   m_src_norm_deformed->vertex_indices());
+    m_bvh->Build();
+  }
+
   while (iter < max_iter) {
     iter_timer.Start();
     LOGI("Registrate(): iter %d\n", iter);
@@ -174,10 +255,23 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     Eigen::SparseMatrix<double> A(4 * m + n + l, 4 * n);
 
     // 1.alpha_M_G
-    std::vector<Eigen::Triplet<double> > alpha_M_G;
+    std::vector<Eigen::Triplet<double>> alpha_M_G;
     for (Eigen::Index i = 0; i < m; ++i) {
       int a = m_edges[i].first;
       int b = m_edges[i].second;
+
+#if 0
+      double edge_len = (m_src_norm_deformed->vertices()[a] -
+                         m_src_norm_deformed->vertices()[b])
+                            .norm();
+
+      for (int j = 0; j < 3; j++) {
+        alpha_M_G.push_back(
+            Eigen::Triplet<double>(i * 4 + j, a * 4 + j, alpha * edge_len));
+        alpha_M_G.push_back(
+            Eigen::Triplet<double>(i * 4 + j, b * 4 + j, -alpha * edge_len));
+      }
+#endif
 
       for (int j = 0; j < 3; j++) {
         alpha_M_G.push_back(
@@ -193,7 +287,7 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     }
 
     // 2.W_D
-    std::vector<Eigen::Triplet<double> > W_D;
+    std::vector<Eigen::Triplet<double>> W_D;
     for (Eigen::Index i = 0; i < n; ++i) {
       const Eigen::Vector3f& vtx = m_src_norm_deformed->vertices()[i];
 
@@ -209,18 +303,19 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     }
 
     // 3.beta_D_L
-    std::vector<Eigen::Triplet<double> > beta_D_L;
+    std::vector<Eigen::Triplet<double>> beta_D_L;
     for (Eigen::Index i = 0; i < l; i++) {
-      for (int j = 0; j < 3; j++)
+      for (int j = 0; j < 3; j++) {
         beta_D_L.push_back(Eigen::Triplet<double>(
             4 * m + n + i, m_src_landmark_indices[i] * 4 + j,
             beta * m_src_landmark_positions[i](j)));
+      }
 
       beta_D_L.push_back(Eigen::Triplet<double>(
           4 * m + n + i, m_src_landmark_indices[i] * 4 + 3, beta));
     }
 
-    std::vector<Eigen::Triplet<double> > _A = alpha_M_G;
+    std::vector<Eigen::Triplet<double>> _A = alpha_M_G;
     _A.insert(_A.end(), W_D.begin(), W_D.end());
     _A.insert(_A.end(), beta_D_L.begin(), beta_D_L.end());
     A.setFromTriplets(_A.begin(), _A.end());
@@ -264,7 +359,7 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
 
     timer.Start();
     // Eigen::ConjugateGradient< Eigen::SparseMatrix<double> > solver;
-    Eigen::SimplicialCholesky<Eigen::SparseMatrix<double> > solver;
+    Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> solver;
     // Eigen::CholmodSupernodalLLT<Eigen::SparseMatrix<double> > solver;
     solver.compute(AtA);
 
@@ -290,8 +385,10 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
       updated_vertices.push_back(result.cast<float>());
     }
     m_src_norm_deformed->set_vertices(updated_vertices);
+    m_src_norm_deformed->CalcNormal();
     m_src_deformed->set_vertices(updated_vertices);
     m_src_deformed->Scale(m_norm2org_scale);
+    m_src_deformed->CalcNormal();
 
     m_src_landmark_positions.resize(m_src_landmark_indices.size());
     for (size_t i = 0; i < m_src_landmark_indices.size(); i++) {
@@ -321,5 +418,59 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
 }
 
 MeshPtr NonRigidIcp::GetDeformedSrc() const { return m_src_deformed; }
+
+bool NonRigidIcp::ValidateCorrespondence(size_t src_idx,
+                                         const Corresp& corresp) const {
+  // 4.4. Missing data and robustness
+
+  // "A correspondence (Xivi, ui) is dropped if 1) ui lies on a border of the
+  // target mesh,
+  constexpr float eps = 1e-10f;  // std::numeric_limits<float>::epsilon();
+  if (m_check_geometry_border && !m_dst_border_fids.empty()) {
+    if (m_dst_border_fids.find(corresp.fid) != m_dst_border_fids.end()) {
+      for (const std::pair<int, int>& e : m_dst_border_edges.at(corresp.fid)) {
+        // Compute distance from a corresponding point to a border edge
+        auto [dist, prj_p] =
+            PointLineSegmentDistance(corresp.p, m_dst_norm->vertices()[e.first],
+                                     m_dst_norm->vertices()[e.second]);
+        // If dist is too small, the corresponding point is on the edge.
+        if (dist < eps) {
+          return false;
+        }
+      }
+    }
+  }
+
+  // 2) the angle between the normals of the meshes at Xivi and ui is
+  // larger than a fixed threshold, or
+  const Eigen::Vector3f& src_n = m_src_norm_deformed->normals()[src_idx];
+  const Eigen::Vector3f& dst_n = m_dst_norm->face_normals()[corresp.fid];
+  float dot = src_n.dot(dst_n);
+  if (dot < m_angle_cos_th) {
+    return false;
+  }
+
+  //  3) the line segment Xivi to ui intersects the deformed template."
+  // -> To avoid self intersection
+  if (m_check_self_itersection) {
+    Ray ray;
+    ray.org = m_src_norm_deformed->vertices()[src_idx];
+    ray.dir = (corresp.p - ray.org).normalized();
+    std::vector<IntersectResult> results = m_bvh->Intersect(ray);
+    double org_dist = (corresp.p - ray.org).norm();
+    if (!results.empty()) {
+      for (const auto& r : results) {
+        // Intersection less than original distance -> self intersection by
+        // another face
+        if (r.t < org_dist) {
+          // std::cout << r.t << " " << org_dist << std::endl;
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
 
 }  // namespace ugu

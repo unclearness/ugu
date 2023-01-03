@@ -32,6 +32,9 @@ class CorrespFinder {
   virtual Corresp Find(
       const Eigen::Vector3f& src_p, const Eigen::Vector3f& src_n,
       CorrespFinderMode mode = CorrespFinderMode::kMinDist) const = 0;
+  virtual std::vector<Corresp> FindAll(
+      const Eigen::Vector3f& src_p, const Eigen::Vector3f& src_n,
+      CorrespFinderMode mode = CorrespFinderMode::kMinDist) const = 0;
 };
 using CorrespFinderPtr = std::shared_ptr<CorrespFinder>;
 
@@ -49,7 +52,9 @@ class KDTreeCorrespFinder : public CorrespFinder {
   Corresp Find(
       const Eigen::Vector3f& src_p, const Eigen::Vector3f& src_n,
       CorrespFinderMode mode = CorrespFinderMode::kMinDist) const override;
-
+  std::vector<Corresp> FindAll(
+      const Eigen::Vector3f& src_p, const Eigen::Vector3f& src_n,
+      CorrespFinderMode mode = CorrespFinderMode::kMinDist) const override;
   void SetNnNum(uint32_t nn_num);
 
  private:

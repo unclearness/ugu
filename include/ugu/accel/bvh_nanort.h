@@ -10,7 +10,7 @@
 #include <memory>
 
 #include "nanort.h"
-#include "ugu/accel/bvh.h"
+#include "ugu/accel/bvh_base.h"
 
 namespace ugu {
 

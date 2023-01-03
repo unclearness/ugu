@@ -32,19 +32,57 @@ void TestObject() {
   std::string out_dir = "../out/ex24/object";
   ugu::EnsureDirExists(out_dir);
 
-  ugu::NonRigidIcp nicp;
+  // Roughly align scale
+  src_mesh.CalcStats();
+  auto src_stats = src_mesh.stats();
+  dst_mesh.CalcStats();
+  auto dst_stats = dst_mesh.stats();
+  // Eigen::Vector3f dst_center = (dst_stats.bb_max - dst_stats.bb_min) / 2.0;
 
+  Eigen::Vector3f src_size = (src_stats.bb_max - src_stats.bb_min);
+  Eigen::Vector3f dst_size = (dst_stats.bb_max - dst_stats.bb_min);
+  Eigen::Vector3f src2dst_scale =
+      dst_size.cwiseProduct(src_size.cwiseInverse());
+
+  src_mesh.Scale(src2dst_scale);
+  src_mesh.WriteObj(out_dir, "0_scale");
+
+  src_mesh.CalcStats();
+  src_stats = src_mesh.stats();
+  // Eigen::Vector3f src_center = (src_stats.bb_max - src_stats.bb_min) / 2.0;
+
+  src_mesh.Translate(dst_stats.center - src_stats.center);
+
+  src_mesh.WriteObj(out_dir, "0_trans");
+
+#if 0
+  // Apply Rigid ICP
+  ugu::IcpOutput icp_output;
+  ugu::RigidIcp(src_mesh, dst_mesh, ugu::IcpLossType::kPointToPlane,
+                ugu::IcpTerminateCriteria(), icp_output);
+
+  {
+    ugu::Mesh src_similarity = src_mesh;
+    src_similarity.Transform(icp_output.transform_histry.back().cast<float>());
+    src_similarity.WriteObj(out_dir, "1_rigid");
+  }
+#endif
+
+  ugu::NonRigidIcp nicp;
+  // nicp.SetThreadNum(1);
+
+  // nicp.SetSrc(src_mesh, icp_output.transform_histry.back().cast<float>());
   nicp.SetSrc(src_mesh);
   nicp.SetDst(dst_mesh);
 
-  nicp.Init();
+  nicp.Init(false, std::cos(ugu::radians(60.f)), false);
 
   double max_alpha = 20.0;
-  double min_alpha = 2.0;
+  double min_alpha = 0.1;
   double beta = 10.0;
   double gamma = 1.0;
   int step = 100;
-  double decay_rate = 0.95;
+  // double decay_rate = 0.95;
 
   for (int i = 1; i <= step; ++i) {
     double alpha = max_alpha - i * (max_alpha - min_alpha) / step;
@@ -56,7 +94,7 @@ void TestObject() {
 
     if (i % 10 == 0) {
       ugu::MeshPtr deformed = nicp.GetDeformedSrc();
-      deformed->WriteObj(out_dir, "deformed_" + ugu::zfill(i, 2));
+      deformed->WriteObj(out_dir, "2_nonrigid_" + ugu::zfill(i, 3));
     }
   }
 }

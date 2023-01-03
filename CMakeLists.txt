@@ -329,6 +329,8 @@ set(
   include/ugu/accel/kdtree_naive.h
   include/ugu/accel/kdtree_nanoflann.h
   include/ugu/accel/bvh.h
+  include/ugu/accel/bvh_base.h
+  include/ugu/accel/bvh_naive.h
   include/ugu/accel/bvh_nanort.h
 
   include/ugu/discrete/bin_packer_2d.h
