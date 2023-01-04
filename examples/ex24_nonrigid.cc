@@ -153,7 +153,8 @@ void TestFace() {
   nicp.SetDst(dst_mesh);
   nicp.SetDstLandmakrVertexIds(dst_landmark_vids);
 
-  nicp.Init();
+  bool keep_src_boundary_as_possible = true;
+  nicp.Init(false, 0.65f, false, keep_src_boundary_as_possible);
 
   double max_alpha = 50.0;
   double min_alpha = 1.0;

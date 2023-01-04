@@ -28,7 +28,8 @@ class NonRigidIcp {
   void SetDstLandmakrVertexIds(const std::vector<int>& dst_landmark_indices);
 
   bool Init(bool check_self_itersection = false, float angle_rad_th = 0.65f,
-            bool check_geometry_border = false);  // Initialize KDTree etc.
+            bool dst_check_geometry_border = false,
+            bool src_check_geometry_border = false);  // Initialize KDTree etc.
 
   bool FindCorrespondences();
   bool Registrate(double alpha = 1000.0, double beta = 10.0,
@@ -67,11 +68,13 @@ class NonRigidIcp {
 
   float m_angle_rad_th = 0.65f;
 
-  bool m_check_geometry_border = false;
+  bool m_dst_check_geometry_border = false;
   std::unordered_set<int> m_dst_border_fids;
-  // [fid] -> {3d line, ...} {edge_pair, ...}
-  // std::unordered_map<int, std::vector<Line3f>> m_dst_border_edges;
+  // [fid] -> {edge_pair, ...}
   std::unordered_map<int, std::vector<std::pair<int, int>>> m_dst_border_edges;
+
+  bool m_src_check_geometry_border = false;
+  std::unordered_set<int> m_src_border_vids;
 
   bool m_check_self_itersection = false;
   BvhPtr<Eigen::Vector3f, Eigen::Vector3i> m_bvh = nullptr;

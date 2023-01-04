@@ -14,6 +14,8 @@
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
 
+// #define UGU_NCIP_IGNORE_WEIGHT_ZERO
+
 namespace {
 using namespace ugu;
 }  // namespace
@@ -59,7 +61,8 @@ void NonRigidIcp::SetDstLandmakrVertexIds(
 }
 
 bool NonRigidIcp::Init(bool check_self_itersection, float angle_rad_th,
-                       bool check_geometry_border) {
+                       bool dst_check_geometry_border,
+                       bool src_check_geometry_border) {
   if (m_src == nullptr || m_dst == nullptr || m_corresp_finder == nullptr) {
     LOGE("Data was not set\n");
     return false;
@@ -67,7 +70,8 @@ bool NonRigidIcp::Init(bool check_self_itersection, float angle_rad_th,
 
   m_check_self_itersection = check_self_itersection;
   m_angle_rad_th = angle_rad_th;
-  m_check_geometry_border = check_geometry_border;
+  m_dst_check_geometry_border = dst_check_geometry_border;
+  m_src_check_geometry_border = src_check_geometry_border;
 
   // Construct edges
   m_edges.clear();
@@ -82,7 +86,9 @@ bool NonRigidIcp::Init(bool check_self_itersection, float angle_rad_th,
   }
 
   // TODO: Messy...
-  if (m_check_geometry_border) {
+  m_dst_border_fids.clear();
+  m_dst_border_edges.clear();
+  if (m_dst_check_geometry_border) {
     auto [boundary_edges_list, boundary_vertex_ids_list] =
         FindBoundaryLoops(m_dst->vertex_indices(),
                           static_cast<int32_t>(m_dst->vertices().size()));
@@ -106,12 +112,27 @@ bool NonRigidIcp::Init(bool check_self_itersection, float angle_rad_th,
         // On boundaries, must be 1
         assert(shared_faces.size() == 1);
         int shared_fid = *shared_faces.begin();
+
+        m_dst_border_fids.insert(shared_fid);
+
         if (m_dst_border_edges.find(shared_fid) == m_dst_border_edges.end()) {
           m_dst_border_edges.insert(std::make_pair(
               shared_fid, std::vector<std::pair<int, int>>{edge}));
         } else {
           m_dst_border_edges[shared_fid].push_back(edge);
         }
+      }
+    }
+  }
+
+  m_src_border_vids.clear();
+  if (m_src_check_geometry_border) {
+    auto [boundary_edges_list, boundary_vertex_ids_list] =
+        FindBoundaryLoops(m_src->vertex_indices(),
+                          static_cast<int32_t>(m_src->vertices().size()));
+    for (const auto& boundary_vertex_ids : boundary_vertex_ids_list) {
+      for (const auto& vid : boundary_vertex_ids) {
+        m_src_border_vids.insert(vid);
       }
     }
   }
@@ -181,7 +202,7 @@ bool NonRigidIcp::FindCorrespondences() {
 #else
     auto corresps = m_corresp_finder->FindAll(
         current[idx], current_n[idx],  // Eigen::Vector3f::Zero(),
-        CorrespFinderMode::kMinAngleCosDist);
+        CorrespFinderMode::kMinDist);
 
     Corresp c = corresps[0];
     for (const auto& corresp : corresps) {
@@ -241,16 +262,6 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
   }
 
   while (iter < max_iter) {
-#if 0
-      if (m_check_self_itersection) {
-      // BVH construction is costly.
-      // So once per each stiffness
-      m_bvh->SetData(m_src_norm_deformed->vertices(),
-                     m_src_norm_deformed->vertex_indices());
-      m_bvh->Build();
-    }
-#endif
-
     iter_timer.Start();
     LOGI("Registrate(): iter %d\n", iter);
 
@@ -300,14 +311,19 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
       const Eigen::Vector3f& vtx = m_src_norm_deformed->vertices()[i];
 
       double weight = m_weights_per_node[i];
-      // if (weight == 0) weight = 1;
+#ifdef UGU_NCIP_IGNORE_WEIGHT_ZERO
+      // If weight is 0, set the same position to target and reset weight to 1
+      if (weight == 0.0) {
+        weight = 1.0;
+      }
+#endif
 
       for (int j = 0; j < 3; ++j) {
         W_D.push_back(Eigen::Triplet<double>(
             4 * m + i, i * 4 + j, weight * static_cast<double>(vtx[j])));
       }
 
-      W_D.push_back(Eigen::Triplet<double>(4 * m + i, i * 4 + 3, weight * 1.0));
+      W_D.push_back(Eigen::Triplet<double>(4 * m + i, i * 4 + 3, weight));
     }
 
     // 3.beta_D_L
@@ -331,22 +347,15 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     // for the B
     Eigen::MatrixX3d B = Eigen::MatrixX3d::Zero(4 * m + n + l, 3);
     for (Eigen::Index i = 0; i < n; ++i) {
-#if 0
-      int idx = 0;
-      trimesh::point xyz;
-
       double weight = m_weights_per_node[i];
-      if (weight != 0) {
-        idx = m_soft_corres[i].second;
-        xyz = m_dst->vertices[idx];
-      } else {
-        weight = 1;
-        idx = m_soft_corres[i].first;
-        xyz = m_src->vertices[idx];
+      auto& target_pos = m_target[i];
+#ifdef UGU_NCIP_IGNORE_WEIGHT_ZERO
+      // If weight is 0, set the same position to target
+      if (weight == 0.0) {
+        weight = 1.0;
+        target_pos = m_src_norm_deformed->vertices()[i];
       }
 #endif
-      double weight = m_weights_per_node[i];
-      const auto& target_pos = m_target[i];
       for (int j = 0; j < 3; j++) {
         B(4 * m + i, j) = weight * target_pos[j];
       }
@@ -434,7 +443,7 @@ bool NonRigidIcp::ValidateCorrespondence(size_t src_idx,
   // "A correspondence (Xivi, ui) is dropped if 1) ui lies on a border of the
   // target mesh,
   constexpr float eps = 1e-10f;  // std::numeric_limits<float>::epsilon();
-  if (m_check_geometry_border && !m_dst_border_fids.empty()) {
+  if (m_dst_check_geometry_border && !m_dst_border_fids.empty()) {
     if (m_dst_border_fids.find(corresp.fid) != m_dst_border_fids.end()) {
       for (const std::pair<int, int>& e : m_dst_border_edges.at(corresp.fid)) {
         // Compute distance from a corresponding point to a border edge
@@ -446,6 +455,14 @@ bool NonRigidIcp::ValidateCorrespondence(size_t src_idx,
           return false;
         }
       }
+    }
+  }
+
+  // ORIGINAL
+  // Additionaly check src boundary
+  if (m_src_check_geometry_border) {
+    if (m_src_border_vids.find(src_idx) != m_src_border_vids.end()) {
+      return false;
     }
   }
 
