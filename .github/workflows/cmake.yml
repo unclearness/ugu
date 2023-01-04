@@ -20,6 +20,9 @@ jobs:
       - name: Submodule Update
         run: git submodule update --init --recursive
 
+      - name: Setup OpenGL
+        uses: openrndr/setup-opengl@v1.1
+        
       - name: Install Clang
         uses: egor-tensin/setup-clang@v1
 
@@ -48,6 +51,9 @@ jobs:
       - name: Submodule Update
         run: git submodule update --init --recursive
 
+      - name: Setup OpenGL
+        uses: openrndr/setup-opengl@v1.1
+        
       - name: Configure CMake GCC
         env:
           CC: gcc
