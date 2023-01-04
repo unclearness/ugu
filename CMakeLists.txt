@@ -465,7 +465,11 @@ if (UGU_BUILD_GUI_APP)
 
   add_executable(imgui_test gui_app/imgui_test.cc ${IMGUI_SOURCES} ${IMGUI_HEADERS} ${IMGUI_GL_SOURCES})
   target_include_directories(imgui_test PRIVATE ${Ugu_INCLUDE_DIRS} ${IMGUI_INSTALL_DIR} ${IMGUI_INSTALL_DIR}/backends)
+if (WIN32)
   target_link_libraries(imgui_test ${Ugu_LIBS} opengl32)
+else()
+  target_link_libraries(imgui_test ${Ugu_LIBS})
+endif()
   set_property(TARGET imgui_test PROPERTY FOLDER ugu_gui_app) 
 endif()
 
