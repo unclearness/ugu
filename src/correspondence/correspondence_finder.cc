@@ -239,28 +239,37 @@ std::vector<Corresp> KDTreeCorrespFinder::FindAll(
       src_n_ = ray;
     }
 
-#if 0
-    Eigen::Vector3f n =
-        (uv[0] * m_vert_normals[vface[0]] + uv[1] * m_vert_normals[vface[1]] +
-         (1.f - uv[0] - uv[1]) * m_vert_normals[vface[2]])
-            .normalized();  // Barycentric interpolation of vertex normals
-#else
     // Face normal:
     // Foot is inside triangle: cos is zero
     // Foot is on the edge of triangle: cos is non-zero
-    Eigen::Vector3f n = Extract3f(m_face_planes[index]);
-#endif
+    Eigen::Vector3f fn = Extract3f(m_face_planes[index]);
 
-    float angle_cos = n.dot(src_n_);
-    // Ignore cos  sign because surfaces are close and could be both front or
+    Eigen::Vector3f vn =
+        (uv[0] * m_vert_normals[vface[0]] + uv[1] * m_vert_normals[vface[1]] +
+         (1.f - uv[0] - uv[1]) * m_vert_normals[vface[2]])
+            .normalized();  // Barycentric interpolation of vertex normals
+
+    // Fail safe for unreferenced vertices
+    if (std::abs(vn.squaredNorm() - 1.f) > 0.01f) {
+      vn = fn;
+    }
+
+    float vangle = std::acos(std::clamp(vn.dot(src_n_), -1.f, 1.f));
+
+    float angle_cos = fn.dot(src_n_);
+    // Ignore cos sign because surfaces are close and could be both front or
     // back.
-    angle_cos = std::clamp(std::abs(angle_cos), 0.f, 1.f);
+    if (!use_src_n) {
+      angle_cos = std::clamp(std::abs(angle_cos), 0.f, 1.f);
+    } else {
+      angle_cos = std::clamp(angle_cos, -1.f, 1.f);
+    }
 
     // TODO: better weight method with cos
     // With face normal, below calculation gives minimum value because face
     // normal is uniform on the face. With barycentric interpoltion, possively
     // no...
-#if 0
+#if 1
     float cos_abs_dist = abs_dist * (2.f - angle_cos);
 #else
     float cos_abs_dist =
@@ -279,6 +288,8 @@ std::vector<Corresp> KDTreeCorrespFinder::FindAll(
     corresp.uv = uv;
     corresp.angle = angle;
     corresp.cos_abs_dist = cos_abs_dist;
+    corresp.vangle = vangle;
+    corresp.vnormal = vn;
 
     corresps.push_back(corresp);
   }

@@ -44,6 +44,8 @@ void TestObject() {
   Eigen::Vector3f src2dst_scale =
       dst_size.cwiseProduct(src_size.cwiseInverse());
 
+  src2dst_scale.setOnes();
+
   src_mesh.Scale(src2dst_scale);
   src_mesh.WriteObj(out_dir, "0_scale");
 
@@ -75,9 +77,9 @@ void TestObject() {
   nicp.SetSrc(src_mesh);
   nicp.SetDst(dst_mesh);
 
-  nicp.Init(false, std::cos(ugu::radians(60.f)), false);
+  nicp.Init(false, 0.65f, false);
 
-  double max_alpha = 20.0;
+  double max_alpha = 10.0;
   double min_alpha = 0.1;
   double beta = 10.0;
   double gamma = 1.0;

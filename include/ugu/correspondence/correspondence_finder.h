@@ -19,8 +19,10 @@ struct Corresp {
       Eigen::Vector3f::Constant(std::numeric_limits<float>::lowest());
   float signed_dist = std::numeric_limits<float>::lowest();
   float abs_dist = std::numeric_limits<float>::max();
-  float angle = 180.f;
+  float angle = pi;
   float cos_abs_dist = std::numeric_limits<float>::max();
+  float vangle = pi;
+  Eigen::Vector3f vnormal;
 };
 
 class CorrespFinder {

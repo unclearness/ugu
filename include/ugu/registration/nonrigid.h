@@ -27,8 +27,7 @@ class NonRigidIcp {
   void SetSrcLandmakrVertexIds(const std::vector<int>& src_landmark_indices);
   void SetDstLandmakrVertexIds(const std::vector<int>& dst_landmark_indices);
 
-  bool Init(bool check_self_itersection = false,
-            float angle_cos_th = std::cos(radians(60.f)),
+  bool Init(bool check_self_itersection = false, float angle_rad_th = 0.65f,
             bool check_geometry_border = false);  // Initialize KDTree etc.
 
   bool FindCorrespondences();
@@ -66,7 +65,7 @@ class NonRigidIcp {
   std::vector<int> m_dst_landmark_indices;
   std::vector<Eigen::Vector3f> m_dst_landmark_positions;
 
-  float m_angle_cos_th = std::cos(radians(60.f));
+  float m_angle_rad_th = 0.65f;
 
   bool m_check_geometry_border = false;
   std::unordered_set<int> m_dst_border_fids;
@@ -76,6 +75,8 @@ class NonRigidIcp {
 
   bool m_check_self_itersection = false;
   BvhPtr<Eigen::Vector3f, Eigen::Vector3i> m_bvh = nullptr;
+
+  bool m_rescale = true;
 };
 
 }  // namespace ugu

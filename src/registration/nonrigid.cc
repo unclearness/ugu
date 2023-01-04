@@ -58,7 +58,7 @@ void NonRigidIcp::SetDstLandmakrVertexIds(
   m_dst_landmark_indices = dst_landmark_indices;
 }
 
-bool NonRigidIcp::Init(bool check_self_itersection, float angle_cos_th,
+bool NonRigidIcp::Init(bool check_self_itersection, float angle_rad_th,
                        bool check_geometry_border) {
   if (m_src == nullptr || m_dst == nullptr || m_corresp_finder == nullptr) {
     LOGE("Data was not set\n");
@@ -66,7 +66,7 @@ bool NonRigidIcp::Init(bool check_self_itersection, float angle_cos_th,
   }
 
   m_check_self_itersection = check_self_itersection;
-  m_angle_cos_th = angle_cos_th;
+  m_angle_rad_th = angle_rad_th;
   m_check_geometry_border = check_geometry_border;
 
   // Construct edges
@@ -116,11 +116,16 @@ bool NonRigidIcp::Init(bool check_self_itersection, float angle_cos_th,
     }
   }
 
-  // Init anisotropic scale to [0, 1] cube. Center translation was untouched.
-  // In the orignal paper, [-1, 1] cube.
-  m_norm2org_scale =
-      m_src_stats.bb_max - m_src_stats.bb_min +
-      Eigen::Vector3f::Constant(std::numeric_limits<float>::epsilon());
+  if (m_rescale) {
+    // Init anisotropic scale to [0, 1] cube. Center translation was untouched.
+    // In the orignal paper, [-1, 1] cube.
+    m_norm2org_scale =
+        m_src_stats.bb_max - m_src_stats.bb_min +
+        Eigen::Vector3f::Constant(std::numeric_limits<float>::epsilon());
+  } else {
+    m_norm2org_scale.setOnes();
+  }
+
   m_org2norm_scale = m_norm2org_scale.cwiseInverse();
 
   // Scale mesh to make parameters scale-indepdendent
@@ -155,8 +160,9 @@ bool NonRigidIcp::Init(bool check_self_itersection, float angle_cos_th,
                                     m_dst_norm->vertex_indices());
   // Init BVH
   if (m_check_self_itersection) {
-    m_bvh->SetData(m_src_norm_deformed->vertices(),
-                   m_src_norm_deformed->vertex_indices());
+    // m_bvh->SetData(m_src_norm_deformed->vertices(),
+    //                m_src_norm_deformed->vertex_indices());
+    m_bvh->SetData(m_dst_norm->vertices(), m_dst_norm->vertex_indices());
     ret &= m_bvh->Build();
   }
 
@@ -179,7 +185,7 @@ bool NonRigidIcp::FindCorrespondences() {
 
     Corresp c = corresps[0];
     for (const auto& corresp : corresps) {
-      if (std::cos(corresp.angle) < m_angle_cos_th) {
+      if (corresp.vangle > m_angle_rad_th) {
         continue;
       }
       c = corresp;
@@ -234,15 +240,17 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     set_log_level(LogLevel::kWarning);
   }
 
-  if (m_check_self_itersection) {
-    // BVH construction is costly.
-    // So once per each stiffness
-    m_bvh->SetData(m_src_norm_deformed->vertices(),
-                   m_src_norm_deformed->vertex_indices());
-    m_bvh->Build();
-  }
-
   while (iter < max_iter) {
+#if 0
+      if (m_check_self_itersection) {
+      // BVH construction is costly.
+      // So once per each stiffness
+      m_bvh->SetData(m_src_norm_deformed->vertices(),
+                     m_src_norm_deformed->vertex_indices());
+      m_bvh->Build();
+    }
+#endif
+
     iter_timer.Start();
     LOGI("Registrate(): iter %d\n", iter);
 
@@ -444,9 +452,9 @@ bool NonRigidIcp::ValidateCorrespondence(size_t src_idx,
   // 2) the angle between the normals of the meshes at Xivi and ui is
   // larger than a fixed threshold, or
   const Eigen::Vector3f& src_n = m_src_norm_deformed->normals()[src_idx];
-  const Eigen::Vector3f& dst_n = m_dst_norm->face_normals()[corresp.fid];
-  float dot = src_n.dot(dst_n);
-  if (dot < m_angle_cos_th) {
+  const Eigen::Vector3f& dst_n = corresp.vnormal;
+  float dot = std::clamp(src_n.dot(dst_n), -1.f, 1.f);
+  if (std::acos(dot) > m_angle_rad_th) {
     return false;
   }
 
@@ -456,16 +464,11 @@ bool NonRigidIcp::ValidateCorrespondence(size_t src_idx,
     Ray ray;
     ray.org = m_src_norm_deformed->vertices()[src_idx];
     ray.dir = (corresp.p - ray.org).normalized();
-    std::vector<IntersectResult> results = m_bvh->Intersect(ray);
-    double org_dist = (corresp.p - ray.org).norm();
+    std::vector<IntersectResult> results = m_bvh->Intersect(ray, false);
     if (!results.empty()) {
-      for (const auto& r : results) {
-        // Intersection less than original distance -> self intersection by
-        // another face
-        if (r.t < org_dist) {
-          // std::cout << r.t << " " << org_dist << std::endl;
-          return false;
-        }
+      const auto& r = results[0];
+      if (r.fid != corresp.fid) {
+        return false;
       }
     }
   }
