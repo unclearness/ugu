@@ -21,7 +21,7 @@ jobs:
         run: git submodule update --init --recursive
 
       - name: Setup OpenGL
-        run: sudo apt-get install libglu1-mesa-dev libxrandr-dev
+        run: sudo apt-get install libglu1-mesa-dev libdmx-dev libdmx1 libdrm-dev libdrm-intel1 libfontenc-dev libfs-dev libfs6 libgl-dev libglu1-mesa libglx-dev libopengl0 libpciaccess-dev libpciaccess0 libxaw7-dev libxcomposite-dev libxcursor-dev libxcvt-dev libxcvt0 libxdamage-dev libxfixes-dev libxfont-dev libxft-dev libxi-dev libxinerama-dev libxmu-dev libxmu-headers libxmuu-dev libxpm-dev libxrandr-dev libxres-dev libxres1 libxss-dev libxtst-dev libxv-dev libxv1 libxvmc-dev libxvmc1 libxxf86dga-dev libxxf86dga1 libxxf86vm-dev mesa-common-dev
         
       - name: Install Clang
         uses: egor-tensin/setup-clang@v1
@@ -52,7 +52,7 @@ jobs:
         run: git submodule update --init --recursive
 
       - name: Setup OpenGL
-        run: sudo apt-get install libglu1-mesa-dev libxrandr-dev
+        run: sudo apt-get install libglu1-mesa-dev libxrandr-dev libxinerama-dev
         
       - name: Configure CMake GCC
         env:
