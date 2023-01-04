@@ -21,7 +21,7 @@ jobs:
         run: git submodule update --init --recursive
 
       - name: Setup OpenGL
-        uses: openrndr/setup-opengl@v1.1
+        run: sudo apt-get install xorg-dev libglu1-mesa-dev
         
       - name: Install Clang
         uses: egor-tensin/setup-clang@v1
@@ -52,7 +52,7 @@ jobs:
         run: git submodule update --init --recursive
 
       - name: Setup OpenGL
-        uses: openrndr/setup-opengl@v1.1
+        run: sudo apt-get install xorg-dev libglu1-mesa-dev
         
       - name: Configure CMake GCC
         env:
