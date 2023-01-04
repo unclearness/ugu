@@ -59,7 +59,7 @@ endif()
 ########################################################################
 
 ############################## Optional ################################
-set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs_texturing libigl)
+set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs_texturing libigl glfw imgui)
 set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyobjloader
@@ -72,6 +72,8 @@ set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cxxopts/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mvs-texturing
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/libigl/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glfw
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui
   )
 
 function(ugu_set_install_dir LIB_NAME DEFAULT_INSTALL_DIR)
@@ -160,6 +162,15 @@ if(UGU_USE_MVS_TEXTURING)
   set(MvsTexturing_LIBS tex mve mve_util mrf)
   set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_MVS_TEXTURING)
   set_property(TARGET texrecon tex mve mve_sfm mve_math mve_fssr mve_dmrecon mve_util mrf PROPERTY FOLDER "mvs-texturing") 
+endif()
+
+option(UGU_USE_GLFW "Use glfw" ON)
+message("UGU_USE_GLFW: ${UGU_USE_GLFW}")
+if(UGU_USE_GLFW)
+  add_subdirectory(${GLFW_INSTALL_DIR})
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${GLFW_INSTALL_DIR}/include)
+  set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_GLFW)
+  set(Ugu_LIBS ${Ugu_LIBS} glfw)
 endif()
 ########################################################################
 
@@ -397,9 +408,11 @@ endfunction(setup_exe)
 if (NOT hasParent)
   option(UGU_BUILD_EXAMPLES "Switch to build exampls" ON)
   option(UGU_BUILD_APP "Switch to build app" ON)
+  option(UGU_BUILD_GUI_APP "Switch to build GUI app" ON)
 else()
   option(UGU_BUILD_EXAMPLES "Switch to build exampls" OFF)
   option(UGU_BUILD_APP "Switch to build app" OFF)
+  option(UGU_BUILD_GUI_APP "Switch to build GUI app" OFF)
   message("hasParent is ON. Not build examples and app by default") 
 endif()
 message("UGU_BUILD_EXAMPLES: ${UGU_BUILD_EXAMPLES}") 
@@ -437,6 +450,23 @@ if (UGU_BUILD_APP)
   setup_exe(vc2tex_cmd app/vc2tex.cc FOLDER_NAME "ugu_app")
   setup_exe(image3d app/image3d.cc FOLDER_NAME "ugu_app")
   setup_exe(point2mesh_cmd app/point2mesh.cc FOLDER_NAME "ugu_app")
+endif()
+
+if (UGU_BUILD_GUI_APP)
+  file(GLOB IMGUI_SOURCES ${IMGUI_INSTALL_DIR}/*.cpp)
+  file(GLOB IMGUI_HEADERS ${IMGUI_INSTALL_DIR}/*.h)
+  
+  set(IMGUI_GL_SOURCES
+      ${IMGUI_INSTALL_DIR}/backends/imgui_impl_opengl3.cpp
+      ${IMGUI_INSTALL_DIR}/backends/imgui_impl_glfw.cpp
+      ${IMGUI_INSTALL_DIR}/backends/imgui_impl_opengl3.h
+      ${IMGUI_INSTALL_DIR}/backends/imgui_impl_opengl3_loader.h
+      ${IMGUI_INSTALL_DIR}/backends/imgui_impl_glfw.h)
+
+  add_executable(imgui_test gui_app/imgui_test.cc ${IMGUI_SOURCES} ${IMGUI_HEADERS} ${IMGUI_GL_SOURCES})
+  target_include_directories(imgui_test PRIVATE ${Ugu_INCLUDE_DIRS} ${IMGUI_INSTALL_DIR} ${IMGUI_INSTALL_DIR}/backends)
+  target_link_libraries(imgui_test ${Ugu_LIBS} opengl32)
+  set_property(TARGET imgui_test PROPERTY FOLDER ugu_gui_app) 
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST})
