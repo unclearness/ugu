@@ -425,7 +425,7 @@ Image3b PoissonBlend(const Image1b& mask, const Image3b& source,
   // Equation (11) in the paper.
   auto grad_eq11 = [](const float& fpstar, const float& fqstar, const float& gp,
                       const float& gq) {
-    (void)fpstar, fqstar;
+    (void)fpstar, (void)fqstar;
     const float gdiff = gp - gq;
     return gdiff;
   };
