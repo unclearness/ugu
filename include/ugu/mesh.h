@@ -92,6 +92,7 @@ public:
 #endif  // 0
 
 class Mesh {
+ protected:
   std::vector<Eigen::Vector3f> vertices_;
   std::vector<Eigen::Vector3f> vertex_colors_;   // optional, RGB order
   std::vector<Eigen::Vector3i> vertex_indices_;  // face

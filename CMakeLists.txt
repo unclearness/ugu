@@ -59,7 +59,7 @@ endif()
 ########################################################################
 
 ############################## Optional ################################
-set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs_texturing libigl glfw imgui)
+set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs_texturing libigl glfw imgui glad)
 set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyobjloader
@@ -74,6 +74,7 @@ set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/libigl/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glfw
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad
   )
 
 function(ugu_set_install_dir LIB_NAME DEFAULT_INSTALL_DIR)
@@ -173,7 +174,7 @@ if(UGU_USE_GLFW)
   set(GLFW_BUILD_DOCS "Build the GLFW documentation" OFF)
 
   add_subdirectory(${GLFW_INSTALL_DIR})
-  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${GLFW_INSTALL_DIR}/include)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${GLFW_INSTALL_DIR}/include ${GLAD_INSTALL_DIR}/include)
   set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_GLFW)
   set(Ugu_LIBS ${Ugu_LIBS} glfw)
 endif()
@@ -465,7 +466,10 @@ endif()
 if (UGU_BUILD_GUI_APP)
   file(GLOB IMGUI_SOURCES ${IMGUI_INSTALL_DIR}/*.cpp)
   file(GLOB IMGUI_HEADERS ${IMGUI_INSTALL_DIR}/*.h)
-  
+  file(GLOB GLAD_HEADERS ${GLAD_INSTALL_DIR}/include/glad/*.h)
+  #file(GLOB GLAD_SOURCES ${GLAD_INSTALL_DIR}/src/*.c)
+  set(GLAD_SOURCES ${GLAD_INSTALL_DIR}/src/gl.c)
+
   set(IMGUI_GL_SOURCES
       ${IMGUI_INSTALL_DIR}/backends/imgui_impl_opengl3.cpp
       ${IMGUI_INSTALL_DIR}/backends/imgui_impl_glfw.cpp
@@ -473,7 +477,7 @@ if (UGU_BUILD_GUI_APP)
       ${IMGUI_INSTALL_DIR}/backends/imgui_impl_opengl3_loader.h
       ${IMGUI_INSTALL_DIR}/backends/imgui_impl_glfw.h)
 
-  add_executable(imgui_test gui_app/imgui_test.cc ${IMGUI_SOURCES} ${IMGUI_HEADERS} ${IMGUI_GL_SOURCES})
+  add_executable(imgui_test gui_app/imgui_test/main.cc ${IMGUI_SOURCES} ${IMGUI_HEADERS} ${IMGUI_GL_SOURCES} ${GLAD_HEADERS} ${GLAD_SOURCES})
   target_include_directories(imgui_test PRIVATE ${Ugu_INCLUDE_DIRS} ${IMGUI_INSTALL_DIR} ${IMGUI_INSTALL_DIR}/backends)
 if (WIN32)
   target_link_libraries(imgui_test ${Ugu_LIBS} opengl32)
