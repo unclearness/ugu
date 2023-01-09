@@ -239,6 +239,7 @@ set(
   include/ugu/common.h
   include/ugu/camera.h
   include/ugu/mesh.h
+  include/ugu/renderable_mesh.h
   include/ugu/face_adjacency.h
   include/ugu/point.h
   include/ugu/image.h
@@ -268,6 +269,7 @@ set(
   src/image_io.cc
   src/image_proc.cc
   src/mesh.cc
+  src/renderable_mesh.cc
   src/gltf.h
   src/ugu_stb.h
   src/log.cc
@@ -291,7 +293,6 @@ set(
   include/ugu/renderer/util_private.h
   src/renderer/util_private.cc
 
-  
   include/ugu/voxel/voxel.h
   src/voxel/voxel.cc
   include/ugu/voxel/extract_voxel.h
@@ -362,6 +363,12 @@ set(
   src/registration/registration.cc
   src/registration/rigid.cc
   src/registration/nonrigid.cc
+
+  include/ugu/shader/shader.h
+  src/shader/vert.h
+  src/shader/frag.h
+  src/shader/geo.h
+  src/shader/shader.cc
 
   include/ugu/external/external.h
   src/external/fast_quadric_mesh_simplification.cc

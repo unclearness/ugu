@@ -64,6 +64,9 @@ class Camera {
       Eigen::Vector3f* dir) const = 0;  // ray in world coordinate
   virtual void ray_c(int x, int y, Eigen::Vector3f* dir) const = 0;
   virtual void ray_w(int x, int y, Eigen::Vector3f* dir) const = 0;
+
+  virtual Eigen::Matrix4f ProjectionMatrixOpenGl(float z_near,
+                                                 float z_far) const = 0;
 };
 
 using CameraPtr = std::shared_ptr<Camera>;
@@ -145,6 +148,9 @@ class PinholeCamera : public Camera {
   void ray_w(float x, float y, Eigen::Vector3f* dir) const override;
   void ray_c(int x, int y, Eigen::Vector3f* dir) const override;
   void ray_w(int x, int y, Eigen::Vector3f* dir) const override;
+
+  Eigen::Matrix4f ProjectionMatrixOpenGl(float z_near,
+                                         float z_far) const override;
 };
 
 // PinholeCamera with support of OpenCV style distortion/undistortion
@@ -235,6 +241,9 @@ class OrthoCamera : public Camera {
   void ray_w(float x, float y, Eigen::Vector3f* dir) const override;
   void ray_c(int x, int y, Eigen::Vector3f* dir) const override;
   void ray_w(int x, int y, Eigen::Vector3f* dir) const override;
+
+  Eigen::Matrix4f ProjectionMatrixOpenGl(float z_near,
+                                         float z_far) const override;
 };
 
 inline PinholeCamera::PinholeCamera()
@@ -495,6 +504,13 @@ inline void PinholeCamera::InitRayTable() const {
   }
 }
 
+inline Eigen::Matrix4f PinholeCamera::ProjectionMatrixOpenGl(
+    float z_near, float z_far) const {
+  return GetProjectionMatrixOpenGlForPinhole(
+      width(), height(), focal_length_.x(), focal_length_.y(),
+      principal_point_.x(), principal_point_.y(), z_near, z_far);
+}
+
 inline void OpenCvCamera::distortion_coeffs(float* k1, float* k2, float* p1,
                                             float* p2, float* k3, float* k4,
                                             float* k5, float* k6) const {
@@ -717,6 +733,12 @@ inline void OrthoCamera::ray_c(int x, int y, Eigen::Vector3f* dir) const {
 }
 inline void OrthoCamera::ray_w(int x, int y, Eigen::Vector3f* dir) const {
   *dir = ray_w_table_[static_cast<size_t>(y) * static_cast<size_t>(width_) + x];
+}
+
+inline Eigen::Matrix4f OrthoCamera::ProjectionMatrixOpenGl(float z_near,
+                                                           float z_far) const {
+  LOGE("Not implemented\n");
+  return Eigen::Matrix4f::Identity();
 }
 
 inline void OrthoCamera::InitRayTable() {

@@ -10,6 +10,7 @@
 #include <iostream>
 
 #include "ugu/log.h"
+#include "ugu/util/math_util.h"
 #include "ugu/util/string_util.h"
 
 namespace {
@@ -178,6 +179,76 @@ void c2w(const Eigen::Vector3f& position, const Eigen::Vector3f& target,
 void c2w(const Eigen::Vector3d& position, const Eigen::Vector3d& target,
          const Eigen::Vector3d& up, Eigen::Matrix4d* R) {
   c2wImpl(position, target, up, R);
+}
+
+Eigen::Affine3d ConvertCvAndGlWldToCam(const Eigen::Affine3d& w2c) {
+  const Eigen::Affine3d offset =
+      Eigen::Affine3d(Eigen::AngleAxisd(pi, Eigen::Vector3d::UnitX()));
+  return offset * w2c;
+}
+
+Eigen::Affine3d ConvertCvAndGlCamToWld(const Eigen::Affine3d& c2w) {
+  const Eigen::Affine3d offset =
+      Eigen::Affine3d(Eigen::AngleAxisd(pi, Eigen::Vector3d::UnitX()))
+          .inverse();
+  return c2w * offset;
+}
+
+Eigen::Affine3d ConvertCvAndGlCamToWldRotOnly(const Eigen::Affine3d& c2w) {
+  const Eigen::Affine3d offset =
+      Eigen::Affine3d(Eigen::AngleAxisd(pi, Eigen::Vector3d::UnitX()))
+          .inverse();
+  Eigen::Affine3d rot_only = Eigen::Translation3d(c2w.translation()) *
+                             (c2w.rotation() * offset.rotation());
+  return rot_only;
+}
+
+Eigen::Matrix4f GetProjectionMatrixOpenGl(float l, float r, float b, float t,
+                                          float n, float f) {
+  Eigen::Matrix4f mat;
+  mat.setZero();
+  mat.data()[0] = 2 * n / (r - l);
+  mat.data()[5] = 2 * n / (t - b);
+  mat.data()[8] = (r + l) / (r - l);
+  mat.data()[9] = (t + b) / (t - b);
+  mat.data()[10] = -(f + n) / (f - n);
+  mat.data()[11] = -1;
+  mat.data()[14] = -(2 * f * n) / (f - n);
+  mat.data()[15] = 0;
+  return mat;
+}
+
+Eigen::Matrix4f GetProjectionMatrixOpenGl(float fovY, float aspect,
+                                          float z_near, float z_far) {
+  float tangent = std::tan(ugu::radians(fovY / 2));  // tangent of half fovY
+  float height = z_near * tangent;  // half height of near plane
+  float width = height * aspect;    // half width of near plane
+
+  // params: left, right, bottom, top, near, far
+  return GetProjectionMatrixOpenGl(-width, width, -height, height, z_near,
+                                   z_far);
+}
+
+Eigen::Matrix4f GetProjectionMatrixOpenGlForPinhole(int width, int height,
+                                                    float fx, float fy,
+                                                    float cx, float cy,
+                                                    float z_near, float z_far) {
+  Eigen::Matrix4f mat;
+  mat.setZero();
+  float w = static_cast<float>(width);
+  float h = static_cast<float>(height);
+
+  mat(0, 0) = 2.f * fx / w;
+  mat(1, 1) = 2.f * fy / h;
+
+  mat(0, 2) = (w - 2.f * cx) / w;
+  mat(1, 2) = -(h - 2.f * cy) / h;
+  mat(2, 2) = -(z_far + z_near) / (z_far - z_near);
+  mat(2, 3) = -(2.f * z_far * z_near) / (z_far - z_near);
+
+  mat(3, 2) = -1.f;
+
+  return mat;
 }
 
 // https://docs.opencv.org/4.3.0/d9/d0c/group__calib3d.html
