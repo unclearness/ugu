@@ -38,9 +38,8 @@ struct GBuffer {
   Image3f pos_cam;
   Image3f pos_wld;
   Image1f depth_01;
-  //Image1f depth_cam;
   Image1i face_id;
-  Image2f bary;
+  Image3f bary;
   Image1i geo_id;
   Image3b shaded;
 };

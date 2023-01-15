@@ -73,13 +73,37 @@ bool RendererGl::Init() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D,
                          gAlbedoSpec, 0);
+
+  // Face id & barycentric buffer
+  glGenTextures(1, &gFace);
+  glBindTexture(GL_TEXTURE_2D, gFace);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_width, m_height, 0, GL_RGBA,
+               GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D,
+                         gFace, 0);
+
+  // Geometry id buffer
+  glGenTextures(1, &gGeo);
+  glBindTexture(GL_TEXTURE_2D, gGeo);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_width, m_height, 0, GL_RGBA,
+               GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT4, GL_TEXTURE_2D,
+                         gGeo, 0);
+
   // tell OpenGL which color attachments we'll use (of this framebuffer) for
   // rendering
   attachments[0] = GL_COLOR_ATTACHMENT0;
   attachments[1] = GL_COLOR_ATTACHMENT1;
   attachments[2] = GL_COLOR_ATTACHMENT2;
 
-  glDrawBuffers(3, attachments);
+  attachments[3] = GL_COLOR_ATTACHMENT3;
+  attachments[4] = GL_COLOR_ATTACHMENT4;
+
+  glDrawBuffers(5, attachments);
   // create and attach depth buffer (renderbuffer)
 
   glGenRenderbuffers(1, &rboDepth);
@@ -105,6 +129,19 @@ bool RendererGl::Init() {
   m_deferred_shader.SetInt("gPosition", 0);
   m_deferred_shader.SetInt("gNormal", 1);
   m_deferred_shader.SetInt("gAlbedoSpec", 2);
+  m_deferred_shader.SetInt("gFace", 3);
+  m_deferred_shader.SetInt("gGeo", 4);
+
+  m_gbuf.color = Image3b::zeros(m_height, m_width);
+  m_gbuf.normal_cam = Image3f::zeros(m_height, m_width);
+  m_gbuf.normal_wld = Image3f::zeros(m_height, m_width);
+  m_gbuf.pos_cam = Image3f::zeros(m_height, m_width);
+  m_gbuf.pos_wld = Image3f::zeros(m_height, m_width);
+  m_gbuf.depth_01 = Image1f::zeros(m_height, m_width);
+  m_gbuf.face_id = Image1i::zeros(m_height, m_width);
+  m_gbuf.bary = Image3f::zeros(m_height, m_width);
+  m_gbuf.geo_id = Image1i::zeros(m_height, m_width);
+  m_gbuf.shaded = Image3b::zeros(m_height, m_width);
 
   return true;
 }
@@ -114,8 +151,6 @@ bool RendererGl::Draw(double tic) {
 
   // GBuf
 
-
-  
   glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -131,12 +166,12 @@ bool RendererGl::Draw(double tic) {
     glUniformMatrix4fv(model_loc, 1, GL_FALSE, trans.data());
     mesh->Draw(m_gbuf_shader);
   }
- glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
   // Deferred
 
-  #if 1
-  //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+#if 1
+  // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   m_deferred_shader.Use();
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, gPosition);
@@ -144,6 +179,12 @@ bool RendererGl::Draw(double tic) {
   glBindTexture(GL_TEXTURE_2D, gNormal);
   glActiveTexture(GL_TEXTURE2);
   glBindTexture(GL_TEXTURE_2D, gAlbedoSpec);
+
+  glActiveTexture(GL_TEXTURE3);
+  glBindTexture(GL_TEXTURE_2D, gFace);
+  glActiveTexture(GL_TEXTURE4);
+  glBindTexture(GL_TEXTURE_2D, gGeo);
+
 #if 0
   // send light relevant uniforms
   for (unsigned int i = 0; i < lightPositions.size(); i++) {
@@ -170,7 +211,7 @@ bool RendererGl::Draw(double tic) {
   }
 #endif
 
-      if (quadVAO == 0) {
+  if (quadVAO == 0) {
     float quadVertices[] = {
         // positions        // texture Coords
         -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
@@ -193,8 +234,7 @@ bool RendererGl::Draw(double tic) {
   glBindVertexArray(quadVAO);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
-  #endif
-
+#endif
 
   return true;
 }
@@ -222,6 +262,101 @@ void RendererGl::SetNearFar(float near_z, float far_z) {
 void RendererGl::SetSize(uint32_t width, uint32_t height) {
   m_width = width;
   m_height = height;
+}
+
+void RendererGl::GetGbuf(GBuffer& gbuf) {
+  const bool flip_y = true;
+
+  glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+
+  Image4f tmp4f(m_height, m_width);
+  Image1f tmp1f(m_height, m_width);
+  Image4i tmp4i(m_height, m_width);
+
+  Eigen::Matrix3f w2c_R = m_cam->w2c().rotation().matrix().cast<float>();
+  Eigen::Vector3f w2c_t = m_cam->w2c().translation().cast<float>();
+  std::cout << w2c_R << " -> " << w2c_t << std::endl;
+  // Pos
+  {
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
+                  SizeInBytes(tmp4f), tmp4f.data);
+    tmp4f.forEach([&](Vec4f& n, const int xy[2]) {
+      int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
+      int x = xy[0];
+      auto& wld = m_gbuf.pos_wld.at<Vec3f>(y, x);
+      wld[0] = n[0];
+      wld[1] = n[1];
+      wld[2] = n[2];
+      auto& cam = m_gbuf.pos_cam.at<Vec3f>(y, x);
+      cam = w2c_t + (w2c_R * wld);
+    });
+  }
+
+  // Normal
+  {
+    glReadBuffer(GL_COLOR_ATTACHMENT1);
+    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
+                  SizeInBytes(tmp4f), tmp4f.data);
+    tmp4f.forEach([&](Vec4f& n, const int xy[2]) {
+      int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
+      int x = xy[0];
+      auto& wld = m_gbuf.normal_wld.at<Vec3f>(y, x);
+      wld[0] = n[0];
+      wld[1] = n[1];
+      wld[2] = n[2];
+      auto& cam = m_gbuf.normal_cam.at<Vec3f>(y, x);
+      cam = w2c_R * wld;
+    });
+  }
+
+  // Color
+  {
+    glReadBuffer(GL_COLOR_ATTACHMENT2);
+    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
+                  SizeInBytes(tmp4f), tmp4f.data);
+    tmp4f.forEach([&](Vec4f& n, const int xy[2]) {
+      int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
+      int x = xy[0];
+      auto& col = m_gbuf.color.at<Vec3b>(y, x);
+      col[0] = saturate_cast<uint8_t>(n[0] * 255);
+      col[1] = saturate_cast<uint8_t>(n[1] * 255);
+      col[2] = saturate_cast<uint8_t>(n[2] * 255);
+    });
+  }
+
+  // Depth 01
+  {
+    glReadBuffer(GL_DEPTH_ATTACHMENT);
+    glReadnPixels(0, 0, m_width, m_height, GL_R, GL_FLOAT, SizeInBytes(tmp1f),
+                  tmp1f.data);
+    tmp1f.forEach([&](float& d, const int xy[2]) {
+      int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
+      int x = xy[0];
+      m_gbuf.depth_01.at<float>(y, x) = -d;
+    });
+  }
+
+  tmp4f.setTo(0.f);
+  // Face id & barycenteric
+  {
+    glReadBuffer(GL_COLOR_ATTACHMENT3);
+    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT, SizeInBytes(tmp4f),
+                  tmp4f.data);
+    tmp4f.forEach([&](Vec4f& val, const int xy[2]) {
+      int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
+      int x = xy[0];
+      m_gbuf.face_id.at<int>(y, x) = static_cast<int>(val[0]);
+      auto& bary = m_gbuf.bary.at<Vec3f>(y, x);
+      bary[0] = val[1];
+      bary[1] = val[2];
+      bary[2] = 1.f - bary[0] - bary[1];
+    });
+  }
+
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  gbuf = m_gbuf;
 }
 
 }  // namespace ugu

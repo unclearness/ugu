@@ -34,6 +34,8 @@ class RendererGl {
   void SetNearFar(float near_z, float far_z);
   void SetSize(uint32_t width, uint32_t height);
 
+  void GetGbuf(GBuffer& gbuf);
+
  private:
   float m_near_z = 0.01f;
   float m_far_z = 1000.f;
@@ -45,8 +47,8 @@ class RendererGl {
   uint32_t m_width = 1024;
   uint32_t m_height = 720;
 
-  uint32_t gBuffer, gPosition, gNormal, gAlbedoSpec;
-  uint32_t attachments[3];
+  uint32_t gBuffer, gPosition, gNormal, gAlbedoSpec, gFace, gGeo;
+  uint32_t attachments[5];
   uint32_t rboDepth;
   uint32_t quadVAO = 0;
   uint32_t quadVBO;
@@ -55,6 +57,7 @@ class RendererGl {
   std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> m_nodes;
   Shader m_gbuf_shader;
   Shader m_deferred_shader;
+  GBuffer m_gbuf;
 };
 
 using RendererGlPtr = std::shared_ptr<RendererGl>;

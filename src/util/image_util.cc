@@ -391,7 +391,7 @@ void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d,
   }
 }
 
-void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
+void Normal2Color(const Image3f& normal, Image3b* vis_normal, bool gl_coord) {
   assert(vis_normal != nullptr);
 
   const unsigned char zero = static_cast<unsigned char>(0);
@@ -404,7 +404,12 @@ void Normal2Color(const Image3f& normal, Image3b* vis_normal) {
   for (int y = 0; y < vis_normal->rows; y++) {
     for (int x = 0; x < vis_normal->cols; x++) {
       Vec3b& vis = vis_normal->at<Vec3b>(y, x);
-      const Vec3f& n = normal.at<Vec3f>(y, x);
+      const Vec3f& n_ = normal.at<Vec3f>(y, x);
+      Vec3f n = n_;
+      if (gl_coord) {
+        n[0] *= -1.f;
+        n[2] *= -1.f;
+      }
 
 #ifdef UGU_USE_OPENCV
       // BGR

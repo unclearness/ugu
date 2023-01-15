@@ -12,8 +12,10 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "ugu/camera.h"
+#include "ugu/image_io.h"
 #include "ugu/renderable_mesh.h"
 #include "ugu/renderer/gl/renderer.h"
+#include "ugu/util/image_util.h"
 // #define GL_SILENCE_DEPRECATION
 // #if defined(IMGUI_IMPL_OPENGL_ES2)
 // #include <GLES2/gl2.h>
@@ -140,7 +142,6 @@ int main(int, char **) {
 
   RenderableMeshPtr mesh2 = RenderableMesh::Create();
   mesh2->LoadObj("../data/spot/spot_triangulated.obj", "../data/spot/");
-
 
   MeshStats stats = mesh->stats();
   Eigen::Vector3f bb_len = stats.bb_max - stats.bb_min;
@@ -296,7 +297,6 @@ int main(int, char **) {
     model_mat.block(0, 0, 3, 3) =
         Eigen::AngleAxisf(0.03 * count, Eigen::Vector3f(0, 1, 0)).matrix();
 
-
     model_mat_2.block(0, 0, 3, 3) =
         Eigen::AngleAxisf(0.05 * count, Eigen::Vector3f(1, 0, 0)).matrix();
 
@@ -307,6 +307,37 @@ int main(int, char **) {
     renderer->SetMesh(mesh2, Eigen::Affine3f(model_mat_2));
 
     renderer->Draw();
+
+    if (false)
+    {
+      GBuffer gbuf;
+      renderer->GetGbuf(gbuf);
+      #if 0
+      Image3b vis_pos_wld, vis_pos_cam;
+      vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
+      imwrite("pos_wld.png", vis_pos_wld);
+      vis_pos_cam = ColorizePosMap(gbuf.pos_cam);
+      imwrite("pos_cam.png", vis_pos_cam);
+
+      Image3b vis_normal_wld, vis_normal_cam;
+      Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
+      imwrite("normal_wld.png", vis_normal_wld);
+      Normal2Color(gbuf.normal_wld, &vis_normal_cam, true);
+      imwrite("normal_cam.png", vis_normal_cam);
+#endif
+      Image3b vis_depth;
+      Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
+      imwrite("depth01.png", vis_depth);
+
+      Image3b vis_faceid;
+      FaceId2RandomColor(gbuf.face_id, &vis_faceid);
+      imwrite("faceid.png", vis_faceid);
+
+      Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
+      imwrite("bary.png", vis_bary);
+
+      imwrite("color.png", gbuf.color);
+    }
 
     glClear(GL_DEPTH_BUFFER_BIT);
 

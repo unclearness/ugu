@@ -69,6 +69,7 @@ bool Shader::Prepare() {
   vertex_code = vert_gbuf_code;
   if (vert_type == VertShaderType::GBUF) {
     vertex_code = vert_gbuf_code;
+    geometry_code = geom_dummy_code;
   } else if (vert_type == VertShaderType::DEFERRED) {
     vertex_code = vert_deferred_code;
   }
@@ -161,13 +162,14 @@ bool Shader::LoadStr(const std::string &vertex_code,
     glShaderSource(geometry, 1, &gShaderCode, NULL);
     glCompileShader(geometry);
     ret &= CheckCompileErrors(geometry, "GEOMETRY");
+
   }
   // shader Program
   ID = glCreateProgram();
   glAttachShader(ID, vertex);
   glAttachShader(ID, fragment);
   if (!geometry_code.empty()) {
-    glAttachShader(ID, geometry);
+     glAttachShader(ID, geometry);
   }
   glLinkProgram(ID);
   ret &= CheckCompileErrors(ID, "PROGRAM");
