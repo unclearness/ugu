@@ -7,9 +7,11 @@
 
 #include "ugu/clustering/clustering.h"
 #include "ugu/external/external.h"
+#include "ugu/image_io.h"
+#include "ugu/image_proc.h"
 #include "ugu/plane.h"
-#include "ugu/renderer/rasterizer.h"
-#include "ugu/renderer/raytracer.h"
+#include "ugu/renderer/cpu/rasterizer.h"
+#include "ugu/renderer/cpu/raytracer.h"
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/image_util.h"
@@ -17,8 +19,6 @@
 #include "ugu/voxel/extract_voxel.h"
 #include "ugu/voxel/marching_cubes.h"
 #include "ugu/voxel/voxel.h"
-#include "ugu/image_io.h"
-#include "ugu/image_proc.h"
 
 namespace {
 
@@ -70,13 +70,14 @@ int main(int argc, char* argv[]) {
   combined->WriteObj(data_dir, "object_and_plane");
 
   size_t view_num = 12;
-  ugu::RendererOption renderer_option;
+  ugu::RendererCpuOption renderer_option;
   renderer_option.diffuse_color = ugu::DiffuseColor::kTexture;
   renderer_option.backface_culling = false;
   // TODO rasterizer is buggy
   // ugu::RendererPtr renderer =
   //    std::make_shared<ugu::Rasterizer>(renderer_option);
-  ugu::RendererPtr renderer = std::make_shared<ugu::Raytracer>(renderer_option);
+  ugu::RendererCpuPtr renderer =
+      std::make_shared<ugu::Raytracer>(renderer_option);
 
   constexpr float fov_y_deg = 20.f;
 

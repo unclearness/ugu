@@ -12,19 +12,19 @@
 
 namespace ugu {
 
-enum class FragShaderType {WHITE, UNLIT, NORMAL, POS, UV};
-enum class VertShaderType {DEFAULT};
+enum class FragShaderType { WHITE, UNLIT, NORMAL, POS, UV };
+enum class VertShaderType { DEFAULT };
 
 class Shader {
  public:
-  uint32_t ID;
+  uint32_t ID = uint32_t(~0);
   FragShaderType frag_type = FragShaderType::UNLIT;
   VertShaderType vert_type = VertShaderType::DEFAULT;
 
   Shader();
   ~Shader();
 
-  void SetFragType(const FragShaderType& frag_type);
+  void SetFragType(const FragShaderType &frag_type);
   bool Prepare();
 
   bool LoadStr(const std::string &vertex_code, const std::string &fragment_code,

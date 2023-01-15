@@ -11,8 +11,8 @@
 
 #include "ugu/image_io.h"
 #include "ugu/image_proc.h"
-#include "ugu/renderer/rasterizer.h"
-#include "ugu/renderer/raytracer.h"
+#include "ugu/renderer/cpu/rasterizer.h"
+#include "ugu/renderer/cpu/raytracer.h"
 #include "ugu/util/camera_util.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/image_util.h"
@@ -39,8 +39,8 @@ using ugu::MeshPtr;
 using ugu::MeshStats;
 using ugu::Normal2Color;
 using ugu::PinholeCamera;
-using ugu::Renderer;
-using ugu::RendererOption;
+using ugu::RendererCpu;
+using ugu::RendererCpuOption;
 using ugu::WriteFaceIdAsText;
 using ugu::zfill;
 
@@ -102,7 +102,7 @@ void PreparePoseAndName(const MeshPtr mesh,
 }
 
 void Test(const std::string& out_dir, MeshPtr mesh,
-          std::shared_ptr<Camera> camera, const Renderer& renderer,
+          std::shared_ptr<Camera> camera, const RendererCpu& renderer,
           bool number_prefix = true) {
   // images
   Image3b color;
@@ -240,14 +240,14 @@ int main(int argc, char* argv[]) {
   // AlignMesh(mesh);
 
   // initialize renderer with diffuse texture color and lambertian shading
-  RendererOption option;
+  RendererCpuOption option;
   option.diffuse_color = ugu::DiffuseColor::kTexture;
   option.diffuse_shading = ugu::DiffuseShading::kNone;
 #ifdef USE_RASTERIZER
-  std::unique_ptr<ugu::Renderer> renderer =
+  std::unique_ptr<ugu::RendererCpu> renderer =
       std::make_unique<ugu::Rasterizer>(option);
 #else
-  std::unique_ptr<ugu::Renderer> renderer =
+  std::unique_ptr<ugu::RendererCpu> renderer =
       std::make_unique<ugu::Raytracer>(option);
 #endif
 

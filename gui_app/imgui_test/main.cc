@@ -13,6 +13,7 @@
 #include "imgui_impl_opengl3.h"
 #include "ugu/camera.h"
 #include "ugu/renderable_mesh.h"
+#include "ugu/renderer/gl/renderer.h"
 // #define GL_SILENCE_DEPRECATION
 // #if defined(IMGUI_IMPL_OPENGL_ES2)
 // #include <GLES2/gl2.h>
@@ -134,27 +135,45 @@ int main(int, char **) {
 
   glEnable(GL_DEPTH_TEST);
 
-  RenderableMesh mesh = RenderableMesh();
-  mesh.LoadObj("../data/bunny/bunny.obj", "../data/bunny/");
+  RenderableMeshPtr mesh = RenderableMesh::Create();
+  mesh->LoadObj("../data/bunny/bunny.obj", "../data/bunny/");
 
-  mesh.BindTextures();
-  mesh.SetupMesh();
+  RenderableMeshPtr mesh2 = RenderableMesh::Create();
+  mesh2->LoadObj("../data/spot/spot_triangulated.obj", "../data/spot/");
 
-  Shader shader;
-  shader.SetFragType(FragShaderType::UNLIT);
-  shader.Prepare();
+
+  MeshStats stats = mesh->stats();
+  Eigen::Vector3f bb_len = stats.bb_max - stats.bb_min;
+
+  MeshStats stats2 = mesh2->stats();
+  Eigen::Vector3f bb_len_2 = stats2.bb_max - stats2.bb_min;
+
+  float scale = bb_len_2.maxCoeff() / bb_len.maxCoeff();
+
+  mesh->Scale(scale);
+  mesh->CalcStats();
+  stats = mesh->stats();
+  bb_len = stats.bb_max - stats.bb_min;
+
+  // mesh.BindTextures();
+  // mesh.SetupMesh();
+
+  // Shader shader;
+  // shader.SetFragType(FragShaderType::UNLIT);
+  // shader.Prepare();
 
   Eigen::Matrix4f model_mat = Eigen::Matrix4f::Identity();
+  Eigen::Matrix4f model_mat_2 = Eigen::Matrix4f::Identity();
 
-  int modelLoc = glGetUniformLocation(shader.ID, "model");
-  glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model_mat.data());
+  // int modelLoc = glGetUniformLocation(shader.ID, "model");
+  // glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model_mat.data());
 
-  PinholeCamera camera(width, height, 45.f);
+  CameraPtr camera = std::make_shared<PinholeCamera>(width, height, 45.f);
   Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
-  c2w.translation() = Eigen::Vector3d(0, 0, 500);
+  c2w.translation() = Eigen::Vector3d(0, 0, bb_len.maxCoeff() * 3);
+  camera->set_c2w(c2w);
 
-  camera.set_c2w(c2w);
-
+#if 0
   Eigen::Matrix4f view_mat = camera.c2w().inverse().matrix().cast<float>();
 
   int viewLoc = glGetUniformLocation(shader.ID, "view");
@@ -163,6 +182,17 @@ int main(int, char **) {
   Eigen::Matrix4f prj_mat = camera.ProjectionMatrixOpenGl(0.1f, 1000.f);
   int prjLoc = glGetUniformLocation(shader.ID, "projection");
   glUniformMatrix4fv(prjLoc, 1, GL_FALSE, prj_mat.data());
+#endif
+
+  RendererGlPtr renderer = std::make_shared<RendererGl>();
+  renderer->SetCamera(camera);
+  renderer->SetMesh(mesh);
+
+  renderer->SetMesh(mesh2);
+
+  renderer->Init();
+
+  // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
   int count = 0;
   // Main loop
@@ -238,30 +268,56 @@ int main(int, char **) {
       ImGui::End();
     }
 
-    // Rendering
+#endif
+
+    glClear(GL_COLOR_BUFFER_BIT);
+    glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w,
+                 clear_color.z * clear_color.w, clear_color.w);
+
+#if 0
+    {
+      shader.Use();
+
+      model_mat.block(0, 0, 3, 3) =
+          Eigen::AngleAxisf(0.03 * count, Eigen::Vector3f(0, 1, 0)).matrix();
+      count++;
+
+      glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model_mat.data());
+      glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view_mat.data());
+      glUniformMatrix4fv(prjLoc, 1, GL_FALSE, prj_mat.data());
+
+      mesh.Draw(shader);
+    }
+#endif
+
+    model_mat.block(0, 0, 3, 3) =
+        Eigen::AngleAxisf(0.03 * count, Eigen::Vector3f(0, 1, 0)).matrix();
+
+
+    model_mat_2.block(0, 0, 3, 3) =
+        Eigen::AngleAxisf(0.05 * count, Eigen::Vector3f(1, 0, 0)).matrix();
+
+    count++;
+
+    renderer->SetMesh(mesh, Eigen::Affine3f(model_mat));
+
+    renderer->SetMesh(mesh2, Eigen::Affine3f(model_mat_2));
+
+    renderer->Draw();
+
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+#if 1
+    // glClear(GL_COLOR_BUFFER_BIT);
+    //  Rendering
     ImGui::Render();
     int display_w, display_h;
     glfwGetFramebufferSize(window, &display_w, &display_h);
     glViewport(0, 0, display_w, display_h);
-    glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w,
-                 clear_color.z * clear_color.w, clear_color.w);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-#endif
-
-    shader.Use();
-
-    model_mat.block(0, 0, 3, 3) =
-        Eigen::AngleAxisf(0.03 * count, Eigen::Vector3f(0, 1, 0)).matrix();
-    count++;
-
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model_mat.data());
-    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view_mat.data());
-    glUniformMatrix4fv(prjLoc, 1, GL_FALSE, prj_mat.data());
-
-    mesh.Draw(shader);
 
     glfwSwapBuffers(window);
+#endif
   }
 
   // Cleanup

@@ -285,13 +285,18 @@ set(
   src/util/path_util.cc
 
   include/ugu/renderer/base.h
-  include/ugu/renderer/raytracer.h
-  src/renderer/raytracer.cc
-  include/ugu/renderer/rasterizer.h
-  src/renderer/rasterizer.cc
-  include/ugu/renderer/pixel_shader.h
-  include/ugu/renderer/util_private.h
-  src/renderer/util_private.cc
+
+  include/ugu/renderer/cpu/renderer.h
+  include/ugu/renderer/cpu/raytracer.h
+  src/renderer/cpu/raytracer.cc
+  include/ugu/renderer/cpu/rasterizer.h
+  src/renderer/cpu/rasterizer.cc
+  include/ugu/renderer/cpu/pixel_shader.h
+  include/ugu/renderer/cpu/util_private.h
+  src/renderer/cpu/util_private.cc
+
+  include/ugu/renderer/gl/renderer.h
+  src/renderer/gl/renderer.cc
 
   include/ugu/voxel/voxel.h
   src/voxel/voxel.cc

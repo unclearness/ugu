@@ -7,21 +7,21 @@
 
 #include <memory>
 
-#include "ugu/renderer/base.h"
+#include "ugu/renderer/cpu/renderer.h"
 
 namespace ugu {
 
-class Rasterizer : public Renderer {
+class Raytracer : public RendererCpu {
   class Impl;
   std::unique_ptr<Impl> pimpl_;
 
  public:
-  Rasterizer();
-  ~Rasterizer() override;
+  Raytracer();
+  ~Raytracer() override;
 
   // Set option
-  explicit Rasterizer(const RendererOption& option);
-  void set_option(const RendererOption& option) override;
+  explicit Raytracer(const RendererCpuOption& option);
+  void set_option(const RendererCpuOption& option) override;
 
   // Set mesh
   void set_mesh(std::shared_ptr<const Mesh> mesh) override;

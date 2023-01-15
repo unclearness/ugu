@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "ugu/renderer/util_private.h"
+#include "ugu/renderer/cpu/util_private.h"
 
 #include <fstream>
 
@@ -12,8 +12,9 @@ namespace ugu {
 bool ValidateAndInitBeforeRender(bool mesh_initialized,
                                  std::shared_ptr<const Camera> camera,
                                  std::shared_ptr<const Mesh> mesh,
-                                 const RendererOption& option, Image3b* color,
-                                 Image1f* depth, Image3f* normal, Image1b* mask,
+                                 const RendererCpuOption& option,
+                                 Image3b* color, Image1f* depth,
+                                 Image3f* normal, Image1b* mask,
                                  Image1i* face_id) {
   if (camera == nullptr) {
     LOGE("camera has not been set\n");

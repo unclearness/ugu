@@ -3,13 +3,13 @@
  * All rights reserved.
  */
 
-#include "ugu/renderer/rasterizer.h"
+#include "ugu/renderer/cpu/rasterizer.h"
 
 #include <cassert>
 
 #include "ugu/image_proc.h"
-#include "ugu/renderer/pixel_shader.h"
-#include "ugu/renderer/util_private.h"
+#include "ugu/renderer/cpu/pixel_shader.h"
+#include "ugu/renderer/cpu/util_private.h"
 #include "ugu/timer.h"
 
 namespace {
@@ -36,14 +36,14 @@ class Rasterizer::Impl {
   bool mesh_initialized_{false};
   std::shared_ptr<const Camera> camera_{nullptr};
   std::shared_ptr<const Mesh> mesh_{nullptr};
-  RendererOption option_;
+  RendererCpuOption option_;
 
  public:
   Impl();
   ~Impl();
 
-  explicit Impl(const RendererOption& option);
-  void set_option(const RendererOption& option);
+  explicit Impl(const RendererCpuOption& option);
+  void set_option(const RendererCpuOption& option);
 
   void set_mesh(std::shared_ptr<const Mesh> mesh);
 
@@ -68,9 +68,9 @@ class Rasterizer::Impl {
 Rasterizer::Impl::Impl() {}
 Rasterizer::Impl::~Impl() {}
 
-Rasterizer::Impl::Impl(const RendererOption& option) { set_option(option); }
+Rasterizer::Impl::Impl(const RendererCpuOption& option) { set_option(option); }
 
-void Rasterizer::Impl::set_option(const RendererOption& option) {
+void Rasterizer::Impl::set_option(const RendererCpuOption& option) {
   option.CopyTo(&option_);
 }
 
@@ -352,10 +352,10 @@ Rasterizer::Rasterizer() : pimpl_(std::unique_ptr<Impl>(new Impl)) {}
 
 Rasterizer::~Rasterizer() {}
 
-Rasterizer::Rasterizer(const RendererOption& option)
+Rasterizer::Rasterizer(const RendererCpuOption& option)
     : pimpl_(std::unique_ptr<Impl>(new Impl(option))) {}
 
-void Rasterizer::set_option(const RendererOption& option) {
+void Rasterizer::set_option(const RendererCpuOption& option) {
   pimpl_->set_option(option);
 }
 

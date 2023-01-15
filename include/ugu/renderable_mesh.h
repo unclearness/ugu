@@ -17,9 +17,14 @@ struct Vertex {
   Eigen::Vector2f uv;
 };
 
+class RenderableMesh;
+using RenderableMeshPtr = std::shared_ptr<RenderableMesh>;
+
 class RenderableMesh : public Mesh {
  public:
-  using Mesh::Mesh;
+  static RenderableMeshPtr Create() {
+    return std::make_shared<RenderableMesh>();
+  }
 
   void Draw(const Shader &shader) const;
 
