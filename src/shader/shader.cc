@@ -6,7 +6,7 @@
 #include "ugu/shader/shader.h"
 
 #include "shader/frag.h"
-#include "shader/geo.h"
+#include "shader/geom.h"
 #include "shader/vert.h"
 
 #ifdef UGU_USE_GLFW
@@ -57,18 +57,32 @@ void Shader::SetFragType(const FragShaderType &frag_type) {
   this->frag_type = frag_type;
 }
 
+void Shader::SetVertType(const VertShaderType &vert_type) {
+  this->vert_type = vert_type;
+}
+
 bool Shader::Prepare() {
   std::string vertex_code = "";
   std::string fragment_code = "";
   std::string geometry_code = "";
 
-  vertex_code = vert_default_code;
+  vertex_code = vert_gbuf_code;
+  if (vert_type == VertShaderType::GBUF) {
+    vertex_code = vert_gbuf_code;
+  } else if (vert_type == VertShaderType::DEFERRED) {
+    vertex_code = vert_deferred_code;
+  }
+
   if (frag_type == FragShaderType::WHITE) {
   } else if (frag_type == FragShaderType::UNLIT) {
-    fragment_code = frag_unlit_code;
+    fragment_code = frag_deferred_code;
   } else if (frag_type == FragShaderType::NORMAL) {
   } else if (frag_type == FragShaderType::POS) {
   } else if (frag_type == FragShaderType::UV) {
+  } else if (frag_type == FragShaderType::GBUF) {
+    fragment_code = frag_gbuf_code;
+  } else if (frag_type == FragShaderType::DEFERRED) {
+    fragment_code = frag_deferred_code;
   }
 
   return LoadStr(vertex_code, fragment_code, geometry_code);

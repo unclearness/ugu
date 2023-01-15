@@ -372,7 +372,7 @@ set(
   include/ugu/shader/shader.h
   src/shader/vert.h
   src/shader/frag.h
-  src/shader/geo.h
+  src/shader/geom.h
   src/shader/shader.cc
 
   include/ugu/external/external.h

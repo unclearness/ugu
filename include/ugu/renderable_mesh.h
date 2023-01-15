@@ -13,8 +13,8 @@ namespace ugu {
 struct Vertex {
   Eigen::Vector3f pos;
   Eigen::Vector3f nor;
-  Eigen::Vector3f col;
   Eigen::Vector2f uv;
+  Eigen::Vector3f col;
 };
 
 class RenderableMesh;

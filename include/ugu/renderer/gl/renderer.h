@@ -24,12 +24,15 @@ class RendererGl {
   bool Init();
 
   bool Draw(double tic = -1.0);
+  bool ReadGbuffer(GBuffer& buf);
 
   void SetCamera(const CameraPtr cam);
   void SetMesh(RenderableMeshPtr mesh,
                const Eigen::Affine3f& trans = Eigen::Affine3f::Identity());
   void ClearMesh();
   void SetFragType(const FragShaderType& frag_type);
+  void SetNearFar(float near_z, float far_z);
+  void SetSize(uint32_t width, uint32_t height);
 
  private:
   float m_near_z = 0.01f;
@@ -39,9 +42,19 @@ class RendererGl {
   CameraPtr m_cam = nullptr;
   // std::vector<RenderGlNode> m_nodes;
 
+  uint32_t m_width = 1024;
+  uint32_t m_height = 720;
+
+  uint32_t gBuffer, gPosition, gNormal, gAlbedoSpec;
+  uint32_t attachments[3];
+  uint32_t rboDepth;
+  uint32_t quadVAO = 0;
+  uint32_t quadVBO;
+
   std::unordered_map<RenderableMeshPtr, int> m_node_locs;
   std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> m_nodes;
-  Shader m_shader;
+  Shader m_gbuf_shader;
+  Shader m_deferred_shader;
 };
 
 using RendererGlPtr = std::shared_ptr<RendererGl>;

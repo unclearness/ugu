@@ -117,15 +117,15 @@ void RenderableMesh::SetupMesh() {
   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (void *)offsetof(Vertex, nor));
 
-  // vertex colors
-  glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-                        (void *)offsetof(Vertex, col));
-
   // vertex texture coords
-  glEnableVertexAttribArray(3);
-  glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+  glEnableVertexAttribArray(2);
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (void *)offsetof(Vertex, uv));
+
+    // vertex colors
+  glEnableVertexAttribArray(3);
+  glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                        (void *)offsetof(Vertex, col));
 
   glBindVertexArray(0);
 }
@@ -133,26 +133,31 @@ void RenderableMesh::SetupMesh() {
 void RenderableMesh::Draw(const Shader &shader) const {
   unsigned int diffuseNr = 1;
   unsigned int specularNr = 1;
+  static unsigned int offset = 0;
   for (unsigned int i = 0; i < materials().size(); i++) {
     glActiveTexture(GL_TEXTURE0 +
                     i);  // activate proper texture unit before binding
     // retrieve texture number (the N in diffuse_textureN)
     std::string number = std::to_string(diffuseNr++);
-    std::string name = "diffuse";  // materials()[i].diffuse_texname;
+    std::string name = "texture_diffuse";  // materials()[i].diffuse_texname;
     // if (name == "texture_diffuse")
     //   number = std::to_string(diffuseNr++);
     // else if (name == "texture_specular")
     //   number = std::to_string(specularNr++);
-
-    shader.SetInt(("material." + name + number).c_str(), i);
+    std::string sampler_name = name + number;
+    sampler_name = "texture_diffuse1";
+    shader.SetInt(sampler_name.c_str(), i + offset);
     glBindTexture(GL_TEXTURE_2D, texture_ids[i]);
   }
-  glActiveTexture(GL_TEXTURE0);
+  // offset += materials().size();
 
   // draw mesh
   glBindVertexArray(VAO);
   glDrawElements(GL_TRIANGLES, vertex_indices().size() * 3, GL_UNSIGNED_INT, 0);
   glBindVertexArray(0);
+
+   glActiveTexture(GL_TEXTURE0);
+
 }
 }  // namespace ugu
 #else

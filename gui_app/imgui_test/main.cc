@@ -185,6 +185,9 @@ int main(int, char **) {
 #endif
 
   RendererGlPtr renderer = std::make_shared<RendererGl>();
+
+  renderer->SetSize(width, height);
+
   renderer->SetCamera(camera);
   renderer->SetMesh(mesh);
 
