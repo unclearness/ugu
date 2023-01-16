@@ -13,93 +13,91 @@
 namespace ugu {
 
 static inline std::string frag_deferred_code =
-    "#version 330 core\n"
-    "out vec4 FragColor;\n"
-    "\n"
-    "in vec2 TexCoords;\n"
-    "\n"
-    "uniform sampler2D gPosition;\n"
-    "uniform sampler2D gNormal;\n"
-    "uniform sampler2D gAlbedoSpec;\n"
-    "uniform sampler2D gFace;\n"
-    "uniform sampler2D gGeo;\n"
-    "\n"
-    "struct Light {\n"
-    "  vec3 Position;\n"
-    "  vec3 Color;\n"
-    "\n"
-    "  float Linear;\n"
-    "  float Quadratic;\n"
-    "};\n"
-    "const int NR_LIGHTS = 32;\n"
-    "uniform Light lights[NR_LIGHTS];\n"
-    "uniform vec3 viewPos;\n"
-    "\n"
-    "void main() {\n"
-    "  // retrieve data from gbuffer\n"
-    "  vec3 FragPos = texture(gPosition, TexCoords).rgb;\n"
-    "  vec3 Normal = texture(gNormal, TexCoords).rgb;\n"
-    "  vec3 Diffuse = texture(gAlbedoSpec, TexCoords).rgb;\n"
-    "  float Specular = texture(gAlbedoSpec, TexCoords).a;\n"
-    "\n"
-    "  // then calculate lighting as usual\n"
-    "  vec3 lighting = Diffuse * 0.1;  // hard-coded ambient component\n"
-    "  vec3 viewDir = normalize(viewPos - FragPos);\n"
-    "  for (int i = 0; i < NR_LIGHTS; ++i) {\n"
-    "    // diffuse\n"
-    "    vec3 lightDir = normalize(lights[i].Position - FragPos);\n"
-    "    vec3 diffuse = max(dot(Normal, lightDir), 0.0) * Diffuse * "
-    "lights[i].Color;\n"
-    "    // specular\n"
-    "    vec3 halfwayDir = normalize(lightDir + viewDir);\n"
-    "    float spec = pow(max(dot(Normal, halfwayDir), 0.0), 16.0);\n"
-    "    vec3 specular = lights[i].Color * spec * Specular;\n"
-    "    // attenuation\n"
-    "    float distance = length(lights[i].Position - FragPos);\n"
-    "    float attenuation = 1.0 / (1.0 + lights[i].Linear * distance +\n"
-    "                               lights[i].Quadratic * distance * "
-    "distance);\n"
-    "    diffuse *= attenuation;\n"
-    "    specular *= attenuation;\n"
-    "    lighting += diffuse + specular;\n"
-    "  }\n"
-    "  FragColor = vec4(lighting, 1.0);\n"
-    "}\n";
+    R"(
+#version 330 core
+out vec4 FragColor;
+
+in vec2 TexCoords;
+
+uniform sampler2D gPosition;
+uniform sampler2D gNormal;
+uniform sampler2D gAlbedoSpec;
+uniform sampler2D gFace;
+uniform sampler2D gGeo;
+
+struct Light {
+  vec3 Position;
+  vec3 Color;
+
+  float Linear;
+  float Quadratic;
+};
+const int NR_LIGHTS = 32;
+uniform Light lights[NR_LIGHTS];
+uniform vec3 viewPos;
+
+void main() {
+  // retrieve data from gbuffer
+  vec3 FragPos = texture(gPosition, TexCoords).rgb;
+  vec3 Normal = texture(gNormal, TexCoords).rgb;
+  vec3 Diffuse = texture(gAlbedoSpec, TexCoords).rgb;
+  float Specular = texture(gAlbedoSpec, TexCoords).a;
+
+  // then calculate lighting as usual
+  vec3 lighting = Diffuse * 0.1;  // hard-coded ambient component
+  vec3 viewDir = normalize(viewPos - FragPos);
+  for (int i = 0; i < NR_LIGHTS; ++i) {
+    // diffuse
+    vec3 lightDir = normalize(lights[i].Position - FragPos);
+    vec3 diffuse = max(dot(Normal, lightDir), 0.0) * Diffuse * lights[i].Color;
+    // specular
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(Normal, halfwayDir), 0.0), 16.0);
+    vec3 specular = lights[i].Color * spec * Specular;
+    // attenuation
+    float distance = length(lights[i].Position - FragPos);
+    float attenuation = 1.0 / (1.0 + lights[i].Linear * distance +
+                               lights[i].Quadratic * distance * distance);
+    diffuse *= attenuation;
+    specular *= attenuation;
+    lighting += diffuse + specular;
+  }
+  FragColor = vec4(lighting, 1.0);
+})";
 static inline std::string frag_gbuf_code =
-    "#version 330\n"
-    "layout(location = 0) out vec3 gPosition;\n"
-    "layout(location = 1) out vec3 gNormal;\n"
-    "layout(location = 2) out vec4 gAlbedoSpec;\n"
-    "layout(location = 3) out vec4 gFace;\n"
-    "layout(location = 4) out vec4 gGeo;\n"
-    "\n"
-    "\n"
-    "in vec3 fragPos;\n"
-    "in vec3 viewPos;\n"
-    "in vec2 texCoords;\n"
-    "in vec3 normal;\n"
-    "in vec3 wldNormal;\n"
-    "in vec3 vertexColor;\n"
-    "//flat in int fid;\n"
-    "\n"
-    "uniform sampler2D texture_diffuse1;\n"
-    "uniform sampler2D texture_specular1;\n"
-    "\n"
-    "void main() {\n"
-    "  // store the fragment position vector in the first gbuffer texture\n"
-    "  gPosition = fragPos;\n"
-    "  // also store the per-fragment normals into the gbuffer\n"
-    "  gNormal = normalize(normal);\n"
-    "  // and the diffuse per-fragment color\n"
-    "  gAlbedoSpec.rgb = texture(texture_diffuse1, texCoords).rgb;\n"
-    "  // store specular intensity in gAlbedoSpec's alpha component\n"
-    "  gAlbedoSpec.a = texture(texture_specular1, texCoords).r;\n"
-    "\n"
-    "  gFace.x = gl_PrimitiveID;\n"
-    "  gFace.yz = texCoords;\n"
-    "  gFace.w = 0.0;\n"
-    "\n"
-    "  gGeo = vec4(0.5);\n"
-    "\n"
-    "}\n";
+    R"(
+#version 330
+layout(location = 0) out vec3 gPosition;
+layout(location = 1) out vec3 gNormal;
+layout(location = 2) out vec4 gAlbedoSpec;
+layout(location = 3) out vec4 gId;
+//layout(location = 4) out vec4 gGeo;
+
+
+in vec3 fragPos;
+in vec3 viewPos;
+in vec2 texCoords;
+in vec3 normal;
+in vec3 wldNormal;
+in vec3 vertexColor;
+in vec3 vertedId;
+
+uniform sampler2D texture_diffuse1;
+uniform sampler2D texture_specular1;
+
+void main() {
+  // store the fragment position vector in the first gbuffer texture
+  gPosition = fragPos;
+  // also store the per-fragment normals into the gbuffer
+  gNormal = normalize(normal);
+  // and the diffuse per-fragment color
+  gAlbedoSpec.rgb = texture(texture_diffuse1, texCoords).rgb;
+  // store specular intensity in gAlbedoSpec's alpha component
+  gAlbedoSpec.a = texture(texture_specular1, texCoords).r;
+
+  gId.x = vertedId.x;
+  gId.y = vertedId.y;
+  gId.zw = texCoords;
+
+})";
 }  // namespace ugu

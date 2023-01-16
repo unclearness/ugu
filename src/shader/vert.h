@@ -13,68 +13,73 @@
 namespace ugu {
 
 static inline std::string vert_deferred_code =
-    "#version 330 core\n"
-    "layout(location = 0) in vec3 aPos;\n"
-    "layout(location = 1) in vec2 aTexCoords;\n"
-    "\n"
-    "out vec2 TexCoords;\n"
-    "\n"
-    "void main() {\n"
-    "  TexCoords = aTexCoords;\n"
-    "  gl_Position = vec4(aPos, 1.0);\n"
-    "}\n";
+    R"(
+#version 330 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec2 aTexCoords;
+
+out vec2 TexCoords;
+
+void main() {
+  TexCoords = aTexCoords;
+  gl_Position = vec4(aPos, 1.0);
+})";
 static inline std::string vert_gbuf_code =
-    "#version 330\n"
-    "layout(location = 0) in vec3 aPos;\n"
-    "layout(location = 1) in vec3 aNormal;\n"
-    "layout(location = 2) in vec2 aTexCoords;\n"
-    "layout(location = 3) in vec3 aVertexColor;\n"
-    "\n"
-    "uniform mat4 model;\n"
-    "uniform mat4 view;\n"
-    "uniform mat4 projection;\n"
-    "\n"
-    "// out vec3 fragPos;\n"
-    "// out vec3 viewPos;\n"
-    "// out vec2 texCoords;\n"
-    "// out vec3 normal;\n"
-    "// out vec3 wldNormal;\n"
-    "// out vec3 vertexColor;\n"
-    "\n"
-    "// void main() {\n"
-    "//   vec4 worldPos = model * vec4(aPos, 1.0);\n"
-    "//   vec4 view_Pos = view * worldPos;\n"
-    "//   fragPos = worldPos.xyz;\n"
-    "//   viewPos = view_Pos.xyz;\n"
-    "//   texCoords = aTexCoords;\n"
-    "//   vertexColor = aVertexColor;\n"
-    "\n"
-    "//   mat3 normalMatrix = transpose(inverse(mat3(model)));\n"
-    "//   normal = normalMatrix * aNormal;\n"
-    "//   wldNormal = aNormal;\n"
-    "\n"
-    "//   gl_Position = projection * view_Pos;\n"
-    "// }\n"
-    "\n"
-    "out vec3 vFragPos;\n"
-    "out vec3 vViewPos;\n"
-    "out vec2 vTexCoords;\n"
-    "out vec3 vNormal;\n"
-    "out vec3 vWldNormal;\n"
-    "out vec3 vVertexColor;\n"
-    "\n"
-    "void main() {\n"
-    "  vec4 worldPos = model * vec4(aPos, 1.0);\n"
-    "  vec4 view_Pos = view * worldPos;\n"
-    "  vFragPos = worldPos.xyz;\n"
-    "  vViewPos = view_Pos.xyz;\n"
-    "  vTexCoords = aTexCoords;\n"
-    "  vVertexColor = aVertexColor;\n"
-    "\n"
-    "  mat3 normalMatrix = transpose(inverse(mat3(model)));\n"
-    "  vNormal = normalMatrix * aNormal;\n"
-    "  vWldNormal = aNormal;\n"
-    "\n"
-    "  gl_Position = projection * view_Pos;\n"
-    "}\n";
+    R"(
+#version 330
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec2 aTexCoords;
+layout(location = 3) in vec3 aVertexColor;
+layout(location = 4) in vec3 aVertexId;
+
+uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
+
+// out vec3 fragPos;
+// out vec3 viewPos;
+// out vec2 texCoords;
+// out vec3 normal;
+// out vec3 wldNormal;
+// out vec3 vertexColor;
+
+// void main() {
+//   vec4 worldPos = model * vec4(aPos, 1.0);
+//   vec4 view_Pos = view * worldPos;
+//   fragPos = worldPos.xyz;
+//   viewPos = view_Pos.xyz;
+//   texCoords = aTexCoords;
+//   vertexColor = aVertexColor;
+
+//   mat3 normalMatrix = transpose(inverse(mat3(model)));
+//   normal = normalMatrix * aNormal;
+//   wldNormal = aNormal;
+
+//   gl_Position = projection * view_Pos;
+// }
+
+out vec3 vFragPos;
+out vec3 vViewPos;
+out vec2 vTexCoords;
+out vec3 vNormal;
+out vec3 vWldNormal;
+out vec3 vVertexColor;
+out vec3 vVertexId;
+
+void main() {
+  vec4 worldPos = model * vec4(aPos, 1.0);
+  vec4 view_Pos = view * worldPos;
+  vFragPos = worldPos.xyz;
+  vViewPos = view_Pos.xyz;
+  vTexCoords = aTexCoords;
+  vVertexColor = aVertexColor;
+
+  mat3 normalMatrix = transpose(inverse(mat3(model)));
+  vNormal = normalMatrix * aNormal;
+  vWldNormal = aNormal;
+  vVertexId = aVertexId;
+
+  gl_Position = projection * view_Pos;
+})";
 }  // namespace ugu

@@ -33,16 +33,16 @@ for shader_type in shader_types:
             continue
         shader_path = os.path.join(shader_dir, shader_name)
         with open(shader_path, 'r') as fp:
-            shader_body = []
+            shader_body = ['R"(']
             for line in fp:
-                line = '"' + line.rstrip() + '\\n"'
+                line = line.rstrip()
                 shader_body.append(line)
             shader_body = "\n".join(shader_body)
         shader_cpp_var_name = shader_type + "_" + \
             shader_name.split('.')[0] + "_code"
-        shader_header += "\n"
+        shader_header += '\n'
         shader_header += f"static inline std::string {shader_cpp_var_name} = \n"
-        shader_header += shader_body + ";"
+        shader_header += shader_body + ')";'
     shader_header += "\n"
     shader_header += cpp_footer
     cpp_header_path = os.path.join(root_dir, shader_type + ".h")

@@ -13,38 +13,41 @@
 namespace ugu {
 
 static inline std::string geom_dummy_code =
-    "#version 330\n"
-    "layout(triangles) in;\n"
-    "layout(triangle_strip, max_vertices = 3) out;\n"
-    "\n"
-    "in vec3 vFragPos[];\n"
-    "in vec3 vViewPos[];\n"
-    "in vec2 vTexCoords[];\n"
-    "in vec3 vNormal[];\n"
-    "in vec3 vWldNormal[];\n"
-    "in vec3 vVertexColor[];\n"
-    "\n"
-    "out vec3 fragPos;\n"
-    "out vec3 viewPos;\n"
-    "out vec2 texCoords;\n"
-    "out vec3 normal;\n"
-    "out vec3 wldNormal;\n"
-    "out vec3 vertexColor;\n"
-    "// flat out int fid;\n"
-    "\n"
-    "void main() {\n"
-    "  for (int i = 0; i < gl_in.length(); ++i) {\n"
-    "    gl_Position = gl_in[i].gl_Position;\n"
-    "    gl_PrimitiveID = gl_PrimitiveIDIn;\n"
-    "    // fid = gl_PrimitiveIDIn;\n"
-    "    fragPos = vFragPos[i];\n"
-    "    viewPos = vViewPos[i];\n"
-    "    texCoords = vTexCoords[i];\n"
-    "    normal = vNormal[i];\n"
-    "    wldNormal = vWldNormal[i];\n"
-    "    vertexColor = vVertexColor[i];\n"
-    "    EmitVertex();\n"
-    "  }\n"
-    "  EndPrimitive();\n"
-    "}\n";
+    R"(
+#version 330
+layout(triangles) in;
+layout(triangle_strip, max_vertices = 3) out;
+
+in vec3 vFragPos[];
+in vec3 vViewPos[];
+in vec2 vTexCoords[];
+in vec3 vNormal[];
+in vec3 vWldNormal[];
+in vec3 vVertexColor[];
+in vec3 vVertexId[];
+
+out vec3 fragPos;
+out vec3 viewPos;
+out vec2 texCoords;
+out vec3 normal;
+out vec3 wldNormal;
+out vec3 vertexColor;
+out vec3 vertexId;
+
+void main() {
+  for (int i = 0; i < gl_in.length(); ++i) {
+    gl_Position = gl_in[i].gl_Position;
+    gl_PrimitiveID = gl_PrimitiveIDIn;
+    // fid = gl_PrimitiveIDIn;
+    fragPos = vFragPos[i];
+    viewPos = vViewPos[i];
+    texCoords = vTexCoords[i];
+    normal = vNormal[i];
+    wldNormal = vWldNormal[i];
+    vertexColor = vVertexColor[i];
+    vertexId = vVertexId[i];
+    EmitVertex();
+  }
+  EndPrimitive();
+})";
 }

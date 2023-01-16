@@ -31,13 +31,15 @@ bool RendererGl::Init() {
     return false;
   }
 
-  for (auto [mesh, trans] : m_nodes) {
+  for (size_t i = 0; i < m_geoms.size(); i++) {
+    auto mesh = m_geoms[i];
+    auto trans = m_node_trans.at(mesh);
     int model_loc = glGetUniformLocation(m_gbuf_shader.ID, "model");
     glUniformMatrix4fv(model_loc, 1, GL_FALSE, trans.data());
     m_node_locs[mesh] = model_loc;
 
     mesh->BindTextures();
-    mesh->SetupMesh();
+    mesh->SetupMesh(static_cast<int>(i + 1) / static_cast<float>(m_geoms.size()));
   }
 
   // configure g-buffer framebuffer
@@ -75,24 +77,14 @@ bool RendererGl::Init() {
                          gAlbedoSpec, 0);
 
   // Face id & barycentric buffer
-  glGenTextures(1, &gFace);
-  glBindTexture(GL_TEXTURE_2D, gFace);
+  glGenTextures(1, &gId);
+  glBindTexture(GL_TEXTURE_2D, gId);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_width, m_height, 0, GL_RGBA,
                GL_FLOAT, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D,
-                         gFace, 0);
-
-  // Geometry id buffer
-  glGenTextures(1, &gGeo);
-  glBindTexture(GL_TEXTURE_2D, gGeo);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_width, m_height, 0, GL_RGBA,
-               GL_FLOAT, NULL);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT4, GL_TEXTURE_2D,
-                         gGeo, 0);
+                         gId, 0);
 
   // tell OpenGL which color attachments we'll use (of this framebuffer) for
   // rendering
@@ -101,9 +93,8 @@ bool RendererGl::Init() {
   attachments[2] = GL_COLOR_ATTACHMENT2;
 
   attachments[3] = GL_COLOR_ATTACHMENT3;
-  attachments[4] = GL_COLOR_ATTACHMENT4;
 
-  glDrawBuffers(5, attachments);
+  glDrawBuffers(4, attachments);
   // create and attach depth buffer (renderbuffer)
 
   glGenRenderbuffers(1, &rboDepth);
@@ -129,8 +120,7 @@ bool RendererGl::Init() {
   m_deferred_shader.SetInt("gPosition", 0);
   m_deferred_shader.SetInt("gNormal", 1);
   m_deferred_shader.SetInt("gAlbedoSpec", 2);
-  m_deferred_shader.SetInt("gFace", 3);
-  m_deferred_shader.SetInt("gGeo", 4);
+  m_deferred_shader.SetInt("gId", 3);
 
   m_gbuf.color = Image3b::zeros(m_height, m_width);
   m_gbuf.normal_cam = Image3f::zeros(m_height, m_width);
@@ -161,8 +151,9 @@ bool RendererGl::Draw(double tic) {
   Eigen::Matrix4f prj_mat = m_cam->ProjectionMatrixOpenGl(m_near_z, m_far_z);
   glUniformMatrix4fv(m_prj_loc, 1, GL_FALSE, prj_mat.data());
 
-  for (auto [mesh, trans] : m_nodes) {
+  for (auto mesh : m_geoms) {
     int model_loc = m_node_locs[mesh];
+    auto& trans = m_node_trans[mesh];
     glUniformMatrix4fv(model_loc, 1, GL_FALSE, trans.data());
     mesh->Draw(m_gbuf_shader);
   }
@@ -181,9 +172,9 @@ bool RendererGl::Draw(double tic) {
   glBindTexture(GL_TEXTURE_2D, gAlbedoSpec);
 
   glActiveTexture(GL_TEXTURE3);
-  glBindTexture(GL_TEXTURE_2D, gFace);
-  glActiveTexture(GL_TEXTURE4);
-  glBindTexture(GL_TEXTURE_2D, gGeo);
+  glBindTexture(GL_TEXTURE_2D, gId);
+  // glActiveTexture(GL_TEXTURE4);
+  // glBindTexture(GL_TEXTURE_2D, gGeo);
 
 #if 0
   // send light relevant uniforms
@@ -243,10 +234,14 @@ bool RendererGl::ReadGbuffer(GBuffer& buf) { return true; }
 
 void RendererGl::SetCamera(const CameraPtr cam) { m_cam = cam; }
 void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans) {
-  m_nodes[mesh] = trans;
+  if (m_node_trans.find(mesh) == m_node_trans.end()) {
+    m_geoms.push_back(mesh);
+  }
+  m_node_trans[mesh] = trans;
 }
 void RendererGl::ClearMesh() {
-  m_nodes.clear();
+  m_geoms.clear();
+  m_node_trans.clear();
   m_node_locs.clear();
 }
 
@@ -341,15 +336,20 @@ void RendererGl::GetGbuf(GBuffer& gbuf) {
   // Face id & barycenteric
   {
     glReadBuffer(GL_COLOR_ATTACHMENT3);
-    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT, SizeInBytes(tmp4f),
-                  tmp4f.data);
+    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
+                  SizeInBytes(tmp4f), tmp4f.data);
     tmp4f.forEach([&](Vec4f& val, const int xy[2]) {
       int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
       int x = xy[0];
-      m_gbuf.face_id.at<int>(y, x) = static_cast<int>(val[0]);
+      int geo_id = static_cast<int>(val[1] * m_geoms.size());
+      m_gbuf.geo_id.at<int>(y, x) = geo_id;
+
+
+      m_gbuf.face_id.at<int>(y, x) = static_cast<int>(val[0] * m_geoms[geo_id]->flatten_indices.size());
+
       auto& bary = m_gbuf.bary.at<Vec3f>(y, x);
-      bary[0] = val[1];
-      bary[1] = val[2];
+      bary[0] = val[2];
+      bary[1] = val[3];
       bary[2] = 1.f - bary[0] - bary[1];
     });
   }

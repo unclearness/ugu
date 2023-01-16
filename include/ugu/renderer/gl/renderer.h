@@ -47,14 +47,15 @@ class RendererGl {
   uint32_t m_width = 1024;
   uint32_t m_height = 720;
 
-  uint32_t gBuffer, gPosition, gNormal, gAlbedoSpec, gFace, gGeo;
-  uint32_t attachments[5];
+  uint32_t gBuffer, gPosition, gNormal, gAlbedoSpec, gId;
+  uint32_t attachments[4];
   uint32_t rboDepth;
   uint32_t quadVAO = 0;
   uint32_t quadVBO;
 
   std::unordered_map<RenderableMeshPtr, int> m_node_locs;
-  std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> m_nodes;
+  std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> m_node_trans;
+  std::vector<RenderableMeshPtr> m_geoms;
   Shader m_gbuf_shader;
   Shader m_deferred_shader;
   GBuffer m_gbuf;

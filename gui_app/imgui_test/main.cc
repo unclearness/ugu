@@ -308,11 +308,10 @@ int main(int, char **) {
 
     renderer->Draw();
 
-    if (false)
-    {
+    if (true) {
       GBuffer gbuf;
       renderer->GetGbuf(gbuf);
-      #if 0
+#if 0
       Image3b vis_pos_wld, vis_pos_cam;
       vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
       imwrite("pos_wld.png", vis_pos_wld);
@@ -332,6 +331,10 @@ int main(int, char **) {
       Image3b vis_faceid;
       FaceId2RandomColor(gbuf.face_id, &vis_faceid);
       imwrite("faceid.png", vis_faceid);
+
+      Image3b vis_geoid;
+      FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
+      imwrite("geoid.png", vis_geoid);
 
       Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
       imwrite("bary.png", vis_bary);

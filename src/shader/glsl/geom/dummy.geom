@@ -8,6 +8,7 @@ in vec2 vTexCoords[];
 in vec3 vNormal[];
 in vec3 vWldNormal[];
 in vec3 vVertexColor[];
+in vec3 vVertexId[];
 
 out vec3 fragPos;
 out vec3 viewPos;
@@ -15,7 +16,7 @@ out vec2 texCoords;
 out vec3 normal;
 out vec3 wldNormal;
 out vec3 vertexColor;
-// flat out int fid;
+out vec3 vertexId;
 
 void main() {
   for (int i = 0; i < gl_in.length(); ++i) {
@@ -28,6 +29,7 @@ void main() {
     normal = vNormal[i];
     wldNormal = vWldNormal[i];
     vertexColor = vVertexColor[i];
+    vertexId = vVertexId[i];
     EmitVertex();
   }
   EndPrimitive();

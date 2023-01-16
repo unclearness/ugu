@@ -15,6 +15,7 @@ struct Vertex {
   Eigen::Vector3f nor;
   Eigen::Vector2f uv;
   Eigen::Vector3f col;
+  Eigen::Vector3f id;  // [0]: face id, [1]: geom id, [2]: for extension
 };
 
 class RenderableMesh;
@@ -29,9 +30,8 @@ class RenderableMesh : public Mesh {
   void Draw(const Shader &shader) const;
 
   void BindTextures();
-  void SetupMesh();
+  void SetupMesh(float geo_id);
 
- private:
   uint32_t VAO = ~0;
   uint32_t VBO = ~0;
   uint32_t EBO = ~0;
