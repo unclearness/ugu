@@ -33,6 +33,7 @@ out vec3 normal;
 out vec3 wldNormal;
 out vec3 vertexColor;
 out vec3 vertexId;
+out vec2 bary;
 
 void main() {
   for (int i = 0; i < gl_in.length(); ++i) {
@@ -46,6 +47,13 @@ void main() {
     wldNormal = vWldNormal[i];
     vertexColor = vVertexColor[i];
     vertexId = vVertexId[i];
+    if (i == 0) {
+      bary = vec2(0.0, 0.0);
+    } else if (i == 1) {
+      bary = vec2(1.0, 0.0);
+    } else {
+      bary = vec2(0.0, 1.0);
+    }
     EmitVertex();
   }
   EndPrimitive();

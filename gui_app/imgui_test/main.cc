@@ -72,8 +72,8 @@ int main(int, char **) {
   // only glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // 3.0+ only
 #endif
 
-  int width = 1280;
-  int height = 720;
+  int width = 1280 / 2;
+  int height = 720 / 2;
   // Create window with graphics context
   GLFWwindow *window = glfwCreateWindow(
       width, height, "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
@@ -171,7 +171,8 @@ int main(int, char **) {
 
   CameraPtr camera = std::make_shared<PinholeCamera>(width, height, 45.f);
   Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
-  c2w.translation() = Eigen::Vector3d(0, 0, bb_len.maxCoeff() * 3);
+  double z_trans = bb_len.maxCoeff() * 3;
+  c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
   camera->set_c2w(c2w);
 
 #if 0
@@ -193,6 +194,8 @@ int main(int, char **) {
   renderer->SetMesh(mesh);
 
   renderer->SetMesh(mesh2);
+
+  renderer->SetNearFar(z_trans * 0.5f, z_trans * 2.f);
 
   renderer->Init();
 
@@ -308,10 +311,10 @@ int main(int, char **) {
 
     renderer->Draw();
 
-    if (true) {
+    if (count % 50 == 0) {
       GBuffer gbuf;
       renderer->GetGbuf(gbuf);
-#if 0
+#if 1
       Image3b vis_pos_wld, vis_pos_cam;
       vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
       imwrite("pos_wld.png", vis_pos_wld);
@@ -328,16 +331,19 @@ int main(int, char **) {
       Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
       imwrite("depth01.png", vis_depth);
 
-      Image3b vis_faceid;
-      FaceId2RandomColor(gbuf.face_id, &vis_faceid);
-      imwrite("faceid.png", vis_faceid);
-
       Image3b vis_geoid;
       FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
       imwrite("geoid.png", vis_geoid);
 
+      Image3b vis_faceid;
+      FaceId2RandomColor(gbuf.face_id, &vis_faceid);
+      imwrite("faceid.png", vis_faceid);
+
       Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
       imwrite("bary.png", vis_bary);
+
+      Image3b vis_uv = ColorizeBarycentric(gbuf.uv);
+      imwrite("uv.png", vis_uv);
 
       imwrite("color.png", gbuf.color);
     }

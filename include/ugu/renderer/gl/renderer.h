@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <array>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -47,8 +48,8 @@ class RendererGl {
   uint32_t m_width = 1024;
   uint32_t m_height = 720;
 
-  uint32_t gBuffer, gPosition, gNormal, gAlbedoSpec, gId;
-  uint32_t attachments[4];
+  uint32_t gBuffer, gPosition, gNormal, gAlbedoSpec, gId, gFace;
+  std::array<uint32_t, 5> attachments;
   uint32_t rboDepth;
   uint32_t quadVAO = 0;
   uint32_t quadVBO;

@@ -5,6 +5,7 @@
 
 #include "ugu/util/thread_util.h"
 
+#include <algorithm>
 #include <cassert>
 #include <mutex>
 #include <thread>

@@ -180,7 +180,6 @@ using Vec4b = Vec_<uint8_t, 4>;
 using Vec4f = Vec_<float, 4>;
 using Vec4i = Vec_<int32_t, 4>;
 
-
 template <typename TT>
 using Scalar_ = Vec_<TT, 4>;
 
@@ -939,7 +938,7 @@ inline void Init(Image<T>* image, int width, int height, T val) {
 #endif
 
 inline Vec3f operator*(const Eigen::Matrix3f& a, const Vec3f& b) {
-  Vec3b ret;
+  Vec3f ret;
 
   for (int i = 0; i < 3; i++) {
     ret[i] = a(i, 0) * b[0] + a(i, 1) * b[1] + a(i, 2) * b[2];
@@ -949,7 +948,7 @@ inline Vec3f operator*(const Eigen::Matrix3f& a, const Vec3f& b) {
 }
 
 inline Vec3f operator+(const Eigen::Vector3f& a, const Vec3f& b) {
-  Vec3b ret;
+  Vec3f ret;
 
   for (int i = 0; i < 3; i++) {
     ret[i] = a[i] + b[i];

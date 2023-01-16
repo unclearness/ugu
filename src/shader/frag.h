@@ -22,8 +22,8 @@ in vec2 TexCoords;
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D gAlbedoSpec;
+uniform sampler2D gId;
 uniform sampler2D gFace;
-uniform sampler2D gGeo;
 
 struct Light {
   vec3 Position;
@@ -42,6 +42,8 @@ void main() {
   vec3 Normal = texture(gNormal, TexCoords).rgb;
   vec3 Diffuse = texture(gAlbedoSpec, TexCoords).rgb;
   float Specular = texture(gAlbedoSpec, TexCoords).a;
+  vec4 Face = texture(gFace, TexCoords);
+  vec4 Id = texture(gId, TexCoords);
 
   // then calculate lighting as usual
   vec3 lighting = Diffuse * 0.1;  // hard-coded ambient component
@@ -62,7 +64,8 @@ void main() {
     specular *= attenuation;
     lighting += diffuse + specular;
   }
-  FragColor = vec4(lighting, 1.0);
+  FragColor = vec4((Id.y * 3) * 0.2, 0.5, 0.6, 1.0);
+  //FragColor = vec4(lighting, 1.0);
 })";
 static inline std::string frag_gbuf_code =
     R"(
@@ -71,7 +74,7 @@ layout(location = 0) out vec3 gPosition;
 layout(location = 1) out vec3 gNormal;
 layout(location = 2) out vec4 gAlbedoSpec;
 layout(location = 3) out vec4 gId;
-//layout(location = 4) out vec4 gGeo;
+layout(location = 4) out vec4 gFace;
 
 
 in vec3 fragPos;
@@ -80,7 +83,8 @@ in vec2 texCoords;
 in vec3 normal;
 in vec3 wldNormal;
 in vec3 vertexColor;
-in vec3 vertedId;
+in vec3 vertexId;
+in vec2 bary;
 
 uniform sampler2D texture_diffuse1;
 uniform sampler2D texture_specular1;
@@ -95,9 +99,11 @@ void main() {
   // store specular intensity in gAlbedoSpec's alpha component
   gAlbedoSpec.a = texture(texture_specular1, texCoords).r;
 
-  gId.x = vertedId.x;
-  gId.y = vertedId.y;
-  gId.zw = texCoords;
+  gId.x = float(gl_PrimitiveID + 1);//vertedId.x;
+  gId.y = vertexId.y;
+
+  gFace.xy = bary;
+  gFace.zw = texCoords;
 
 })";
 }  // namespace ugu

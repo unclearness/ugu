@@ -4,6 +4,7 @@
  */
 
 #include "ugu/renderable_mesh.h"
+
 #include "ugu/face_adjacency.h"
 
 #ifdef UGU_USE_GLFW
@@ -55,8 +56,8 @@ void RenderableMesh::BindTextures() {
   }
 }
 
-void RenderableMesh::SetupMesh(float geo_id) {
-  #if 0
+void RenderableMesh::SetupMesh(int geo_id) {
+#if 1
   if (!uv_.empty() && (vertices_.size() != uv_.size())) {
     SplitMultipleUvVertices();
   }
@@ -83,12 +84,12 @@ void RenderableMesh::SetupMesh(float geo_id) {
       v.uv = {0.f, 0.f};
     }
 
-    v.id[0] = static_cast<float>(tri_id);
+    v.id[0] = 0.f;  // static_cast<float>(tri_id);
     v.id[1] = static_cast<float>(geo_id);
 
     renderable_vertices.push_back(v);
   }
-  #endif
+#else
 
   renderable_vertices.clear();
 
@@ -119,13 +120,15 @@ void RenderableMesh::SetupMesh(float geo_id) {
         v.uv = {0.f, 0.f};
       }
 
-      v.id[0] = static_cast<float>(fid) / static_cast<float>(vertex_indices().size() * 3);
+      v.id[0] = static_cast<float>(fid) /
+                static_cast<float>(vertex_indices().size() * 3);
       v.id[1] = geo_id;
       v.id[2] = 0.f;
 
       renderable_vertices.push_back(v);
     }
   }
+#endif
 
   glGenVertexArrays(1, &VAO);
   glGenBuffers(1, &VBO);
@@ -140,16 +143,17 @@ void RenderableMesh::SetupMesh(float geo_id) {
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 
   flatten_indices.clear();
-  #if 0
+#if 1
   for (const auto &i : vertex_indices()) {
     flatten_indices.push_back(i[0]);
     flatten_indices.push_back(i[1]);
     flatten_indices.push_back(i[2]);
   }
-  #endif
+#else
   for (size_t i = 0; i < renderable_vertices.size(); i++) {
     flatten_indices.push_back(uint32_t(i));
   }
+#endif
 
   glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                flatten_indices.size() * sizeof(uint32_t), &flatten_indices[0],
@@ -169,12 +173,12 @@ void RenderableMesh::SetupMesh(float geo_id) {
   glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (void *)offsetof(Vertex, uv));
 
-    // vertex colors
+  // vertex colors
   glEnableVertexAttribArray(3);
   glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (void *)offsetof(Vertex, col));
 
-      // vertex ids
+  // vertex ids
   glEnableVertexAttribArray(4);
   glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (void *)offsetof(Vertex, id));
@@ -205,11 +209,10 @@ void RenderableMesh::Draw(const Shader &shader) const {
 
   // draw mesh
   glBindVertexArray(VAO);
-  glDrawElements(GL_TRIANGLES, vertex_indices().size() * 3, GL_UNSIGNED_INT, 0);
+  glDrawElements(GL_TRIANGLES, flatten_indices.size(), GL_UNSIGNED_INT, 0);
   glBindVertexArray(0);
 
-   glActiveTexture(GL_TEXTURE0);
-
+  glActiveTexture(GL_TEXTURE0);
 }
 }  // namespace ugu
 #else

@@ -30,7 +30,7 @@ class RenderableMesh : public Mesh {
   void Draw(const Shader &shader) const;
 
   void BindTextures();
-  void SetupMesh(float geo_id);
+  void SetupMesh(int geo_id);
 
   uint32_t VAO = ~0;
   uint32_t VBO = ~0;

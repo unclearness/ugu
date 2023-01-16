@@ -6,8 +6,8 @@ in vec2 TexCoords;
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D gAlbedoSpec;
+uniform sampler2D gId;
 uniform sampler2D gFace;
-uniform sampler2D gGeo;
 
 struct Light {
   vec3 Position;
@@ -26,6 +26,8 @@ void main() {
   vec3 Normal = texture(gNormal, TexCoords).rgb;
   vec3 Diffuse = texture(gAlbedoSpec, TexCoords).rgb;
   float Specular = texture(gAlbedoSpec, TexCoords).a;
+  vec4 Face = texture(gFace, TexCoords);
+  vec4 Id = texture(gId, TexCoords);
 
   // then calculate lighting as usual
   vec3 lighting = Diffuse * 0.1;  // hard-coded ambient component
@@ -46,5 +48,6 @@ void main() {
     specular *= attenuation;
     lighting += diffuse + specular;
   }
-  FragColor = vec4(lighting, 1.0);
+  FragColor = vec4((Id.y * 3) * 0.2, 0.5, 0.6, 1.0);
+  //FragColor = vec4(lighting, 1.0);
 }
