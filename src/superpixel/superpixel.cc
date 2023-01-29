@@ -25,7 +25,7 @@
 #endif
 
 using namespace ugu;
-
+#if defined(UGU_USE_OPENCV) && __has_include("opencv2/ximgproc.hpp")
 namespace {
 struct ClusterNode {
   int id = -1;
@@ -142,6 +142,7 @@ void InitializeGraph(
 }
 
 }  // namespace
+#endif
 
 namespace ugu {
 
@@ -162,8 +163,8 @@ void Slic(const ImageBase& img, Image1i& labels, Image1b& contour_mask,
 
   sp_num = slic->getNumberOfSuperpixels();
 #else
-  (void)img, (void)labels, (void)contour_mask, (void)region_size, (void)ruler,
-      (void)min_element_size_percent, (void)num_iterations;
+  (void)img, (void)labels, (void)contour_mask, (void)sp_num, (void)region_size,
+      (void)ruler, (void)min_element_size_percent, (void)num_iterations;
 
   LOGE("Not avairable with this configuration\n");
 #endif
@@ -429,8 +430,9 @@ void SimilarColorClustering(const ImageBase& img, Image1i& labels,
   }
 
 #else
-  (void)img, (void)labels, (void)contour_mask, (void)region_size, (void)ruler,
-      (void)min_element_size_percent, (void)num_iterations;
+  (void)img, (void)labels, (void)labels_num, (void)region_size, (void)ruler,
+      (void)min_element_size_percent, (void)num_iterations, (void)min_clusters,
+      (void)max_color_diff, (void)max_boundary_strengh;
 
   LOGE("Not avairable with this configuration\n");
 #endif

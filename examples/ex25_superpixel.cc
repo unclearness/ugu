@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#if defined(UGU_USE_OPENCV) && __has_include("opencv2/ximgproc.hpp")
 #include "ugu/image_io.h"
 #include "ugu/superpixel/superpixel.h"
 #include "ugu/util/image_util.h"
@@ -29,7 +30,6 @@ void MeanColorPerLabel(const Image3b& img, const Image1i& labels, int label_num,
 }  // namespace
 
 int main() {
-#if defined(UGU_USE_OPENCV) && __has_include("opencv2/ximgproc.hpp")
   std::string out_dir = "../out/ex25/";
   EnsureDirExists(out_dir);
 
@@ -74,6 +74,8 @@ int main() {
   imwrite(out_dir + "rgb_cluster_mean.png", mean_color);
   std::cout << "#Cluster: " << sp_num << std::endl;
 
-#endif
   return 0;
 }
+#else
+int main() { return 0; }
+#endif
