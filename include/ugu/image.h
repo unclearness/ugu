@@ -78,6 +78,7 @@ using Vec4b = cv::Vec4b;
 using Size = cv::Size;
 
 using cv::noArray;
+using cv::norm;
 
 template <typename T, typename TT>
 inline void Init(Image<T>* image, int width, int height, TT val) {

@@ -5,16 +5,6 @@
 
 #include "ugu/optimizer/optimizer.h"
 
-#ifdef _WIN32
-#pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
-#endif
-#include <Eigen/LU>
-#ifdef _WIN32
-#pragma warning(pop)
-#endif
-
-#include <iostream>
-
 namespace {
 
 using UpdateFunc = std::function<void(const ugu::OptimizerInput& in,

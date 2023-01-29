@@ -17,6 +17,7 @@ using Rect_ = cv::Rect_<T>;
 using Rect2i = cv::Rect2i;
 using Rect = cv::Rect;
 using Rect2f = cv::Rect2f;
+
 #else
 template <typename T>
 struct Rect_ {
