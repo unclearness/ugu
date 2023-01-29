@@ -289,7 +289,7 @@ void meanStdDev(InputArray src, OutputArray mean, OutputArray stddev,
 }
 
 void addWeighted(InputArray src1, double alpha, InputArray src2, double beta,
-                 double gamma, OutputArray dst, int dtype = -1) {
+                 double gamma, OutputArray dst, int dtype1) {
   LOGE("Not implemented\n");
 }
 
@@ -521,9 +521,9 @@ Image3b PoissonBlend(const Image1b& mask, const Image3b& source,
   }
 
   Image3b result = target.clone();
-  result.forEach([&](Vec3b& val, const int* xy) {
-    int x_m = xy[0] - topx;
-    int y_m = xy[1] - topy;
+  result.forEach([&](Vec3b& val, const int* yx) {
+    int x_m = yx[1] - topx;
+    int y_m = yx[0] - topy;
     if (x_m < 1 || y_m < 1 || mask.cols - 1 < x_m || mask.rows < y_m) {
       return;
     }

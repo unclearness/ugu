@@ -582,17 +582,7 @@ class ImageBase {
 
   template <typename TT>
   void forEach(std::function<void(const TT&, const int[2])> f) const {
-    if (empty()) {
-      return;
-    }
-    size_t st(0);
-    size_t ed = static_cast<size_t>(cols * rows * bit_depth_ / sizeof(TT));
-    auto f2 = [&](const size_t& i) {
-      const int xy[2] = {static_cast<int32_t>(i) % cols,
-                         static_cast<int32_t>(i) / cols};
-      f(reinterpret_cast<TT*>(data)[i], xy);
-    };
-    parallel_for(st, ed, f2);
+    const_cast<ImageBase*>(this)->forEach(f);
   }
 
   template <typename TT>
@@ -602,10 +592,12 @@ class ImageBase {
     }
     size_t st(0);
     size_t ed = static_cast<size_t>(cols * rows * bit_depth_ / sizeof(TT));
+    // OpenCV's position parameter is [row (y), col (x)]
+    // https://github.com/opencv/opencv/blob/17234f82d025e3bbfbf611089637e5aa2038e7b8/modules/core/include/opencv2/core/utility.hpp#L700
     auto f2 = [&](const size_t& i) {
-      const int xy[2] = {static_cast<int32_t>(i) % cols,
-                         static_cast<int32_t>(i) / cols};
-      f(reinterpret_cast<TT*>(data)[i], xy);
+      const int yx[2] = {static_cast<int32_t>(i) / cols,
+                         static_cast<int32_t>(i) % cols};
+      f(reinterpret_cast<TT*>(data)[i], yx);
     };
     parallel_for(st, ed, f2);
   }
@@ -828,17 +820,7 @@ class Image : public ImageBase {
   }
 
   void forEach(std::function<void(const T&, const int[2])> f) const {
-    if (empty()) {
-      return;
-    }
-    size_t st(0);
-    size_t ed = static_cast<size_t>(cols * rows);
-    auto f2 = [&](const size_t& i) {
-      const int xy[2] = {static_cast<int32_t>(i) % cols,
-                         static_cast<int32_t>(i) / cols};
-      f(reinterpret_cast<T*>(data)[i], xy);
-    };
-    parallel_for(st, ed, f2);
+    const_cast<Image<T>*>(this)->forEach(f);
   }
 
   void forEach(std::function<void(T&, const int[2])> f) {
@@ -848,9 +830,9 @@ class Image : public ImageBase {
     size_t st(0);
     size_t ed = static_cast<size_t>(cols * rows);
     auto f2 = [&](const size_t& i) {
-      const int xy[2] = {static_cast<int32_t>(i) % cols,
-                         static_cast<int32_t>(i) / cols};
-      f(reinterpret_cast<T*>(data)[i], xy);
+      const int yx[2] = {static_cast<int32_t>(i) / cols,
+                         static_cast<int32_t>(i) % cols};
+      f(reinterpret_cast<T*>(data)[i], yx);
     };
     parallel_for(st, ed, f2);
   }

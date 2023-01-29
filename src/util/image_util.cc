@@ -229,13 +229,13 @@ void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
     p = ugu::Image<VT2>::zeros(src.rows, src.cols);
   }
 
-  auto copy_pix = [&](VT& val, const int* index) {
+  auto copy_pix = [&](VT& val, const int* yx) {
     (void)val;
-    VT& src_val = src.template at<VT>(index[1], index[0]);
+    VT& src_val = src.template at<VT>(yx[0], yx[1]);
     for (int i = 0; i < src.channels(); i++) {
       ugu::Image<VT2>& p = planes[i];
       // #if UGU_USE_OPENCV
-      p.template at<VT2>(index[1], index[0]) = src_val[i];
+      p.template at<VT2>(yx[0], yx[1]) = src_val[i];
       // #else
       //      p.template at<VT2>(index[1], index[0])[0] = (&src_val_c)[i];
       // #endif
@@ -252,10 +252,10 @@ void SplitImpl(ugu::Image<VT>& src, std::vector<ugu::Image<VT2>>& planes) {
 template <typename T>
 ugu::Image<T> MergeByteImpl(const std::vector<ugu::Image1b>& planes) {
   ugu::Image<T> merged = ugu::Image<T>::zeros(planes[0].rows, planes[0].cols);
-  auto f = [=](T& val, const int* index) {
+  auto f = [=](T& val, const int* yx) {
     for (int i = 0; i < merged.channels(); i++) {
       const auto& p = planes[i];
-      val[i] = p.at<uint8_t>(index[0], index[1]);
+      val[i] = p.at<uint8_t>(yx[0], yx[1]);
     }
   };
 #if UGU_USE_OPENCV
@@ -971,8 +971,8 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
 
 bool AlignChannels(const Image4b& src, Image3b& dst) {
   dst = Image3b::zeros(src.rows, src.cols);
-  auto f = [=](Vec3b& val, const int* index) {
-    const auto& src_val = src.at<Vec4b>(index[1], index[0]);
+  auto f = [=](Vec3b& val, const int* yx) {
+    const auto& src_val = src.at<Vec4b>(yx[0], yx[1]);
     val[0] = src_val[0];
     val[1] = src_val[1];
     val[2] = src_val[2];
