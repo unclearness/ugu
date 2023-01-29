@@ -124,7 +124,7 @@ int main(int argc, char* argv[]) {
   std::string diffuse_tex_name = "my_uv.png";
 #if 1
   std::vector<Eigen::Vector3f> random_colors =
-      ugu::GenRandomColors(clusters.size(), 0.f, 225.f);
+      ugu::GenRandomColors(static_cast<int32_t>(clusters.size()), 0.f, 225.f);
   std::vector<int> material_ids(input_mesh->uv_indices().size());
   // std::transform(clusters.begin(), clusters.end(),
   //               std::back_inserter(material_ids),
@@ -132,7 +132,7 @@ int main(int argc, char* argv[]) {
   for (size_t i = 0; i < clusters_f.size(); i++) {
     const auto& cf = clusters_f[i];
     for (const auto& f : cf) {
-      material_ids[f] = i;
+      material_ids[f] = static_cast<int>(i);
     }
   }
   std::vector<ugu::ObjMaterial> materials;

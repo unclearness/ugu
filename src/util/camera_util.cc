@@ -155,7 +155,7 @@ bool LoadTumFormatExtend(
       additional.push_back(splited[i]);
     }
 
-    poses->push_back({ts, c2w, additional});
+    poses->push_back(std::make_tuple(ts, c2w, additional));
   }
 
   return true;

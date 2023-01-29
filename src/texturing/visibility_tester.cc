@@ -55,9 +55,10 @@ void VisibilityTesterOption::CopyTo(VisibilityTesterOption* dst) const {
 VertexInfoPerKeyframe::VertexInfoPerKeyframe() {}
 VertexInfoPerKeyframe::~VertexInfoPerKeyframe() {}
 VertexInfo::VertexInfo() {}
-VertexInfo::VertexInfo(const VertexInfo& src){
-    // TODO: implement
-    // Disable default copy constructor for mutex, which is cannot be copied.
+VertexInfo::VertexInfo(const VertexInfo& src) {
+  (void)src;
+  // TODO: implement
+  // Disable default copy constructor for mutex, which is cannot be copied.
 };
 VertexInfo::~VertexInfo() {}
 void VertexInfo::Update(const VertexInfoPerKeyframe& info) {
@@ -413,6 +414,7 @@ bool VisibilityTester::ValidateAndInitBeforeTest(VisibilityInfo* info) const {
 bool VisibilityTester::TestVertex(VisibilityInfo* info, int vid,
                                   VertexInfoPerKeyframe& vertex_info,
                                   const Eigen::Vector3f& v_offset) const {
+  (void)info;
   // convert vertex to camera space from world space
   const Eigen::Vector3f& world_p = vertices_[vid] + v_offset;
   Eigen::Vector3f camera_p = keyframe_->camera->w2c().cast<float>() * world_p;

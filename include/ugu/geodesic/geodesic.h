@@ -6,8 +6,15 @@
 
 #pragma once
 
-#include "Eigen/SparseCore"
 #include "ugu/mesh.h"
+
+#ifdef _WIN32
+#pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
+#endif
+#include "Eigen/SparseCore"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 namespace ugu {
 

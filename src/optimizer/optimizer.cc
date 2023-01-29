@@ -5,7 +5,14 @@
 
 #include "ugu/optimizer/optimizer.h"
 
+#ifdef _WIN32
+#pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
+#endif
 #include <Eigen/LU>
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
 #include <iostream>
 
 namespace {
@@ -43,7 +50,7 @@ double LineSearch(const ugu::GradVec& update_direc,
 
   throw std::invalid_argument("This type is not implemented");
 
-  //return 0.0;
+  // return 0.0;
 }
 
 void LoopBody(const ugu::OptimizerInput& input, ugu::OptimizerOutput& output,

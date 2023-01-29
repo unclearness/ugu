@@ -19,9 +19,9 @@ struct Corresp {
       Eigen::Vector3f::Constant(std::numeric_limits<float>::lowest());
   float signed_dist = std::numeric_limits<float>::lowest();
   float abs_dist = std::numeric_limits<float>::max();
-  float angle = pi;
+  float angle = static_cast<float>(pi);
   float cos_abs_dist = std::numeric_limits<float>::max();
-  float vangle = pi;
+  float vangle = static_cast<float>(pi);
   Eigen::Vector3f vnormal;
 };
 

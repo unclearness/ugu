@@ -143,8 +143,8 @@ class BvhNaive : public Bvh<T, TT> {
   NodePtr BuildImpl(const std::vector<size_t>& face_ids, int depth) {
     const size_t poly_num = face_ids.size();
 
-    if (static_cast<int>(poly_num) <= m_min_leaf_primitives ||
-        m_max_tree_depth <= depth) {
+    if (static_cast<uint32_t>(poly_num) <= m_min_leaf_primitives ||
+        m_max_tree_depth <= static_cast<uint32_t>(depth)) {
       NodePtr node = std::make_shared<Node>();
       node->face_ids = face_ids;
       node->depth = depth;
@@ -191,7 +191,7 @@ class BvhNaive : public Bvh<T, TT> {
         for (int i = 0; i < index.rows(); i++) {
           center += m_vertices[index[i]];
         }
-        center /= index.rows();
+        center /= static_cast<float>(index.rows());
 #endif
         return center;
       };
@@ -227,7 +227,7 @@ class BvhNaive : public Bvh<T, TT> {
                                 m_num_threads, m_epsilon);
       // Convert face id from node to original
       for (auto& c : cur) {
-        c.fid = node->face_ids[c.fid];
+        c.fid = static_cast<uint32_t>(node->face_ids[c.fid]);
       }
       return cur;
     }

@@ -5,7 +5,14 @@
 
 #include "ugu/image_proc.h"
 
-#include "Eigen/Sparse"
+#ifdef _WIN32
+#pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
+#endif
+#include "Eigen/SparseCholesky"
+#include "Eigen/SparseCore"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 namespace {
 
@@ -278,7 +285,7 @@ void meanStdDev(InputArray src, OutputArray mean, OutputArray stddev,
 
   // Stddev
   Vec3d sq_sum_vec = sum(src.mul(src));
-  ImageBase sq_sum_ = ImageBase(sq_sum_vec) / src.total();
+  ImageBase sq_sum_ = ImageBase(sq_sum_vec) / static_cast<double>(src.total());
   subtract(sq_sum_, mean.mul(mean), stddev);
   stddev.forEach<double>([&](double& v, const int* yx) {
     (void)yx;
@@ -290,6 +297,8 @@ void meanStdDev(InputArray src, OutputArray mean, OutputArray stddev,
 
 void addWeighted(InputArray src1, double alpha, InputArray src2, double beta,
                  double gamma, OutputArray dst, int dtype1) {
+  (void)src1, (void)alpha, (void)src2, (void)beta, (void)gamma, (void)dst,
+      (void)dtype1;
   LOGE("Not implemented\n");
 }
 

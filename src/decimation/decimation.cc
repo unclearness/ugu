@@ -4,6 +4,11 @@
  *
  */
 
+// TODO: Fix...
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
+
 #include "ugu/decimation/decimation.h"
 
 #include <iostream>
@@ -1082,7 +1087,7 @@ struct QSlimHandler {
       const auto& face = faces[fid];
       // std::vector<int32_t> dst_vids;
       std::vector<std::vector<int32_t>> dst_uniqids;
-      //int32_t count = 0;
+      // int32_t count = 0;
       for (int32_t i = 0; i < 3; i++) {
         if (face[i] != vid) {
           std::vector<int32_t> dst_uniq;
@@ -1548,3 +1553,6 @@ bool QSlim(MeshPtr mesh, QSlimType type, int32_t target_face_num,
 }
 
 }  // namespace ugu
+#ifdef _WIN32
+#pragma warning(pop)
+#endif

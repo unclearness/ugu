@@ -5,7 +5,6 @@
 
 #include <iostream>
 
-#include "cxxopts.hpp"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/parameterize/parameterize.h"
 #include "ugu/textrans/texture_transfer.h"
@@ -13,6 +12,14 @@
 #include "ugu/util/path_util.h"
 #include "ugu/util/raster_util.h"
 #include "ugu/util/string_util.h"
+
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
+#include "cxxopts.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 int main(int argc, char* argv[]) {
   ugu::Timer<> timer;

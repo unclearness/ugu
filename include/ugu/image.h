@@ -18,17 +18,35 @@
 #include "ugu/util/thread_util.h"
 
 #if defined(UGU_USE_STB) && !defined(UGU_USE_OPENCV)
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
 #include "stb_image.h"
 #include "stb_image_resize.h"
 #include "stb_image_write.h"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 #if defined(UGU_USE_LODEPNG) && !defined(UGU_USE_OPENCV)
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
 #include "lodepng.h"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 #ifdef UGU_USE_OPENCV
+#ifdef _WIN32
+#pragma warning(push, UGU_OPENCV_WARNING_LEVEL)
+#endif
 #include "opencv2/core.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 namespace ugu {
@@ -610,8 +628,16 @@ class ImageBase {
     *(reinterpret_cast<type*>(data_->data()) + i) = static_cast<type>(rhs); \
   }
 #else
-#define UGU_FILL_CAST(type) \
-  std::fill(data_->begin(), data_->end(), static_cast<type>(rhs));
+#define UGU_FILL_CAST(type)                             \
+  for (int y = 0; y < rows; y++) {                      \
+    for (int x = 0; x < cols; x++) {                    \
+      for (int c = 0; c < channels(); c++) {            \
+        int index = (x + y * cols) * channels() + c;    \
+        reinterpret_cast<type*>(data_->data())[index] = \
+            static_cast<type>(rhs);                     \
+      }                                                 \
+    }                                                   \
+  }
 #endif
 
     if (*cpp_type == typeid(uint8_t)) {

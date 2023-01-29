@@ -5,10 +5,16 @@
 
 #include "ugu/registration/nonrigid.h"
 
+#ifdef _WIN32
+#pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
+#endif
 // #include <Eigen/CholmodSupport>
 #include <Eigen/IterativeLinearSolvers>
 #include <Eigen/SparseCholesky>
 #include <Eigen/SparseLU>
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
@@ -237,12 +243,13 @@ bool NonRigidIcp::FindCorrespondences() {
 }
 
 bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
-  Eigen::Index n = static_cast<Eigen::Index>(m_src->vertices().size());
-  Eigen::Index m = static_cast<Eigen::Index>(m_edges.size());
-  Eigen::Index l = 0;
+  using IndexType = Eigen::SparseMatrix<double>::StorageIndex;
+  IndexType n = static_cast<IndexType>(m_src->vertices().size());
+  IndexType m = static_cast<IndexType>(m_edges.size());
+  IndexType l = 0;
   if (m_src_landmark_positions.size() > 0) {
     if (m_src_landmark_positions.size() == m_dst_landmark_positions.size()) {
-      l = static_cast<Eigen::Index>(m_src_landmark_positions.size());
+      l = static_cast<IndexType>(m_src_landmark_positions.size());
     } else {
       LOGW("Landmark size mismatch. Will not be used...\n");
     }
@@ -275,7 +282,7 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
 
     // 1.alpha_M_G
     std::vector<Eigen::Triplet<double>> alpha_M_G;
-    for (Eigen::Index i = 0; i < m; ++i) {
+    for (IndexType i = 0; i < m; ++i) {
       int a = m_edges[i].first;
       int b = m_edges[i].second;
 
@@ -307,7 +314,7 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
 
     // 2.W_D
     std::vector<Eigen::Triplet<double>> W_D;
-    for (Eigen::Index i = 0; i < n; ++i) {
+    for (IndexType i = 0; i < n; ++i) {
       const Eigen::Vector3f& vtx = m_src_norm_deformed->vertices()[i];
 
       double weight = m_weights_per_node[i];
@@ -328,7 +335,7 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
 
     // 3.beta_D_L
     std::vector<Eigen::Triplet<double>> beta_D_L;
-    for (Eigen::Index i = 0; i < l; i++) {
+    for (IndexType i = 0; i < l; i++) {
       for (int j = 0; j < 3; j++) {
         beta_D_L.push_back(Eigen::Triplet<double>(
             4 * m + n + i, m_src_landmark_indices[i] * 4 + j,
@@ -346,7 +353,7 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
 
     // for the B
     Eigen::MatrixX3d B = Eigen::MatrixX3d::Zero(4 * m + n + l, 3);
-    for (Eigen::Index i = 0; i < n; ++i) {
+    for (IndexType i = 0; i < n; ++i) {
       double weight = m_weights_per_node[i];
       auto& target_pos = m_target[i];
 #ifdef UGU_NCIP_IGNORE_WEIGHT_ZERO
@@ -461,7 +468,8 @@ bool NonRigidIcp::ValidateCorrespondence(size_t src_idx,
   // ORIGINAL
   // Additionaly check src boundary
   if (m_src_check_geometry_border) {
-    if (m_src_border_vids.find(src_idx) != m_src_border_vids.end()) {
+    if (m_src_border_vids.find(static_cast<int>(src_idx)) !=
+        m_src_border_vids.end()) {
       return false;
     }
   }
@@ -484,7 +492,7 @@ bool NonRigidIcp::ValidateCorrespondence(size_t src_idx,
     std::vector<IntersectResult> results = m_bvh->Intersect(ray, false);
     if (!results.empty()) {
       const auto& r = results[0];
-      if (r.fid != corresp.fid) {
+      if (r.fid != static_cast<uint32_t>(corresp.fid)) {
         return false;
       }
     }

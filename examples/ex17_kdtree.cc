@@ -194,20 +194,20 @@ void Test3D() {
 
   timer.Start();
   {
-    ugu::KdTreeSearchResults res;
+    ugu::KdTreeSearchResults res_;
     for (size_t i = 0; i < points3d.size(); i++) {
       const auto& p = points3d[i];
       const double dist = (p - query3d).norm();
-      res.push_back({i, dist});
-      std::sort(res.begin(), res.end(),
+      res_.push_back({i, dist});
+      std::sort(res_.begin(), res_.end(),
                 [](const ugu::KdTreeSearchResult& lfs,
                    const ugu::KdTreeSearchResult& rfs) {
                   return lfs.dist < rfs.dist;
                 });
-      if (res.size() <= k) {
+      if (res_.size() <= k) {
         continue;
       }
-      res.resize(k);
+      res_.resize(k);
     }
   }
   timer.End();

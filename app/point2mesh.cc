@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <iostream>
 
-#include "cxxopts.hpp"
 #include "ugu/correspondence/correspondence_finder.h"
 #include "ugu/mesh.h"
 #include "ugu/timer.h"
@@ -15,8 +14,15 @@
 #include "ugu/util/string_util.h"
 #include "ugu/util/thread_util.h"
 
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
+#include "cxxopts.hpp"
 #ifdef UGU_USE_JSON
 #include "nlohmann/json.hpp"
+#endif
+#ifdef _WIN32
+#pragma warning(pop)
 #endif
 
 #if 0
@@ -47,13 +53,14 @@ int main(int argc, char* argv[]) {
       "o,out", "Output directory",
       cxxopts::value<std::string>()->default_value("./"))(
       "b,base", "Output basename",
-      cxxopts::value<std::string>()->default_value("out"))
-      ("v,verbose", "Verbose", cxxopts::value<bool>()->default_value("false"))(
+      cxxopts::value<std::string>()->default_value("out"))(
+      "v,verbose", "Verbose", cxxopts::value<bool>()->default_value("false"))(
       "nn_num", "NN parameter", cxxopts::value<int>()->default_value("10"))(
       "num_threads", "#threads", cxxopts::value<int>()->default_value("-1"))(
-      "vis_max", "maximam value for visualization", cxxopts::value<float>()->default_value("-1.f"))(
-      "vis_min", "minimum value for visualization", cxxopts::value<float>()->default_value("1.f"))(
-      "h,help", "Print usage");
+      "vis_max", "maximam value for visualization",
+      cxxopts::value<float>()->default_value("-1.f"))(
+      "vis_min", "minimum value for visualization",
+      cxxopts::value<float>()->default_value("1.f"))("h,help", "Print usage");
 
   options.parse_positional({"src", "dst"});
 

@@ -10,8 +10,16 @@
 
 #ifdef UGU_USE_LIBIGL
 
-//#include "igl/boundary_loop.h"
+#ifdef _WIN32
+#pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
+#endif
+
+// #include "igl/boundary_loop.h"
 #include "igl/lscm.h"
+
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 #endif
 
@@ -24,7 +32,7 @@ void ClusteringForParameterization(
     std::vector<std::vector<Eigen::Vector3i>>& clusters,
     std::vector<std::vector<uint32_t>>& cluster_fids) {
   auto [clusters_v, non_orphans, orphans, clusters_f] =
-      ugu::ClusterByConnectivity(vertex_indices, vertices.size(), false);
+      ugu::ClusterByConnectivity(vertex_indices, static_cast<int32_t>(vertices.size()), false);
 
   for (const auto& cluster_f : clusters_f) {
     std::vector<uint32_t> cluster_fid;

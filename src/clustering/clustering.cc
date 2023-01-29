@@ -126,12 +126,12 @@ std::unordered_set<int32_t> RangeQueryNaive(
 }
 
 struct SegmentFace {
-  float area;
-  size_t org_id;
+  float area = -1.f;
+  size_t org_id = 0;
   Eigen::Vector3i efa;
   Eigen::Vector3f no;
-  bool valid;
-  bool tag;
+  bool valid = false;
+  bool tag = false;
 };
 
 }  // namespace
@@ -436,7 +436,7 @@ bool DBSCAN(const std::vector<Eigen::VectorXf>& points, int32_t& num_clusters,
                        return static_cast<int32_t>(res.index);
                      });
 
-      nn_set.erase(i);
+      nn_set.erase(static_cast<int>(i));
       return nn_set;
     } else {
       std::unordered_set<int32_t> nn_set;
@@ -687,7 +687,7 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
       for (const auto& tmp : thickface_project_groups[pid]) {
         cluster.push_back(tmp.efa);
         cluster_normal.push_back(tmp.no);
-        cluster_fid.push_back(tmp.org_id);
+        cluster_fid.push_back(static_cast<uint32_t>(tmp.org_id));
         res.cluster_ids[tmp.org_id] = static_cast<uint32_t>(pid);
       }
 
@@ -715,14 +715,15 @@ bool SegmentMesh(const std::vector<Eigen::Vector3f>& vertices,
       auto fid = static_cast<uint32_t>(thickface_project_groups[pid][i].org_id);
       to_process_fids.insert(fid);
       sub_face_ids.push_back(fid);
-      org2sub.insert({fid, i});
+      org2sub.insert({fid, static_cast<uint32_t>(i)});
     }
 
     auto [sub_vertices, sub_faces] =
         ExtractSubGeom(vertices, faces, sub_face_ids);
 
     auto [geo_clusters, geo_non_orphans, geo_orphans, geo_clusters_f] =
-        ClusterByConnectivity(sub_faces, sub_vertices.size(),
+        ClusterByConnectivity(sub_faces,
+                              static_cast<int32_t>(sub_vertices.size()),
                               use_vertex_based_connectivity);
 
     // Face id in the cluster to the connected component id

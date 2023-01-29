@@ -10,7 +10,6 @@
 #include <mutex>
 #include <random>
 
-#include "ugu/face_adjacency.h"
 #include "ugu/util/math_util.h"
 #include "ugu/util/thread_util.h"
 

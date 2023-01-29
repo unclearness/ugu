@@ -8,12 +8,20 @@
 #include <set>
 #include <unordered_map>
 
-#include "Eigen/Sparse"
 #include "ugu/camera.h"
 #include "ugu/image_proc.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/rgbd_util.h"
+
+#ifdef _WIN32
+#pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
+#endif
+#include "Eigen/SparseCholesky"
+#include "Eigen/SparseCore"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 namespace {
 

@@ -11,8 +11,16 @@
 #include <unordered_map>
 #include <vector>
 
+#include "ugu/common.h"
+
+#ifdef _WIN32
+#pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
+#endif
 #include "Eigen/Eigenvalues"
-#include "Eigen/Geometry"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
 #include "ugu/util/raster_util.h"
 
 namespace ugu {
@@ -298,7 +306,7 @@ std::vector<size_t> argsort(const std::vector<T>& array, bool greater = false) {
   std::vector<size_t> indices(array.size());
   std::iota(indices.begin(), indices.end(), 0);
   std::sort(indices.begin(), indices.end(),
-            [=, &array](int left, int right) -> bool {
+            [=, &array](size_t left, size_t right) -> bool {
               // sort indices according to corresponding array element
               if (greater) {
                 return array[left] > array[right];

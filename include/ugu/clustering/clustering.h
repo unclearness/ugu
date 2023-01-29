@@ -8,7 +8,6 @@
 
 #include <vector>
 
-#include "Eigen/Core"
 #include "ugu/mesh.h"
 #include "ugu/plane.h"
 

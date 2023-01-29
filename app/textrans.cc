@@ -5,7 +5,6 @@
 
 #include <iostream>
 
-#include "cxxopts.hpp"
 #include "ugu/image_io.h"
 #include "ugu/image_proc.h"
 #include "ugu/inpaint/inpaint.h"
@@ -13,6 +12,14 @@
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/io_util.h"
+
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
+#include "cxxopts.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 namespace {
 

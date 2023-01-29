@@ -38,8 +38,14 @@
 #include "ugu_stb.h"
 
 #ifdef UGU_USE_OPENCV
+#ifdef _WIN32
+#pragma warning(push, UGU_OPENCV_WARNING_LEVEL)
+#endif
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/imgproc.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 namespace {
@@ -271,6 +277,7 @@ typedef struct {
   void* context;
 } custom_stbi_mem_context;
 
+#if defined(UGU_USE_STB) && !defined(UGU_USE_OPENCV)
 static void custom_stbi_write_mem(void* context, void* data, int size) {
   custom_stbi_mem_context* c = (custom_stbi_mem_context*)context;
   char* dst = (char*)c->context;
@@ -281,6 +288,7 @@ static void custom_stbi_write_mem(void* context, void* data, int size) {
   }
   c->last_pos = cur_pos;
 }
+#endif
 
 bool CompressedDataImpl(
     int width, int height, int channels, uint8_t* data,

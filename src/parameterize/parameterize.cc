@@ -289,7 +289,7 @@ bool PackUvIslands(
         static_cast<float>(static_cast<double>(a) / sum_area));
   }
 
-  auto indices = ugu::argsort(normalized_areas, true);
+  std::vector<size_t> indices = ugu::argsort(normalized_areas, true);
   const float one_pix_area =
       std::pow(1.f / static_cast<float>(std::max(tex_w, tex_h)), 2.f);
   const float smallest_area =
@@ -309,9 +309,9 @@ bool PackUvIslands(
   std::vector<float> scales(indices.size());
   bool with_weights = cluster_areas.size() == cluster_weights.size();
   for (const auto& idx : indices) {
-    const auto& uvs = cluster_uvs[idx];
-    Eigen::Vector2f max_bound = ugu::ComputeMaxBound(uvs);
-    Eigen::Vector2f min_bound = ugu::ComputeMinBound(uvs);
+    const auto& uvs_ = cluster_uvs[idx];
+    Eigen::Vector2f max_bound = ugu::ComputeMaxBound(uvs_);
+    Eigen::Vector2f min_bound = ugu::ComputeMinBound(uvs_);
 
     min_max_local_uvs[idx] = {min_bound, max_bound};
 
@@ -339,7 +339,8 @@ bool PackUvIslands(
 
   auto rescale_rects = [&]() {
     rects = start_rects;
-    current_scale = start_scale * std::pow(pyramid_ratio, bin_packing_try_num);
+    current_scale = static_cast<float>(
+        start_scale * std::pow(pyramid_ratio, bin_packing_try_num));
     for (auto& rect : rects) {
       rect.width *= current_scale;
       rect.height *= current_scale;

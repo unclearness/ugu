@@ -8,7 +8,13 @@
 #include "image.h"
 
 #ifdef UGU_USE_OPENCV
+#ifdef _WIN32
+#pragma warning(push, UGU_OPENCV_WARNING_LEVEL)
+#endif
 #include "opencv2/core.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 namespace ugu {
