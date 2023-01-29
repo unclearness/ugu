@@ -340,6 +340,9 @@ set(
   include/ugu/textrans/texture_transfer.h
   src/textrans/texture_transfer.cc
 
+  include/ugu/superpixel/superpixel.h
+  src/superpixel/superpixel.cc
+
   include/ugu/accel/kdtree.h
   include/ugu/accel/kdtree_base.h
   include/ugu/accel/kdtree_naive.h
@@ -453,6 +456,7 @@ if (UGU_BUILD_EXAMPLES)
   setup_exe(ex22_line examples/ex22_line.cc)
   setup_exe(ex23_rigid examples/ex23_rigid.cc)
   setup_exe(ex24_nonrigid examples/ex24_nonrigid.cc)
+  setup_exe(ex25_superpixel examples/ex25_superpixel.cc)
 endif()
 
 if (UGU_BUILD_APP)

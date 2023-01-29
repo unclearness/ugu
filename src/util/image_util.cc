@@ -255,7 +255,7 @@ ugu::Image<T> MergeByteImpl(const std::vector<ugu::Image1b>& planes) {
   auto f = [=](T& val, const int* index) {
     for (int i = 0; i < merged.channels(); i++) {
       const auto& p = planes[i];
-      val[i] = p.at<uint8_t>(index[1], index[0]);
+      val[i] = p.at<uint8_t>(index[0], index[1]);
     }
   };
 #if UGU_USE_OPENCV

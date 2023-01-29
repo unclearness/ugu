@@ -71,16 +71,16 @@ void MakeSignedDistanceField(const Image1b& mask,
 void SignedDistance2Color(const Image1f& sdf, Image3b* vis_sdf,
                           float min_negative_d, float max_positive_d);
 
-ugu::Image3b ColorizeImagePosMap(const ugu::Image3f& srcpos_tex, int32_t src_w,
-                                 int32_t src_h);
+Image3b ColorizeImagePosMap(const ugu::Image3f& srcpos_tex, int32_t src_w,
+                            int32_t src_h);
 
-ugu::Image3b ColorizePosMap(const ugu::Image3f& pos_tex,
-                            Eigen::Vector3f pos_min = Eigen::Vector3f::Constant(
-                                std::numeric_limits<float>::max()),
-                            Eigen::Vector3f pos_max = Eigen::Vector3f::Constant(
-                                std::numeric_limits<float>::lowest()));
+Image3b ColorizePosMap(const ugu::Image3f& pos_tex,
+                       Eigen::Vector3f pos_min = Eigen::Vector3f::Constant(
+                           std::numeric_limits<float>::max()),
+                       Eigen::Vector3f pos_max = Eigen::Vector3f::Constant(
+                           std::numeric_limits<float>::lowest()));
 
-ugu::Image3b ColorizeBarycentric(const ugu::Image3f& bary_tex);
+Image3b ColorizeBarycentric(const ugu::Image3f& bary_tex);
 
 #ifdef UGU_USE_TINYCOLORMAP
 void Depth2Color(
@@ -182,7 +182,6 @@ T BilinearInterpolation(float x, float y, const ugu::Image<T>& image) {
 
   return color;
 }
-
 
 template <typename T>
 void UndistortImageOpencv(const ugu::Image<T>& src, ugu::Image<T>* dst,

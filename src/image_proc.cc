@@ -287,6 +287,12 @@ void meanStdDev(InputArray src, OutputArray mean, OutputArray stddev,
     return;
   });
 }
+
+void addWeighted(InputArray src1, double alpha, InputArray src2, double beta,
+                 double gamma, OutputArray dst, int dtype = -1) {
+  LOGE("Not implemented\n");
+}
+
 #endif
 
 Image3b ColorTransfer(const Image3b& refer, const Image3b& target,
