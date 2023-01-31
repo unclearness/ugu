@@ -46,8 +46,19 @@ int main() {
   img = imread(data_path);
   bgr = img.clone();
 
+  int region_size = 20;
+  float ruler = 30.f;
+  int min_element_size_percent = 10;
+  int num_iterations = 10;
+  size_t min_clusters = 2;
+  double max_color_diff = 40.0;
+  double max_boundary_strengh_for_merge = 80.0;
+  double max_boundary_strengh_for_terminate = 120.0;
+  SimilarColorClusteringMode mode = SimilarColorClusteringMode::MEAN;
+
   auto slic_proc = [&](const ImageBase& img) {
-    Slic(img, labels, contour_mask, sp_num);
+    Slic(img, labels, contour_mask, sp_num, region_size, ruler,
+         min_element_size_percent, num_iterations);
     FaceId2RandomColor(labels, &img_vis);
     contour_mask3b = Merge(contour_mask, contour_mask, contour_mask);
     contour_mask3b.copyTo(img_vis, contour_mask3b);
@@ -66,12 +77,28 @@ int main() {
   imwrite(out_dir + "hsv_slic_mean.png", mean_color);
   std::cout << "#Cluster: " << sp_num << std::endl;
 
-  SimilarColorClustering(bgr, labels, sp_num);
+  SimilarColorClustering(bgr, labels, sp_num, region_size, ruler,
+                         min_element_size_percent, num_iterations, min_clusters,
+                         max_color_diff, max_boundary_strengh_for_merge,
+                         max_boundary_strengh_for_terminate,
+                         SimilarColorClusteringMode::MEAN);
   FaceId2RandomColor(labels, &img_vis);
   addWeighted(img_vis.clone(), 0.3, bgr, 0.7, 0, img_vis);
   MeanColorPerLabel(bgr, labels, sp_num, mean_color);
-  imwrite(out_dir + "rgb_cluster.png", img_vis);
-  imwrite(out_dir + "rgb_cluster_mean.png", mean_color);
+  imwrite(out_dir + "rgb_cluster_mean.png", img_vis);
+  imwrite(out_dir + "rgb_cluster_mean_mean.png", mean_color);
+  std::cout << "#Cluster: " << sp_num << std::endl;
+
+  SimilarColorClustering(bgr, labels, sp_num, region_size, ruler,
+                         min_element_size_percent, num_iterations, min_clusters,
+                         max_color_diff, max_boundary_strengh_for_merge,
+                         max_boundary_strengh_for_terminate,
+                         SimilarColorClusteringMode::MEDIAN);
+  FaceId2RandomColor(labels, &img_vis);
+  addWeighted(img_vis.clone(), 0.3, bgr, 0.7, 0, img_vis);
+  MeanColorPerLabel(bgr, labels, sp_num, mean_color);
+  imwrite(out_dir + "rgb_cluster_median.png", img_vis);
+  imwrite(out_dir + "rgb_cluster_median_mean.png", mean_color);
   std::cout << "#Cluster: " << sp_num << std::endl;
 
   return 0;
