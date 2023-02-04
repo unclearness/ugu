@@ -65,7 +65,7 @@ endif()
 ########################################################################
 
 ############################## Optional ################################
-set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs_texturing libigl glfw imgui)
+set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs_texturing libigl glfw imgui glad)
 set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyobjloader
@@ -80,6 +80,7 @@ set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/libigl/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glfw
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad
   )
 
 function(ugu_set_install_dir LIB_NAME DEFAULT_INSTALL_DIR)
@@ -185,7 +186,7 @@ if(UGU_USE_GLFW)
   set(GLFW_BUILD_DOCS "Build the GLFW documentation" OFF)
 
   add_subdirectory(${GLFW_INSTALL_DIR})
-  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${GLFW_INSTALL_DIR}/include)
+  set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${GLFW_INSTALL_DIR}/include ${GLAD_INSTALL_DIR}/include)
   set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_GLFW)
   set(Ugu_LIBS ${Ugu_LIBS} glfw)
 endif()
@@ -250,6 +251,7 @@ set(
   include/ugu/common.h
   include/ugu/camera.h
   include/ugu/mesh.h
+  include/ugu/renderable_mesh.h
   include/ugu/face_adjacency.h
   include/ugu/point.h
   include/ugu/image.h
@@ -279,6 +281,7 @@ set(
   src/image_io.cc
   src/image_proc.cc
   src/mesh.cc
+  src/renderable_mesh.cc
   src/gltf.h
   src/ugu_stb.h
   src/log.cc
@@ -294,15 +297,19 @@ set(
   src/util/path_util.cc
 
   include/ugu/renderer/base.h
-  include/ugu/renderer/raytracer.h
-  src/renderer/raytracer.cc
-  include/ugu/renderer/rasterizer.h
-  src/renderer/rasterizer.cc
-  include/ugu/renderer/pixel_shader.h
-  include/ugu/renderer/util_private.h
-  src/renderer/util_private.cc
 
-  
+  include/ugu/renderer/cpu/renderer.h
+  include/ugu/renderer/cpu/raytracer.h
+  src/renderer/cpu/raytracer.cc
+  include/ugu/renderer/cpu/rasterizer.h
+  src/renderer/cpu/rasterizer.cc
+  include/ugu/renderer/cpu/pixel_shader.h
+  include/ugu/renderer/cpu/util_private.h
+  src/renderer/cpu/util_private.cc
+
+  include/ugu/renderer/gl/renderer.h
+  src/renderer/gl/renderer.cc
+
   include/ugu/voxel/voxel.h
   src/voxel/voxel.cc
   include/ugu/voxel/extract_voxel.h
@@ -376,6 +383,12 @@ set(
   src/registration/registration.cc
   src/registration/rigid.cc
   src/registration/nonrigid.cc
+
+  include/ugu/shader/shader.h
+  src/shader/vert.h
+  src/shader/frag.h
+  src/shader/geom.h
+  src/shader/shader.cc
 
   include/ugu/external/external.h
   src/external/fast_quadric_mesh_simplification.cc
@@ -481,7 +494,10 @@ endif()
 if (UGU_BUILD_GUI_APP)
   file(GLOB IMGUI_SOURCES ${IMGUI_INSTALL_DIR}/*.cpp)
   file(GLOB IMGUI_HEADERS ${IMGUI_INSTALL_DIR}/*.h)
-  
+  file(GLOB GLAD_HEADERS ${GLAD_INSTALL_DIR}/include/glad/*.h)
+  #file(GLOB GLAD_SOURCES ${GLAD_INSTALL_DIR}/src/*.c)
+  set(GLAD_SOURCES ${GLAD_INSTALL_DIR}/src/gl.c)
+
   set(IMGUI_GL_SOURCES
       ${IMGUI_INSTALL_DIR}/backends/imgui_impl_opengl3.cpp
       ${IMGUI_INSTALL_DIR}/backends/imgui_impl_glfw.cpp
@@ -489,7 +505,7 @@ if (UGU_BUILD_GUI_APP)
       ${IMGUI_INSTALL_DIR}/backends/imgui_impl_opengl3_loader.h
       ${IMGUI_INSTALL_DIR}/backends/imgui_impl_glfw.h)
 
-  add_executable(imgui_test gui_app/imgui_test.cc ${IMGUI_SOURCES} ${IMGUI_HEADERS} ${IMGUI_GL_SOURCES})
+  add_executable(imgui_test gui_app/imgui_test/main.cc ${IMGUI_SOURCES} ${IMGUI_HEADERS} ${IMGUI_GL_SOURCES} ${GLAD_HEADERS} ${GLAD_SOURCES})
   target_include_directories(imgui_test PRIVATE ${Ugu_INCLUDE_DIRS} ${IMGUI_INSTALL_DIR} ${IMGUI_INSTALL_DIR}/backends)
 if (WIN32)
   target_link_libraries(imgui_test ${Ugu_LIBS} opengl32)

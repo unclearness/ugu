@@ -3,15 +3,15 @@
  * All rights reserved.
  */
 
-#include "ugu/renderer/raytracer.h"
+#include "ugu/renderer/cpu/raytracer.h"
 
 #include <cassert>
 
 #include "ugu/accel/bvh.h"
 #include "ugu/accel/bvh_nanort.h"
 #include "ugu/image_proc.h"
-#include "ugu/renderer/pixel_shader.h"
-#include "ugu/renderer/util_private.h"
+#include "ugu/renderer/cpu/pixel_shader.h"
+#include "ugu/renderer/cpu/util_private.h"
 #include "ugu/timer.h"
 
 namespace ugu {
@@ -21,7 +21,7 @@ class Raytracer::Impl {
   bool mesh_initialized_{false};
   std::shared_ptr<const Camera> camera_{nullptr};
   std::shared_ptr<const Mesh> mesh_{nullptr};
-  RendererOption option_;
+  RendererCpuOption option_;
 
   std::unique_ptr<Bvh<Eigen::Vector3f, Eigen::Vector3i>> bvh_;
   void Init();
@@ -30,8 +30,8 @@ class Raytracer::Impl {
   Impl();
   ~Impl();
 
-  explicit Impl(const RendererOption& option);
-  void set_option(const RendererOption& option);
+  explicit Impl(const RendererCpuOption& option);
+  void set_option(const RendererCpuOption& option);
 
   void set_mesh(std::shared_ptr<const Mesh> mesh);
 
@@ -66,12 +66,12 @@ void Raytracer::Impl::Init() {
 Raytracer::Impl::Impl() { Init(); }
 Raytracer::Impl::~Impl() {}
 
-Raytracer::Impl::Impl(const RendererOption& option) {
+Raytracer::Impl::Impl(const RendererCpuOption& option) {
   set_option(option);
   Init();
 }
 
-void Raytracer::Impl::set_option(const RendererOption& option) {
+void Raytracer::Impl::set_option(const RendererCpuOption& option) {
   option.CopyTo(&option_);
 }
 
@@ -270,10 +270,10 @@ Raytracer::Raytracer() : pimpl_(std::unique_ptr<Impl>(new Impl)) {}
 
 Raytracer::~Raytracer() {}
 
-Raytracer::Raytracer(const RendererOption& option)
+Raytracer::Raytracer(const RendererCpuOption& option)
     : pimpl_(std::unique_ptr<Impl>(new Impl(option))) {}
 
-void Raytracer::set_option(const RendererOption& option) {
+void Raytracer::set_option(const RendererCpuOption& option) {
   pimpl_->set_option(option);
 }
 

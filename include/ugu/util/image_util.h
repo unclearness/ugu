@@ -37,7 +37,8 @@ void UndistortImageOpencv(const ugu::Image<T>& src, ugu::Image<T>* dst,
 void Depth2Gray(const Image1f& depth, Image1b* vis_depth, float min_d = 200.0f,
                 float max_d = 1500.0f);
 
-void Normal2Color(const Image3f& normal, Image3b* vis_normal);
+void Normal2Color(const Image3f& normal, Image3b* vis_normal,
+                  bool gl_coord = false);
 
 void FaceId2RandomColor(const Image1i& face_id, Image3b* vis_face_id);
 

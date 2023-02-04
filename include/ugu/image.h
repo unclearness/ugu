@@ -196,6 +196,8 @@ using Vec3f = Vec_<float, 3>;
 using Vec3d = Vec_<double, 3>;
 using Vec4d = Vec_<double, 4>;
 using Vec4b = Vec_<uint8_t, 4>;
+using Vec4f = Vec_<float, 4>;
+using Vec4i = Vec_<int32_t, 4>;
 
 template <typename TT>
 using Scalar_ = Vec_<TT, 4>;
@@ -901,6 +903,8 @@ using Image3f = Image<Vec3f>;  // For normal or point cloud. XYZ order.
 using Image3d = Image<Vec3d>;
 using Image3b = Image<Vec3b>;  // For color image. RGB order.
 using Image4b = Image<Vec4b>;  // For color image. RGBA order.
+using Image4f = Image<Vec4f>;
+using Image4i = Image<Vec4i>;
 
 template <typename T>
 struct Size_ {
@@ -941,5 +945,25 @@ inline void Init(Image<T>* image, int width, int height, T val) {
 }
 
 #endif
+
+inline Vec3f operator*(const Eigen::Matrix3f& a, const Vec3f& b) {
+  Vec3f ret;
+
+  for (int i = 0; i < 3; i++) {
+    ret[i] = a(i, 0) * b[0] + a(i, 1) * b[1] + a(i, 2) * b[2];
+  }
+
+  return ret;
+}
+
+inline Vec3f operator+(const Eigen::Vector3f& a, const Vec3f& b) {
+  Vec3f ret;
+
+  for (int i = 0; i < 3; i++) {
+    ret[i] = a[i] + b[i];
+  }
+
+  return ret;
+}
 
 }  // namespace ugu
