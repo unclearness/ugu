@@ -79,7 +79,8 @@ void RenderableMesh::SetupMesh(int geo_id) {
     }
 
     if (uv().size() == vertices().size()) {
-      v.uv = {uv()[i][0], 1.f - uv()[i][1]};
+      // TODO: Why u and v are flipped?
+      v.uv = {1.f - uv()[i][1], uv()[i][0]};
     } else {
       v.uv = {0.f, 0.f};
     }
@@ -188,7 +189,7 @@ void RenderableMesh::SetupMesh(int geo_id) {
 
 void RenderableMesh::Draw(const Shader &shader) const {
   unsigned int diffuseNr = 1;
-  //unsigned int specularNr = 1;
+  // unsigned int specularNr = 1;
   static unsigned int offset = 0;
   for (unsigned int i = 0; i < materials().size(); i++) {
     glActiveTexture(GL_TEXTURE0 +
@@ -209,7 +210,8 @@ void RenderableMesh::Draw(const Shader &shader) const {
 
   // draw mesh
   glBindVertexArray(VAO);
-  glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(flatten_indices.size()), GL_UNSIGNED_INT, 0);
+  glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(flatten_indices.size()),
+                 GL_UNSIGNED_INT, 0);
   glBindVertexArray(0);
 
   glActiveTexture(GL_TEXTURE0);

@@ -206,7 +206,7 @@ int main(int, char **) {
   renderer->SetCamera(camera);
   renderer->SetMesh(mesh);
 
-  // renderer->SetMesh(mesh2);
+  renderer->SetMesh(mesh2);
 
   renderer->SetNearFar(static_cast<float>(z_trans * 0.5f),
                        static_cast<float>(z_trans * 2.f));
@@ -321,7 +321,7 @@ int main(int, char **) {
 
     renderer->SetMesh(mesh, Eigen::Affine3f(model_mat));
 
-    // renderer->SetMesh(mesh2, Eigen::Affine3f(model_mat_2));
+    renderer->SetMesh(mesh2, Eigen::Affine3f(model_mat_2));
 
     renderer->Draw();
 
