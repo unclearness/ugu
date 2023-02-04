@@ -53,12 +53,12 @@ namespace ugu {
 Shader::Shader() : ID(uint32_t(~0)) {}
 Shader::~Shader() {}
 
-void Shader::SetFragType(const FragShaderType &frag_type) {
-  this->frag_type = frag_type;
+void Shader::SetFragType(const FragShaderType &frag_type_) {
+  frag_type = frag_type_;
 }
 
-void Shader::SetVertType(const VertShaderType &vert_type) {
-  this->vert_type = vert_type;
+void Shader::SetVertType(const VertShaderType &vert_type_) {
+  vert_type = vert_type_;
 }
 
 bool Shader::Prepare() {
@@ -142,7 +142,7 @@ bool Shader::LoadStr(const std::string &vertex_code,
   bool ret = true;
 
   // 2. compile shaders
-  unsigned int vertex, fragment;
+  unsigned int vertex = ~0u, fragment = ~0u;
   // vertex shader
   vertex = glCreateShader(GL_VERTEX_SHADER);
   glShaderSource(vertex, 1, &vShaderCode, NULL);
@@ -155,21 +155,20 @@ bool Shader::LoadStr(const std::string &vertex_code,
   glCompileShader(fragment);
   ret &= CheckCompileErrors(fragment, "FRAGMENT");
   // if geometry shader is given, compile geometry shader
-  unsigned int geometry;
+  unsigned int geometry = ~0u;
   if (!geometry_code.empty()) {
     const char *gShaderCode = geometry_code.c_str();
     geometry = glCreateShader(GL_GEOMETRY_SHADER);
     glShaderSource(geometry, 1, &gShaderCode, NULL);
     glCompileShader(geometry);
     ret &= CheckCompileErrors(geometry, "GEOMETRY");
-
   }
   // shader Program
   ID = glCreateProgram();
   glAttachShader(ID, vertex);
   glAttachShader(ID, fragment);
   if (!geometry_code.empty()) {
-     glAttachShader(ID, geometry);
+    glAttachShader(ID, geometry);
   }
   glLinkProgram(ID);
   ret &= CheckCompileErrors(ID, "PROGRAM");

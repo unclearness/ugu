@@ -234,7 +234,151 @@ bool RendererGl::Draw(double tic) {
   return true;
 }
 
-bool RendererGl::ReadGbuffer(GBuffer& buf) { return true; }
+bool RendererGl::ReadGbuf() {
+  const bool flip_y = true;
+
+  // To read out of [0, 1] range
+  // glClampColor(GL_CLAMP_READ_COLOR, GL_FALSE);
+  //
+
+  Image4f tmp4f(m_height, m_width);
+  Image1f tmp1f(m_height, m_width);
+  Image4i tmp4i(m_height, m_width);
+
+  m_gbuf.Reset();
+
+  glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+
+  // Depth 01
+  {
+    glReadBuffer(GL_NONE);
+    glReadnPixels(0, 0, m_width, m_height, GL_DEPTH_COMPONENT, GL_FLOAT,
+                  static_cast<GLsizei>(SizeInBytes(tmp1f)), tmp1f.data);
+    tmp1f.forEach([&](float& d, const int yx[2]) {
+      int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
+      int x = yx[1];
+
+      if (d <= 0.f || 1.f <= d) {
+        m_gbuf.stencil.at<uint8_t>(y, x) = 0;
+      } else {
+        m_gbuf.stencil.at<uint8_t>(y, x) = 255;
+      }
+
+      m_gbuf.depth_01.at<float>(y, x) = std::clamp(d, 0.f, 1.f);
+    });
+  }
+
+  Eigen::Matrix3f w2c_R = m_cam->w2c().rotation().matrix().cast<float>();
+  Eigen::Vector3f w2c_t = m_cam->w2c().translation().cast<float>();
+
+  // Pos
+  {
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
+                  static_cast<GLsizei>(SizeInBytes(tmp4f)), tmp4f.data);
+    tmp4f.forEach([&](Vec4f& n, const int yx[2]) {
+      int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
+      int x = yx[1];
+      if (m_gbuf.stencil.at<uint8_t>(y, x) != 255) {
+        return;
+      }
+
+      auto& wld = m_gbuf.pos_wld.at<Vec3f>(y, x);
+      wld[0] = n[0];
+      wld[1] = n[1];
+      wld[2] = n[2];
+      auto& cam = m_gbuf.pos_cam.at<Vec3f>(y, x);
+      cam = w2c_t + (w2c_R * wld);
+    });
+  }
+
+  // Normal
+  {
+    glReadBuffer(GL_COLOR_ATTACHMENT1);
+    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
+                  static_cast<GLsizei>(SizeInBytes(tmp4f)), tmp4f.data);
+    tmp4f.forEach([&](Vec4f& n, const int yx[2]) {
+      int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
+      int x = yx[1];
+      if (m_gbuf.stencil.at<uint8_t>(y, x) != 255) {
+        return;
+      }
+      auto& wld = m_gbuf.normal_wld.at<Vec3f>(y, x);
+      wld[0] = n[0];
+      wld[1] = n[1];
+      wld[2] = n[2];
+      auto& cam = m_gbuf.normal_cam.at<Vec3f>(y, x);
+      cam = w2c_R * wld;
+    });
+  }
+
+  // Color
+  {
+    glReadBuffer(GL_COLOR_ATTACHMENT2);
+    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
+                  static_cast<GLsizei>(SizeInBytes(tmp4f)), tmp4f.data);
+    tmp4f.forEach([&](Vec4f& n, const int yx[2]) {
+      int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
+      int x = yx[1];
+      if (m_gbuf.stencil.at<uint8_t>(y, x) != 255) {
+        return;
+      }
+      auto& col = m_gbuf.color.at<Vec3b>(y, x);
+      col[0] = saturate_cast<uint8_t>(n[0] * 255);
+      col[1] = saturate_cast<uint8_t>(n[1] * 255);
+      col[2] = saturate_cast<uint8_t>(n[2] * 255);
+    });
+  }
+
+  tmp4f.setTo(0.f);
+  // Face id & geo id
+  {
+    glReadBuffer(GL_COLOR_ATTACHMENT3);
+    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
+                  static_cast<GLsizei>(SizeInBytes(tmp4f)), tmp4f.data);
+    tmp4f.forEach([&](Vec4f& val, const int yx[2]) {
+      int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
+      int x = yx[1];
+      if (m_gbuf.stencil.at<uint8_t>(y, x) != 255) {
+        return;
+      }
+      int geo_id = static_cast<int>(
+          std::round(val[1]));  // static_cast<int>(val[1] * m_geoms.size());
+      if (geo_id > 0) {
+        //  std::cout << geo_id << std::endl;
+      }
+      m_gbuf.geo_id.at<int>(y, x) = geo_id;
+      m_gbuf.face_id.at<int>(y, x) = static_cast<int>(std::round(val[0]));
+    });
+  }
+
+  tmp4f.setTo(0.f);
+  // Face id & barycenteric
+  {
+    glReadBuffer(GL_COLOR_ATTACHMENT4);
+    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
+                  static_cast<GLsizei>(SizeInBytes(tmp4f)), tmp4f.data);
+    tmp4f.forEach([&](Vec4f& val, const int yx[2]) {
+      int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
+      int x = yx[1];
+      if (m_gbuf.stencil.at<uint8_t>(y, x) != 255) {
+        return;
+      }
+      auto& bary = m_gbuf.bary.at<Vec3f>(y, x);
+      bary[0] = val[0];
+      bary[1] = val[1];
+      bary[2] = 1.f - bary[0] - bary[1];
+      auto& uv = m_gbuf.uv.at<Vec3f>(y, x);
+      uv[0] = val[2];
+      uv[1] = val[3];
+      uv[2] = 1.f - uv[0] - uv[1];
+    });
+  }
+
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  return true;
+}
 
 void RendererGl::SetCamera(const CameraPtr cam) { m_cam = cam; }
 void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans) {
@@ -263,150 +407,6 @@ void RendererGl::SetSize(uint32_t width, uint32_t height) {
   m_height = height;
 }
 
-void RendererGl::GetGbuf(GBuffer& gbuf) {
-  const bool flip_y = true;
-
-  // To read out of [0, 1] range
-  // glClampColor(GL_CLAMP_READ_COLOR, GL_FALSE);
-  //
-
-  Image4f tmp4f(m_height, m_width);
-  Image1f tmp1f(m_height, m_width);
-  Image4i tmp4i(m_height, m_width);
-
-  m_gbuf.Reset();
-
-  glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
-
-  // Depth 01
-  {
-    glReadBuffer(GL_NONE);
-    glReadnPixels(0, 0, m_width, m_height, GL_DEPTH_COMPONENT, GL_FLOAT,
-                  SizeInBytes(tmp1f), tmp1f.data);
-    tmp1f.forEach([&](float& d, const int xy[2]) {
-      int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
-      int x = xy[0];
-
-      if (d <= 0.f || 1.f <= d) {
-        m_gbuf.stencil.at<uint8_t>(y, x) = 0;
-      } else {
-        m_gbuf.stencil.at<uint8_t>(y, x) = 255;
-      }
-
-      m_gbuf.depth_01.at<float>(y, x) = std::clamp(d, 0.f, 1.f);
-    });
-  }
-
-  Eigen::Matrix3f w2c_R = m_cam->w2c().rotation().matrix().cast<float>();
-  Eigen::Vector3f w2c_t = m_cam->w2c().translation().cast<float>();
-
-  // Pos
-  {
-    glReadBuffer(GL_COLOR_ATTACHMENT0);
-    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
-                  SizeInBytes(tmp4f), tmp4f.data);
-    tmp4f.forEach([&](Vec4f& n, const int xy[2]) {
-      int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
-      int x = xy[0];
-      if (m_gbuf.stencil.at<uint8_t>(y, x) != 255) {
-        return;
-      }
-
-      auto& wld = m_gbuf.pos_wld.at<Vec3f>(y, x);
-      wld[0] = n[0];
-      wld[1] = n[1];
-      wld[2] = n[2];
-      auto& cam = m_gbuf.pos_cam.at<Vec3f>(y, x);
-      cam = w2c_t + (w2c_R * wld);
-    });
-  }
-
-  // Normal
-  {
-    glReadBuffer(GL_COLOR_ATTACHMENT1);
-    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
-                  SizeInBytes(tmp4f), tmp4f.data);
-    tmp4f.forEach([&](Vec4f& n, const int xy[2]) {
-      int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
-      int x = xy[0];
-      if (m_gbuf.stencil.at<uint8_t>(y, x) != 255) {
-        return;
-      }
-      auto& wld = m_gbuf.normal_wld.at<Vec3f>(y, x);
-      wld[0] = n[0];
-      wld[1] = n[1];
-      wld[2] = n[2];
-      auto& cam = m_gbuf.normal_cam.at<Vec3f>(y, x);
-      cam = w2c_R * wld;
-    });
-  }
-
-  // Color
-  {
-    glReadBuffer(GL_COLOR_ATTACHMENT2);
-    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
-                  SizeInBytes(tmp4f), tmp4f.data);
-    tmp4f.forEach([&](Vec4f& n, const int xy[2]) {
-      int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
-      int x = xy[0];
-      if (m_gbuf.stencil.at<uint8_t>(y, x) != 255) {
-        return;
-      }
-      auto& col = m_gbuf.color.at<Vec3b>(y, x);
-      col[0] = saturate_cast<uint8_t>(n[0] * 255);
-      col[1] = saturate_cast<uint8_t>(n[1] * 255);
-      col[2] = saturate_cast<uint8_t>(n[2] * 255);
-    });
-  }
-
-  tmp4f.setTo(0.f);
-  // Face id & geo id
-  {
-    glReadBuffer(GL_COLOR_ATTACHMENT3);
-    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
-                  SizeInBytes(tmp4f), tmp4f.data);
-    tmp4f.forEach([&](Vec4f& val, const int xy[2]) {
-      int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
-      int x = xy[0];
-      if (m_gbuf.stencil.at<uint8_t>(y, x) != 255) {
-        return;
-      }
-      int geo_id = static_cast<int>(
-          std::round(val[1]));  // static_cast<int>(val[1] * m_geoms.size());
-      if (geo_id > 0) {
-        //  std::cout << geo_id << std::endl;
-      }
-      m_gbuf.geo_id.at<int>(y, x) = geo_id;
-      m_gbuf.face_id.at<int>(y, x) = static_cast<int>(std::round(val[0]));
-    });
-  }
-
-  tmp4f.setTo(0.f);
-  // Face id & barycenteric
-  {
-    glReadBuffer(GL_COLOR_ATTACHMENT4);
-    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
-                  SizeInBytes(tmp4f), tmp4f.data);
-    tmp4f.forEach([&](Vec4f& val, const int xy[2]) {
-      int y = flip_y ? (m_height - 1 - xy[1]) : xy[1];
-      int x = xy[0];
-      if (m_gbuf.stencil.at<uint8_t>(y, x) != 255) {
-        return;
-      }
-      auto& bary = m_gbuf.bary.at<Vec3f>(y, x);
-      bary[0] = val[0];
-      bary[1] = val[1];
-      bary[2] = 1.f - bary[0] - bary[1];
-      auto& uv = m_gbuf.uv.at<Vec3f>(y, x);
-      uv[0] = val[2];
-      uv[1] = val[3];
-      uv[2] = 1.f - uv[0] - uv[1];
-    });
-  }
-
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-  gbuf = m_gbuf;
-}
+void RendererGl::GetGbuf(GBuffer& gbuf) const { gbuf = m_gbuf; }
 
 }  // namespace ugu

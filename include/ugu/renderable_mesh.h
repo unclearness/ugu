@@ -32,9 +32,9 @@ class RenderableMesh : public Mesh {
   void BindTextures();
   void SetupMesh(int geo_id);
 
-  uint32_t VAO = ~0;
-  uint32_t VBO = ~0;
-  uint32_t EBO = ~0;
+  uint32_t VAO = ~0u;
+  uint32_t VBO = ~0u;
+  uint32_t EBO = ~0u;
 
   std::vector<Vertex> renderable_vertices;
   std::vector<uint32_t> flatten_indices;

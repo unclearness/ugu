@@ -188,7 +188,7 @@ void RenderableMesh::SetupMesh(int geo_id) {
 
 void RenderableMesh::Draw(const Shader &shader) const {
   unsigned int diffuseNr = 1;
-  unsigned int specularNr = 1;
+  //unsigned int specularNr = 1;
   static unsigned int offset = 0;
   for (unsigned int i = 0; i < materials().size(); i++) {
     glActiveTexture(GL_TEXTURE0 +
@@ -209,7 +209,7 @@ void RenderableMesh::Draw(const Shader &shader) const {
 
   // draw mesh
   glBindVertexArray(VAO);
-  glDrawElements(GL_TRIANGLES, flatten_indices.size(), GL_UNSIGNED_INT, 0);
+  glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(flatten_indices.size()), GL_UNSIGNED_INT, 0);
   glBindVertexArray(0);
 
   glActiveTexture(GL_TEXTURE0);

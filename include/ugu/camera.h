@@ -737,6 +737,7 @@ inline void OrthoCamera::ray_w(int x, int y, Eigen::Vector3f* dir) const {
 
 inline Eigen::Matrix4f OrthoCamera::ProjectionMatrixOpenGl(float z_near,
                                                            float z_far) const {
+  (void)z_near, (void)z_far;
   LOGE("Not implemented\n");
   return Eigen::Matrix4f::Identity();
 }

@@ -25,7 +25,6 @@ class RendererGl {
   bool Init();
 
   bool Draw(double tic = -1.0);
-  bool ReadGbuffer(GBuffer& buf);
 
   void SetCamera(const CameraPtr cam);
   void SetMesh(RenderableMeshPtr mesh,
@@ -35,7 +34,8 @@ class RendererGl {
   void SetNearFar(float near_z, float far_z);
   void SetSize(uint32_t width, uint32_t height);
 
-  void GetGbuf(GBuffer& gbuf);
+  bool ReadGbuf();
+  void GetGbuf(GBuffer& gbuf) const;
 
  private:
   float m_near_z = 0.01f;

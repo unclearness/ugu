@@ -195,7 +195,8 @@ int main(int, char **) {
 
   renderer->SetMesh(mesh2);
 
-  renderer->SetNearFar(z_trans * 0.5f, z_trans * 2.f);
+  renderer->SetNearFar(static_cast<float>(z_trans * 0.5f),
+                       static_cast<float>(z_trans * 2.f));
 
   renderer->Init();
 
@@ -298,10 +299,10 @@ int main(int, char **) {
 #endif
 
     model_mat.block(0, 0, 3, 3) =
-        Eigen::AngleAxisf(0.03 * count, Eigen::Vector3f(0, 1, 0)).matrix();
+        Eigen::AngleAxisf(0.03f * count, Eigen::Vector3f(0, 1, 0)).matrix();
 
     model_mat_2.block(0, 0, 3, 3) =
-        Eigen::AngleAxisf(0.05 * count, Eigen::Vector3f(1, 0, 0)).matrix();
+        Eigen::AngleAxisf(0.05f * count, Eigen::Vector3f(1, 0, 0)).matrix();
 
     count++;
 
@@ -312,6 +313,7 @@ int main(int, char **) {
     renderer->Draw();
 
     if (count % 50 == 0) {
+      renderer->ReadGbuf();
       GBuffer gbuf;
       renderer->GetGbuf(gbuf);
 #if 1
