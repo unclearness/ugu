@@ -87,7 +87,7 @@ bool KdTreeNaive<Scalar, Rows>::Build() {
   if (m_data.empty()) {
     return false;
   }
-  if (Rows < 1) {
+  if constexpr (Rows < 1) {
     m_axis_num = static_cast<int>(m_data[0].rows());
   } else {
     m_axis_num = Rows;

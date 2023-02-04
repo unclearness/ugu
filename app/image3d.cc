@@ -6,11 +6,18 @@
 #include <algorithm>
 #include <iostream>
 
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
 #include "cxxopts.hpp"
-#include "ugu/mesh.h"
-#include "ugu/timer.h"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
 #include "ugu/image_io.h"
 #include "ugu/image_proc.h"
+#include "ugu/mesh.h"
+#include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/path_util.h"
@@ -23,7 +30,8 @@ void LoadMask(const std::string& path, ugu::Image1b& mask) {
     return;
   }
   auto ext = ugu::ExtractExt(path);
-  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  std::transform(ext.begin(), ext.end(), ext.begin(),
+                 [&](const char c) { return static_cast<char>(::tolower(c)); });
   if (ext != "jpg" && ext != "jpeg" && ext != "png") {
     ugu::LOGW("mask must be .jpg, .jpeg or .png but %s\n", path.c_str());
     return;
@@ -64,20 +72,33 @@ int main(int argc, char* argv[]) {
   cxxopts::Options options("image3d", "tmp");
   options.positional_help("[optional args]").show_positional_help();
 
-  options.add_options()
-                ("s,src", "Src image path (.png, .jpg, .jpeg)", cxxopts::value<std::string>())
-                ("o,out", "Output directory",cxxopts::value<std::string>()->default_value("./"))
-                ("b,base", "Output basename",cxxopts::value<std::string>()->default_value("out"))
-                ("w,width", "Output texture width",cxxopts::value<int>()->default_value("-1"))
-                ("scale_width", "Output scale of width. < 0 will be ignored and automatically calculate from scale_height",cxxopts::value<float>()->default_value("1.0"))
-                ("scale_height", "Output scale of height. < 0 will be ignored and automatically calculate from scale_width",cxxopts::value<float>()->default_value("-1.0"))
-                ("m,mask", "Foreground mask path",cxxopts::value<std::string>()->default_value(""))
-                ("gltf", "GLTF output",cxxopts::value<bool>()->default_value("false"))
-                ("t,threads", "#Threads",cxxopts::value<int>()->default_value("-1"))
-                ("v,verbose", "Verbose", cxxopts::value<bool>()->default_value("false"))
-                ("no_enlarge_tex", "Texutre scale is applied only if actual texture size is smaller than specified size", cxxopts::value<bool>()->default_value("false"))
-                ("unlit", "Unlit material", cxxopts::value<bool>()->default_value("false"))
-                ("h,help", "Print usage");
+  options.add_options()("s,src", "Src image path (.png, .jpg, .jpeg)",
+                        cxxopts::value<std::string>())(
+      "o,out", "Output directory",
+      cxxopts::value<std::string>()->default_value("./"))(
+      "b,base", "Output basename",
+      cxxopts::value<std::string>()->default_value("out"))(
+      "w,width", "Output texture width",
+      cxxopts::value<int>()->default_value("-1"))(
+      "scale_width",
+      "Output scale of width. < 0 will be ignored and automatically calculate "
+      "from scale_height",
+      cxxopts::value<float>()->default_value("1.0"))(
+      "scale_height",
+      "Output scale of height. < 0 will be ignored and automatically calculate "
+      "from scale_width",
+      cxxopts::value<float>()->default_value("-1.0"))(
+      "m,mask", "Foreground mask path",
+      cxxopts::value<std::string>()->default_value(""))(
+      "gltf", "GLTF output", cxxopts::value<bool>()->default_value("false"))(
+      "t,threads", "#Threads", cxxopts::value<int>()->default_value("-1"))(
+      "v,verbose", "Verbose", cxxopts::value<bool>()->default_value("false"))(
+      "no_enlarge_tex",
+      "Texutre scale is applied only if actual texture size is smaller than "
+      "specified size",
+      cxxopts::value<bool>()->default_value("false"))(
+      "unlit", "Unlit material",
+      cxxopts::value<bool>()->default_value("false"))("h,help", "Print usage");
 
   options.parse_positional({"src"});
 
@@ -125,7 +146,8 @@ int main(int argc, char* argv[]) {
   }
 
   auto ext = ugu::ExtractExt(src_path);
-  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  std::transform(ext.begin(), ext.end(), ext.begin(),
+                 [&](const char c) { return static_cast<char>(::tolower(c)); });
   if (ext != "jpg" && ext != "jpeg" && ext != "png") {
     ugu::LOGE("src must be .jpg, .jpeg or .png but %s\n", src_path.c_str());
     return 1;

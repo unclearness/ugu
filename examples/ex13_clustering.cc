@@ -315,13 +315,13 @@ void SegmentMeshTest() {
     std::uniform_real_distribution<float> color_dstr(0.f, 255.f);
     std::vector<Eigen::Vector3f> random_colors;
 
-    for (size_t i = 0; i < res.clusters.size(); i++) {
+    for (size_t j = 0; j < res.clusters.size(); j++) {
       ugu::MeshPtr output_mesh = ugu::Mesh::Create();
 
       // TODO: not to decompose
       std::vector<Eigen::Vector3f> vertices;
       std::vector<Eigen::Vector3i> faces;
-      for (const auto& fid : res.cluster_fids[i]) {
+      for (const auto& fid : res.cluster_fids[j]) {
         auto v0 = input_mesh->vertices()[input_mesh->vertex_indices()[fid][0]];
         auto v1 = input_mesh->vertices()[input_mesh->vertex_indices()[fid][1]];
         auto v2 = input_mesh->vertices()[input_mesh->vertex_indices()[fid][2]];
@@ -347,10 +347,10 @@ void SegmentMeshTest() {
     }
 
     ugu::MeshPtr output_mesh = ugu::Mesh::Create();
-    for (size_t i = 0; i < res.cluster_ids.size(); i++) {
-      auto id = res.cluster_ids[i];
+    for (size_t j = 0; j < res.cluster_ids.size(); j++) {
+      auto id = res.cluster_ids[j];
       if (id > 1000) {
-        ugu::LOGI("%d %d\n", i, id);
+        ugu::LOGI("%d %d\n", j, id);
       }
     }
 
@@ -359,12 +359,12 @@ void SegmentMeshTest() {
                    std::back_inserter(material_ids),
                    [&](uint32_t cid) { return int(cid); });
     std::vector<ugu::ObjMaterial> materials;
-    for (size_t i = 0; i < res.clusters.size(); i++) {
+    for (size_t j = 0; j < res.clusters.size(); j++) {
       ugu::ObjMaterial mat;
-      mat.name = "mat_" + std::to_string(i);
-      mat.diffuse[0] = random_colors[i][0] / 255.f;
-      mat.diffuse[1] = random_colors[i][1] / 255.f;
-      mat.diffuse[2] = random_colors[i][2] / 255.f;
+      mat.name = "mat_" + std::to_string(j);
+      mat.diffuse[0] = random_colors[j][0] / 255.f;
+      mat.diffuse[1] = random_colors[j][1] / 255.f;
+      mat.diffuse[2] = random_colors[j][2] / 255.f;
       materials.push_back(mat);
     };
 

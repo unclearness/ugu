@@ -5,9 +5,6 @@
 
 #include "ugu/optimizer/optimizer.h"
 
-#include <Eigen/LU>
-#include <iostream>
-
 namespace {
 
 using UpdateFunc = std::function<void(const ugu::OptimizerInput& in,
@@ -43,7 +40,7 @@ double LineSearch(const ugu::GradVec& update_direc,
 
   throw std::invalid_argument("This type is not implemented");
 
-  //return 0.0;
+  // return 0.0;
 }
 
 void LoopBody(const ugu::OptimizerInput& input, ugu::OptimizerOutput& output,

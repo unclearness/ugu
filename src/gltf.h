@@ -7,7 +7,14 @@
 #include <iomanip>
 #include <unordered_map>
 
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
 #include "nlohmann/json.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
 #include "ugu/mesh.h"
 
 namespace ugu {
@@ -377,6 +384,8 @@ void MakeGltfBinAndUpdateModel(
     std::map<float, AnimKeyframe> keyframes, AnimInterp anim_interp,
     Model& model, std::vector<std::uint8_t>& combined_bytes,
     bool process_glb_images = true) {
+  (void)anim_interp;
+
   uint32_t org_total_size = static_cast<uint32_t>(combined_bytes.size());
   uint32_t total_size = org_total_size;
   uint32_t org_num_accs = static_cast<uint32_t>(model.accessors.size());
@@ -506,7 +515,7 @@ void MakeGltfBinAndUpdateModel(
       model.animations.resize(1);
     }
 
-      // TODO
+    // TODO
     /* DANGER static */
     static int anim_node_count = 0;
 
@@ -568,9 +577,8 @@ void MakeGltfBinAndUpdateModel(
       gltf::Channel channel;
       channel.sampler = static_cast<int>(model.animations[0].samplers.size());
 
-
       channel.target.node = anim_node_count;
-      //anim_node_count++;
+      // anim_node_count++;
       channel.target.path = "scale";
 
       gltf::Sampler sampler;
@@ -579,10 +587,7 @@ void MakeGltfBinAndUpdateModel(
       sampler.interpolation = "STEP";
       model.animations[0].channels.push_back(channel);
       model.animations[0].samplers.push_back(sampler);
-
     }
-
-
 
     // Translation
     {
@@ -652,9 +657,7 @@ void MakeGltfBinAndUpdateModel(
       model.animations[0].samplers.push_back(sampler);
     }
 
-      anim_node_count++;
-
-
+    anim_node_count++;
   }
 
   if (is_glb) {

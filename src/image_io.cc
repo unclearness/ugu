@@ -109,7 +109,7 @@ bool WritePng(const ImageBase& img, const std::string& path) {
   }
 
   int ret = stbi_write_png(path.c_str(), img.cols, img.rows, cv_ch, img.data,
-                           img.cols * img.elemSize());
+                           static_cast<int>(img.cols * img.elemSize()));
   return ret != 0;
 }
 

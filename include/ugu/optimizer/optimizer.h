@@ -9,8 +9,16 @@
 #include <stdexcept>
 #include <vector>
 
+#include "ugu/common.h"
+
+#ifdef _WIN32
+#pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
+#endif
 #include "Eigen/Core"
-#include "Eigen/Sparse"
+#include "Eigen/SparseCore"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 namespace ugu {
 

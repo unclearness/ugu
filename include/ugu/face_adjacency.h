@@ -11,12 +11,20 @@
 #include <unordered_set>
 #include <vector>
 
+#include "ugu/common.h"
+
 #define UGU_FACE_ADJACENCY_USE_SPARSE_MAT
 
+#ifdef _WIN32
+#pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
+#endif
 #ifdef UGU_FACE_ADJACENCY_USE_SPARSE_MAT
 #include "Eigen/SparseCore"
 #else
 #include "Eigen/Core"
+#endif
+#ifdef _WIN32
+#pragma warning(pop)
 #endif
 
 namespace ugu {
@@ -27,7 +35,7 @@ class FaceAdjacency {
  private:
   // https://qiita.com/shinjiogaki/items/d16abb018a843c09b8c8
   std::vector<Eigen::Vector3i> vertex_indices_;
-  int num_vertices_;
+  int num_vertices_ = 0;
 
  public:
 #ifdef UGU_FACE_ADJACENCY_USE_SPARSE_MAT

@@ -52,8 +52,14 @@ message("EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR}")
 endif()
 set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
 if (WIN32)
-  # suppress C2338 for eigen
-  set(Ugu_DEFINES ${Ugu_DEFINES} _ENABLE_EXTENDED_ALIGNED_STORAGE)
+  message("MSVC_VERSION: ${MSVC_VERSION}")
+  message("MSVC_TOOLSET_VERSION: ${MSVC_TOOLSET_VERSION}")
+  # If MSVC is 2017 or older (142 -> 2019)
+  if (${MSVC_TOOLSET_VERSION} LESS 142)
+    # suppress C2338 for eigen
+    message(Update Eigen settig because MSVC is older than 2019)
+    set(Ugu_DEFINES ${Ugu_DEFINES} _ENABLE_EXTENDED_ALIGNED_STORAGE)
+  endif()
 endif()
 
 ########################################################################
@@ -144,6 +150,12 @@ if(UGU_USE_LODEPNG)
       ${LODEPNG_INSTALL_DIR}/lodepng.cpp
       ${LODEPNG_INSTALL_DIR}/lodepng.h)
       set(Ugu_LIBS ${Ugu_LIBS} lodepng)
+      # Suppress som warnings...
+      if (WIN32)
+        target_compile_options(lodepng
+          PUBLIC "/W1"
+        )
+       endif()
   else()
    set(UGU_LODEPNG_SOURCES
       ${LODEPNG_INSTALL_DIR}/lodepng.cpp
@@ -347,6 +359,9 @@ set(
   include/ugu/textrans/texture_transfer.h
   src/textrans/texture_transfer.cc
 
+  include/ugu/superpixel/superpixel.h
+  src/superpixel/superpixel.cc
+
   include/ugu/accel/kdtree.h
   include/ugu/accel/kdtree_base.h
   include/ugu/accel/kdtree_naive.h
@@ -466,6 +481,7 @@ if (UGU_BUILD_EXAMPLES)
   setup_exe(ex22_line examples/ex22_line.cc)
   setup_exe(ex23_rigid examples/ex23_rigid.cc)
   setup_exe(ex24_nonrigid examples/ex24_nonrigid.cc)
+  setup_exe(ex25_superpixel examples/ex25_superpixel.cc)
 endif()
 
 if (UGU_BUILD_APP)

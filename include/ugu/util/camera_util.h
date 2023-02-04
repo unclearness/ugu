@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "Eigen/Geometry"
+#include "ugu/common.h"
 
 namespace ugu {
 void WriteTumFormat(const std::vector<Eigen::Affine3d>& poses,

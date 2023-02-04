@@ -5,7 +5,14 @@
 
 #pragma once
 
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
 #include "Eigen/Core"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
 #include <functional>
 
 static_assert(3 <= EIGEN_WORLD_VERSION);

@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include "Eigen/Core"
 #include "ugu/common.h"
 #include "ugu/line.h"
 

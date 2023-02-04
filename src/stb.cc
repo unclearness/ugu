@@ -70,8 +70,8 @@ STBIDEF unsigned char *stbi_xload_file(char const *filename, int *x, int *y,
   FILE *f;
   stbi__context s;
   unsigned char *result = 0;
-
-  if (!(f = stbi__fopen(filename, "rb"))) {
+  f = stbi__fopen(filename, "rb");
+  if (!f) {
     return stbi__errpuc("can't fopen", "Unable to open file");
   }
 

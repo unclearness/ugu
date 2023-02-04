@@ -9,8 +9,14 @@
 #include <stdexcept>
 #include <unordered_set>
 
-#include "Eigen/Core"
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
 #include "nanoflann.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
 #include "ugu/accel/kdtree_base.h"
 
 namespace ugu {
@@ -88,7 +94,7 @@ class KdTreeNanoflannVector : public KdTree<Scalar, Rows> {
         : m_data(mat) {
       assert(mat.size() != 0 && mat[0].size() != 0);
       const size_t dims = mat[0].size();
-      if (DIM > 0 && static_cast<int>(dims) != DIM)
+      if constexpr (DIM > 0 && static_cast<int>(dims) != DIM)
         throw std::runtime_error(
             "Data set dimensionality does not match the 'DIM' template "
             "argument");

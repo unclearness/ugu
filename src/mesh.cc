@@ -18,7 +18,13 @@
 #include "ugu/util/string_util.h"
 
 #ifdef UGU_USE_TINYOBJLOADER
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
 #include "tiny_obj_loader.h"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 namespace {
@@ -1450,12 +1456,12 @@ bool Mesh::AnimatedShape(float frame, std::vector<Eigen::Vector3f>& anim_verts,
 
   // Find lower and upper keyframes
   if (lesseq_iter == keyframes_.end()) {
-    lower_fn = upper_fn = (*(--lesseq_iter)).first;
+    lower_fn = upper_fn = static_cast<uint32_t>((*(--lesseq_iter)).first);
   } else if (next_iter == keyframes_.end()) {
-    lower_fn = upper_fn = (*(lesseq_iter)).first;
+    lower_fn = upper_fn = static_cast<uint32_t>((*(lesseq_iter)).first);
   } else {
-    lower_fn = lesseq_iter->first;
-    upper_fn = next_iter->first;
+    lower_fn = static_cast<uint32_t>(lesseq_iter->first);
+    upper_fn = static_cast<uint32_t>(next_iter->first);
   }
 
   // Calc weights for the lower and upper keyframes
@@ -1478,8 +1484,8 @@ bool Mesh::AnimatedShape(float frame, std::vector<Eigen::Vector3f>& anim_verts,
     }
   }
 
-  const AnimKeyframe& lower_kf = keyframes_[lower_fn];
-  const AnimKeyframe& upper_kf = keyframes_[upper_fn];
+  const AnimKeyframe& lower_kf = keyframes_[static_cast<float>(lower_fn)];
+  const AnimKeyframe& upper_kf = keyframes_[static_cast<float>(upper_fn)];
 
   // TODO
   if (!(lower_kf.valid() && upper_kf.valid())) {
@@ -1894,8 +1900,8 @@ bool WriteGlb(Scene& scene, const std::string& glb_dir,
       model.images.push_back(image);
     }
 
-    std::string bin_name = glb_name + ".bin";
-    MakeGltfBinAndUpdateModel(*mesh, bin_name, true, model, bin_all, false);
+    std::string bin_name_ = glb_name + ".bin";
+    MakeGltfBinAndUpdateModel(*mesh, bin_name_, true, model, bin_all, false);
   }
 
   uint32_t num_bv = static_cast<uint32_t>(model.bufferViews.size());

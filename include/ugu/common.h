@@ -13,12 +13,28 @@
 #include <limits>
 #include <string>
 
+#define UGU_EIGEN_WARNING_LEVEL 0
+#define UGU_OPENCV_WARNING_LEVEL 0
+
+#ifdef _WIN32
+#pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
+#endif
 #include "Eigen/Geometry"
 #include "ugu/eigen_util.h"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
 #include "ugu/log.h"
 
 #ifdef UGU_USE_OPENCV
+#ifdef _WIN32
+#pragma warning(push, UGU_OPENCV_WARNING_LEVEL)
+#endif
 #include "opencv2/core.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 #define UGU_FLOATING_POINT_ONLY_TEMPLATE                              \

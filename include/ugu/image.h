@@ -18,17 +18,35 @@
 #include "ugu/util/thread_util.h"
 
 #if defined(UGU_USE_STB) && !defined(UGU_USE_OPENCV)
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
 #include "stb_image.h"
 #include "stb_image_resize.h"
 #include "stb_image_write.h"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 #if defined(UGU_USE_LODEPNG) && !defined(UGU_USE_OPENCV)
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
 #include "lodepng.h"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 #ifdef UGU_USE_OPENCV
+#ifdef _WIN32
+#pragma warning(push, UGU_OPENCV_WARNING_LEVEL)
+#endif
 #include "opencv2/core.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 namespace ugu {
@@ -60,6 +78,7 @@ using Vec4b = cv::Vec4b;
 using Size = cv::Size;
 
 using cv::noArray;
+using cv::norm;
 
 template <typename T, typename TT>
 inline void Init(Image<T>* image, int width, int height, TT val) {
@@ -584,17 +603,7 @@ class ImageBase {
 
   template <typename TT>
   void forEach(std::function<void(const TT&, const int[2])> f) const {
-    if (empty()) {
-      return;
-    }
-    size_t st(0);
-    size_t ed = static_cast<size_t>(cols * rows * bit_depth_ / sizeof(TT));
-    auto f2 = [&](const size_t& i) {
-      const int xy[2] = {static_cast<int32_t>(i) % cols,
-                         static_cast<int32_t>(i) / cols};
-      f(reinterpret_cast<TT*>(data)[i], xy);
-    };
-    parallel_for(st, ed, f2);
+    const_cast<ImageBase*>(this)->forEach(f);
   }
 
   template <typename TT>
@@ -604,10 +613,12 @@ class ImageBase {
     }
     size_t st(0);
     size_t ed = static_cast<size_t>(cols * rows * bit_depth_ / sizeof(TT));
+    // OpenCV's position parameter is [row (y), col (x)]
+    // https://github.com/opencv/opencv/blob/17234f82d025e3bbfbf611089637e5aa2038e7b8/modules/core/include/opencv2/core/utility.hpp#L700
     auto f2 = [&](const size_t& i) {
-      const int xy[2] = {static_cast<int32_t>(i) % cols,
-                         static_cast<int32_t>(i) / cols};
-      f(reinterpret_cast<TT*>(data)[i], xy);
+      const int yx[2] = {static_cast<int32_t>(i) / cols,
+                         static_cast<int32_t>(i) % cols};
+      f(reinterpret_cast<TT*>(data)[i], yx);
     };
     parallel_for(st, ed, f2);
   }
@@ -620,8 +631,16 @@ class ImageBase {
     *(reinterpret_cast<type*>(data_->data()) + i) = static_cast<type>(rhs); \
   }
 #else
-#define UGU_FILL_CAST(type) \
-  std::fill(data_->begin(), data_->end(), static_cast<type>(rhs));
+#define UGU_FILL_CAST(type)                             \
+  for (int y = 0; y < rows; y++) {                      \
+    for (int x = 0; x < cols; x++) {                    \
+      for (int c = 0; c < channels(); c++) {            \
+        int index = (x + y * cols) * channels() + c;    \
+        reinterpret_cast<type*>(data_->data())[index] = \
+            static_cast<type>(rhs);                     \
+      }                                                 \
+    }                                                   \
+  }
 #endif
 
     if (*cpp_type == typeid(uint8_t)) {
@@ -830,17 +849,7 @@ class Image : public ImageBase {
   }
 
   void forEach(std::function<void(const T&, const int[2])> f) const {
-    if (empty()) {
-      return;
-    }
-    size_t st(0);
-    size_t ed = static_cast<size_t>(cols * rows);
-    auto f2 = [&](const size_t& i) {
-      const int xy[2] = {static_cast<int32_t>(i) % cols,
-                         static_cast<int32_t>(i) / cols};
-      f(reinterpret_cast<T*>(data)[i], xy);
-    };
-    parallel_for(st, ed, f2);
+    const_cast<Image<T>*>(this)->forEach(f);
   }
 
   void forEach(std::function<void(T&, const int[2])> f) {
@@ -850,9 +859,9 @@ class Image : public ImageBase {
     size_t st(0);
     size_t ed = static_cast<size_t>(cols * rows);
     auto f2 = [&](const size_t& i) {
-      const int xy[2] = {static_cast<int32_t>(i) % cols,
-                         static_cast<int32_t>(i) / cols};
-      f(reinterpret_cast<T*>(data)[i], xy);
+      const int yx[2] = {static_cast<int32_t>(i) / cols,
+                         static_cast<int32_t>(i) % cols};
+      f(reinterpret_cast<T*>(data)[i], yx);
     };
     parallel_for(st, ed, f2);
   }

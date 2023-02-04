@@ -10,7 +10,16 @@
 #include <memory>
 #include <thread>
 
+#include "ugu/common.h"
+
+#ifdef _WIN32
+#pragma warning(push, UGU_OPENCV_WARNING_LEVEL)
+#endif
 #include "opencv2/highgui.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
 #include "ugu/renderer/rasterizer.h"
 #include "ugu/renderer/raytracer.h"
 #include "ugu/timer.h"

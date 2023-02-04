@@ -9,7 +9,14 @@
 
 #include <memory>
 
+#ifdef _WIN32
+#pragma warning(push, 0)
+#endif
 #include "nanort.h"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
 #include "ugu/accel/bvh_base.h"
 
 namespace ugu {

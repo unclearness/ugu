@@ -7,9 +7,16 @@
 
 #include "ugu/image.h"
 #include "ugu/point.h"
+#include "ugu/rect.h"
 
 #ifdef UGU_USE_OPENCV
+#ifdef _WIN32
+#pragma warning(push, UGU_OPENCV_WARNING_LEVEL)
+#endif
 #include "opencv2/imgproc.hpp"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 
 namespace ugu {
@@ -36,6 +43,8 @@ using cv::ColorConversionCodes;
 
 using cv::cvtColor;
 
+using cv::addWeighted;
+using cv::boundingRect;
 using cv::circle;
 using cv::line;
 using cv::meanStdDev;
@@ -76,6 +85,8 @@ void meanStdDev(InputArray src, Vec_<double, m>& mean, Vec_<double, m>& stddev,
   std::memcpy(mean.val, mean_.data, sizeof(double) * mean.channels);
   std::memcpy(stddev.val, stddev_.data, sizeof(double) * stddev.channels);
 }
+void addWeighted(InputArray src1, double alpha, InputArray src2, double beta,
+                 double gamma, OutputArray dst, int dtype = -1);
 
 enum ColorConversionCodes {
   COLOR_BGR2BGRA = 0,  //!< add alpha channel to RGB or BGR image
