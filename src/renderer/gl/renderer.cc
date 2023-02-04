@@ -252,8 +252,10 @@ bool RendererGl::ReadGbuf() {
   // Depth 01
   {
     glReadBuffer(GL_NONE);
-    glReadnPixels(0, 0, m_width, m_height, GL_DEPTH_COMPONENT, GL_FLOAT,
-                  static_cast<GLsizei>(SizeInBytes(tmp1f)), tmp1f.data);
+    // glRead"n"Pixels() is valid only if OpenGL4.5 (2017) or later
+    // glReadPixels() has been supported from long years ago
+    glReadPixels(0, 0, m_width, m_height, GL_DEPTH_COMPONENT, GL_FLOAT,
+                 tmp1f.data);
     tmp1f.forEach([&](float& d, const int yx[2]) {
       int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
       int x = yx[1];
@@ -274,8 +276,7 @@ bool RendererGl::ReadGbuf() {
   // Pos
   {
     glReadBuffer(GL_COLOR_ATTACHMENT0);
-    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
-                  static_cast<GLsizei>(SizeInBytes(tmp4f)), tmp4f.data);
+    glReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT, tmp4f.data);
     tmp4f.forEach([&](Vec4f& n, const int yx[2]) {
       int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
       int x = yx[1];
@@ -295,8 +296,7 @@ bool RendererGl::ReadGbuf() {
   // Normal
   {
     glReadBuffer(GL_COLOR_ATTACHMENT1);
-    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
-                  static_cast<GLsizei>(SizeInBytes(tmp4f)), tmp4f.data);
+    glReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT, tmp4f.data);
     tmp4f.forEach([&](Vec4f& n, const int yx[2]) {
       int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
       int x = yx[1];
@@ -315,8 +315,7 @@ bool RendererGl::ReadGbuf() {
   // Color
   {
     glReadBuffer(GL_COLOR_ATTACHMENT2);
-    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
-                  static_cast<GLsizei>(SizeInBytes(tmp4f)), tmp4f.data);
+    glReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT, tmp4f.data);
     tmp4f.forEach([&](Vec4f& n, const int yx[2]) {
       int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
       int x = yx[1];
@@ -334,8 +333,7 @@ bool RendererGl::ReadGbuf() {
   // Face id & geo id
   {
     glReadBuffer(GL_COLOR_ATTACHMENT3);
-    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
-                  static_cast<GLsizei>(SizeInBytes(tmp4f)), tmp4f.data);
+    glReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT, tmp4f.data);
     tmp4f.forEach([&](Vec4f& val, const int yx[2]) {
       int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
       int x = yx[1];
@@ -356,8 +354,7 @@ bool RendererGl::ReadGbuf() {
   // Face id & barycenteric
   {
     glReadBuffer(GL_COLOR_ATTACHMENT4);
-    glReadnPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT,
-                  static_cast<GLsizei>(SizeInBytes(tmp4f)), tmp4f.data);
+    glReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_FLOAT, tmp4f.data);
     tmp4f.forEach([&](Vec4f& val, const int yx[2]) {
       int y = flip_y ? (m_height - 1 - yx[0]) : yx[0];
       int x = yx[1];

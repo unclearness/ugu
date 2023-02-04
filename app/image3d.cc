@@ -158,17 +158,17 @@ int main(int argc, char* argv[]) {
   ugu::Image1b mask;
   int w = -1;
   int h = -1;
-  int c = -1;
+  //int c = -1;
   if (ext == "png") {
     image = ugu::Imread<ugu::Image3b>(src_path);
     w = image.cols;
     h = image.rows;
-    c = image.channels();
+    //c = image.channels();
     if (image.empty()) {
       alpha_image = ugu::Imread<ugu::Image4b>(src_path);
       w = alpha_image.cols;
       h = alpha_image.rows;
-      c = alpha_image.channels();
+      //c = alpha_image.channels();
     }
     if (image.empty() && alpha_image.empty()) {
       ugu::Image1b gray_image = ugu::Imread<ugu::Image1b>(src_path);
@@ -176,21 +176,21 @@ int main(int argc, char* argv[]) {
         image = ugu::Merge(gray_image, gray_image, gray_image);
         w = image.cols;
         h = image.rows;
-        c = image.channels();
+        //c = image.channels();
       }
     }
   } else {
     image = ugu::Imread<ugu::Image3b>(src_path);
     w = image.cols;
     h = image.rows;
-    c = image.channels();
+    //c = image.channels();
     if (image.empty()) {
       ugu::Image1b gray_image = ugu::Imread<ugu::Image1b>(src_path);
       if (!gray_image.empty()) {
         image = ugu::Merge(gray_image, gray_image, gray_image);
         w = image.cols;
         h = image.rows;
-        c = image.channels();
+        //c = image.channels();
       }
     }
   }

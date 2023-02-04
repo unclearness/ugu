@@ -64,12 +64,25 @@ int main(int, char **) {
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
 #else
-  // GL 3.0 + GLSL 130
-  const char *glsl_version = "#version 130";
+
+#if 0
+  const char *glsl_version = "#version 450";
+
+  // Upgrade WSL's OpenGL to 4.5
+  // https://zenn.dev/suudai/articles/a25e3ed0a944c7
+
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#else
+
+  const char *glsl_version = "#version 330";
+
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-  // glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+
-  // only glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // 3.0+ only
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#endif
+
 #endif
 
   int width = 1280 / 2;
@@ -193,7 +206,7 @@ int main(int, char **) {
   renderer->SetCamera(camera);
   renderer->SetMesh(mesh);
 
-  renderer->SetMesh(mesh2);
+  // renderer->SetMesh(mesh2);
 
   renderer->SetNearFar(static_cast<float>(z_trans * 0.5f),
                        static_cast<float>(z_trans * 2.f));
@@ -308,11 +321,11 @@ int main(int, char **) {
 
     renderer->SetMesh(mesh, Eigen::Affine3f(model_mat));
 
-    renderer->SetMesh(mesh2, Eigen::Affine3f(model_mat_2));
+    // renderer->SetMesh(mesh2, Eigen::Affine3f(model_mat_2));
 
     renderer->Draw();
 
-    if (count % 50 == 0) {
+    if (count > 1 && count % 50 == 0) {
       renderer->ReadGbuf();
       GBuffer gbuf;
       renderer->GetGbuf(gbuf);

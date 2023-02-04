@@ -14,7 +14,7 @@ UGU_FLOATING_POINT_ONLY_TEMPLATE
 struct Plane {
   // nx + d = 0
   Eigen::Matrix<T, 3, 1> n;
-  T d;
+  T d = static_cast<T>(0);
   Plane(){};
   ~Plane(){};
   Plane(const Eigen::Matrix<T, 3, 1>& n, T d) : n(n.normalized()), d(d) {}

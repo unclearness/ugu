@@ -64,7 +64,8 @@ void main() {
     specular *= attenuation;
     lighting += diffuse + specular;
   }
-  FragColor = vec4((Id.y * 3) * 0.2, 0.5, 0.6, 1.0);
+  //FragColor = vec4((Id.y * 3) * 0.2, 0.5, 0.6, 1.0);
+  FragColor = vec4(Diffuse, 1);
   //FragColor = vec4(lighting, 1.0);
 })";
 static inline std::string frag_gbuf_code =

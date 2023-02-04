@@ -1063,7 +1063,7 @@ std::pair<std::vector<Image4b>, std::vector<int>> LoadGif(
     return {{}, {}};
   }
 
-  assert(frames == delays.size());
+  assert(static_cast<size_t>(frames) == delays.size());
 
   images.resize(frames);
 

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 
 set(PROJECT_NAME ugu)
-project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.0.1 DESCRIPTION "UGU: Unclearness Geometry Utility")
+project(${PROJECT_NAME} LANGUAGES CXX C VERSION 0.0.1 DESCRIPTION "UGU: Unclearness Geometry Utility")
 
 set(CMAKE_VERBOSE_MAKEFILE TRUE)
 
