@@ -38,9 +38,126 @@
 #include <windows.h>  // so APIENTRY gets defined and GLFW doesn't define it
 #endif
 
+namespace {
+
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
+#if 0
+static void mouse_callback(GLFWwindow *window, int button, int action,
+                           int mods) {
+  bool lbutton_down = false;
+  if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    if (GLFW_PRESS == action)
+      lbutton_down = true;
+    else if (GLFW_RELEASE == action)
+      lbutton_down = false;
+  }
+
+  if (lbutton_down) {
+    // do your drag here
+    std::cout << "press" << std::endl;
+  } else {
+    std::cout << "release" << std::endl;
+  }
+}
+#endif
+
+void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
+                  int mods) {
+  if (key == GLFW_KEY_UP && action == GLFW_PRESS) {
+    printf("key up\n");
+  }
+  if (key == GLFW_KEY_DOWN && action == GLFW_PRESS) {
+    printf("key down\n");
+  }
+  if (key == GLFW_KEY_LEFT && action == GLFW_PRESS) {
+    printf("key left\n");
+  }
+  if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS) {
+    printf("key right\n");
+  }
+
+  if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z) {
+    if (action == GLFW_PRESS) {
+      const char *key_name = glfwGetKeyName(key, 0);
+      printf("key - %s\n", key_name);
+    }
+  }
+}
+
+Eigen::Vector2d g_prev_cursor_pos;
+Eigen::Vector2d g_cursor_pos;
+Eigen::Vector2d g_mouse_l_pressed_pos;
+Eigen::Vector2d g_mouse_l_released_pos;
+// Eigen::Vector3d g_center;
+ugu::MeshStats g_stats;
+ugu::CameraPtr camera;
+bool g_to_process_drag = false;
+
+bool g_prev_mouse_l_pressed = false;
+bool g_mouse_l_pressed = false;
+const double drag_th = 2.0;
+
+double g_mouse_wheel_yoffset = 0.0;
+bool g_to_process_wheel = false;
+
+void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
+  if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    // printf("L - down\n");
+    g_prev_mouse_l_pressed = g_mouse_l_pressed;
+    g_mouse_l_pressed = action == GLFW_PRESS;
+    if (g_mouse_l_pressed) {
+      g_mouse_l_pressed_pos = g_cursor_pos;
+    } else {
+      g_mouse_l_released_pos = g_cursor_pos;
+
+      if ((g_mouse_l_pressed_pos - g_mouse_l_released_pos).norm() > drag_th) {
+        std::cout << "drag finish " << g_mouse_l_pressed_pos << " -> "
+                  << g_mouse_l_released_pos << std::endl;
+      }
+    }
+  }
+  if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+    // printf("R - down\n");
+  }
+  if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS) {
+    //  printf("M - down\n");
+  }
+}
+
+void mouse_wheel_callback(GLFWwindow *window, double xoffset, double yoffset) {
+  if (yoffset < 0) {
+    // printf("wheel down \n");
+  }
+  if (yoffset > 0) {
+    // printf("wheel up \n");
+  }
+
+  g_mouse_wheel_yoffset = yoffset;
+  g_to_process_wheel = true;
+}
+
+void cursor_pos_callback(GLFWwindow *window, double xoffset, double yoffset) {
+  // std::cout << "pos: " << xoffset << ", " << yoffset << std::endl;
+  g_prev_cursor_pos = g_cursor_pos;
+
+  g_cursor_pos[0] = xoffset;
+  g_cursor_pos[1] = yoffset;
+  if (g_mouse_l_pressed) {
+    // std::cout << "dragging..." << std::endl;
+    g_to_process_drag = true;
+  }
+}
+
+void drop_callback(GLFWwindow *window, int count, const char **paths) {
+  int i;
+  for (i = 0; i < count; i++) {
+    std::cout << paths[i] << std::endl;
+  }
+}
+
+}  // namespace
 
 using namespace ugu;
 
@@ -88,11 +205,21 @@ int main(int, char **) {
   int width = 1280 / 2;
   int height = 720 / 2;
   // Create window with graphics context
-  GLFWwindow *window = glfwCreateWindow(
-      width, height, "UGU Mesh Viewer", NULL, NULL);
+  GLFWwindow *window =
+      glfwCreateWindow(width, height, "UGU Mesh Viewer", NULL, NULL);
   if (window == NULL) return 1;
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);  // Enable vsync
+
+  glfwSetCursorPosCallback(window, cursor_pos_callback);
+
+  glfwSetKeyCallback(window, key_callback);
+
+  glfwSetMouseButtonCallback(window, mouse_button_callback);
+
+  glfwSetScrollCallback(window, mouse_wheel_callback);
+
+  glfwSetDropCallback(window, drop_callback);
 
   // Setup Dear ImGui context
   IMGUI_CHECKVERSION();
@@ -182,7 +309,7 @@ int main(int, char **) {
   // int modelLoc = glGetUniformLocation(shader.ID, "model");
   // glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model_mat.data());
 
-  CameraPtr camera = std::make_shared<PinholeCamera>(width, height, 45.f);
+  camera = std::make_shared<PinholeCamera>(width, height, 45.f);
   Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
   double z_trans = bb_len.maxCoeff() * 3;
   c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
@@ -208,12 +335,14 @@ int main(int, char **) {
 
   renderer->SetMesh(mesh2);
 
-  renderer->SetNearFar(static_cast<float>(z_trans * 0.5f),
-                       static_cast<float>(z_trans * 2.f));
+  renderer->SetNearFar(static_cast<float>(z_trans * 0.5f / 10),
+                       static_cast<float>(z_trans * 2.f * 10));
 
   renderer->Init();
 
   // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+  g_stats = mesh->stats();
 
   int count = 0;
   // Main loop
@@ -276,7 +405,6 @@ int main(int, char **) {
                   1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
       ImGui::End();
     }
-
     // 3. Show another simple window.
     if (show_another_window) {
       ImGui::Begin(
@@ -311,21 +439,82 @@ int main(int, char **) {
     }
 #endif
 
+#if 0
     model_mat.block(0, 0, 3, 3) =
         Eigen::AngleAxisf(0.03f * count, Eigen::Vector3f(0, 1, 0)).matrix();
 
     model_mat_2.block(0, 0, 3, 3) =
         Eigen::AngleAxisf(0.05f * count, Eigen::Vector3f(1, 0, 0)).matrix();
 
-    count++;
+
 
     renderer->SetMesh(mesh, Eigen::Affine3f(model_mat));
 
     renderer->SetMesh(mesh2, Eigen::Affine3f(model_mat_2));
+#endif
+
+    count++;
 
     renderer->Draw();
 
-    if (count > 1 && count % 50 == 0) {
+    if (g_mouse_l_pressed && g_to_process_drag) {
+      g_to_process_drag = false;
+      Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
+      // std::cout << g_prev_cursor_pos << " -> " << g_cursor_pos << std::endl;
+      if (diff.norm() > drag_th) {
+        const double rotate_speed = ugu::pi / 180 * 10;
+
+        Eigen::Affine3d cam_pose_cur = camera->c2w();
+        Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
+
+        Eigen::Vector3d right_axis = -R_cur.col(0);
+        Eigen::Vector3d up_axis = -R_cur.col(1);
+
+        // Eigen::Matrix3d R_new =
+        //     Eigen::AngleAxisd(2 * ugu::pi * diff[0], right_axis) *
+        //     Eigen::AngleAxisd(2 * ugu::pi * diff[1], up_axis) * R_cur;
+
+        Eigen::Quaterniond R_offset =
+            Eigen::AngleAxisd(2 * ugu::pi * diff[0] / height * rotate_speed,
+                              up_axis) *
+            Eigen::AngleAxisd(2 * ugu::pi * diff[1] / height * rotate_speed,
+                              right_axis);
+
+        Eigen::Affine3d cam_pose_new = R_offset * cam_pose_cur;
+
+        camera->set_c2w(cam_pose_new);
+
+        // std::cout << cam_pose_cur.translation() << " -> "
+        //           << cam_pose_new.translation() << std::endl;
+
+#if 0
+      rotateDelta.subVectors(rotateEnd, rotateStart)
+          .multiplyScalar(scope.rotateSpeed);
+      const element = scope.domElement;
+      rotateLeft(2 * Math.PI * rotateDelta.x /
+                 element.clientHeight);  // yes, height
+
+      rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
+      rotateStart.copy(rotateEnd);
+#endif
+      }
+    }
+    if (g_to_process_wheel) {
+      g_to_process_wheel = false;
+      const double wheel_speed =
+          (g_stats.bb_max - g_stats.bb_min).maxCoeff() / 20;
+
+      Eigen::Affine3d cam_pose_cur = camera->c2w();
+      Eigen::Vector3d t_offset =
+          cam_pose_cur.rotation().col(2) * -g_mouse_wheel_yoffset * wheel_speed;
+      std::cout << t_offset << std::endl;
+      Eigen::Affine3d cam_pose_new =
+          Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
+          cam_pose_cur.rotation();
+      camera->set_c2w(cam_pose_new);
+    }
+
+    if (false && count > 1 && count % 50 == 0) {
       renderer->ReadGbuf();
       GBuffer gbuf;
       renderer->GetGbuf(gbuf);
