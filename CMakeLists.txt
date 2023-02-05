@@ -23,6 +23,9 @@ if (WIN32)
 # "However, for a new project, it may be best to use /W4 in all compilations;
 # this will ensure the fewest possible hard-to-find code defects."
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /EHsc /MP /bigobj")
+
+add_definitions(-DNOMINMAX)
+
 else()
 # g++/clang option for *nix
 set(CMAKE_CXX_EXTENSIONS OFF) #Set this to ON if you want to use GNU++

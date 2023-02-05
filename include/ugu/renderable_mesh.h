@@ -31,6 +31,7 @@ class RenderableMesh : public Mesh {
 
   void BindTextures();
   void SetupMesh(int geo_id);
+  void ClearGlState() const;
 
   uint32_t VAO = ~0u;
   uint32_t VBO = ~0u;

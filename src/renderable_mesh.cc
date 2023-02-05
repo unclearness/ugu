@@ -187,6 +187,14 @@ void RenderableMesh::SetupMesh(int geo_id) {
   glBindVertexArray(0);
 }
 
+void RenderableMesh::ClearGlState() const {
+  // Delete textures
+  glDeleteTextures(static_cast<int>(texture_ids.size()), texture_ids.data());
+
+  // Delete vertices
+  glDeleteVertexArrays(1, &VAO);
+}
+
 void RenderableMesh::Draw(const Shader &shader) const {
   unsigned int diffuseNr = 1;
   // unsigned int specularNr = 1;

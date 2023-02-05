@@ -7,6 +7,8 @@
 // + read the top of imgui.cpp. Read online:
 // https://github.com/ocornut/imgui/tree/master/docs
 
+#include <limits>
+
 #include "glad/gl.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -15,7 +17,9 @@
 #include "ugu/image_io.h"
 #include "ugu/renderable_mesh.h"
 #include "ugu/renderer/gl/renderer.h"
+#include "ugu/util/geom_util.h"
 #include "ugu/util/image_util.h"
+#include "ugu/util/string_util.h"
 // #define GL_SILENCE_DEPRECATION
 // #if defined(IMGUI_IMPL_OPENGL_ES2)
 // #include <GLES2/gl2.h>
@@ -33,10 +37,16 @@
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
 
+#if 0
 #ifdef _MSC_VER
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>  // so APIENTRY gets defined and GLFW doesn't define it
+#undef far
+#undef near
 #endif
+#endif
+
+using namespace ugu;
 
 namespace {
 
@@ -86,13 +96,16 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
   }
 }
 
+RendererGlPtr g_renderer;
+
 Eigen::Vector2d g_prev_cursor_pos;
 Eigen::Vector2d g_cursor_pos;
 Eigen::Vector2d g_mouse_l_pressed_pos;
 Eigen::Vector2d g_mouse_l_released_pos;
 // Eigen::Vector3d g_center;
-ugu::MeshStats g_stats;
-ugu::CameraPtr camera;
+// ugu::MeshStats g_stats;
+Eigen::Vector3f g_bb_max, g_bb_min;
+CameraPtr g_camera;
 bool g_to_process_drag = false;
 
 bool g_prev_mouse_l_pressed = false;
@@ -101,6 +114,8 @@ const double drag_th = 2.0;
 
 double g_mouse_wheel_yoffset = 0.0;
 bool g_to_process_wheel = false;
+
+std::vector<ugu::RenderableMeshPtr> meshes;
 
 void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
@@ -155,11 +170,42 @@ void drop_callback(GLFWwindow *window, int count, const char **paths) {
   for (i = 0; i < count; i++) {
     std::cout << paths[i] << std::endl;
   }
+
+  auto ext = ugu::ExtractExt(paths[0]);
+  auto mesh = ugu::RenderableMesh::Create();
+  if (ext == "obj") {
+    std::string obj_path = paths[0];
+    std::string obj_dir = ExtractDir(obj_path);
+    mesh->LoadObj(obj_path, obj_dir);
+    meshes.push_back(mesh);
+  } else {
+  }
+
+  g_bb_max.setConstant(std::numeric_limits<float>::lowest());
+  g_bb_min.setConstant(std::numeric_limits<float>::max());
+  for (const auto mesh : meshes) {
+    auto stats = mesh->stats();
+    g_bb_max = ComputeMaxBound(std::vector{g_bb_max, stats.bb_max});
+    g_bb_min = ComputeMinBound(std::vector{g_bb_min, stats.bb_min});
+  }
+
+  float z_trans = (g_bb_max - g_bb_min).maxCoeff() * 3;
+  g_renderer->SetNearFar(static_cast<float>(z_trans * 0.5f / 10),
+                         static_cast<float>(z_trans * 2.f * 10));
+
+  Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
+  c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
+  g_camera->set_c2w(c2w);
+
+  g_renderer->ClearGlState();
+  for (const auto mesh : meshes) {
+    g_renderer->SetMesh(mesh);
+  }
+  g_renderer->Init();
+
 }
 
 }  // namespace
-
-using namespace ugu;
 
 int main(int, char **) {
   // Setup window
@@ -277,6 +323,7 @@ int main(int, char **) {
 
   glEnable(GL_DEPTH_TEST);
 
+#if 0
   RenderableMeshPtr mesh = RenderableMesh::Create();
   mesh->LoadObj("../data/bunny/bunny.obj", "../data/bunny/");
 
@@ -308,12 +355,12 @@ int main(int, char **) {
 
   // int modelLoc = glGetUniformLocation(shader.ID, "model");
   // glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model_mat.data());
-
-  camera = std::make_shared<PinholeCamera>(width, height, 45.f);
+#endif
+  g_camera = std::make_shared<PinholeCamera>(width, height, 45.f);
   Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
-  double z_trans = bb_len.maxCoeff() * 3;
-  c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
-  camera->set_c2w(c2w);
+  // double z_trans = bb_len.maxCoeff() * 3;
+  // c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
+  // camera->set_c2w(c2w);
 
 #if 0
   Eigen::Matrix4f view_mat = camera.c2w().inverse().matrix().cast<float>();
@@ -326,23 +373,23 @@ int main(int, char **) {
   glUniformMatrix4fv(prjLoc, 1, GL_FALSE, prj_mat.data());
 #endif
 
-  RendererGlPtr renderer = std::make_shared<RendererGl>();
+  g_renderer = std::make_shared<RendererGl>();
 
-  renderer->SetSize(width, height);
+  g_renderer->SetSize(width, height);
 
-  renderer->SetCamera(camera);
-  renderer->SetMesh(mesh);
+  g_renderer->SetCamera(g_camera);
+  // renderer->SetMesh(mesh);
 
-  renderer->SetMesh(mesh2);
+  // renderer->SetMesh(mesh2);
 
-  renderer->SetNearFar(static_cast<float>(z_trans * 0.5f / 10),
-                       static_cast<float>(z_trans * 2.f * 10));
+  // renderer->SetNearFar(static_cast<float>(z_trans * 0.5f / 10),
+  //                      static_cast<float>(z_trans * 2.f * 10));
 
-  renderer->Init();
+  g_renderer->Init();
 
   // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-  g_stats = mesh->stats();
+  // g_stats = mesh->stats();
 
   int count = 0;
   // Main loop
@@ -455,7 +502,7 @@ int main(int, char **) {
 
     count++;
 
-    renderer->Draw();
+    g_renderer->Draw();
 
     if (g_mouse_l_pressed && g_to_process_drag) {
       g_to_process_drag = false;
@@ -464,7 +511,7 @@ int main(int, char **) {
       if (diff.norm() > drag_th) {
         const double rotate_speed = ugu::pi / 180 * 10;
 
-        Eigen::Affine3d cam_pose_cur = camera->c2w();
+        Eigen::Affine3d cam_pose_cur = g_camera->c2w();
         Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
 
         Eigen::Vector3d right_axis = -R_cur.col(0);
@@ -482,7 +529,7 @@ int main(int, char **) {
 
         Eigen::Affine3d cam_pose_new = R_offset * cam_pose_cur;
 
-        camera->set_c2w(cam_pose_new);
+        g_camera->set_c2w(cam_pose_new);
 
         // std::cout << cam_pose_cur.translation() << " -> "
         //           << cam_pose_new.translation() << std::endl;
@@ -501,23 +548,22 @@ int main(int, char **) {
     }
     if (g_to_process_wheel) {
       g_to_process_wheel = false;
-      const double wheel_speed =
-          (g_stats.bb_max - g_stats.bb_min).maxCoeff() / 20;
+      const double wheel_speed = (g_bb_max - g_bb_min).maxCoeff() / 20;
 
-      Eigen::Affine3d cam_pose_cur = camera->c2w();
+      Eigen::Affine3d cam_pose_cur = g_camera->c2w();
       Eigen::Vector3d t_offset =
           cam_pose_cur.rotation().col(2) * -g_mouse_wheel_yoffset * wheel_speed;
       std::cout << t_offset << std::endl;
       Eigen::Affine3d cam_pose_new =
           Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
           cam_pose_cur.rotation();
-      camera->set_c2w(cam_pose_new);
+      g_camera->set_c2w(cam_pose_new);
     }
 
     if (false && count > 1 && count % 50 == 0) {
-      renderer->ReadGbuf();
+      g_renderer->ReadGbuf();
       GBuffer gbuf;
-      renderer->GetGbuf(gbuf);
+      g_renderer->GetGbuf(gbuf);
 #if 1
       Image3b vis_pos_wld, vis_pos_cam;
       vis_pos_wld = ColorizePosMap(gbuf.pos_wld);

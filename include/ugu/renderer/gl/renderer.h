@@ -22,6 +22,7 @@ class RendererGl {
   RendererGl();
   ~RendererGl();
 
+  bool ClearGlState();
   bool Init();
 
   bool Draw(double tic = -1.0);
@@ -38,6 +39,7 @@ class RendererGl {
   void GetGbuf(GBuffer& gbuf) const;
 
  private:
+  bool m_initialized = false;
   float m_near_z = 0.01f;
   float m_far_z = 1000.f;
   int m_view_loc = -1;
@@ -48,11 +50,12 @@ class RendererGl {
   uint32_t m_width = 1024;
   uint32_t m_height = 720;
 
-  uint32_t gBuffer, gPosition, gNormal, gAlbedoSpec, gId, gFace;
+  uint32_t gBuffer = ~0u, gPosition = ~0u, gNormal = ~0u, gAlbedoSpec = ~0u,
+           gId, gFace = ~0u;
   std::array<uint32_t, 5> attachments;
-  uint32_t rboDepth;
+  uint32_t rboDepth = ~0u;
   uint32_t quadVAO = 0;
-  uint32_t quadVBO;
+  uint32_t quadVBO = ~0u;
 
   std::unordered_map<RenderableMeshPtr, int> m_node_locs;
   std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> m_node_trans;

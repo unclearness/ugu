@@ -15,6 +15,26 @@ RendererGl::RendererGl() {}
 
 RendererGl::~RendererGl() {}
 
+bool RendererGl::ClearGlState() {
+  if (!m_initialized) {
+    return false;
+  }
+
+  // Clear mesh vertices and textures
+  for (size_t i = 0; i < m_geoms.size(); i++) {
+    auto mesh = m_geoms[i];
+    mesh->ClearGlState();
+  }
+  ClearMesh();
+
+  // Delete buffers
+  const GLuint texture_ids[5] = {gPosition, gNormal, gAlbedoSpec, gId, gFace};
+  glDeleteTextures(5, texture_ids);
+  glDeleteFramebuffers(1, &gBuffer);
+  glDeleteRenderbuffers(1, &rboDepth);
+  return true;
+}
+
 bool RendererGl::Init() {
   if (m_cam == nullptr) {
     LOGE("camera has not been set\n");
@@ -136,6 +156,8 @@ bool RendererGl::Init() {
   m_deferred_shader.SetInt("gFace", 4);
 
   m_gbuf.Init(m_width, m_height);
+
+  m_initialized = true;
 
   return true;
 }
