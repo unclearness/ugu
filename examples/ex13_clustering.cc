@@ -38,7 +38,7 @@ void SavePoints(const std::string& ply_path,
   }
   for (size_t i = 0; i < points.size(); i++) {
     auto l = labels[i];
-    if (l < num_clusters) {
+    if (l < static_cast<size_t>(num_clusters)) {
       point_colors.push_back(label_colors[l]);
     } else {
       point_colors.emplace_back(0.f, 0.f, 0.f);

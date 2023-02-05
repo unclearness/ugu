@@ -153,6 +153,8 @@ class PinholeCamera : public Camera {
                                          float z_far) const override;
 };
 
+using PinholeCameraPtr = std::shared_ptr<PinholeCamera>;
+
 // PinholeCamera with support of OpenCV style distortion/undistortion
 class OpenCvCamera : public PinholeCamera {
  private:

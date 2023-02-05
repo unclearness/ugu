@@ -48,6 +48,32 @@ using namespace ugu;
 
 namespace {
 
+RendererGlPtr g_renderer;
+
+Eigen::Vector2d g_prev_cursor_pos;
+Eigen::Vector2d g_cursor_pos;
+Eigen::Vector2d g_mouse_l_pressed_pos;
+Eigen::Vector2d g_mouse_l_released_pos;
+Eigen::Vector2d g_mouse_m_pressed_pos;
+Eigen::Vector2d g_mouse_m_released_pos;
+// Eigen::Vector3d g_center;
+// ugu::MeshStats g_stats;
+Eigen::Vector3f g_bb_max, g_bb_min;
+PinholeCameraPtr g_camera;
+bool g_to_process_drag_l = false;
+bool g_to_process_drag_m = false;
+
+bool g_prev_mouse_l_pressed = false;
+bool g_prev_mouse_m_pressed = false;
+bool g_mouse_l_pressed = false;
+bool g_mouse_m_pressed = false;
+const double drag_th = 2.0;
+
+double g_mouse_wheel_yoffset = 0.0;
+bool g_to_process_wheel = false;
+
+std::vector<ugu::RenderableMeshPtr> g_meshes;
+
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
@@ -71,6 +97,14 @@ static void mouse_callback(GLFWwindow *window, int button, int action,
 }
 #endif
 
+void ResetGl() {
+  g_renderer->ClearGlState();
+  for (const auto mesh : g_meshes) {
+    g_renderer->SetMesh(mesh);
+  }
+  g_renderer->Init();
+}
+
 void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
                   int mods) {
   if (key == GLFW_KEY_UP && action == GLFW_PRESS) {
@@ -92,33 +126,13 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
       printf("key - %s\n", key_name);
     }
   }
+  if (key == GLFW_KEY_R) {
+    if (action == GLFW_PRESS) {
+      g_meshes.clear();
+      ResetGl();
+    }
+  }
 }
-
-RendererGlPtr g_renderer;
-
-Eigen::Vector2d g_prev_cursor_pos;
-Eigen::Vector2d g_cursor_pos;
-Eigen::Vector2d g_mouse_l_pressed_pos;
-Eigen::Vector2d g_mouse_l_released_pos;
-Eigen::Vector2d g_mouse_m_pressed_pos;
-Eigen::Vector2d g_mouse_m_released_pos;
-// Eigen::Vector3d g_center;
-// ugu::MeshStats g_stats;
-Eigen::Vector3f g_bb_max, g_bb_min;
-CameraPtr g_camera;
-bool g_to_process_drag_l = false;
-bool g_to_process_drag_m = false;
-
-bool g_prev_mouse_l_pressed = false;
-bool g_prev_mouse_m_pressed = false;
-bool g_mouse_l_pressed = false;
-bool g_mouse_m_pressed = false;
-const double drag_th = 2.0;
-
-double g_mouse_wheel_yoffset = 0.0;
-bool g_to_process_wheel = false;
-
-std::vector<ugu::RenderableMeshPtr> meshes;
 
 void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
@@ -174,41 +188,36 @@ void cursor_pos_callback(GLFWwindow *window, double xoffset, double yoffset) {
   g_cursor_pos[0] = xoffset;
   g_cursor_pos[1] = yoffset;
   if (g_mouse_l_pressed) {
-    // std::cout << "dragging..." << std::endl;
     g_to_process_drag_l = true;
   }
   if (g_mouse_m_pressed) {
-    // std::cout << "dragging..." << std::endl;
     g_to_process_drag_m = true;
   }
 }
 
-void drop_callback(GLFWwindow *window, int count, const char **paths) {
-  int i;
-  for (i = 0; i < count; i++) {
-    std::cout << paths[i] << std::endl;
-  }
-
-  auto ext = ugu::ExtractExt(paths[0]);
+void LoadMesh(const std::string &path) {
+  auto ext = ugu::ExtractExt(path);
   auto mesh = ugu::RenderableMesh::Create();
   if (ext == "obj") {
-    std::string obj_path = paths[0];
+    std::string obj_path = path;
     std::string obj_dir = ExtractDir(obj_path);
-    mesh->LoadObj(obj_path, obj_dir);
-    meshes.push_back(mesh);
+    if (!mesh->LoadObj(obj_path, obj_dir)) {
+      return;
+    }
+    g_meshes.push_back(mesh);
   } else {
     return;
   }
 
   g_bb_max.setConstant(std::numeric_limits<float>::lowest());
   g_bb_min.setConstant(std::numeric_limits<float>::max());
-  for (const auto mesh : meshes) {
+  for (const auto mesh : g_meshes) {
     auto stats = mesh->stats();
     g_bb_max = ComputeMaxBound(std::vector{g_bb_max, stats.bb_max});
     g_bb_min = ComputeMinBound(std::vector{g_bb_min, stats.bb_min});
   }
 
-  float z_trans = (g_bb_max - g_bb_min).maxCoeff() * 3;
+  float z_trans = (g_bb_max - g_bb_min).maxCoeff() * 2.0;
   g_renderer->SetNearFar(static_cast<float>(z_trans * 0.5f / 10),
                          static_cast<float>(z_trans * 2.f * 10));
 
@@ -216,11 +225,38 @@ void drop_callback(GLFWwindow *window, int count, const char **paths) {
   c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
   g_camera->set_c2w(c2w);
 
-  g_renderer->ClearGlState();
-  for (const auto mesh : meshes) {
-    g_renderer->SetMesh(mesh);
+  ResetGl();
+}
+
+void drop_callback(GLFWwindow *window, int count, const char **paths) {
+  for (int i = 0; i < count; i++) {
+    std::cout << "Dropped: " << i << "/" << count << " " << paths[i]
+              << std::endl;
   }
-  g_renderer->Init();
+  LoadMesh(paths[0]);
+}
+
+int g_width = 1280;
+int g_height = 720;
+
+void window_size_callback(GLFWwindow *window, int width, int height) {
+  // Assume window size equals to framebuffer size
+  // So, do nothing here. Everything will be handled by
+  // framebuffer_size_callback
+  // TODO: Deal with it more appopriately
+}
+
+void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
+  // glViewport(0, 0, width, height)
+  g_width = width;
+  g_height = height;
+
+  g_camera->set_size(g_width, height);
+  g_camera->set_fov_y(45.0f);
+  g_camera->set_principal_point({width / 2.f, height / 2.f});
+
+  g_renderer->SetSize(g_width, g_height);
+  ResetGl();
 }
 
 }  // namespace
@@ -266,11 +302,9 @@ int main(int, char **) {
 
 #endif
 
-  int width = 1280 / 2;
-  int height = 720 / 2;
   // Create window with graphics context
   GLFWwindow *window =
-      glfwCreateWindow(width, height, "UGU Mesh Viewer", NULL, NULL);
+      glfwCreateWindow(g_width, g_height, "UGU Mesh Viewer", NULL, NULL);
   if (window == NULL) return 1;
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);  // Enable vsync
@@ -284,6 +318,9 @@ int main(int, char **) {
   glfwSetScrollCallback(window, mouse_wheel_callback);
 
   glfwSetDropCallback(window, drop_callback);
+
+  glfwSetWindowSizeCallback(window, window_size_callback);
+  glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
   // Setup Dear ImGui context
   IMGUI_CHECKVERSION();
@@ -374,8 +411,8 @@ int main(int, char **) {
   // int modelLoc = glGetUniformLocation(shader.ID, "model");
   // glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model_mat.data());
 #endif
-  g_camera = std::make_shared<PinholeCamera>(width, height, 45.f);
-  Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
+  g_camera = std::make_shared<PinholeCamera>(g_width, g_height, 45.f);
+  //Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
   // double z_trans = bb_len.maxCoeff() * 3;
   // c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
   // camera->set_c2w(c2w);
@@ -393,7 +430,7 @@ int main(int, char **) {
 
   g_renderer = std::make_shared<RendererGl>();
 
-  g_renderer->SetSize(width, height);
+  g_renderer->SetSize(g_width, g_height);
 
   g_renderer->SetCamera(g_camera);
   // renderer->SetMesh(mesh);
@@ -482,6 +519,57 @@ int main(int, char **) {
       ImGui::End();
     }
 
+    {
+      ImGui::Begin("Mesh Tool");
+
+      static char mesh_path[1024] = "../data/bunny/bunny.obj";
+      ImGui::InputText("Mesh path", mesh_path, 1024u);
+      if (ImGui::Button("Load mesh")) {
+        LoadMesh(mesh_path);
+      }
+
+
+      if (ImGui::Button("Save GBuffer")) {
+        g_renderer->ReadGbuf();
+        GBuffer gbuf;
+        g_renderer->GetGbuf(gbuf);
+#if 1
+        Image3b vis_pos_wld, vis_pos_cam;
+        vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
+        imwrite("pos_wld.png", vis_pos_wld);
+        vis_pos_cam = ColorizePosMap(gbuf.pos_cam);
+        imwrite("pos_cam.png", vis_pos_cam);
+
+        Image3b vis_normal_wld, vis_normal_cam;
+        Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
+        imwrite("normal_wld.png", vis_normal_wld);
+        Normal2Color(gbuf.normal_wld, &vis_normal_cam, true);
+        imwrite("normal_cam.png", vis_normal_cam);
+#endif
+        Image3b vis_depth;
+        Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
+        imwrite("depth01.png", vis_depth);
+
+        Image3b vis_geoid;
+        FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
+        imwrite("geoid.png", vis_geoid);
+
+        Image3b vis_faceid;
+        FaceId2RandomColor(gbuf.face_id, &vis_faceid);
+        imwrite("faceid.png", vis_faceid);
+
+        Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
+        imwrite("bary.png", vis_bary);
+
+        Image3b vis_uv = ColorizeBarycentric(gbuf.uv);
+        imwrite("uv.png", vis_uv);
+
+        imwrite("color.png", gbuf.color);
+      }
+      ImGui::End();
+
+    }
+
 #endif
 
     glClear(GL_COLOR_BUFFER_BIT);
@@ -535,9 +623,9 @@ int main(int, char **) {
         Eigen::Vector3d up_axis = -R_cur.col(1);
 
         Eigen::Quaterniond R_offset =
-            Eigen::AngleAxisd(2 * ugu::pi * diff[0] / height * rotate_speed,
+            Eigen::AngleAxisd(2 * ugu::pi * diff[0] / g_height * rotate_speed,
                               up_axis) *
-            Eigen::AngleAxisd(2 * ugu::pi * diff[1] / height * rotate_speed,
+            Eigen::AngleAxisd(2 * ugu::pi * diff[1] / g_height * rotate_speed,
                               right_axis);
 
         Eigen::Affine3d cam_pose_new = R_offset * cam_pose_cur;
@@ -550,8 +638,7 @@ int main(int, char **) {
       g_to_process_drag_m = false;
       Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
       if (diff.norm() > drag_th) {
-        const double trans_speed =
-            (g_bb_max - g_bb_min).maxCoeff() / height;
+        const double trans_speed = (g_bb_max - g_bb_min).maxCoeff() / g_height;
 
         Eigen::Affine3d cam_pose_cur = g_camera->c2w();
         Eigen::Matrix3d R_cur = cam_pose_cur.rotation();

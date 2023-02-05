@@ -69,7 +69,7 @@ void TestBlendshapes() {
   }
 
   std::vector<ugu::Blendshape> blendshapes;
-  for (int i = 0; i < blendshape_meshes.size(); i++) {
+  for (size_t i = 0; i < blendshape_meshes.size(); i++) {
     auto& blendshape_mesh = blendshape_meshes[i];
     auto name = ugu::ExtractPathWithoutExt(obj_names[i]);
 

@@ -155,8 +155,6 @@ bool RendererGl::Init() {
   m_deferred_shader.SetInt("gId", 3);
   m_deferred_shader.SetInt("gFace", 4);
 
-  m_gbuf.Init(m_width, m_height);
-
   m_initialized = true;
 
   return true;
@@ -266,6 +264,10 @@ bool RendererGl::ReadGbuf() {
   Image4f tmp4f(m_height, m_width);
   Image1f tmp1f(m_height, m_width);
   Image4i tmp4i(m_height, m_width);
+
+  if (m_gbuf.color.cols != m_width || m_gbuf.color.rows != m_height) {
+    m_gbuf.Init(m_width, m_height);
+  }
 
   m_gbuf.Reset();
 

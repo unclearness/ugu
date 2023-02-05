@@ -191,6 +191,7 @@ void Test(const std::string& out_dir, MeshPtr mesh,
   }
 }
 
+#if 0
 void AlignMesh(MeshPtr mesh) {
   // move center as origin
   MeshStats stats = mesh->stats();
@@ -205,6 +206,7 @@ void AlignMesh(MeshPtr mesh) {
   // recover original translation
   mesh->Translate(stats.center);
 }
+#endif
 }  // namespace
 
 int main(int argc, char* argv[]) {
