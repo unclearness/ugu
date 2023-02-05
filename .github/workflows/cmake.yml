@@ -36,7 +36,7 @@ jobs:
         env:
           CC: clang
           CXX: clang++
-        run: cmake --build ${{github.workspace}}/build_clang --config ${{env.BUILD_TYPE}}
+        run: cmake --build ${{github.workspace}}/build_clang --config ${{env.BUILD_TYPE}} -j 2
 
       - name: Test Clang
         working-directory: ${{github.workspace}}/build_clang
@@ -65,7 +65,7 @@ jobs:
           CC: gcc
           CXX: g++
         # Build your program with the given configuration
-        run: cmake --build ${{github.workspace}}/build_gcc --config ${{env.BUILD_TYPE}}
+        run: cmake --build ${{github.workspace}}/build_gcc --config ${{env.BUILD_TYPE}} -j 2
 
       - name: Test GCC
         working-directory: ${{github.workspace}}/build_gcc
