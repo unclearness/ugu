@@ -89,7 +89,7 @@ int main(int, char **) {
   int height = 720 / 2;
   // Create window with graphics context
   GLFWwindow *window = glfwCreateWindow(
-      width, height, "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
+      width, height, "UGU Mesh Viewer", NULL, NULL);
   if (window == NULL) return 1;
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);  // Enable vsync
