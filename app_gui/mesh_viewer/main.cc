@@ -11,6 +11,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "ugu/accel/bvh.h"
 #include "ugu/camera.h"
 #include "ugu/image_io.h"
 #include "ugu/renderable_mesh.h"
@@ -50,6 +51,9 @@ namespace {
 
 RendererGlPtr g_renderer;
 
+int g_width = 1280;
+int g_height = 720;
+
 Eigen::Vector2d g_prev_cursor_pos;
 Eigen::Vector2d g_cursor_pos;
 Eigen::Vector2d g_mouse_l_pressed_pos;
@@ -72,7 +76,8 @@ const double drag_th = 2.0;
 double g_mouse_wheel_yoffset = 0.0;
 bool g_to_process_wheel = false;
 
-std::vector<ugu::RenderableMeshPtr> g_meshes;
+std::vector<RenderableMeshPtr> g_meshes;
+std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
 
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "Glfw Error %d: %s\n", error, description);
@@ -129,6 +134,7 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
   if (key == GLFW_KEY_R) {
     if (action == GLFW_PRESS) {
       g_meshes.clear();
+      g_bvhs.clear();
       ResetGl();
     }
   }
@@ -150,9 +156,44 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
       }
     }
   }
+
   if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
-    // printf("R - down\n");
+    // Cast ray
+    Eigen::Vector3f dir_c_cv;
+    g_camera->ray_c(static_cast<float>(g_cursor_pos[0]),
+                    static_cast<float>(g_cursor_pos[1]), &dir_c_cv);
+
+    const Eigen::Affine3d offset =
+        Eigen::Affine3d(Eigen::AngleAxisd(pi, Eigen::Vector3d::UnitX()))
+            .inverse();
+    Eigen::Vector3f dir_c_gl =
+        (dir_c_cv.transpose() * offset.rotation().cast<float>());
+    Eigen::Vector3f dir_w_gl =
+        g_camera->c2w().rotation().cast<float>() * dir_c_gl;
+
+    size_t min_geoid = ~0u;
+    float min_geo_dist = std::numeric_limits<float>::max();
+    for (size_t geoid = 0; geoid < g_meshes.size(); geoid++) {
+      Ray ray;
+      ray.dir = dir_w_gl;
+      ray.org = g_camera->c2w().translation().cast<float>();
+      std::vector<IntersectResult> results =
+          g_bvhs[geoid]->Intersect(ray, true);
+      if (!results.empty()) {
+        std::cout << geoid << ": " << results[0].t << " " << results[0].fid
+                  << " " << results[0].u << ", " << results[0].v << std::endl;
+        if (results[0].t < min_geo_dist) {
+          min_geoid = geoid;
+          min_geo_dist = results[0].t;
+        }
+      }
+    }
+
+    if (min_geoid != ~0u) {
+      std::cout << "closest geo: " << min_geoid << std::endl;
+    }
   }
+
   if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
     g_prev_mouse_m_pressed = g_mouse_m_pressed;
     g_mouse_m_pressed = action == GLFW_PRESS;
@@ -205,6 +246,15 @@ void LoadMesh(const std::string &path) {
       return;
     }
     g_meshes.push_back(mesh);
+
+    auto bvh = GetDefaultBvh<Eigen::Vector3f, Eigen::Vector3i>();
+
+    bvh->SetData(mesh->vertices(), mesh->vertex_indices());
+
+    bvh->Build();
+
+    g_bvhs.push_back(bvh);
+
   } else {
     return;
   }
@@ -217,7 +267,7 @@ void LoadMesh(const std::string &path) {
     g_bb_min = ComputeMinBound(std::vector{g_bb_min, stats.bb_min});
   }
 
-  float z_trans = (g_bb_max - g_bb_min).maxCoeff() * 2.0;
+  float z_trans = (g_bb_max - g_bb_min).maxCoeff() * 2.0f;
   g_renderer->SetNearFar(static_cast<float>(z_trans * 0.5f / 10),
                          static_cast<float>(z_trans * 2.f * 10));
 
@@ -236,9 +286,6 @@ void drop_callback(GLFWwindow *window, int count, const char **paths) {
   LoadMesh(paths[0]);
 }
 
-int g_width = 1280;
-int g_height = 720;
-
 void window_size_callback(GLFWwindow *window, int width, int height) {
   // Assume window size equals to framebuffer size
   // So, do nothing here. Everything will be handled by
@@ -251,9 +298,9 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
   g_width = width;
   g_height = height;
 
-  g_camera->set_size(g_width, height);
+  g_camera->set_size(g_width, g_height);
   g_camera->set_fov_y(45.0f);
-  g_camera->set_principal_point({width / 2.f, height / 2.f});
+  g_camera->set_principal_point({g_width / 2.f, g_height / 2.f});
 
   g_renderer->SetSize(g_width, g_height);
   ResetGl();
@@ -412,10 +459,10 @@ int main(int, char **) {
   // glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model_mat.data());
 #endif
   g_camera = std::make_shared<PinholeCamera>(g_width, g_height, 45.f);
-  //Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
-  // double z_trans = bb_len.maxCoeff() * 3;
-  // c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
-  // camera->set_c2w(c2w);
+  // Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
+  //  double z_trans = bb_len.maxCoeff() * 3;
+  //  c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
+  //  camera->set_c2w(c2w);
 
 #if 0
   Eigen::Matrix4f view_mat = camera.c2w().inverse().matrix().cast<float>();
@@ -528,7 +575,6 @@ int main(int, char **) {
         LoadMesh(mesh_path);
       }
 
-
       if (ImGui::Button("Save GBuffer")) {
         g_renderer->ReadGbuf();
         GBuffer gbuf;
@@ -567,7 +613,6 @@ int main(int, char **) {
         imwrite("color.png", gbuf.color);
       }
       ImGui::End();
-
     }
 
 #endif
