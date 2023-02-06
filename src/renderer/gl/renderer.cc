@@ -164,12 +164,12 @@ bool RendererGl::Draw(double tic) {
   (void)tic;
 
   // GBuf
-
   glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   m_gbuf_shader.Use();
-
+  m_gbuf_shader.SetVec2(
+      "WIN_SCALE", {static_cast<float>(m_width), static_cast<float>(m_height)});
   Eigen::Matrix4f view_mat = m_cam->c2w().inverse().matrix().cast<float>();
   glUniformMatrix4fv(m_view_loc, 1, GL_FALSE, view_mat.data());
   Eigen::Matrix4f prj_mat = m_cam->ProjectionMatrixOpenGl(m_near_z, m_far_z);
@@ -265,7 +265,8 @@ bool RendererGl::ReadGbuf() {
   Image1f tmp1f(m_height, m_width);
   Image4i tmp4i(m_height, m_width);
 
-  if (m_gbuf.color.cols != m_width || m_gbuf.color.rows != m_height) {
+  if (static_cast<uint32_t>(m_gbuf.color.cols) != m_width ||
+      static_cast<uint32_t>(m_gbuf.color.rows) != m_height) {
     m_gbuf.Init(m_width, m_height);
   }
 

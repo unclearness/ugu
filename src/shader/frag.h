@@ -64,9 +64,10 @@ void main() {
     specular *= attenuation;
     lighting += diffuse + specular;
   }
-  //FragColor = vec4((Id.y * 3) * 0.2, 0.5, 0.6, 1.0);
-  FragColor = vec4(Diffuse, 1);
-  //FragColor = vec4(lighting, 1.0);
+  // FragColor = vec4((Id.y * 3) * 0.2, 0.5, 0.6, 1.0);
+  vec4 wire_col = vec4(0.0, 0.0, 0.0, 1.0);
+  // FragColor = vec4(Specular, Specular, Specular, 1.0);
+  FragColor = vec4(Diffuse, 1.0) * (1.0 - Specular) + Specular * wire_col;
 })";
 static inline std::string frag_gbuf_code =
     R"(
@@ -77,7 +78,6 @@ layout(location = 2) out vec4 gAlbedoSpec;
 layout(location = 3) out vec4 gId;
 layout(location = 4) out vec4 gFace;
 
-
 in vec3 fragPos;
 in vec3 viewPos;
 in vec2 texCoords;
@@ -86,6 +86,7 @@ in vec3 wldNormal;
 in vec3 vertexColor;
 in vec3 vertexId;
 in vec2 bary;
+in vec3 dist;
 
 uniform sampler2D texture_diffuse1;
 uniform sampler2D texture_specular1;
@@ -100,11 +101,16 @@ void main() {
   // store specular intensity in gAlbedoSpec's alpha component
   gAlbedoSpec.a = texture(texture_specular1, texCoords).r;
 
-  gId.x = float(gl_PrimitiveID + 1);//vertedId.x;
+  gId.x = float(gl_PrimitiveID + 1);  // vertedId.x;
   gId.y = vertexId.y;
 
   gFace.xy = bary;
   gFace.zw = texCoords;
 
+  vec3 dist_vec = dist;
+  float d = min(dist_vec[0], min(dist_vec[1], dist_vec[2]));
+  float I = exp2(-2.0 * d * d);
+  //  Use specular for wire intensity
+  gAlbedoSpec.a = clamp(I, 0.0, 1.0);
 })";
 }  // namespace ugu
