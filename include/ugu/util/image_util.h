@@ -108,6 +108,9 @@ std::vector<Eigen::Vector3f> GenRandomColors(int32_t num, float min_val = 0.f,
                                              float max_val = 255.f,
                                              size_t seed = 0);
 
+Image3b Default2RGB(const Image3b& img);
+Image3b RGB2Default(const Image3b& img);
+
 template <typename T>
 float NormL2(const T& src);
 

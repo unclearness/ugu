@@ -789,6 +789,30 @@ std::vector<Eigen::Vector3f> GenRandomColors(int32_t num, float min_val,
   return colors;
 }
 
+Image3b Default2RGB(const Image3b& img) {
+#ifdef UGU_USE_OPENCV
+  {
+    Image3b out;
+    cv::cvtColor(img, out, cv::COLOR_BGR2RGB);
+    return out;
+  }
+#else
+  return img;
+#endif
+}
+
+Image3b RGB2Default(const Image3b& img) {
+#ifdef UGU_USE_OPENCV
+  {
+    Image3b out;
+    cv::cvtColor(img, out, cv::COLOR_RGB2BGR);
+    return out;
+  }
+#else
+  return img;
+#endif
+}
+
 bool Remap(const Image3f& src, const Image3f& map, const Image1b& mask,
            Image3f& dst, int32_t interp, const ugu::Vec3f& bkg_val) {
   if (interp != InterpolationFlags::INTER_LINEAR &&

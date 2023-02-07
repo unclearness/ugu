@@ -5,6 +5,8 @@
 
 #include "ugu/renderer/gl/renderer.h"
 
+#include "ugu/util/image_util.h"
+
 #ifdef UGU_USE_GLFW
 #include "glad/gl.h"
 #endif
@@ -352,6 +354,9 @@ bool RendererGl::ReadGbuf() {
       col[1] = saturate_cast<uint8_t>(n[1] * 255);
       col[2] = saturate_cast<uint8_t>(n[2] * 255);
     });
+
+    // Ensure default channel order
+    m_gbuf.color = RGB2Default(m_gbuf.color);
   }
 
   tmp4f.setTo(0.f);

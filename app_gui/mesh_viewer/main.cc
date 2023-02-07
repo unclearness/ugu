@@ -589,7 +589,7 @@ int main(int, char **) {
         Image3b vis_normal_wld, vis_normal_cam;
         Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
         imwrite("normal_wld.png", vis_normal_wld);
-        Normal2Color(gbuf.normal_wld, &vis_normal_cam, true);
+        Normal2Color(gbuf.normal_cam, &vis_normal_cam, true);
         imwrite("normal_cam.png", vis_normal_cam);
 #endif
         Image3b vis_depth;
@@ -712,44 +712,6 @@ int main(int, char **) {
           Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
           cam_pose_cur.rotation();
       g_camera->set_c2w(cam_pose_new);
-    }
-
-    if (false && count > 1 && count % 50 == 0) {
-      g_renderer->ReadGbuf();
-      GBuffer gbuf;
-      g_renderer->GetGbuf(gbuf);
-#if 1
-      Image3b vis_pos_wld, vis_pos_cam;
-      vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
-      imwrite("pos_wld.png", vis_pos_wld);
-      vis_pos_cam = ColorizePosMap(gbuf.pos_cam);
-      imwrite("pos_cam.png", vis_pos_cam);
-
-      Image3b vis_normal_wld, vis_normal_cam;
-      Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
-      imwrite("normal_wld.png", vis_normal_wld);
-      Normal2Color(gbuf.normal_wld, &vis_normal_cam, true);
-      imwrite("normal_cam.png", vis_normal_cam);
-#endif
-      Image3b vis_depth;
-      Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
-      imwrite("depth01.png", vis_depth);
-
-      Image3b vis_geoid;
-      FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
-      imwrite("geoid.png", vis_geoid);
-
-      Image3b vis_faceid;
-      FaceId2RandomColor(gbuf.face_id, &vis_faceid);
-      imwrite("faceid.png", vis_faceid);
-
-      Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
-      imwrite("bary.png", vis_bary);
-
-      Image3b vis_uv = ColorizeBarycentric(gbuf.uv);
-      imwrite("uv.png", vis_uv);
-
-      imwrite("color.png", gbuf.color);
     }
 
     glClear(GL_DEPTH_BUFFER_BIT);

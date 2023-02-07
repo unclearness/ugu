@@ -20,8 +20,8 @@
 #pragma warning(pop)
 #endif
 
-#include "ugu/renderer/rasterizer.h"
-#include "ugu/renderer/raytracer.h"
+#include "ugu/renderer/cpu/rasterizer.h"
+#include "ugu/renderer/cpu/raytracer.h"
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
 
@@ -63,14 +63,14 @@ int main(int argc, char* argv[]) {
   // AlignMesh(mesh);
 
   // initialize renderer with diffuse texture color and lambertian shading
-  ugu::RendererOption option;
+  ugu::RendererCpuOption option;
   option.diffuse_color = ugu::DiffuseColor::kTexture;
   option.diffuse_shading = ugu::DiffuseShading::kLambertian;
 #ifdef USE_RASTERIZER
-  std::unique_ptr<ugu::Renderer> renderer =
+  std::unique_ptr<ugu::RendererCpu> renderer =
       std::make_unique<ugu::Rasterizer>(option);
 #else
-  std::unique_ptr<ugu::Renderer> renderer =
+  std::unique_ptr<ugu::RendererCpu> renderer =
       std::make_unique<ugu::Raytracer>(option);
 #endif
 

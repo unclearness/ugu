@@ -6,6 +6,7 @@
 #include "ugu/renderable_mesh.h"
 
 #include "ugu/face_adjacency.h"
+#include "ugu/util/image_util.h"
 
 #ifdef UGU_USE_GLFW
 #include "glad/gl.h"
@@ -34,6 +35,9 @@ void RenderableMesh::BindTextures() {
     if (diffuse3b.empty()) {
       continue;
     }
+
+    // Handle channel order
+    diffuse3b = Default2RGB(diffuse3b);
 
     Image4b diffuse = Image4b::zeros(diffuse3b.rows, diffuse3b.cols);
     diffuse.forEach([&](Vec4b &c4, const int *xy) {
