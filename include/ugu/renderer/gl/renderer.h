@@ -34,6 +34,7 @@ class RendererGl {
   void ClearMesh();
   void SetFragType(const FragShaderType& frag_type);
   void SetNearFar(float near_z, float far_z);
+  void GetNearFar(float& near_z, float& far_z) const;
   void SetSize(uint32_t width, uint32_t height);
 
   bool ReadGbuf();
@@ -45,8 +46,9 @@ class RendererGl {
   const Eigen::Vector3f& GetWireColor() const;
   void SetBackgroundColor(const Eigen::Vector3f& bkg_col);
 
-  bool AddSelectedPos(const Eigen::Vector3f& pos);
-  void ClearSelectedPos();
+  bool AddSelectedPosition(const Eigen::Vector3f& pos);
+  bool AddSelectedPositions(const std::vector<Eigen::Vector3f>& pos_list);
+  void ClearSelectedPositions();
 
   void GetMergedBoundingBox(Eigen::Vector3f& bb_max, Eigen::Vector3f& bb_min);
 

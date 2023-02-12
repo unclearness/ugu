@@ -29,7 +29,7 @@ bool RendererGl::ClearGlState() {
   }
   ClearMesh();
 
-  ClearSelectedPos();
+  ClearSelectedPositions();
 
   // Delete buffers
   const GLuint texture_ids[5] = {gPosition, gNormal, gAlbedoSpec, gId, gFace};
@@ -451,28 +451,6 @@ void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans) {
   }
   m_node_trans[mesh] = trans;
 
-#if 0
-  m_geoms[0]->CalcStats();
-  Eigen::Vector3f tmp_bb_max = m_geoms[0]->stats().bb_max;
-  Eigen::Vector3f tmp_bb_min = m_geoms[0]->stats().bb_min;
-
-  for (size_t i = 1; i < m_geoms.size(); i++) {
-    auto& m_geom = m_geoms[i];
-
-    m_geom->CalcStats();
-
-    tmp_bb_max[0] = std::max(tmp_bb_max[0], m_geom->stats().bb_max[0]);
-    tmp_bb_max[1] = std::max(tmp_bb_max[1], m_geom->stats().bb_max[1]);
-    tmp_bb_max[2] = std::max(tmp_bb_max[2], m_geom->stats().bb_max[2]);
-
-    tmp_bb_min[0] = std::min(tmp_bb_min[0], m_geom->stats().bb_min[0]);
-    tmp_bb_min[1] = std::min(tmp_bb_min[1], m_geom->stats().bb_min[1]);
-    tmp_bb_min[2] = std::min(tmp_bb_min[2], m_geom->stats().bb_min[2]);
-  }
-  m_bb_max = tmp_bb_max;
-  m_bb_min = tmp_bb_min;
-#endif
-
   m_bb_max.setConstant(std::numeric_limits<float>::lowest());
   m_bb_min.setConstant(std::numeric_limits<float>::max());
   for (const auto& geom : m_geoms) {
@@ -497,6 +475,11 @@ void RendererGl::SetNearFar(float near_z, float far_z) {
   m_far_z = far_z;
 }
 
+void RendererGl::GetNearFar(float& near_z, float& far_z) const {
+  near_z = m_near_z;
+  far_z = m_far_z;
+}
+
 void RendererGl::SetSize(uint32_t width, uint32_t height) {
   m_width = width;
   m_height = height;
@@ -517,7 +500,7 @@ void RendererGl::SetBackgroundColor(const Eigen::Vector3f& bkg_col) {
   m_bkg_col = bkg_col;
 }
 
-bool RendererGl::AddSelectedPos(const Eigen::Vector3f& pos) {
+bool RendererGl::AddSelectedPosition(const Eigen::Vector3f& pos) {
   if (MAX_SELECTED_POS <= m_selected_positions.size()) {
     return false;
   }
@@ -527,7 +510,18 @@ bool RendererGl::AddSelectedPos(const Eigen::Vector3f& pos) {
   return true;
 }
 
-void RendererGl::ClearSelectedPos() { m_selected_positions.clear(); }
+bool RendererGl::AddSelectedPositions(
+    const std::vector<Eigen::Vector3f>& pos_list) {
+  if (MAX_SELECTED_POS <= pos_list.size()) {
+    return false;
+  }
+
+  m_selected_positions = pos_list;
+
+  return true;
+}
+
+void RendererGl::ClearSelectedPositions() { m_selected_positions.clear(); }
 
 void RendererGl::GetMergedBoundingBox(Eigen::Vector3f& bb_max,
                                       Eigen::Vector3f& bb_min) {
@@ -551,16 +545,19 @@ std::vector<std::vector<IntersectResult>> RendererGl::Intersect(
 std::pair<bool, std::vector<std::vector<IntersectResult>>>
 RendererGl::TestVisibility(const Eigen::Vector3f& point) const {
   Eigen::Vector3f wld_campos = m_cam->c2w().translation().cast<float>();
+
+  // Ray from point to camera
   Ray ray;
-  ray.dir = (point - wld_campos).normalized();
-  ray.org = wld_campos;
+  ray.dir = (wld_campos - point).normalized();
+  ray.org = point;
 
   auto results_all = Intersect(ray);
 
+  // true if don't hit to any geometry
   bool ret = std::accumulate(
       results_all.begin(), results_all.end(), true,
       [&](bool accumulated, const std::vector<IntersectResult>& results) {
-        return accumulated && !results.empty();
+        return accumulated && results.empty();
       });
 
   return std::make_pair(ret, results_all);

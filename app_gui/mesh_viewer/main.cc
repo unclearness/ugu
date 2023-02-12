@@ -58,24 +58,31 @@ Eigen::Vector2d g_mouse_l_pressed_pos;
 Eigen::Vector2d g_mouse_l_released_pos;
 Eigen::Vector2d g_mouse_m_pressed_pos;
 Eigen::Vector2d g_mouse_m_released_pos;
+Eigen::Vector2d g_mouse_r_pressed_pos;
+Eigen::Vector2d g_mouse_r_released_pos;
 // Eigen::Vector3d g_center;
 // ugu::MeshStats g_stats;
 // Eigen::Vector3f g_bb_max, g_bb_min;
 PinholeCameraPtr g_camera;
 bool g_to_process_drag_l = false;
 bool g_to_process_drag_m = false;
+bool g_to_process_drag_r = false;
 
-bool g_prev_mouse_l_pressed = false;
-bool g_prev_mouse_m_pressed = false;
+// bool g_prev_mouse_l_pressed = false;
+// bool g_prev_mouse_m_pressed = false;
 bool g_mouse_l_pressed = false;
 bool g_mouse_m_pressed = false;
+bool g_mouse_r_pressed = false;
 const double drag_th = 2.0;
+const double g_drag_point_pix_dist_th = 10.0;
 
 double g_mouse_wheel_yoffset = 0.0;
 bool g_to_process_wheel = false;
 
 std::vector<RenderableMeshPtr> g_meshes;
 // std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
+
+std::vector<Eigen::Vector3f> g_selected_positions;
 
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "Glfw Error %d: %s\n", error, description);
@@ -108,6 +115,107 @@ void ResetGl() {
   g_renderer->Init();
 }
 
+struct CastRayResult {
+  size_t min_geoid = ~0u;
+  float min_geo_dist = std::numeric_limits<float>::max();
+  Eigen::Vector3f min_geo_dist_pos =
+      Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
+};
+
+CastRayResult CastRay() {
+  // Cast ray
+  Eigen::Vector3f dir_c_cv;
+  g_camera->ray_c(static_cast<float>(g_cursor_pos[0]),
+                  static_cast<float>(g_cursor_pos[1]), &dir_c_cv);
+
+  const Eigen::Affine3d offset =
+      Eigen::Affine3d(Eigen::AngleAxisd(pi, Eigen::Vector3d::UnitX()))
+          .inverse();
+  Eigen::Vector3f dir_c_gl =
+      (dir_c_cv.transpose() * offset.rotation().cast<float>());
+  Eigen::Vector3f dir_w_gl =
+      g_camera->c2w().rotation().cast<float>() * dir_c_gl;
+
+  size_t min_geoid = ~0u;
+  float min_geo_dist = std::numeric_limits<float>::max();
+  Eigen::Vector3f min_geo_dist_pos =
+      Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
+
+  Ray ray;
+  ray.dir = dir_w_gl;
+  ray.org = g_camera->c2w().translation().cast<float>();
+  auto results_all = g_renderer->Intersect(ray);
+
+  for (size_t geoid = 0; geoid < g_meshes.size(); geoid++) {
+    const std::vector<IntersectResult> &results = results_all[geoid];
+    if (!results.empty()) {
+      std::cout << geoid << ": " << results[0].t << " " << results[0].fid << " "
+                << results[0].u << ", " << results[0].v << std::endl;
+      if (results[0].t < min_geo_dist) {
+        min_geoid = geoid;
+        min_geo_dist = results[0].t;
+        min_geo_dist_pos = results[0].t * ray.dir + ray.org;
+      }
+    }
+  }
+
+  if (min_geoid != ~0u) {
+    std::cout << "closest geo: " << min_geoid << std::endl;
+  }
+
+  CastRayResult result;
+  result.min_geoid = min_geoid;
+  result.min_geo_dist = min_geo_dist;
+  result.min_geo_dist_pos = min_geo_dist_pos;
+
+  return result;
+}
+
+std::pair<bool, size_t> FindClosestSelectedPoint(
+    const Eigen::Vector2d &cursor_pos) {
+  bool not_close = true;
+  size_t closest_selected_id = ~0u;
+  double min_dist = std::numeric_limits<double>::max();
+  float near_z, far_z;
+  g_renderer->GetNearFar(near_z, far_z);
+  Eigen::Matrix4f view_mat = g_camera->c2w().inverse().matrix().cast<float>();
+  Eigen::Matrix4f prj_mat = g_camera->ProjectionMatrixOpenGl(near_z, far_z);
+  for (size_t i = 0; i < g_selected_positions.size(); i++) {
+    const auto &p_wld = g_selected_positions[i];
+    auto [is_visible, results_all] = g_renderer->TestVisibility(p_wld);
+    if (is_visible) {
+      std::cout << "selected " << i << ": visibile" << std::endl;
+    } else {
+      std::cout << "selected " << i << ": not visibile" << std::endl;
+    }
+    if (is_visible) {
+      Eigen::Vector4f p_cam =
+          view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
+      Eigen::Vector4f p_ndc = prj_mat * p_cam;
+      p_ndc /= p_ndc.w();  // NDC [-1:1]
+
+      // float cam_depth = -p_cam.z();
+
+      // [-1:1],[-1:1] -> [0:w], [0:h]
+      Eigen::Vector2d p_gl_frag =
+          Eigen::Vector2d(((p_ndc.x() + 1.f) / 2.f) * g_camera->width(),
+                          ((p_ndc.y() + 1.f) / 2.f) * g_camera->height());
+
+      p_gl_frag.y() = g_camera->height() - p_gl_frag.y();
+
+      double dist = (p_gl_frag - cursor_pos).norm();
+      // std::cout << dist << std::endl;
+      if (dist < g_drag_point_pix_dist_th && dist < min_dist) {
+        not_close = false;
+        min_dist = dist;
+        closest_selected_id = i;
+        // break;
+      }
+    }
+  }
+  return std::make_pair(!not_close, closest_selected_id);
+}
+
 void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
                   int mods) {
   if (key == GLFW_KEY_UP && action == GLFW_PRESS) {
@@ -132,6 +240,7 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
   if (key == GLFW_KEY_R) {
     if (action == GLFW_PRESS) {
       g_meshes.clear();
+      g_selected_positions.clear();
       ResetGl();
     }
   }
@@ -140,7 +249,7 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
 void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
     // printf("L - down\n");
-    g_prev_mouse_l_pressed = g_mouse_l_pressed;
+    // g_prev_mouse_l_pressed = g_mouse_l_pressed;
     g_mouse_l_pressed = action == GLFW_PRESS;
     if (g_mouse_l_pressed) {
       g_mouse_l_pressed_pos = g_cursor_pos;
@@ -154,51 +263,31 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
     }
   }
 
-  if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
-    // Cast ray
-    Eigen::Vector3f dir_c_cv;
-    g_camera->ray_c(static_cast<float>(g_cursor_pos[0]),
-                    static_cast<float>(g_cursor_pos[1]), &dir_c_cv);
-
-    const Eigen::Affine3d offset =
-        Eigen::Affine3d(Eigen::AngleAxisd(pi, Eigen::Vector3d::UnitX()))
-            .inverse();
-    Eigen::Vector3f dir_c_gl =
-        (dir_c_cv.transpose() * offset.rotation().cast<float>());
-    Eigen::Vector3f dir_w_gl =
-        g_camera->c2w().rotation().cast<float>() * dir_c_gl;
-
-    size_t min_geoid = ~0u;
-    float min_geo_dist = std::numeric_limits<float>::max();
-    Eigen::Vector3f min_geo_dist_pos =
-        Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
-
-    Ray ray;
-    ray.dir = dir_w_gl;
-    ray.org = g_camera->c2w().translation().cast<float>();
-    auto results_all = g_renderer->Intersect(ray);
-
-    for (size_t geoid = 0; geoid < g_meshes.size(); geoid++) {
-      const std::vector<IntersectResult> &results = results_all[geoid];
-      if (!results.empty()) {
-        std::cout << geoid << ": " << results[0].t << " " << results[0].fid
-                  << " " << results[0].u << ", " << results[0].v << std::endl;
-        if (results[0].t < min_geo_dist) {
-          min_geoid = geoid;
-          min_geo_dist = results[0].t;
-          min_geo_dist_pos = results[0].t * ray.dir + ray.org;
-        }
-      }
+  if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+    g_mouse_r_pressed = action == GLFW_PRESS;
+    if (g_mouse_r_pressed) {
+      g_mouse_r_pressed_pos = g_cursor_pos;
+    } else {
+      g_mouse_r_released_pos = g_cursor_pos;
     }
 
-    if (min_geoid != ~0u) {
-      std::cout << "closest geo: " << min_geoid << std::endl;
-      g_renderer->AddSelectedPos(min_geo_dist_pos);
+    if (g_mouse_r_pressed) {
+      auto result = CastRay();
+
+      auto [is_close, id] = FindClosestSelectedPoint(g_mouse_r_pressed_pos);
+      bool not_close = !is_close;
+      if (not_close) {
+        g_renderer->AddSelectedPosition(result.min_geo_dist_pos);
+        g_selected_positions.push_back(result.min_geo_dist_pos);
+        std::cout << "added" << std::endl;
+      } else {
+        std::cout << "ignored" << std::endl;
+      }
     }
   }
 
   if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
-    g_prev_mouse_m_pressed = g_mouse_m_pressed;
+    // g_prev_mouse_m_pressed = g_mouse_m_pressed;
     g_mouse_m_pressed = action == GLFW_PRESS;
     if (g_mouse_m_pressed) {
       g_mouse_m_pressed_pos = g_cursor_pos;
@@ -236,6 +325,9 @@ void cursor_pos_callback(GLFWwindow *window, double xoffset, double yoffset) {
   }
   if (g_mouse_m_pressed) {
     g_to_process_drag_m = true;
+  }
+  if (g_mouse_r_pressed) {
+    g_to_process_drag_r = true;
   }
 }
 
@@ -704,6 +796,19 @@ int main(int, char **) {
               Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
               cam_pose_cur.rotation();
           g_camera->set_c2w(cam_pose_new);
+        }
+      }
+
+      if (g_to_process_drag_r) {
+        g_to_process_drag_r = false;
+
+        auto result = CastRay();
+        if (result.min_geoid != ~0u) {
+          auto [is_close, id] = FindClosestSelectedPoint(g_cursor_pos);
+          if (is_close) {
+            g_selected_positions[id] = result.min_geo_dist_pos;
+            g_renderer->AddSelectedPositions(g_selected_positions);
+          }
         }
       }
 
