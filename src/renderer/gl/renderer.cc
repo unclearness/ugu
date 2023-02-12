@@ -143,12 +143,10 @@ bool RendererGl::Init() {
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
   Eigen::Matrix4f view_mat = m_cam->c2w().inverse().matrix().cast<float>();
-  m_view_loc = glGetUniformLocation(m_gbuf_shader.ID, "view");
-  glUniformMatrix4fv(m_view_loc, 1, GL_FALSE, view_mat.data());
+  m_gbuf_shader.SetMat4("view", view_mat);
 
   Eigen::Matrix4f prj_mat = m_cam->ProjectionMatrixOpenGl(m_near_z, m_far_z);
-  m_prj_loc = glGetUniformLocation(m_gbuf_shader.ID, "projection");
-  glUniformMatrix4fv(m_prj_loc, 1, GL_FALSE, prj_mat.data());
+  m_gbuf_shader.SetMat4("projection", prj_mat);
 
   m_deferred_shader.Use();
   m_deferred_shader.SetInt("gPosition", 0);
@@ -173,9 +171,9 @@ bool RendererGl::Draw(double tic) {
   m_gbuf_shader.SetVec2(
       "WIN_SCALE", {static_cast<float>(m_width), static_cast<float>(m_height)});
   Eigen::Matrix4f view_mat = m_cam->c2w().inverse().matrix().cast<float>();
-  glUniformMatrix4fv(m_view_loc, 1, GL_FALSE, view_mat.data());
+  m_gbuf_shader.SetMat4("view", view_mat);
   Eigen::Matrix4f prj_mat = m_cam->ProjectionMatrixOpenGl(m_near_z, m_far_z);
-  glUniformMatrix4fv(m_prj_loc, 1, GL_FALSE, prj_mat.data());
+  m_gbuf_shader.SetMat4("projection", prj_mat);
 
   for (auto mesh : m_geoms) {
     int model_loc = m_node_locs[mesh];
@@ -190,6 +188,13 @@ bool RendererGl::Draw(double tic) {
 #if 1
   // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   m_deferred_shader.Use();
+
+  m_deferred_shader.SetBool("showWire", m_show_wire);
+  m_deferred_shader.SetVec3("wireCol", m_wire_col);
+  m_deferred_shader.SetFloat("nearZ", m_near_z);
+  m_deferred_shader.SetFloat("farZ", m_far_z);
+  m_deferred_shader.SetVec3("bkgCol", m_bkg_col);
+
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, gPosition);
   glActiveTexture(GL_TEXTURE1);
@@ -435,5 +440,18 @@ void RendererGl::SetSize(uint32_t width, uint32_t height) {
 }
 
 void RendererGl::GetGbuf(GBuffer& gbuf) const { gbuf = m_gbuf; }
+
+bool RendererGl::GetShowWire() const { return m_show_wire; }
+void RendererGl::SetShowWire(bool show_wire) { m_show_wire = show_wire; }
+
+void RendererGl::SetWireColor(const Eigen::Vector3f& wire_col) {
+  m_wire_col = wire_col;
+}
+
+const Eigen::Vector3f& RendererGl::GetWireColor() const { return m_wire_col; }
+
+void RendererGl::SetBackgroundColor(const Eigen::Vector3f& bkg_col) {
+  m_bkg_col = bkg_col;
+}
 
 }  // namespace ugu

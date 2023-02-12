@@ -51,6 +51,8 @@ bool LoadBinary(const std::string& path, std::vector<T>* data) {
   return true;
 }
 
+std::string LoadTxt(const std::string& path);
+
 template <typename T>
 std::vector<T> LoadTxtAsVector(const std::string& path) {
   std::ifstream ifs(path);

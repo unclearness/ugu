@@ -489,6 +489,9 @@ int main(int, char **) {
 
   g_renderer->Init();
 
+  Eigen::Vector3f default_color(0.45f, 0.55f, 0.60f);
+  g_renderer->SetBackgroundColor(default_color);
+  g_renderer->SetWireColor(default_color);
   // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
   // g_stats = mesh->stats();
@@ -575,6 +578,16 @@ int main(int, char **) {
         LoadMesh(mesh_path);
       }
 
+      bool show_wire = g_renderer->GetShowWire();
+      if (ImGui::Checkbox("show wire", &show_wire)) {
+        g_renderer->SetShowWire(show_wire);
+      }
+
+      Eigen::Vector3f wire_col = g_renderer->GetWireColor();
+      if (ImGui::ColorEdit3("wire color", wire_col.data())) {
+        g_renderer->SetWireColor(Eigen::Vector3f(wire_col));
+      }
+
       if (ImGui::Button("Save GBuffer")) {
         g_renderer->ReadGbuf();
         GBuffer gbuf;
@@ -655,65 +668,67 @@ int main(int, char **) {
 
     g_renderer->Draw();
 
-    if (g_to_process_drag_l) {
-      g_to_process_drag_l = false;
-      Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
-      if (diff.norm() > drag_th) {
-        const double rotate_speed = ugu::pi / 180 * 10;
+    if (!ImGui::IsAnyItemActive()) {
+      if (g_to_process_drag_l) {
+        g_to_process_drag_l = false;
+        Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
+        if (diff.norm() > drag_th) {
+          const double rotate_speed = ugu::pi / 180 * 10;
 
-        Eigen::Affine3d cam_pose_cur = g_camera->c2w();
-        Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
+          Eigen::Affine3d cam_pose_cur = g_camera->c2w();
+          Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
 
-        Eigen::Vector3d right_axis = -R_cur.col(0);
-        Eigen::Vector3d up_axis = -R_cur.col(1);
+          Eigen::Vector3d right_axis = -R_cur.col(0);
+          Eigen::Vector3d up_axis = -R_cur.col(1);
 
-        Eigen::Quaterniond R_offset =
-            Eigen::AngleAxisd(2 * ugu::pi * diff[0] / g_height * rotate_speed,
-                              up_axis) *
-            Eigen::AngleAxisd(2 * ugu::pi * diff[1] / g_height * rotate_speed,
-                              right_axis);
+          Eigen::Quaterniond R_offset =
+              Eigen::AngleAxisd(2 * ugu::pi * diff[0] / g_height * rotate_speed,
+                                up_axis) *
+              Eigen::AngleAxisd(2 * ugu::pi * diff[1] / g_height * rotate_speed,
+                                right_axis);
 
-        Eigen::Affine3d cam_pose_new = R_offset * cam_pose_cur;
+          Eigen::Affine3d cam_pose_new = R_offset * cam_pose_cur;
 
-        g_camera->set_c2w(cam_pose_new);
+          g_camera->set_c2w(cam_pose_new);
+        }
       }
-    }
 
-    if (g_to_process_drag_m) {
-      g_to_process_drag_m = false;
-      Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
-      if (diff.norm() > drag_th) {
-        const double trans_speed = (g_bb_max - g_bb_min).maxCoeff() / g_height;
+      if (g_to_process_drag_m) {
+        g_to_process_drag_m = false;
+        Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
+        if (diff.norm() > drag_th) {
+          const double trans_speed =
+              (g_bb_max - g_bb_min).maxCoeff() / g_height;
+
+          Eigen::Affine3d cam_pose_cur = g_camera->c2w();
+          Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
+
+          Eigen::Vector3d right_axis = -R_cur.col(0);
+          Eigen::Vector3d up_axis = R_cur.col(1);
+
+          Eigen::Vector3d t_offset = right_axis * diff[0] * trans_speed +
+                                     up_axis * diff[1] * trans_speed;
+
+          Eigen::Affine3d cam_pose_new =
+              Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
+              cam_pose_cur.rotation();
+          g_camera->set_c2w(cam_pose_new);
+        }
+      }
+
+      if (g_to_process_wheel) {
+        g_to_process_wheel = false;
+        const double wheel_speed = (g_bb_max - g_bb_min).maxCoeff() / 20;
 
         Eigen::Affine3d cam_pose_cur = g_camera->c2w();
-        Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
-
-        Eigen::Vector3d right_axis = -R_cur.col(0);
-        Eigen::Vector3d up_axis = R_cur.col(1);
-
-        Eigen::Vector3d t_offset = right_axis * diff[0] * trans_speed +
-                                   up_axis * diff[1] * trans_speed;
-
+        Eigen::Vector3d t_offset = cam_pose_cur.rotation().col(2) *
+                                   -g_mouse_wheel_yoffset * wheel_speed;
         Eigen::Affine3d cam_pose_new =
             Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
             cam_pose_cur.rotation();
         g_camera->set_c2w(cam_pose_new);
       }
     }
-
-    if (g_to_process_wheel) {
-      g_to_process_wheel = false;
-      const double wheel_speed = (g_bb_max - g_bb_min).maxCoeff() / 20;
-
-      Eigen::Affine3d cam_pose_cur = g_camera->c2w();
-      Eigen::Vector3d t_offset =
-          cam_pose_cur.rotation().col(2) * -g_mouse_wheel_yoffset * wheel_speed;
-      Eigen::Affine3d cam_pose_new =
-          Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
-          cam_pose_cur.rotation();
-      g_camera->set_c2w(cam_pose_new);
-    }
-
     glClear(GL_DEPTH_BUFFER_BIT);
 
 #if 1

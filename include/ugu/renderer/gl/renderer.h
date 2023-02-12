@@ -38,20 +38,23 @@ class RendererGl {
   bool ReadGbuf();
   void GetGbuf(GBuffer& gbuf) const;
 
+  void SetShowWire(bool show_wire);
+  bool GetShowWire() const;
+  void SetWireColor(const Eigen::Vector3f& wire_col);
+  const Eigen::Vector3f& RendererGl::GetWireColor() const;
+  void SetBackgroundColor(const Eigen::Vector3f& bkg_col);
+
  private:
   bool m_initialized = false;
   float m_near_z = 0.01f;
   float m_far_z = 1000.f;
-  int m_view_loc = -1;
-  int m_prj_loc = -1;
   CameraPtr m_cam = nullptr;
-  // std::vector<RenderGlNode> m_nodes;
 
   uint32_t m_width = 1024;
   uint32_t m_height = 720;
 
   uint32_t gBuffer = ~0u, gPosition = ~0u, gNormal = ~0u, gAlbedoSpec = ~0u,
-           gId, gFace = ~0u;
+           gId = ~0u, gFace = ~0u;
   std::array<uint32_t, 5> attachments;
   uint32_t rboDepth = ~0u;
   uint32_t quadVAO = 0;
@@ -62,6 +65,11 @@ class RendererGl {
   std::vector<RenderableMeshPtr> m_geoms;
   Shader m_gbuf_shader;
   Shader m_deferred_shader;
+
+  bool m_show_wire = true;
+  Eigen::Vector3f m_wire_col;
+  Eigen::Vector3f m_bkg_col;
+
   GBuffer m_gbuf;
 };
 

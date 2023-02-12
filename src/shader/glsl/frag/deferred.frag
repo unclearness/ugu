@@ -9,6 +9,12 @@ uniform sampler2D gAlbedoSpec;
 uniform sampler2D gId;
 uniform sampler2D gFace;
 
+uniform bool showWire;
+uniform vec3 wireCol;
+uniform float nearZ;
+uniform float farZ;
+uniform vec3 bkgCol;
+
 struct Light {
   vec3 Position;
   vec3 Color;
@@ -49,7 +55,10 @@ void main() {
     lighting += diffuse + specular;
   }
   // FragColor = vec4((Id.y * 3) * 0.2, 0.5, 0.6, 1.0);
-  vec4 wire_col = vec4(0.0, 0.0, 0.0, 1.0);
+  vec4 wireCol4 = vec4(wireCol, 1.0);
+  float wire = mix(0.0, Specular, showWire);
+  float depth = Id.z;
   // FragColor = vec4(Specular, Specular, Specular, 1.0);
-  FragColor = vec4(Diffuse, 1.0) * (1.0 - Specular) + Specular * wire_col;
+  FragColor = vec4(Diffuse, 1.0) * (1.0 - wire) + wire * wireCol4;
+  FragColor = mix(vec4(bkgCol, 1.0), FragColor, vec4(nearZ < depth && depth < farZ));
 }

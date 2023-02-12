@@ -9,6 +9,16 @@
 
 namespace ugu {
 
+std::string LoadTxt(const std::string& path) {
+  std::ifstream ifs(path);
+  if (ifs.fail()) {
+    return "";
+  }
+  std::string str((std::istreambuf_iterator<char>(ifs)),
+                  std::istreambuf_iterator<char>());
+  return str;
+}
+
 void WriteFaceIdAsText(const Image1i& face_id, const std::string& path) {
   std::ofstream ofs;
   ofs.open(path, std::ios::out);

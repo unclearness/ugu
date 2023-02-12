@@ -31,6 +31,8 @@ void main() {
   gId.x = float(gl_PrimitiveID + 1);  // vertedId.x;
   gId.y = vertexId.y;
 
+  gId.z = -viewPos.z; // Linear depth
+
   gFace.xy = bary;
   gFace.zw = texCoords;
 
