@@ -11,12 +11,10 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-#include "ugu/accel/bvh.h"
 #include "ugu/camera.h"
 #include "ugu/image_io.h"
 #include "ugu/renderable_mesh.h"
 #include "ugu/renderer/gl/renderer.h"
-#include "ugu/util/geom_util.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/string_util.h"
 // #define GL_SILENCE_DEPRECATION
@@ -62,7 +60,7 @@ Eigen::Vector2d g_mouse_m_pressed_pos;
 Eigen::Vector2d g_mouse_m_released_pos;
 // Eigen::Vector3d g_center;
 // ugu::MeshStats g_stats;
-Eigen::Vector3f g_bb_max, g_bb_min;
+// Eigen::Vector3f g_bb_max, g_bb_min;
 PinholeCameraPtr g_camera;
 bool g_to_process_drag_l = false;
 bool g_to_process_drag_m = false;
@@ -77,7 +75,7 @@ double g_mouse_wheel_yoffset = 0.0;
 bool g_to_process_wheel = false;
 
 std::vector<RenderableMeshPtr> g_meshes;
-std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
+// std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
 
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "Glfw Error %d: %s\n", error, description);
@@ -134,7 +132,6 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
   if (key == GLFW_KEY_R) {
     if (action == GLFW_PRESS) {
       g_meshes.clear();
-      g_bvhs.clear();
       ResetGl();
     }
   }
@@ -175,12 +172,14 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
     float min_geo_dist = std::numeric_limits<float>::max();
     Eigen::Vector3f min_geo_dist_pos =
         Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
+
+    Ray ray;
+    ray.dir = dir_w_gl;
+    ray.org = g_camera->c2w().translation().cast<float>();
+    auto results_all = g_renderer->Intersect(ray);
+
     for (size_t geoid = 0; geoid < g_meshes.size(); geoid++) {
-      Ray ray;
-      ray.dir = dir_w_gl;
-      ray.org = g_camera->c2w().translation().cast<float>();
-      std::vector<IntersectResult> results =
-          g_bvhs[geoid]->Intersect(ray, true);
+      const std::vector<IntersectResult> &results = results_all[geoid];
       if (!results.empty()) {
         std::cout << geoid << ": " << results[0].t << " " << results[0].fid
                   << " " << results[0].u << ", " << results[0].v << std::endl;
@@ -251,35 +250,21 @@ void LoadMesh(const std::string &path) {
     }
     g_meshes.push_back(mesh);
 
-    auto bvh = GetDefaultBvh<Eigen::Vector3f, Eigen::Vector3i>();
-
-    bvh->SetData(mesh->vertices(), mesh->vertex_indices());
-
-    bvh->Build();
-
-    g_bvhs.push_back(bvh);
-
   } else {
     return;
   }
 
-  g_bb_max.setConstant(std::numeric_limits<float>::lowest());
-  g_bb_min.setConstant(std::numeric_limits<float>::max());
-  for (const auto mesh : g_meshes) {
-    auto stats = mesh->stats();
-    g_bb_max = ComputeMaxBound(std::vector{g_bb_max, stats.bb_max});
-    g_bb_min = ComputeMinBound(std::vector{g_bb_min, stats.bb_min});
-  }
+  ResetGl();
 
-  float z_trans = (g_bb_max - g_bb_min).maxCoeff() * 2.0f;
+  Eigen::Vector3f bb_max, bb_min;
+  g_renderer->GetMergedBoundingBox(bb_max, bb_min);
+  float z_trans = (bb_max - bb_min).maxCoeff() * 2.0f;
   g_renderer->SetNearFar(static_cast<float>(z_trans * 0.5f / 10),
                          static_cast<float>(z_trans * 2.f * 10));
 
   Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
   c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
   g_camera->set_c2w(c2w);
-
-  ResetGl();
 }
 
 void drop_callback(GLFWwindow *window, int count, const char **paths) {
@@ -673,6 +658,9 @@ int main(int, char **) {
     g_renderer->Draw();
 
     if (!ImGui::IsAnyItemActive()) {
+      Eigen::Vector3f bb_max, bb_min;
+      g_renderer->GetMergedBoundingBox(bb_max, bb_min);
+
       if (g_to_process_drag_l) {
         g_to_process_drag_l = false;
         Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
@@ -701,8 +689,7 @@ int main(int, char **) {
         g_to_process_drag_m = false;
         Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
         if (diff.norm() > drag_th) {
-          const double trans_speed =
-              (g_bb_max - g_bb_min).maxCoeff() / g_height;
+          const double trans_speed = (bb_max - bb_min).maxCoeff() / g_height;
 
           Eigen::Affine3d cam_pose_cur = g_camera->c2w();
           Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
@@ -722,7 +709,7 @@ int main(int, char **) {
 
       if (g_to_process_wheel) {
         g_to_process_wheel = false;
-        const double wheel_speed = (g_bb_max - g_bb_min).maxCoeff() / 20;
+        const double wheel_speed = (bb_max - bb_min).maxCoeff() / 20;
 
         Eigen::Affine3d cam_pose_cur = g_camera->c2w();
         Eigen::Vector3d t_offset = cam_pose_cur.rotation().col(2) *

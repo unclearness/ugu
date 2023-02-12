@@ -29,6 +29,8 @@ bool RendererGl::ClearGlState() {
   }
   ClearMesh();
 
+  ClearSelectedPos();
+
   // Delete buffers
   const GLuint texture_ids[5] = {gPosition, gNormal, gAlbedoSpec, gId, gFace};
   glDeleteTextures(5, texture_ids);
@@ -148,6 +150,24 @@ bool RendererGl::Init() {
   Eigen::Matrix4f prj_mat = m_cam->ProjectionMatrixOpenGl(m_near_z, m_far_z);
   m_gbuf_shader.SetMat4("projection", prj_mat);
 
+  float quadVertices[] = {
+      // positions        // texture Coords
+      -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+      1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 1.0f,  -1.0f, 0.0f, 1.0f, 0.0f,
+  };
+  // setup plane VAO
+  glGenVertexArrays(1, &quadVAO);
+  glGenBuffers(1, &quadVBO);
+  glBindVertexArray(quadVAO);
+  glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices,
+               GL_STATIC_DRAW);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
+                        (void*)(3 * sizeof(float)));
+
   m_deferred_shader.Use();
   m_deferred_shader.SetInt("gPosition", 0);
   m_deferred_shader.SetInt("gNormal", 1);
@@ -199,6 +219,8 @@ bool RendererGl::Draw(double tic) {
     std::vector<Eigen::Vector3f> selected_positions_prj;
     // Eigen::Matrix4f prj_view_mat = prj_mat * view_mat;
     for (size_t i = 0; i < m_selected_positions.size(); i++) {
+      // Test visibility
+
       Eigen::Vector3f p_wld = m_selected_positions[i];
       Eigen::Vector4f p_cam =
           view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
@@ -257,26 +279,6 @@ bool RendererGl::Draw(double tic) {
   }
 #endif
 
-  if (quadVAO == 0) {
-    float quadVertices[] = {
-        // positions        // texture Coords
-        -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-        1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 1.0f,  -1.0f, 0.0f, 1.0f, 0.0f,
-    };
-    // setup plane VAO
-    glGenVertexArrays(1, &quadVAO);
-    glGenBuffers(1, &quadVBO);
-    glBindVertexArray(quadVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices,
-                 GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
-                          (void*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
-                          (void*)(3 * sizeof(float)));
-  }
   glBindVertexArray(quadVAO);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
@@ -439,10 +441,17 @@ bool RendererGl::ReadGbuf() {
 void RendererGl::SetCamera(const CameraPtr cam) { m_cam = cam; }
 void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans) {
   if (m_node_trans.find(mesh) == m_node_trans.end()) {
+    mesh->CalcStats();
     m_geoms.push_back(mesh);
+    // Init BVH once
+    auto bvh = GetDefaultBvh<Eigen::Vector3f, Eigen::Vector3i>();
+    bvh->SetData(mesh->vertices(), mesh->vertex_indices());
+    bvh->Build();
+    m_bvhs[mesh] = bvh;
   }
   m_node_trans[mesh] = trans;
 
+#if 0
   m_geoms[0]->CalcStats();
   Eigen::Vector3f tmp_bb_max = m_geoms[0]->stats().bb_max;
   Eigen::Vector3f tmp_bb_min = m_geoms[0]->stats().bb_min;
@@ -462,11 +471,21 @@ void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans) {
   }
   m_bb_max = tmp_bb_max;
   m_bb_min = tmp_bb_min;
+#endif
+
+  m_bb_max.setConstant(std::numeric_limits<float>::lowest());
+  m_bb_min.setConstant(std::numeric_limits<float>::max());
+  for (const auto& geom : m_geoms) {
+    auto stats = geom->stats();
+    m_bb_max = ComputeMaxBound(std::vector{m_bb_max, stats.bb_max});
+    m_bb_min = ComputeMinBound(std::vector{m_bb_min, stats.bb_min});
+  }
 }
 void RendererGl::ClearMesh() {
   m_geoms.clear();
   m_node_trans.clear();
   m_node_locs.clear();
+  m_bvhs.clear();
 }
 
 void RendererGl::SetFragType(const FragShaderType& frag_type) {
@@ -506,6 +525,45 @@ bool RendererGl::AddSelectedPos(const Eigen::Vector3f& pos) {
   m_selected_positions.push_back(pos);
 
   return true;
+}
+
+void RendererGl::ClearSelectedPos() { m_selected_positions.clear(); }
+
+void RendererGl::GetMergedBoundingBox(Eigen::Vector3f& bb_max,
+                                      Eigen::Vector3f& bb_min) {
+  bb_max = m_bb_max;
+  bb_min = m_bb_min;
+}
+
+std::vector<std::vector<IntersectResult>> RendererGl::Intersect(
+    const Ray& ray) const {
+  std::vector<std::vector<IntersectResult>> results_all;
+
+  for (size_t geoid = 0; geoid < m_geoms.size(); geoid++) {
+    std::vector<IntersectResult> results =
+        m_bvhs.at(m_geoms[geoid])->Intersect(ray, true);
+    results_all.push_back(results);
+  }
+
+  return results_all;
+}
+
+std::pair<bool, std::vector<std::vector<IntersectResult>>>
+RendererGl::TestVisibility(const Eigen::Vector3f& point) const {
+  Eigen::Vector3f wld_campos = m_cam->c2w().translation().cast<float>();
+  Ray ray;
+  ray.dir = (point - wld_campos).normalized();
+  ray.org = wld_campos;
+
+  auto results_all = Intersect(ray);
+
+  bool ret = std::accumulate(
+      results_all.begin(), results_all.end(), true,
+      [&](bool accumulated, const std::vector<IntersectResult>& results) {
+        return accumulated && !results.empty();
+      });
+
+  return std::make_pair(ret, results_all);
 }
 
 }  // namespace ugu

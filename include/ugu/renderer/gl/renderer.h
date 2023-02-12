@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "ugu/accel/bvh.h"
 #include "ugu/camera.h"
 #include "ugu/renderable_mesh.h"
 #include "ugu/renderer/base.h"
@@ -45,6 +46,14 @@ class RendererGl {
   void SetBackgroundColor(const Eigen::Vector3f& bkg_col);
 
   bool AddSelectedPos(const Eigen::Vector3f& pos);
+  void ClearSelectedPos();
+
+  void GetMergedBoundingBox(Eigen::Vector3f& bb_max, Eigen::Vector3f& bb_min);
+
+  std::vector<std::vector<IntersectResult>> Intersect(const Ray& ray) const;
+
+  std::pair<bool, std::vector<std::vector<IntersectResult>>> TestVisibility(
+      const Eigen::Vector3f& point) const;
 
  private:
   bool m_initialized = false;
@@ -59,12 +68,16 @@ class RendererGl {
            gId = ~0u, gFace = ~0u;
   std::array<uint32_t, 5> attachments;
   uint32_t rboDepth = ~0u;
-  uint32_t quadVAO = 0;
+  uint32_t quadVAO = ~0u;
   uint32_t quadVBO = ~0u;
 
   std::unordered_map<RenderableMeshPtr, int> m_node_locs;
   std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> m_node_trans;
   std::vector<RenderableMeshPtr> m_geoms;
+  std::unordered_map<RenderableMeshPtr,
+                     BvhPtr<Eigen::Vector3f, Eigen::Vector3i>>
+      m_bvhs;
+
   Shader m_gbuf_shader;
   Shader m_deferred_shader;
 
