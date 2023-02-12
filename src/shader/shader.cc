@@ -237,6 +237,18 @@ void Shader::SetMat4(const std::string &name,
                      mat.data());
 }
 
+void Shader::SetVec2Array(const std::string &name,
+                          const std::vector<Eigen::Vector2f> &values) const {
+  glUniform2fv(glGetUniformLocation(ID, name.c_str()),
+               static_cast<GLuint>(values.size()), values[0].data());
+}
+
+void Shader::SetVec3Array(const std::string &name,
+                          const std::vector<Eigen::Vector3f> &values) const {
+  glUniform3fv(glGetUniformLocation(ID, name.c_str()),
+               static_cast<GLuint>(values.size()), values[0].data());
+}
+
 }  // namespace ugu
 
 #else

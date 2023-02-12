@@ -173,6 +173,8 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
 
     size_t min_geoid = ~0u;
     float min_geo_dist = std::numeric_limits<float>::max();
+    Eigen::Vector3f min_geo_dist_pos =
+        Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
     for (size_t geoid = 0; geoid < g_meshes.size(); geoid++) {
       Ray ray;
       ray.dir = dir_w_gl;
@@ -185,12 +187,14 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
         if (results[0].t < min_geo_dist) {
           min_geoid = geoid;
           min_geo_dist = results[0].t;
+          min_geo_dist_pos = results[0].t * ray.dir + ray.org;
         }
       }
     }
 
     if (min_geoid != ~0u) {
       std::cout << "closest geo: " << min_geoid << std::endl;
+      g_renderer->AddSelectedPos(min_geo_dist_pos);
     }
   }
 

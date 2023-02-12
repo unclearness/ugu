@@ -41,8 +41,10 @@ class RendererGl {
   void SetShowWire(bool show_wire);
   bool GetShowWire() const;
   void SetWireColor(const Eigen::Vector3f& wire_col);
-  const Eigen::Vector3f& RendererGl::GetWireColor() const;
+  const Eigen::Vector3f& GetWireColor() const;
   void SetBackgroundColor(const Eigen::Vector3f& bkg_col);
+
+  bool AddSelectedPos(const Eigen::Vector3f& pos);
 
  private:
   bool m_initialized = false;
@@ -69,6 +71,13 @@ class RendererGl {
   bool m_show_wire = true;
   Eigen::Vector3f m_wire_col;
   Eigen::Vector3f m_bkg_col;
+
+  Eigen::Vector3f m_bb_max;
+  Eigen::Vector3f m_bb_min;
+
+  const uint32_t MAX_SELECTED_POS = 32;  // Sync with GLSL
+  std::vector<Eigen::Vector3f> m_selected_positions;
+  // std::vector<Eigen::Vector3f> m_selected_positions_1;
 
   GBuffer m_gbuf;
 };

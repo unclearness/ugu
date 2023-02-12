@@ -47,5 +47,10 @@ class Shader {
   void SetMat2(const std::string &name, const Eigen::Matrix2f &mat) const;
   void SetMat3(const std::string &name, const Eigen::Matrix3f &mat) const;
   void SetMat4(const std::string &name, const Eigen::Matrix4f &mat) const;
+
+  void SetVec2Array(const std::string &name,
+                    const std::vector<Eigen::Vector2f> &values) const;
+  void SetVec3Array(const std::string &name,
+                    const std::vector<Eigen::Vector3f> &values) const;
 };
 }  // namespace ugu

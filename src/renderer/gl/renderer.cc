@@ -195,6 +195,30 @@ bool RendererGl::Draw(double tic) {
   m_deferred_shader.SetFloat("farZ", m_far_z);
   m_deferred_shader.SetVec3("bkgCol", m_bkg_col);
 
+  if (!m_selected_positions.empty()) {
+    std::vector<Eigen::Vector3f> selected_positions_prj;
+    // Eigen::Matrix4f prj_view_mat = prj_mat * view_mat;
+    for (size_t i = 0; i < m_selected_positions.size(); i++) {
+      Eigen::Vector3f p_wld = m_selected_positions[i];
+      Eigen::Vector4f p_cam =
+          view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
+      Eigen::Vector4f p_ndc = prj_mat * p_cam;
+      p_ndc /= p_ndc.w();  // NDC [-1:1]
+
+      float cam_depth = -p_cam.z();
+
+      // [-1:1],[-1:1] -> [0:w], [0:h]
+      Eigen::Vector3f p_gl_frag_camz = Eigen::Vector3f(
+          ((p_ndc.x() + 1.f) / 2.f) * m_cam->width(),
+          ((p_ndc.y() + 1.f) / 2.f) * m_cam->height(), cam_depth);
+      selected_positions_prj.push_back(p_gl_frag_camz);
+    }
+    m_deferred_shader.SetVec3Array("selectedPositions", selected_positions_prj);
+  }
+
+  m_deferred_shader.SetFloat("selectedPosDepthTh",
+                             (m_bb_max - m_bb_min).maxCoeff() * 0.01f);
+
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, gPosition);
   glActiveTexture(GL_TEXTURE1);
@@ -418,6 +442,26 @@ void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans) {
     m_geoms.push_back(mesh);
   }
   m_node_trans[mesh] = trans;
+
+  m_geoms[0]->CalcStats();
+  Eigen::Vector3f tmp_bb_max = m_geoms[0]->stats().bb_max;
+  Eigen::Vector3f tmp_bb_min = m_geoms[0]->stats().bb_min;
+
+  for (size_t i = 1; i < m_geoms.size(); i++) {
+    auto& m_geom = m_geoms[i];
+
+    m_geom->CalcStats();
+
+    tmp_bb_max[0] = std::max(tmp_bb_max[0], m_geom->stats().bb_max[0]);
+    tmp_bb_max[1] = std::max(tmp_bb_max[1], m_geom->stats().bb_max[1]);
+    tmp_bb_max[2] = std::max(tmp_bb_max[2], m_geom->stats().bb_max[2]);
+
+    tmp_bb_min[0] = std::min(tmp_bb_min[0], m_geom->stats().bb_min[0]);
+    tmp_bb_min[1] = std::min(tmp_bb_min[1], m_geom->stats().bb_min[1]);
+    tmp_bb_min[2] = std::min(tmp_bb_min[2], m_geom->stats().bb_min[2]);
+  }
+  m_bb_max = tmp_bb_max;
+  m_bb_min = tmp_bb_min;
 }
 void RendererGl::ClearMesh() {
   m_geoms.clear();
@@ -452,6 +496,16 @@ const Eigen::Vector3f& RendererGl::GetWireColor() const { return m_wire_col; }
 
 void RendererGl::SetBackgroundColor(const Eigen::Vector3f& bkg_col) {
   m_bkg_col = bkg_col;
+}
+
+bool RendererGl::AddSelectedPos(const Eigen::Vector3f& pos) {
+  if (MAX_SELECTED_POS <= m_selected_positions.size()) {
+    return false;
+  }
+
+  m_selected_positions.push_back(pos);
+
+  return true;
 }
 
 }  // namespace ugu
