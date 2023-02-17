@@ -3,6 +3,7 @@
 /build/
 /bin/
 /lib/
+/data/
 
 # Prerequisites
 *.d
@@ -36,3 +37,9 @@
 *.exe
 *.out
 *.app
+
+# Imgui
+imgui
+
+# Output of examples
+out
