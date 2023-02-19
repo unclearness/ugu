@@ -36,6 +36,7 @@ bool RendererGl::ClearGlState() {
   glDeleteTextures(5, texture_ids);
   glDeleteFramebuffers(1, &gBuffer);
   glDeleteRenderbuffers(1, &rboDepth);
+  glDeleteVertexArrays(1, &quadVAO);
   return true;
 }
 

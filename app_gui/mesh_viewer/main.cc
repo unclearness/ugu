@@ -668,6 +668,25 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
   Draw(window);
 }
 
+void SetupWindow(GLFWwindow *window) {
+  if (window == NULL) return;
+  glfwMakeContextCurrent(window);
+  glfwSwapInterval(1);  // Enable vsync
+
+  glfwSetCursorPosCallback(window, cursor_pos_callback);
+
+  glfwSetKeyCallback(window, key_callback);
+
+  glfwSetMouseButtonCallback(window, mouse_button_callback);
+
+  glfwSetScrollCallback(window, mouse_wheel_callback);
+
+  glfwSetDropCallback(window, drop_callback);
+
+  glfwSetWindowSizeCallback(window, window_size_callback);
+  glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+}
+
 }  // namespace
 
 int main(int, char **) {
@@ -714,22 +733,12 @@ int main(int, char **) {
   // Create window with graphics context
   GLFWwindow *window =
       glfwCreateWindow(g_width, g_height, "UGU Mesh Viewer", NULL, NULL);
-  if (window == NULL) return 1;
-  glfwMakeContextCurrent(window);
-  glfwSwapInterval(1);  // Enable vsync
 
-  glfwSetCursorPosCallback(window, cursor_pos_callback);
+  SetupWindow(window);
 
-  glfwSetKeyCallback(window, key_callback);
-
-  glfwSetMouseButtonCallback(window, mouse_button_callback);
-
-  glfwSetScrollCallback(window, mouse_wheel_callback);
-
-  glfwSetDropCallback(window, drop_callback);
-
-  glfwSetWindowSizeCallback(window, window_size_callback);
-  glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+  // GLFWwindow *window2 =
+  //     glfwCreateWindow(g_width, g_height, "UGU Mesh Viewer2", NULL, window);
+  //  SetupWindow(window2);
 
   // Setup Dear ImGui context
   IMGUI_CHECKVERSION();
@@ -752,6 +761,7 @@ int main(int, char **) {
 
   // Setup Platform/Renderer backends
   ImGui_ImplGlfw_InitForOpenGL(window, true);
+  // ImGui_ImplGlfw_InitForOpenGL(window2, true);
   ImGui_ImplOpenGL3_Init(glsl_version);
 
   // Load Fonts
@@ -871,7 +881,13 @@ int main(int, char **) {
     // and hide them from your application based on those two flags.
     glfwPollEvents();
 
+    glfwMakeContextCurrent(window);
     Draw(window);
+    // glfwSwapBuffers(window);
+
+    // glfwMakeContextCurrent(window2);
+    // Draw(window2);
+    // glfwSwapBuffers(window2);
   }
 
   // Cleanup
