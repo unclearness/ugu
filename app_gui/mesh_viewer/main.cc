@@ -47,13 +47,6 @@ using namespace ugu;
 
 namespace {
 
-RendererGlPtr g_renderer;
-
-int g_width = 1280;
-int g_height = 720;
-
-ImVec4 g_clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
 Eigen::Vector2d g_prev_cursor_pos;
 Eigen::Vector2d g_cursor_pos;
 Eigen::Vector2d g_mouse_l_pressed_pos;
@@ -62,16 +55,11 @@ Eigen::Vector2d g_mouse_m_pressed_pos;
 Eigen::Vector2d g_mouse_m_released_pos;
 Eigen::Vector2d g_mouse_r_pressed_pos;
 Eigen::Vector2d g_mouse_r_released_pos;
-// Eigen::Vector3d g_center;
-// ugu::MeshStats g_stats;
-// Eigen::Vector3f g_bb_max, g_bb_min;
-PinholeCameraPtr g_camera;
+
 bool g_to_process_drag_l = false;
 bool g_to_process_drag_m = false;
 bool g_to_process_drag_r = false;
 
-// bool g_prev_mouse_l_pressed = false;
-// bool g_prev_mouse_m_pressed = false;
 bool g_mouse_l_pressed = false;
 bool g_mouse_m_pressed = false;
 bool g_mouse_r_pressed = false;
@@ -81,10 +69,168 @@ const double g_drag_point_pix_dist_th = 10.0;
 double g_mouse_wheel_yoffset = 0.0;
 bool g_to_process_wheel = false;
 
-std::vector<RenderableMeshPtr> g_meshes;
-// std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
+const uint32_t MAX_N_SPLIT_WIDTH = 2;
+uint32_t g_n_split_views = 2;
 
+int g_width = 1280;
+int g_height = 720;
+
+auto GetWidthHeightForView() {
+  return std::make_pair(g_width / g_n_split_views, g_height);
+}
+
+// Global geometry info
+std::vector<RenderableMeshPtr> g_meshes;
+std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
 std::vector<Eigen::Vector3f> g_selected_positions;
+
+struct CastRayResult {
+  size_t min_geoid = ~0u;
+  float min_geo_dist = std::numeric_limits<float>::max();
+  Eigen::Vector3f min_geo_dist_pos =
+      Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
+};
+
+struct SplitViewInfo {
+  RendererGlPtr renderer;
+  PinholeCameraPtr camera;
+  Eigen::Vector3f clear_color = {0.45f, 0.55f, 0.60f};
+  Eigen::Vector3f wire_color = {0.45f, 0.55f, 0.60f};
+
+  void Init() {
+    auto [w, h] = GetWidthHeightForView();
+
+    camera = std::make_shared<PinholeCamera>(w, h, 45.f);
+    renderer = std::make_shared<RendererGl>();
+    renderer->SetSize(w, h);
+    renderer->SetCamera(camera);
+    renderer->Init();
+
+    renderer->SetBackgroundColor(clear_color);
+    renderer->SetWireColor(wire_color);
+  }
+
+  void Reset() {
+    auto [w, h] = GetWidthHeightForView();
+
+    camera->set_size(w, h);
+    camera->set_fov_y(45.0f);
+    camera->set_principal_point({w / 2.f, h / 2.f});
+
+    renderer->SetSize(w, h);
+
+    // renderer->SetSize(w, h);
+
+    ResetGl();
+  }
+
+  void ResetGl() {
+    renderer->ClearGlState();
+    for (const auto &mesh : g_meshes) {
+      renderer->SetMesh(mesh);
+    }
+
+    renderer->AddSelectedPositions(g_selected_positions);
+
+    renderer->Init();
+  }
+
+  CastRayResult CastRay() {
+    // Cast ray
+    Eigen::Vector3f dir_c_cv;
+    camera->ray_c(static_cast<float>(g_cursor_pos[0]),
+                  static_cast<float>(g_cursor_pos[1]), &dir_c_cv);
+
+    const Eigen::Affine3d offset =
+        Eigen::Affine3d(Eigen::AngleAxisd(pi, Eigen::Vector3d::UnitX()))
+            .inverse();
+    Eigen::Vector3f dir_c_gl =
+        (dir_c_cv.transpose() * offset.rotation().cast<float>());
+    Eigen::Vector3f dir_w_gl =
+        camera->c2w().rotation().cast<float>() * dir_c_gl;
+
+    size_t min_geoid = ~0u;
+    float min_geo_dist = std::numeric_limits<float>::max();
+    Eigen::Vector3f min_geo_dist_pos =
+        Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
+
+    Ray ray;
+    ray.dir = dir_w_gl;
+    ray.org = camera->c2w().translation().cast<float>();
+    auto results_all = renderer->Intersect(ray);
+
+    for (size_t geoid = 0; geoid < g_meshes.size(); geoid++) {
+      const std::vector<IntersectResult> &results = results_all[geoid];
+      if (!results.empty()) {
+        std::cout << geoid << ": " << results[0].t << " " << results[0].fid
+                  << " " << results[0].u << ", " << results[0].v << std::endl;
+        if (results[0].t < min_geo_dist) {
+          min_geoid = geoid;
+          min_geo_dist = results[0].t;
+          min_geo_dist_pos = results[0].t * ray.dir + ray.org;
+        }
+      }
+    }
+
+    if (min_geoid != ~0u) {
+      std::cout << "closest geo: " << min_geoid << std::endl;
+    }
+
+    CastRayResult result;
+    result.min_geoid = min_geoid;
+    result.min_geo_dist = min_geo_dist;
+    result.min_geo_dist_pos = min_geo_dist_pos;
+
+    return result;
+  }
+
+  std::pair<bool, size_t> FindClosestSelectedPoint(
+      const Eigen::Vector2d &cursor_pos) {
+    bool not_close = true;
+    size_t closest_selected_id = ~0u;
+    double min_dist = std::numeric_limits<double>::max();
+    float near_z, far_z;
+    renderer->GetNearFar(near_z, far_z);
+    Eigen::Matrix4f view_mat = camera->c2w().inverse().matrix().cast<float>();
+    Eigen::Matrix4f prj_mat = camera->ProjectionMatrixOpenGl(near_z, far_z);
+    for (size_t i = 0; i < g_selected_positions.size(); i++) {
+      const auto &p_wld = g_selected_positions[i];
+      auto [is_visible, results_all] = renderer->TestVisibility(p_wld);
+      if (is_visible) {
+        std::cout << "selected " << i << ": visibile" << std::endl;
+      } else {
+        std::cout << "selected " << i << ": not visibile" << std::endl;
+      }
+      if (is_visible) {
+        Eigen::Vector4f p_cam =
+            view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
+        Eigen::Vector4f p_ndc = prj_mat * p_cam;
+        p_ndc /= p_ndc.w();  // NDC [-1:1]
+
+        // float cam_depth = -p_cam.z();
+
+        // [-1:1],[-1:1] -> [0:w], [0:h]
+        Eigen::Vector2d p_gl_frag =
+            Eigen::Vector2d(((p_ndc.x() + 1.f) / 2.f) * camera->width(),
+                            ((p_ndc.y() + 1.f) / 2.f) * camera->height());
+
+        p_gl_frag.y() = camera->height() - p_gl_frag.y();
+
+        double dist = (p_gl_frag - cursor_pos).norm();
+        // std::cout << dist << std::endl;
+        if (dist < g_drag_point_pix_dist_th && dist < min_dist) {
+          not_close = false;
+          min_dist = dist;
+          closest_selected_id = i;
+          // break;
+        }
+      }
+    }
+    return std::make_pair(!not_close, closest_selected_id);
+  }
+};
+
+std::vector<SplitViewInfo> g_views;
 
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "Glfw Error %d: %s\n", error, description);
@@ -108,118 +254,6 @@ static void mouse_callback(GLFWwindow *window, int button, int action,
   }
 }
 #endif
-
-void ResetGl() {
-  g_renderer->ClearGlState();
-  for (const auto mesh : g_meshes) {
-    g_renderer->SetMesh(mesh);
-  }
-
-  g_renderer->AddSelectedPositions(g_selected_positions);
-
-  g_renderer->Init();
-}
-
-struct CastRayResult {
-  size_t min_geoid = ~0u;
-  float min_geo_dist = std::numeric_limits<float>::max();
-  Eigen::Vector3f min_geo_dist_pos =
-      Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
-};
-
-CastRayResult CastRay() {
-  // Cast ray
-  Eigen::Vector3f dir_c_cv;
-  g_camera->ray_c(static_cast<float>(g_cursor_pos[0]),
-                  static_cast<float>(g_cursor_pos[1]), &dir_c_cv);
-
-  const Eigen::Affine3d offset =
-      Eigen::Affine3d(Eigen::AngleAxisd(pi, Eigen::Vector3d::UnitX()))
-          .inverse();
-  Eigen::Vector3f dir_c_gl =
-      (dir_c_cv.transpose() * offset.rotation().cast<float>());
-  Eigen::Vector3f dir_w_gl =
-      g_camera->c2w().rotation().cast<float>() * dir_c_gl;
-
-  size_t min_geoid = ~0u;
-  float min_geo_dist = std::numeric_limits<float>::max();
-  Eigen::Vector3f min_geo_dist_pos =
-      Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
-
-  Ray ray;
-  ray.dir = dir_w_gl;
-  ray.org = g_camera->c2w().translation().cast<float>();
-  auto results_all = g_renderer->Intersect(ray);
-
-  for (size_t geoid = 0; geoid < g_meshes.size(); geoid++) {
-    const std::vector<IntersectResult> &results = results_all[geoid];
-    if (!results.empty()) {
-      std::cout << geoid << ": " << results[0].t << " " << results[0].fid << " "
-                << results[0].u << ", " << results[0].v << std::endl;
-      if (results[0].t < min_geo_dist) {
-        min_geoid = geoid;
-        min_geo_dist = results[0].t;
-        min_geo_dist_pos = results[0].t * ray.dir + ray.org;
-      }
-    }
-  }
-
-  if (min_geoid != ~0u) {
-    std::cout << "closest geo: " << min_geoid << std::endl;
-  }
-
-  CastRayResult result;
-  result.min_geoid = min_geoid;
-  result.min_geo_dist = min_geo_dist;
-  result.min_geo_dist_pos = min_geo_dist_pos;
-
-  return result;
-}
-
-std::pair<bool, size_t> FindClosestSelectedPoint(
-    const Eigen::Vector2d &cursor_pos) {
-  bool not_close = true;
-  size_t closest_selected_id = ~0u;
-  double min_dist = std::numeric_limits<double>::max();
-  float near_z, far_z;
-  g_renderer->GetNearFar(near_z, far_z);
-  Eigen::Matrix4f view_mat = g_camera->c2w().inverse().matrix().cast<float>();
-  Eigen::Matrix4f prj_mat = g_camera->ProjectionMatrixOpenGl(near_z, far_z);
-  for (size_t i = 0; i < g_selected_positions.size(); i++) {
-    const auto &p_wld = g_selected_positions[i];
-    auto [is_visible, results_all] = g_renderer->TestVisibility(p_wld);
-    if (is_visible) {
-      std::cout << "selected " << i << ": visibile" << std::endl;
-    } else {
-      std::cout << "selected " << i << ": not visibile" << std::endl;
-    }
-    if (is_visible) {
-      Eigen::Vector4f p_cam =
-          view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
-      Eigen::Vector4f p_ndc = prj_mat * p_cam;
-      p_ndc /= p_ndc.w();  // NDC [-1:1]
-
-      // float cam_depth = -p_cam.z();
-
-      // [-1:1],[-1:1] -> [0:w], [0:h]
-      Eigen::Vector2d p_gl_frag =
-          Eigen::Vector2d(((p_ndc.x() + 1.f) / 2.f) * g_camera->width(),
-                          ((p_ndc.y() + 1.f) / 2.f) * g_camera->height());
-
-      p_gl_frag.y() = g_camera->height() - p_gl_frag.y();
-
-      double dist = (p_gl_frag - cursor_pos).norm();
-      // std::cout << dist << std::endl;
-      if (dist < g_drag_point_pix_dist_th && dist < min_dist) {
-        not_close = false;
-        min_dist = dist;
-        closest_selected_id = i;
-        // break;
-      }
-    }
-  }
-  return std::make_pair(!not_close, closest_selected_id);
-}
 
 void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
                   int mods) {
@@ -246,7 +280,9 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
     if (action == GLFW_PRESS) {
       g_meshes.clear();
       g_selected_positions.clear();
-      ResetGl();
+      for (auto &view : g_views) {
+        view.ResetGl();
+      }
     }
   }
 }
@@ -277,16 +313,19 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
     }
 
     if (g_mouse_r_pressed) {
-      auto result = CastRay();
+      for (auto &view : g_views) {
+        auto result = view.CastRay();
 
-      auto [is_close, id] = FindClosestSelectedPoint(g_mouse_r_pressed_pos);
-      bool not_close = !is_close;
-      if (not_close) {
-        g_renderer->AddSelectedPosition(result.min_geo_dist_pos);
-        g_selected_positions.push_back(result.min_geo_dist_pos);
-        std::cout << "added" << std::endl;
-      } else {
-        std::cout << "ignored" << std::endl;
+        auto [is_close, id] =
+            view.FindClosestSelectedPoint(g_mouse_r_pressed_pos);
+        bool not_close = !is_close;
+        if (not_close) {
+          view.renderer->AddSelectedPosition(result.min_geo_dist_pos);
+          g_selected_positions.push_back(result.min_geo_dist_pos);
+          std::cout << "added" << std::endl;
+        } else {
+          std::cout << "ignored" << std::endl;
+        }
       }
     }
   }
@@ -351,17 +390,19 @@ void LoadMesh(const std::string &path) {
     return;
   }
 
-  ResetGl();
+  for (auto &view : g_views) {
+    view.ResetGl();
 
-  Eigen::Vector3f bb_max, bb_min;
-  g_renderer->GetMergedBoundingBox(bb_max, bb_min);
-  float z_trans = (bb_max - bb_min).maxCoeff() * 2.0f;
-  g_renderer->SetNearFar(static_cast<float>(z_trans * 0.5f / 10),
-                         static_cast<float>(z_trans * 2.f * 10));
+    Eigen::Vector3f bb_max, bb_min;
+    view.renderer->GetMergedBoundingBox(bb_max, bb_min);
+    float z_trans = (bb_max - bb_min).maxCoeff() * 2.0f;
+    view.renderer->SetNearFar(static_cast<float>(z_trans * 0.5f / 10),
+                              static_cast<float>(z_trans * 2.f * 10));
 
-  Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
-  c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
-  g_camera->set_c2w(c2w);
+    Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
+    c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
+    view.camera->set_c2w(c2w);
+  }
 }
 
 void drop_callback(GLFWwindow *window, int count, const char **paths) {
@@ -405,9 +446,9 @@ void Draw(GLFWwindow *window) {
 
     ImGui::SliderFloat("float", &f, 0.0f,
                        1.0f);  // Edit 1 float using a slider from 0.0f to 1.0f
-    ImGui::ColorEdit3(
-        "clear color",
-        (float *)&g_clear_color);  // Edit 3 floats representing a color
+    ImGui::ColorEdit3("clear color",
+                      (float *)&g_views[0]
+                          .clear_color);  // Edit 3 floats representing a color
 
     if (ImGui::Button("Button"))  // Buttons return true when clicked (most
                                   // widgets return true when edited/activated)
@@ -440,52 +481,58 @@ void Draw(GLFWwindow *window) {
       LoadMesh(mesh_path);
     }
 
-    bool show_wire = g_renderer->GetShowWire();
+    bool show_wire = g_views[0].renderer->GetShowWire();
     if (ImGui::Checkbox("show wire", &show_wire)) {
-      g_renderer->SetShowWire(show_wire);
+      for (auto &view : g_views) {
+        view.renderer->SetShowWire(show_wire);
+      }
     }
 
-    Eigen::Vector3f wire_col = g_renderer->GetWireColor();
+    Eigen::Vector3f wire_col = g_views[0].renderer->GetWireColor();
     if (ImGui::ColorEdit3("wire color", wire_col.data())) {
-      g_renderer->SetWireColor(Eigen::Vector3f(wire_col));
+      for (auto &view : g_views) {
+        view.renderer->SetWireColor(Eigen::Vector3f(wire_col));
+      }
     }
 
     if (ImGui::Button("Save GBuffer")) {
-      g_renderer->ReadGbuf();
-      GBuffer gbuf;
-      g_renderer->GetGbuf(gbuf);
+      for (auto &view : g_views) {
+        view.renderer->ReadGbuf();
+        GBuffer gbuf;
+        view.renderer->GetGbuf(gbuf);
 #if 1
-      Image3b vis_pos_wld, vis_pos_cam;
-      vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
-      imwrite("pos_wld.png", vis_pos_wld);
-      vis_pos_cam = ColorizePosMap(gbuf.pos_cam);
-      imwrite("pos_cam.png", vis_pos_cam);
+        Image3b vis_pos_wld, vis_pos_cam;
+        vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
+        imwrite("pos_wld.png", vis_pos_wld);
+        vis_pos_cam = ColorizePosMap(gbuf.pos_cam);
+        imwrite("pos_cam.png", vis_pos_cam);
 
-      Image3b vis_normal_wld, vis_normal_cam;
-      Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
-      imwrite("normal_wld.png", vis_normal_wld);
-      Normal2Color(gbuf.normal_cam, &vis_normal_cam, true);
-      imwrite("normal_cam.png", vis_normal_cam);
+        Image3b vis_normal_wld, vis_normal_cam;
+        Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
+        imwrite("normal_wld.png", vis_normal_wld);
+        Normal2Color(gbuf.normal_cam, &vis_normal_cam, true);
+        imwrite("normal_cam.png", vis_normal_cam);
 #endif
-      Image3b vis_depth;
-      Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
-      imwrite("depth01.png", vis_depth);
+        Image3b vis_depth;
+        Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
+        imwrite("depth01.png", vis_depth);
 
-      Image3b vis_geoid;
-      FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
-      imwrite("geoid.png", vis_geoid);
+        Image3b vis_geoid;
+        FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
+        imwrite("geoid.png", vis_geoid);
 
-      Image3b vis_faceid;
-      FaceId2RandomColor(gbuf.face_id, &vis_faceid);
-      imwrite("faceid.png", vis_faceid);
+        Image3b vis_faceid;
+        FaceId2RandomColor(gbuf.face_id, &vis_faceid);
+        imwrite("faceid.png", vis_faceid);
 
-      Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
-      imwrite("bary.png", vis_bary);
+        Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
+        imwrite("bary.png", vis_bary);
 
-      Image3b vis_uv = ColorizeBarycentric(gbuf.uv);
-      imwrite("uv.png", vis_uv);
+        Image3b vis_uv = ColorizeBarycentric(gbuf.uv);
+        imwrite("uv.png", vis_uv);
 
-      imwrite("color.png", gbuf.color);
+        imwrite("color.png", gbuf.color);
+      }
     }
     ImGui::End();
   }
@@ -493,9 +540,8 @@ void Draw(GLFWwindow *window) {
 #endif
 
   glClear(GL_COLOR_BUFFER_BIT);
-  glClearColor(g_clear_color.x * g_clear_color.w,
-               g_clear_color.y * g_clear_color.w,
-               g_clear_color.z * g_clear_color.w, g_clear_color.w);
+  glClearColor(g_views[0].clear_color.x(), g_views[0].clear_color.y(),
+               g_views[0].clear_color.z(), 1.f);
 
 #if 0
     {
@@ -529,33 +575,44 @@ void Draw(GLFWwindow *window) {
 
   // count++;
 
-  g_renderer->Draw();
+  // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glViewport(0, 0, g_width, g_height);
+  for (size_t i = 0; i < g_views.size(); i++) {
+    const auto &view = g_views[i];
+    const auto offset_w = g_width / g_views.size();
+    // glViewport(offset_w * i, 0, offset_w, g_height);
+    // glScissor(offset_w * i, 0, offset_w, g_height);
+    view.renderer->SetViewport(offset_w * i, 0, offset_w, g_height);
+    view.renderer->Draw();
+  }
 
   if (!ImGui::IsAnyItemActive()) {
     Eigen::Vector3f bb_max, bb_min;
-    g_renderer->GetMergedBoundingBox(bb_max, bb_min);
+    for (auto &view : g_views) {
+      view.renderer->GetMergedBoundingBox(bb_max, bb_min);
 
-    if (g_to_process_drag_l) {
-      g_to_process_drag_l = false;
-      Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
-      if (diff.norm() > drag_th) {
-        const double rotate_speed = ugu::pi / 180 * 10;
+      if (g_to_process_drag_l) {
+        g_to_process_drag_l = false;
+        Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
+        if (diff.norm() > drag_th) {
+          const double rotate_speed = ugu::pi / 180 * 10;
 
-        Eigen::Affine3d cam_pose_cur = g_camera->c2w();
-        Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
+          Eigen::Affine3d cam_pose_cur = view.camera->c2w();
+          Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
 
-        Eigen::Vector3d right_axis = -R_cur.col(0);
-        Eigen::Vector3d up_axis = -R_cur.col(1);
+          Eigen::Vector3d right_axis = -R_cur.col(0);
+          Eigen::Vector3d up_axis = -R_cur.col(1);
 
-        Eigen::Quaterniond R_offset =
-            Eigen::AngleAxisd(2 * ugu::pi * diff[0] / g_height * rotate_speed,
-                              up_axis) *
-            Eigen::AngleAxisd(2 * ugu::pi * diff[1] / g_height * rotate_speed,
-                              right_axis);
+          Eigen::Quaterniond R_offset =
+              Eigen::AngleAxisd(2 * ugu::pi * diff[0] / g_height * rotate_speed,
+                                up_axis) *
+              Eigen::AngleAxisd(2 * ugu::pi * diff[1] / g_height * rotate_speed,
+                                right_axis);
 
-        Eigen::Affine3d cam_pose_new = R_offset * cam_pose_cur;
+          Eigen::Affine3d cam_pose_new = R_offset * cam_pose_cur;
 
-        g_camera->set_c2w(cam_pose_new);
+          view.camera->set_c2w(cam_pose_new);
+        }
       }
     }
 
@@ -565,31 +622,34 @@ void Draw(GLFWwindow *window) {
       if (diff.norm() > drag_th) {
         const double trans_speed = (bb_max - bb_min).maxCoeff() / g_height;
 
-        Eigen::Affine3d cam_pose_cur = g_camera->c2w();
-        Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
+        for (auto &view : g_views) {
+          Eigen::Affine3d cam_pose_cur = view.camera->c2w();
+          Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
 
-        Eigen::Vector3d right_axis = -R_cur.col(0);
-        Eigen::Vector3d up_axis = R_cur.col(1);
+          Eigen::Vector3d right_axis = -R_cur.col(0);
+          Eigen::Vector3d up_axis = R_cur.col(1);
 
-        Eigen::Vector3d t_offset = right_axis * diff[0] * trans_speed +
-                                   up_axis * diff[1] * trans_speed;
+          Eigen::Vector3d t_offset = right_axis * diff[0] * trans_speed +
+                                     up_axis * diff[1] * trans_speed;
 
-        Eigen::Affine3d cam_pose_new =
-            Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
-            cam_pose_cur.rotation();
-        g_camera->set_c2w(cam_pose_new);
+          Eigen::Affine3d cam_pose_new =
+              Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
+              cam_pose_cur.rotation();
+          view.camera->set_c2w(cam_pose_new);
+        }
       }
     }
 
     if (g_to_process_drag_r) {
       g_to_process_drag_r = false;
-
-      auto result = CastRay();
-      if (result.min_geoid != ~0u) {
-        auto [is_close, id] = FindClosestSelectedPoint(g_cursor_pos);
-        if (is_close) {
-          g_selected_positions[id] = result.min_geo_dist_pos;
-          g_renderer->AddSelectedPositions(g_selected_positions);
+      for (auto &view : g_views) {
+        auto result = view.CastRay();
+        if (result.min_geoid != ~0u) {
+          auto [is_close, id] = view.FindClosestSelectedPoint(g_cursor_pos);
+          if (is_close) {
+            g_selected_positions[id] = result.min_geo_dist_pos;
+            view.renderer->AddSelectedPositions(g_selected_positions);
+          }
         }
       }
     }
@@ -598,13 +658,15 @@ void Draw(GLFWwindow *window) {
       g_to_process_wheel = false;
       const double wheel_speed = (bb_max - bb_min).maxCoeff() / 20;
 
-      Eigen::Affine3d cam_pose_cur = g_camera->c2w();
-      Eigen::Vector3d t_offset =
-          cam_pose_cur.rotation().col(2) * -g_mouse_wheel_yoffset * wheel_speed;
-      Eigen::Affine3d cam_pose_new =
-          Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
-          cam_pose_cur.rotation();
-      g_camera->set_c2w(cam_pose_new);
+      for (auto &view : g_views) {
+        Eigen::Affine3d cam_pose_cur = view.camera->c2w();
+        Eigen::Vector3d t_offset = cam_pose_cur.rotation().col(2) *
+                                   -g_mouse_wheel_yoffset * wheel_speed;
+        Eigen::Affine3d cam_pose_new =
+            Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
+            cam_pose_cur.rotation();
+        view.camera->set_c2w(cam_pose_new);
+      }
     }
   }
   glClear(GL_DEPTH_BUFFER_BIT);
@@ -629,24 +691,17 @@ void window_size_callback(GLFWwindow *window, int width, int height) {
     return;
   }
 
-#if 1
   g_width = width;
   g_height = height;
 
-  g_camera->set_size(g_width, g_height);
-  g_camera->set_fov_y(45.0f);
-  g_camera->set_principal_point({g_width / 2.f, g_height / 2.f});
+  for (auto &view : g_views) {
+    view.Reset();
+  }
 
-  g_renderer->SetSize(g_width, g_height);
-#endif
-
-  Draw(window);  // Avoid flickering
-
-  ResetGl();
-
-  Draw(window);
+  // Draw(window);
 
   // glViewport(0, 0, width, height);
+  std::cout << "window size " << width << " " << height << std::endl;
 }
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
@@ -663,9 +718,11 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
 #endif
   // ResetGl();
 
-  glViewport(0, 0, width, height);
+  // glViewport(0, 0, width/2, height);
 
   Draw(window);
+
+  std::cout << "frame buffer size " << width << " " << height << std::endl;
 }
 
 void SetupWindow(GLFWwindow *window) {
@@ -796,78 +853,12 @@ int main(int, char **) {
 
   glEnable(GL_DEPTH_TEST);
 
-#if 0
-  RenderableMeshPtr mesh = RenderableMesh::Create();
-  mesh->LoadObj("../data/bunny/bunny.obj", "../data/bunny/");
+  g_views.resize(g_n_split_views);
 
-  RenderableMeshPtr mesh2 = RenderableMesh::Create();
-  mesh2->LoadObj("../data/spot/spot_triangulated.obj", "../data/spot/");
+  for (auto &view : g_views) {
+    view.Init();
+  }
 
-  MeshStats stats = mesh->stats();
-  Eigen::Vector3f bb_len = stats.bb_max - stats.bb_min;
-
-  MeshStats stats2 = mesh2->stats();
-  Eigen::Vector3f bb_len_2 = stats2.bb_max - stats2.bb_min;
-
-  float scale = bb_len_2.maxCoeff() / bb_len.maxCoeff();
-
-  mesh->Scale(scale);
-  mesh->CalcStats();
-  stats = mesh->stats();
-  bb_len = stats.bb_max - stats.bb_min;
-
-  // mesh.BindTextures();
-  // mesh.SetupMesh();
-
-  // Shader shader;
-  // shader.SetFragType(FragShaderType::UNLIT);
-  // shader.Prepare();
-
-  Eigen::Matrix4f model_mat = Eigen::Matrix4f::Identity();
-  Eigen::Matrix4f model_mat_2 = Eigen::Matrix4f::Identity();
-
-  // int modelLoc = glGetUniformLocation(shader.ID, "model");
-  // glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model_mat.data());
-#endif
-  g_camera = std::make_shared<PinholeCamera>(g_width, g_height, 45.f);
-  // Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
-  //  double z_trans = bb_len.maxCoeff() * 3;
-  //  c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
-  //  camera->set_c2w(c2w);
-
-#if 0
-  Eigen::Matrix4f view_mat = camera.c2w().inverse().matrix().cast<float>();
-
-  int viewLoc = glGetUniformLocation(shader.ID, "view");
-
-  glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view_mat.data());
-  Eigen::Matrix4f prj_mat = camera.ProjectionMatrixOpenGl(0.1f, 1000.f);
-  int prjLoc = glGetUniformLocation(shader.ID, "projection");
-  glUniformMatrix4fv(prjLoc, 1, GL_FALSE, prj_mat.data());
-#endif
-
-  g_renderer = std::make_shared<RendererGl>();
-
-  g_renderer->SetSize(g_width, g_height);
-
-  g_renderer->SetCamera(g_camera);
-  // renderer->SetMesh(mesh);
-
-  // renderer->SetMesh(mesh2);
-
-  // renderer->SetNearFar(static_cast<float>(z_trans * 0.5f / 10),
-  //                      static_cast<float>(z_trans * 2.f * 10));
-
-  g_renderer->Init();
-
-  Eigen::Vector3f default_color(0.45f, 0.55f, 0.60f);
-  g_renderer->SetBackgroundColor(default_color);
-  g_renderer->SetWireColor(default_color);
-  // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-  // g_stats = mesh->stats();
-
-  // int count = 0;
   //  Main loop
   while (!glfwWindowShouldClose(window)) {
     // Poll and handle events (inputs, window resize, etc.)
@@ -888,6 +879,8 @@ int main(int, char **) {
     // glfwMakeContextCurrent(window2);
     // Draw(window2);
     // glfwSwapBuffers(window2);
+
+    glViewport(0, 0, g_width, g_height);
   }
 
   // Cleanup

@@ -185,6 +185,7 @@ bool RendererGl::Draw(double tic) {
   (void)tic;
 
   // GBuf
+  glViewport(0, 0, m_width, m_height);
   glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -281,6 +282,7 @@ bool RendererGl::Draw(double tic) {
 #endif
 
   glBindVertexArray(quadVAO);
+  glViewport(m_viewport_x, m_viewport_y, m_viewport_width, m_viewport_height);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
 #endif
@@ -484,6 +486,14 @@ void RendererGl::GetNearFar(float& near_z, float& far_z) const {
 void RendererGl::SetSize(uint32_t width, uint32_t height) {
   m_width = width;
   m_height = height;
+}
+
+void RendererGl::SetViewport(uint32_t x, uint32_t y, uint32_t width,
+                             uint32_t height) {
+  m_viewport_x = x;
+  m_viewport_y = y;
+  m_viewport_width = width;
+  m_viewport_height = height;
 }
 
 void RendererGl::GetGbuf(GBuffer& gbuf) const { gbuf = m_gbuf; }

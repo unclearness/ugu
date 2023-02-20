@@ -36,6 +36,7 @@ class RendererGl {
   void SetNearFar(float near_z, float far_z);
   void GetNearFar(float& near_z, float& far_z) const;
   void SetSize(uint32_t width, uint32_t height);
+  void SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 
   bool ReadGbuf();
   void GetGbuf(GBuffer& gbuf) const;
@@ -65,6 +66,11 @@ class RendererGl {
 
   uint32_t m_width = 1024;
   uint32_t m_height = 720;
+
+  uint32_t m_viewport_x = 0;
+  uint32_t m_viewport_y = 0;
+  uint32_t m_viewport_width = m_width;
+  uint32_t m_viewport_height = m_height;
 
   uint32_t gBuffer = ~0u, gPosition = ~0u, gNormal = ~0u, gAlbedoSpec = ~0u,
            gId = ~0u, gFace = ~0u;
