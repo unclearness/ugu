@@ -217,26 +217,32 @@ bool RendererGl::Draw(double tic) {
   m_deferred_shader.SetFloat("farZ", m_far_z);
   m_deferred_shader.SetVec3("bkgCol", m_bkg_col);
 
-  if (!m_selected_positions.empty()) {
-    std::vector<Eigen::Vector3f> selected_positions_prj;
-    // Eigen::Matrix4f prj_view_mat = prj_mat * view_mat;
-    for (size_t i = 0; i < m_selected_positions.size(); i++) {
-      // Test visibility
+  std::vector<Eigen::Vector3f> selected_positions_prj;
+  for (const auto& mesh : m_geoms) {
+    // std::cout << m_selected_positions[mesh].size() << std::endl;
+    if (!m_selected_positions[mesh].empty()) {
+      // Eigen::Matrix4f prj_view_mat = prj_mat * view_mat;
+      for (size_t i = 0; i < m_selected_positions.at(mesh).size(); i++) {
+        // Test visibility
 
-      Eigen::Vector3f p_wld = m_selected_positions[i];
-      Eigen::Vector4f p_cam =
-          view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
-      Eigen::Vector4f p_ndc = prj_mat * p_cam;
-      p_ndc /= p_ndc.w();  // NDC [-1:1]
+        Eigen::Vector3f p_wld = m_selected_positions.at(mesh)[i];
+        Eigen::Vector4f p_cam =
+            view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
+        Eigen::Vector4f p_ndc = prj_mat * p_cam;
+        p_ndc /= p_ndc.w();  // NDC [-1:1]
 
-      float cam_depth = -p_cam.z();
+        float cam_depth = -p_cam.z();
 
-      // [-1:1],[-1:1] -> [0:w], [0:h]
-      Eigen::Vector3f p_gl_frag_camz = Eigen::Vector3f(
-          ((p_ndc.x() + 1.f) / 2.f) * m_cam->width(),
-          ((p_ndc.y() + 1.f) / 2.f) * m_cam->height(), cam_depth);
-      selected_positions_prj.push_back(p_gl_frag_camz);
+        // [-1:1],[-1:1] -> [0:w], [0:h]
+        Eigen::Vector3f p_gl_frag_camz = Eigen::Vector3f(
+            ((p_ndc.x() + 1.f) / 2.f) * m_cam->width(),
+            ((p_ndc.y() + 1.f) / 2.f) * m_cam->height(), cam_depth);
+        selected_positions_prj.push_back(p_gl_frag_camz);
+      }
     }
+  }
+  if (!selected_positions_prj.empty()) {
+    m_deferred_shader.SetVec2("viewportOffset", Eigen::Vector2f(m_viewport_x, m_viewport_y));
     m_deferred_shader.SetVec3Array("selectedPositions", selected_positions_prj);
   }
 
@@ -511,23 +517,27 @@ void RendererGl::SetBackgroundColor(const Eigen::Vector3f& bkg_col) {
   m_bkg_col = bkg_col;
 }
 
-bool RendererGl::AddSelectedPosition(const Eigen::Vector3f& pos) {
-  if (MAX_SELECTED_POS <= m_selected_positions.size()) {
+bool RendererGl::AddSelectedPosition(const RenderableMeshPtr& geom,
+                                     const Eigen::Vector3f& pos) {
+  if (MAX_SELECTED_POS <= m_selected_positions.size() ||
+      std::find(m_geoms.begin(), m_geoms.end(), geom) == m_geoms.end()) {
     return false;
   }
 
-  m_selected_positions.push_back(pos);
+  m_selected_positions[geom].push_back(pos);
 
   return true;
 }
 
 bool RendererGl::AddSelectedPositions(
+    const RenderableMeshPtr& geom,
     const std::vector<Eigen::Vector3f>& pos_list) {
-  if (MAX_SELECTED_POS <= pos_list.size()) {
+  if (MAX_SELECTED_POS <= pos_list.size() ||
+      std::find(m_geoms.begin(), m_geoms.end(), geom) == m_geoms.end()) {
     return false;
   }
 
-  m_selected_positions = pos_list;
+  m_selected_positions[geom] = pos_list;
 
   return true;
 }

@@ -18,6 +18,7 @@ uniform vec3 bkgCol;
 const int N_POSITIONS = 32;
 uniform vec3 selectedPositions[N_POSITIONS];
 uniform float selectedPosDepthTh;
+uniform vec2 viewportOffset;
 
 struct Light {
   vec3 Position;
@@ -79,7 +80,8 @@ void main() {
     if (is_frg && selectedPositions[i].z - depth > selectedPosDepthTh) {
       continue;
     }
-    float dist = distance(gl_FragCoord.xy, selectedPositions[i].xy);
+    vec2 posInBuf = gl_FragCoord.xy - viewportOffset;
+    float dist = distance(posInBuf, selectedPositions[i].xy);
     if (dist <= SELECT_COLOR_RADIUS) {
       FragColor = selectPosColor;
     }

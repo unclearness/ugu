@@ -47,8 +47,11 @@ class RendererGl {
   const Eigen::Vector3f& GetWireColor() const;
   void SetBackgroundColor(const Eigen::Vector3f& bkg_col);
 
-  bool AddSelectedPosition(const Eigen::Vector3f& pos);
-  bool AddSelectedPositions(const std::vector<Eigen::Vector3f>& pos_list);
+  bool AddSelectedPosition(const RenderableMeshPtr& geom,
+                           const Eigen::Vector3f& pos);
+  bool AddSelectedPositions(
+      const RenderableMeshPtr& geom,
+      const std::vector<Eigen::Vector3f>& pos_list);
   void ClearSelectedPositions();
 
   void GetMergedBoundingBox(Eigen::Vector3f& bb_max, Eigen::Vector3f& bb_min);
@@ -74,7 +77,7 @@ class RendererGl {
 
   uint32_t gBuffer = ~0u, gPosition = ~0u, gNormal = ~0u, gAlbedoSpec = ~0u,
            gId = ~0u, gFace = ~0u;
-  std::array<uint32_t, 5> attachments;
+  std::array<uint32_t, 5> attachments = {~0u, ~0u, ~0u, ~0u, ~0u};
   uint32_t rboDepth = ~0u;
   uint32_t quadVAO = ~0u;
   uint32_t quadVBO = ~0u;
@@ -97,7 +100,8 @@ class RendererGl {
   Eigen::Vector3f m_bb_min;
 
   const uint32_t MAX_SELECTED_POS = 32;  // Sync with GLSL
-  std::vector<Eigen::Vector3f> m_selected_positions;
+  std::unordered_map <RenderableMeshPtr,
+      std::vector<Eigen::Vector3f>> m_selected_positions;
   // std::vector<Eigen::Vector3f> m_selected_positions_1;
 
   GBuffer m_gbuf;

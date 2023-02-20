@@ -70,19 +70,35 @@ double g_mouse_wheel_yoffset = 0.0;
 bool g_to_process_wheel = false;
 
 const uint32_t MAX_N_SPLIT_WIDTH = 2;
-uint32_t g_n_split_views = 2;
+// uint32_t g_n_split_views = 2;
 
 int g_width = 1280;
 int g_height = 720;
 
+struct SplitViewInfo;
+std::vector<SplitViewInfo> g_views;
+
 auto GetWidthHeightForView() {
-  return std::make_pair(g_width / g_n_split_views, g_height);
+  return std::make_pair(g_width / g_views.size(), g_height);
+}
+
+bool IsCursorOnView(uint32_t vidx) {
+  uint32_t x = static_cast<uint32_t>(g_cursor_pos.x());
+  uint32_t unit_w = g_width / g_views.size();
+
+  if (unit_w * vidx <= x && x < unit_w * (vidx + 1)) {
+    return true;
+  }
+
+  return false;
 }
 
 // Global geometry info
 std::vector<RenderableMeshPtr> g_meshes;
 std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
-std::vector<Eigen::Vector3f> g_selected_positions;
+
+std::unordered_map<RenderableMeshPtr, std::vector<Eigen::Vector3f>>
+    g_selected_positions;
 
 struct CastRayResult {
   size_t min_geoid = ~0u;
@@ -94,11 +110,15 @@ struct CastRayResult {
 struct SplitViewInfo {
   RendererGlPtr renderer;
   PinholeCameraPtr camera;
+  Eigen::Vector2i offset = {0, 0};
   Eigen::Vector3f clear_color = {0.45f, 0.55f, 0.60f};
   Eigen::Vector3f wire_color = {0.45f, 0.55f, 0.60f};
 
-  void Init() {
+  void Init(uint32_t vidx) {
     auto [w, h] = GetWidthHeightForView();
+
+    offset.x() = vidx * w;
+    offset.y() = 0;
 
     camera = std::make_shared<PinholeCamera>(w, h, 45.f);
     renderer = std::make_shared<RendererGl>();
@@ -128,9 +148,8 @@ struct SplitViewInfo {
     renderer->ClearGlState();
     for (const auto &mesh : g_meshes) {
       renderer->SetMesh(mesh);
+      renderer->AddSelectedPositions(mesh, g_selected_positions[mesh]);
     }
-
-    renderer->AddSelectedPositions(g_selected_positions);
 
     renderer->Init();
   }
@@ -138,8 +157,10 @@ struct SplitViewInfo {
   CastRayResult CastRay() {
     // Cast ray
     Eigen::Vector3f dir_c_cv;
-    camera->ray_c(static_cast<float>(g_cursor_pos[0]),
-                  static_cast<float>(g_cursor_pos[1]), &dir_c_cv);
+    // Substract offset to align cursor pos on window to corresponding positon
+    // on framebuffer
+    camera->ray_c(static_cast<float>(g_cursor_pos[0] - offset.x()),
+                  static_cast<float>(g_cursor_pos[1] + offset.y()), &dir_c_cv);
 
     const Eigen::Affine3d offset =
         Eigen::Affine3d(Eigen::AngleAxisd(pi, Eigen::Vector3d::UnitX()))
@@ -184,53 +205,57 @@ struct SplitViewInfo {
     return result;
   }
 
-  std::pair<bool, size_t> FindClosestSelectedPoint(
-      const Eigen::Vector2d &cursor_pos) {
+  auto FindClosestSelectedPoint(const Eigen::Vector2d &cursor_pos) {
     bool not_close = true;
     size_t closest_selected_id = ~0u;
     double min_dist = std::numeric_limits<double>::max();
+    // RenderableMeshPtr closest_mesh = nullptr;
     float near_z, far_z;
     renderer->GetNearFar(near_z, far_z);
     Eigen::Matrix4f view_mat = camera->c2w().inverse().matrix().cast<float>();
     Eigen::Matrix4f prj_mat = camera->ProjectionMatrixOpenGl(near_z, far_z);
-    for (size_t i = 0; i < g_selected_positions.size(); i++) {
-      const auto &p_wld = g_selected_positions[i];
-      auto [is_visible, results_all] = renderer->TestVisibility(p_wld);
-      if (is_visible) {
-        std::cout << "selected " << i << ": visibile" << std::endl;
-      } else {
-        std::cout << "selected " << i << ": not visibile" << std::endl;
+    for (const auto &mesh : g_meshes) {
+      if (g_selected_positions.find(mesh) == g_selected_positions.end()) {
+        continue;
       }
-      if (is_visible) {
-        Eigen::Vector4f p_cam =
-            view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
-        Eigen::Vector4f p_ndc = prj_mat * p_cam;
-        p_ndc /= p_ndc.w();  // NDC [-1:1]
+      for (size_t i = 0; i < g_selected_positions[mesh].size(); i++) {
+        const auto &p_wld = g_selected_positions[mesh][i];
+        auto [is_visible, results_all] = renderer->TestVisibility(p_wld);
+        if (is_visible) {
+          std::cout << "selected " << i << ": visibile" << std::endl;
+        } else {
+          std::cout << "selected " << i << ": not visibile" << std::endl;
+        }
+        if (is_visible) {
+          Eigen::Vector4f p_cam =
+              view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
+          Eigen::Vector4f p_ndc = prj_mat * p_cam;
+          p_ndc /= p_ndc.w();  // NDC [-1:1]
 
-        // float cam_depth = -p_cam.z();
+          // float cam_depth = -p_cam.z();
 
-        // [-1:1],[-1:1] -> [0:w], [0:h]
-        Eigen::Vector2d p_gl_frag =
-            Eigen::Vector2d(((p_ndc.x() + 1.f) / 2.f) * camera->width(),
-                            ((p_ndc.y() + 1.f) / 2.f) * camera->height());
+          // [-1:1],[-1:1] -> [0:w], [0:h]
+          Eigen::Vector2d p_gl_frag =
+              Eigen::Vector2d(((p_ndc.x() + 1.f) / 2.f) * camera->width(),
+                              ((p_ndc.y() + 1.f) / 2.f) * camera->height());
 
-        p_gl_frag.y() = camera->height() - p_gl_frag.y();
+          p_gl_frag.y() = camera->height() - p_gl_frag.y();
 
-        double dist = (p_gl_frag - cursor_pos).norm();
-        // std::cout << dist << std::endl;
-        if (dist < g_drag_point_pix_dist_th && dist < min_dist) {
-          not_close = false;
-          min_dist = dist;
-          closest_selected_id = i;
-          // break;
+          double dist = (p_gl_frag - cursor_pos).norm();
+          // std::cout << dist << std::endl;
+          if (dist < g_drag_point_pix_dist_th && dist < min_dist) {
+            not_close = false;
+            min_dist = dist;
+            closest_selected_id = i;
+            // closest_mesh = mesh;
+            //  break;
+          }
         }
       }
     }
-    return std::make_pair(!not_close, closest_selected_id);
+    return std::make_tuple(!not_close, closest_selected_id);
   }
 };
-
-std::vector<SplitViewInfo> g_views;
 
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "Glfw Error %d: %s\n", error, description);
@@ -313,19 +338,35 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
     }
 
     if (g_mouse_r_pressed) {
-      for (auto &view : g_views) {
-        auto result = view.CastRay();
-
+      bool not_close = false;
+      CastRayResult result;
+      for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+        auto &view = g_views[vidx];
+        if (!IsCursorOnView(vidx)) {
+          continue;
+        }
+        result = view.CastRay();
+        if (result.min_geoid == ~0u) {
+          continue;
+        }
         auto [is_close, id] =
             view.FindClosestSelectedPoint(g_mouse_r_pressed_pos);
-        bool not_close = !is_close;
-        if (not_close) {
-          view.renderer->AddSelectedPosition(result.min_geo_dist_pos);
-          g_selected_positions.push_back(result.min_geo_dist_pos);
-          std::cout << "added" << std::endl;
-        } else {
-          std::cout << "ignored" << std::endl;
+        not_close = !is_close;
+        break;
+      }
+
+      if (not_close) {
+        for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+          auto &view = g_views[vidx];
+          view.renderer->AddSelectedPosition(g_meshes[result.min_geoid],
+                                             result.min_geo_dist_pos);
         }
+        g_selected_positions[g_meshes[result.min_geoid]].push_back(
+            result.min_geo_dist_pos);
+
+        std::cout << "added" << std::endl;
+      } else {
+        std::cout << "ignored" << std::endl;
       }
     }
   }
@@ -588,8 +629,12 @@ void Draw(GLFWwindow *window) {
 
   if (!ImGui::IsAnyItemActive()) {
     Eigen::Vector3f bb_max, bb_min;
-    for (auto &view : g_views) {
+    for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+      auto &view = g_views[vidx];
       view.renderer->GetMergedBoundingBox(bb_max, bb_min);
+      if (!IsCursorOnView(vidx)) {
+        continue;
+      }
 
       if (g_to_process_drag_l) {
         g_to_process_drag_l = false;
@@ -622,7 +667,12 @@ void Draw(GLFWwindow *window) {
       if (diff.norm() > drag_th) {
         const double trans_speed = (bb_max - bb_min).maxCoeff() / g_height;
 
-        for (auto &view : g_views) {
+        for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+          auto &view = g_views[vidx];
+          if (!IsCursorOnView(vidx)) {
+            continue;
+          }
+
           Eigen::Affine3d cam_pose_cur = view.camera->c2w();
           Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
 
@@ -642,23 +692,43 @@ void Draw(GLFWwindow *window) {
 
     if (g_to_process_drag_r) {
       g_to_process_drag_r = false;
-      for (auto &view : g_views) {
-        auto result = view.CastRay();
+      CastRayResult result;
+      bool is_close = false;
+      size_t id;
+      for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+        auto &view = g_views[vidx];
+        if (!IsCursorOnView(vidx)) {
+          continue;
+        }
+        result = view.CastRay();
         if (result.min_geoid != ~0u) {
-          auto [is_close, id] = view.FindClosestSelectedPoint(g_cursor_pos);
+          std::tie(is_close, id) = view.FindClosestSelectedPoint(g_cursor_pos);
           if (is_close) {
-            g_selected_positions[id] = result.min_geo_dist_pos;
-            view.renderer->AddSelectedPositions(g_selected_positions);
+            break;
           }
         }
       }
-    }
 
+      if (is_close) {
+        g_selected_positions[g_meshes[result.min_geoid]][id] =
+            result.min_geo_dist_pos;
+        for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+          auto &view = g_views[vidx];
+          view.renderer->AddSelectedPositions(
+              g_meshes[result.min_geoid],
+              g_selected_positions[g_meshes[result.min_geoid]]);
+        }
+      }
+    }
     if (g_to_process_wheel) {
       g_to_process_wheel = false;
       const double wheel_speed = (bb_max - bb_min).maxCoeff() / 20;
 
-      for (auto &view : g_views) {
+      for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+        auto &view = g_views[vidx];
+        if (!IsCursorOnView(vidx)) {
+          continue;
+        }
         Eigen::Affine3d cam_pose_cur = view.camera->c2w();
         Eigen::Vector3d t_offset = cam_pose_cur.rotation().col(2) *
                                    -g_mouse_wheel_yoffset * wheel_speed;
@@ -853,10 +923,11 @@ int main(int, char **) {
 
   glEnable(GL_DEPTH_TEST);
 
-  g_views.resize(g_n_split_views);
+  g_views.resize(MAX_N_SPLIT_WIDTH);
 
-  for (auto &view : g_views) {
-    view.Init();
+  for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+    auto &view = g_views[vidx];
+    view.Init(vidx);
   }
 
   //  Main loop

@@ -43,3 +43,4 @@ imgui
 
 # Output of examples
 out
+/checks.json
