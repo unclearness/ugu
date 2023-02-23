@@ -11,6 +11,20 @@
 #include "glad/gl.h"
 #endif
 
+namespace {
+
+Eigen::Vector3f GetDefaultSelectedPositionColor(uint32_t geomid) {
+  Eigen::Vector3f table[3] = {
+      {1.f, 0.f, 0.f}, {0.f, 1.f, 0.f}, {0.f, 0.f, 1.f}};
+  if (geomid < 3) {
+    return table[geomid];
+  }
+
+  return (Eigen::Vector3f::Random() + Eigen::Vector3f::Ones()) * 0.5f;
+}
+
+}  // namespace
+
 namespace ugu {
 
 RendererGl::RendererGl() {}
@@ -222,7 +236,12 @@ bool RendererGl::Draw(double tic) {
   m_deferred_shader.SetVec3("bkgCol", m_bkg_col);
 
   std::vector<Eigen::Vector3f> selected_positions_prj;
-  for (const auto& mesh : m_geoms) {
+  std::vector<Eigen::Vector3f> selected_position_colors(
+      m_geoms.size(), Eigen::Vector3f::Zero());
+
+  for (size_t j = 0; j < m_geoms.size(); j++) {
+    const auto& mesh = m_geoms[j];
+
     // std::cout << m_selected_positions[mesh].size() << std::endl;
     if (!m_selected_positions[mesh].empty()) {
       // Eigen::Matrix4f prj_view_mat = prj_mat * view_mat;
@@ -244,12 +263,16 @@ bool RendererGl::Draw(double tic) {
         }
         selected_positions_prj.push_back(p_gl_frag_camz);
       }
+
+      selected_position_colors[j] = m_selected_position_colors[mesh];
     }
   }
   if (!selected_positions_prj.empty()) {
     m_deferred_shader.SetVec2("viewportOffset",
                               Eigen::Vector2f(m_viewport_x, m_viewport_y));
     m_deferred_shader.SetVec3Array("selectedPositions", selected_positions_prj);
+    m_deferred_shader.SetVec3Array("selectedPosColors",
+                                   selected_position_colors);
   }
 
   m_deferred_shader.SetFloat("selectedPosDepthTh",
@@ -526,11 +549,20 @@ void RendererGl::SetBackgroundColor(const Eigen::Vector3f& bkg_col) {
   m_bkg_col = bkg_col;
 }
 
+const Eigen::Vector3f& RendererGl::GetBackgroundColor() const {
+  return m_bkg_col;
+}
+
 bool RendererGl::AddSelectedPosition(const RenderableMeshPtr& geom,
                                      const Eigen::Vector3f& pos) {
-  if (MAX_SELECTED_POS <= m_selected_positions.size() ||
-      std::find(m_geoms.begin(), m_geoms.end(), geom) == m_geoms.end()) {
+  auto mesh_id = GetMeshId(geom);
+  if (MAX_SELECTED_POS <= m_selected_positions.size() || mesh_id == ~0u) {
     return false;
+  }
+
+  if (m_selected_position_colors.find(geom) ==
+      m_selected_position_colors.end()) {
+    m_selected_position_colors[geom] = GetDefaultSelectedPositionColor(mesh_id);
   }
 
   m_selected_positions[geom].push_back(pos);
@@ -541,9 +573,14 @@ bool RendererGl::AddSelectedPosition(const RenderableMeshPtr& geom,
 bool RendererGl::AddSelectedPositions(
     const RenderableMeshPtr& geom,
     const std::vector<Eigen::Vector3f>& pos_list) {
-  if (MAX_SELECTED_POS <= pos_list.size() ||
-      std::find(m_geoms.begin(), m_geoms.end(), geom) == m_geoms.end()) {
+  auto mesh_id = GetMeshId(geom);
+  if (MAX_SELECTED_POS <= pos_list.size() || mesh_id == ~0u) {
     return false;
+  }
+
+  if (m_selected_position_colors.find(geom) ==
+      m_selected_position_colors.end()) {
+    m_selected_position_colors[geom] = GetDefaultSelectedPositionColor(mesh_id);
   }
 
   m_selected_positions[geom] = pos_list;
@@ -551,7 +588,21 @@ bool RendererGl::AddSelectedPositions(
   return true;
 }
 
-void RendererGl::ClearSelectedPositions() { m_selected_positions.clear(); }
+bool RendererGl::AddSelectedPositionColor(const RenderableMeshPtr& geom,
+                                          const Eigen::Vector3f& color) {
+  m_selected_position_colors[geom] = color;
+  return true;
+}
+
+const Eigen::Vector3f& RendererGl::GetSelectedPositionColor(
+    const RenderableMeshPtr& geom) const {
+  return m_selected_position_colors.at(geom);
+}
+
+void RendererGl::ClearSelectedPositions() {
+  m_selected_positions.clear();
+  m_selected_position_colors.clear();
+}
 
 void RendererGl::SetVisibility(const RenderableMeshPtr& geom, bool is_visible) {
   m_visibility.at(geom) = is_visible;
@@ -599,6 +650,16 @@ RendererGl::TestVisibility(const Eigen::Vector3f& point) const {
       });
 
   return std::make_pair(ret, results_all);
+}
+
+uint32_t RendererGl::GetMeshId(const RenderableMeshPtr& mesh) const {
+  auto pos = std::find(m_geoms.begin(), m_geoms.end(), mesh);
+
+  if (pos == m_geoms.end()) {
+    return ~0u;
+  }
+
+  return static_cast<uint32_t>(std::distance(m_geoms.begin(), pos));
 }
 
 }  // namespace ugu

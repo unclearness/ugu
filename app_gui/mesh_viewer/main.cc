@@ -83,6 +83,9 @@ struct SplitViewInfo;
 std::mutex views_mtx;
 std::vector<SplitViewInfo> g_views;
 
+Eigen::Vector3f default_clear_color = {0.45f, 0.55f, 0.60f};
+Eigen::Vector3f default_wire_color = {0.1f, 0.1f, 0.1f};
+
 void Draw(GLFWwindow *window);
 
 auto GetWidthHeightForView() {
@@ -120,8 +123,6 @@ struct SplitViewInfo {
   RendererGlPtr renderer;
   PinholeCameraPtr camera;
   Eigen::Vector2i offset = {0, 0};
-  Eigen::Vector3f clear_color = {0.45f, 0.55f, 0.60f};
-  Eigen::Vector3f wire_color = {0.45f, 0.55f, 0.60f};
 
   void Init(uint32_t vidx) {
     std::lock_guard<std::mutex> lock(views_mtx);
@@ -137,8 +138,8 @@ struct SplitViewInfo {
     renderer->SetCamera(camera);
     renderer->Init();
 
-    renderer->SetBackgroundColor(clear_color);
-    renderer->SetWireColor(wire_color);
+    renderer->SetBackgroundColor(default_clear_color);
+    renderer->SetWireColor(default_wire_color);
   }
 
   void Reset() {
@@ -158,7 +159,6 @@ struct SplitViewInfo {
   }
 
   void ResetGl() {
-
     renderer->ClearGlState();
     for (const auto &mesh : g_meshes) {
       renderer->SetMesh(mesh);
@@ -195,6 +195,9 @@ struct SplitViewInfo {
     auto results_all = renderer->Intersect(ray);
 
     for (size_t geoid = 0; geoid < g_meshes.size(); geoid++) {
+      if (!renderer->GetVisibility(g_meshes[geoid])) {
+        continue;
+      }
       const std::vector<IntersectResult> &results = results_all[geoid];
       if (!results.empty()) {
         std::cout << geoid << ": " << results[0].t << " " << results[0].fid
@@ -230,6 +233,9 @@ struct SplitViewInfo {
     Eigen::Matrix4f prj_mat = camera->ProjectionMatrixOpenGl(near_z, far_z);
     for (const auto &mesh : g_meshes) {
       if (g_selected_positions.find(mesh) == g_selected_positions.end()) {
+        continue;
+      }
+      if (!renderer->GetVisibility(mesh)) {
         continue;
       }
       for (size_t i = 0; i < g_selected_positions[mesh].size(); i++) {
@@ -446,7 +452,6 @@ void cursor_pos_callback(GLFWwindow *window, double xoffset, double yoffset) {
 }
 
 void LoadMesh(const std::string &path) {
-
   auto ext = ugu::ExtractExt(path);
   auto mesh = ugu::RenderableMesh::Create();
   if (ext == "obj") {
@@ -668,6 +673,7 @@ void DrawImgui(GLFWwindow *window) {
   // ImGui!).
   // if (show_demo_window) ImGui::ShowDemoWindow(&show_demo_window);
 
+#if 0
   // 2. Show a simple window that we create ourselves. We use a Begin/End pair
   // to create a named window.
   {
@@ -701,6 +707,7 @@ void DrawImgui(GLFWwindow *window) {
                 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::End();
   }
+#endif
   // 3. Show another simple window.
   // if (show_another_window) {
   //  ImGui::Begin(
@@ -727,6 +734,12 @@ void DrawImgui(GLFWwindow *window) {
         if (ImGui::Checkbox(label.c_str(), &v)) {
           view.renderer->SetVisibility(g_meshes[i], v);
         }
+        Eigen::Vector3f pos_col =
+            view.renderer->GetSelectedPositionColor(g_meshes[i]);
+        if (ImGui::ColorEdit3((label + "select color").c_str(), pos_col.data(),
+                              ImGuiColorEditFlags_NoLabel)) {
+          view.renderer->AddSelectedPositionColor(g_meshes[i], pos_col);
+        }
       }
 
       ImGui::TreePop();
@@ -749,7 +762,8 @@ void DrawImgui(GLFWwindow *window) {
 
       Eigen::Vector2i size(view.camera->width(), view.camera->height());
       if (ImGui::InputInt2("width height", size.data())) {
-        view.camera->set_size(size[0], size[1]);
+        // view.camera->set_size(size[0], size[1]);
+        // TODO: Window resize
       }
 
       Eigen::Vector2f fov(view.camera->fov_x(), view.camera->fov_y());
@@ -815,7 +829,80 @@ void DrawImgui(GLFWwindow *window) {
           view.camera->set_c2w(c2w_gl.cast<double>());
         }
 
-              ImGui::TreePop();
+        ImGui::TreePop();
+      }
+
+      bool show_wire = view.renderer->GetShowWire();
+      if (ImGui::Checkbox("show wire", &show_wire)) {
+        view.renderer->SetShowWire(show_wire);
+      }
+
+      Eigen::Vector3f wire_col = view.renderer->GetWireColor();
+      if (ImGui::ColorEdit3("wire color", wire_col.data())) {
+        view.renderer->SetWireColor(wire_col);
+      }
+
+      Eigen::Vector3f bkg_col = view.renderer->GetBackgroundColor();
+      if (ImGui::ColorEdit3("background color", bkg_col.data())) {
+        view.renderer->SetBackgroundColor(bkg_col);
+      }
+
+      static int save_counter = 0;
+      static char gbuf_save_path[1024] = "./";
+      ImGui::InputText("GBuffer Save Dir.", gbuf_save_path, 1024u);
+      ImGui::Text("Prefix %d", save_counter);
+      ImGui::SameLine();
+      if (ImGui::Button("Save")) {
+        std::string prefix = std::to_string(save_counter) + "_";
+
+        view.renderer->ReadGbuf();
+        GBuffer gbuf;
+        view.renderer->GetGbuf(gbuf);
+
+        imwrite(prefix + "pos_wld.bin", gbuf.pos_wld);
+        imwrite(prefix + "pos_cam.bin", gbuf.pos_cam);
+        Image3b vis_pos_wld, vis_pos_cam;
+        vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
+        imwrite(prefix + "pos_wld.jpg", vis_pos_wld);
+        vis_pos_cam = ColorizePosMap(gbuf.pos_cam);
+        imwrite(prefix + "pos_cam.jpg", vis_pos_cam);
+
+        imwrite(prefix + "normal_wld.bin", gbuf.normal_wld);
+        imwrite(prefix + "normal_cam.bin", gbuf.normal_cam);
+        Image3b vis_normal_wld, vis_normal_cam;
+        Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
+        imwrite(prefix + "normal_wld.jpg", vis_normal_wld);
+        Normal2Color(gbuf.normal_cam, &vis_normal_cam, true);
+        imwrite(prefix + "normal_cam.jpg", vis_normal_cam);
+
+        imwrite(prefix + "depth01.bin", gbuf.depth_01);
+        Image3b vis_depth;
+        Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
+        imwrite(prefix + "depth01.jpg", vis_depth);
+
+        Image1b geoid_1b;
+        gbuf.geo_id.convertTo(geoid_1b, CV_8UC1);
+        imwrite(prefix + "geoid.png", geoid_1b);
+        Image3b vis_geoid;
+        FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
+        imwrite(prefix + "geoid.jpg", vis_geoid);
+
+        imwrite(prefix + "faceid.bin", gbuf.face_id);
+        Image3b vis_faceid;
+        FaceId2RandomColor(gbuf.face_id, &vis_faceid);
+        imwrite(prefix + "faceid.jpg", vis_faceid);
+
+        imwrite(prefix + "bary.bin", gbuf.bary);
+        Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
+        imwrite(prefix + "bary.jpg", vis_bary);
+
+        imwrite(prefix + "uv.bin", gbuf.uv);
+        Image3b vis_uv = ColorizeBarycentric(gbuf.uv);
+        imwrite(prefix + "uv.jpg", vis_uv);
+
+        imwrite(prefix + "color.png", gbuf.color);
+
+        save_counter++;
       }
 
       ImGui::TreePop();
@@ -825,7 +912,7 @@ void DrawImgui(GLFWwindow *window) {
   }
 
   {
-    ImGui::Begin("Mesh Tool");
+    ImGui::Begin("General");
 
     static char mesh_path[1024] = "../data/bunny/bunny.obj";
     ImGui::InputText("Mesh path", mesh_path, 1024u);
@@ -833,59 +920,6 @@ void DrawImgui(GLFWwindow *window) {
       LoadMesh(mesh_path);
     }
 
-    bool show_wire = g_views[0].renderer->GetShowWire();
-    if (ImGui::Checkbox("show wire", &show_wire)) {
-      for (auto &view : g_views) {
-        view.renderer->SetShowWire(show_wire);
-      }
-    }
-
-    Eigen::Vector3f wire_col = g_views[0].renderer->GetWireColor();
-    if (ImGui::ColorEdit3("wire color", wire_col.data())) {
-      for (auto &view : g_views) {
-        view.renderer->SetWireColor(Eigen::Vector3f(wire_col));
-      }
-    }
-
-    if (ImGui::Button("Save GBuffer")) {
-      for (auto &view : g_views) {
-        view.renderer->ReadGbuf();
-        GBuffer gbuf;
-        view.renderer->GetGbuf(gbuf);
-#if 1
-        Image3b vis_pos_wld, vis_pos_cam;
-        vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
-        imwrite("pos_wld.png", vis_pos_wld);
-        vis_pos_cam = ColorizePosMap(gbuf.pos_cam);
-        imwrite("pos_cam.png", vis_pos_cam);
-
-        Image3b vis_normal_wld, vis_normal_cam;
-        Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
-        imwrite("normal_wld.png", vis_normal_wld);
-        Normal2Color(gbuf.normal_cam, &vis_normal_cam, true);
-        imwrite("normal_cam.png", vis_normal_cam);
-#endif
-        Image3b vis_depth;
-        Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
-        imwrite("depth01.png", vis_depth);
-
-        Image3b vis_geoid;
-        FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
-        imwrite("geoid.png", vis_geoid);
-
-        Image3b vis_faceid;
-        FaceId2RandomColor(gbuf.face_id, &vis_faceid);
-        imwrite("faceid.png", vis_faceid);
-
-        Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
-        imwrite("bary.png", vis_bary);
-
-        Image3b vis_uv = ColorizeBarycentric(gbuf.uv);
-        imwrite("uv.png", vis_uv);
-
-        imwrite("color.png", gbuf.color);
-      }
-    }
     ImGui::End();
   }
 
@@ -898,8 +932,8 @@ void DrawImgui(GLFWwindow *window) {
 
 void Draw(GLFWwindow *window) {
   glClear(GL_COLOR_BUFFER_BIT);
-  glClearColor(g_views[0].clear_color.x(), g_views[0].clear_color.y(),
-               g_views[0].clear_color.z(), 1.f);
+  // glClearColor(g_views[0].clear_color.x(), g_views[0].clear_color.y(),
+  //              g_views[0].clear_color.z(), 1.f);
 
   // Start the Dear ImGui frame
   ImGui_ImplOpenGL3_NewFrame();

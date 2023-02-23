@@ -46,11 +46,16 @@ class RendererGl {
   void SetWireColor(const Eigen::Vector3f& wire_col);
   const Eigen::Vector3f& GetWireColor() const;
   void SetBackgroundColor(const Eigen::Vector3f& bkg_col);
+  const Eigen::Vector3f& GetBackgroundColor() const;
 
   bool AddSelectedPosition(const RenderableMeshPtr& geom,
                            const Eigen::Vector3f& pos);
   bool AddSelectedPositions(const RenderableMeshPtr& geom,
                             const std::vector<Eigen::Vector3f>& pos_list);
+  bool AddSelectedPositionColor(const RenderableMeshPtr& geom,
+                                const Eigen::Vector3f& color);
+  const Eigen::Vector3f& GetSelectedPositionColor(
+      const RenderableMeshPtr& geom) const;
   void ClearSelectedPositions();
 
   void SetVisibility(const RenderableMeshPtr& geom, bool is_visible);
@@ -62,6 +67,8 @@ class RendererGl {
 
   std::pair<bool, std::vector<std::vector<IntersectResult>>> TestVisibility(
       const Eigen::Vector3f& point) const;
+
+  uint32_t GetMeshId(const RenderableMeshPtr& mesh) const;
 
  private:
   bool m_initialized = false;
@@ -106,7 +113,8 @@ class RendererGl {
   const uint32_t MAX_SELECTED_POS = 32;  // Sync with GLSL
   std::unordered_map<RenderableMeshPtr, std::vector<Eigen::Vector3f>>
       m_selected_positions;
-  // std::vector<Eigen::Vector3f> m_selected_positions_1;
+  std::unordered_map<RenderableMeshPtr, Eigen::Vector3f>
+      m_selected_position_colors;
 
   GBuffer m_gbuf;
 };

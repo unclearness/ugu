@@ -35,6 +35,8 @@ const int N_POSITIONS = 32;
 uniform vec3 selectedPositions[N_POSITIONS];
 uniform float selectedPosDepthTh;
 uniform vec2 viewportOffset;
+const int N_GEOMS = 32;
+uniform vec3 selectedPosColors[N_GEOMS];
 
 struct Light {
   vec3 Position;
@@ -85,7 +87,7 @@ void main() {
   FragColor =
       mix(vec4(bkgCol, 1.0), FragColor, vec4(is_frg));
 
-  vec4 selectPosColor = vec4(1.0, 0.0, 0.0, 1.0);
+  vec3 selectPosColor = selectedPosColors[int(round(Id.y - 1))];
   const float SELECT_COLOR_RADIUS = 10;
   for (int i = 0; i < N_POSITIONS; ++i) {
     // Ignore defualt [0, 0]
@@ -99,7 +101,7 @@ void main() {
     vec2 posInBuf = gl_FragCoord.xy - viewportOffset;
     float dist = distance(posInBuf, selectedPositions[i].xy);
     if (dist <= SELECT_COLOR_RADIUS) {
-      FragColor = selectPosColor;
+      FragColor = vec4(selectPosColor, 1.0);
     }
   }
 })";
@@ -129,7 +131,7 @@ void main() {
   // store the fragment position vector in the first gbuffer texture
   gPosition = fragPos;
   // also store the per-fragment normals into the gbuffer
-  gNormal = normalize(normal);
+  gNormal = normalize(wldNormal);
   // and the diffuse per-fragment color
   gAlbedoSpec.rgb = texture(texture_diffuse1, texCoords).rgb;
   // store specular intensity in gAlbedoSpec's alpha component
