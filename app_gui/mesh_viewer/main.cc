@@ -60,6 +60,9 @@ bool g_to_process_drag_l = false;
 bool g_to_process_drag_m = false;
 bool g_to_process_drag_r = false;
 
+uint32_t g_subwindow_id = ~0u;
+uint32_t g_prev_subwindow_id = ~0u;
+
 bool g_mouse_l_pressed = false;
 bool g_mouse_m_pressed = false;
 bool g_mouse_r_pressed = false;
@@ -77,6 +80,8 @@ int g_height = 720;
 
 struct SplitViewInfo;
 std::vector<SplitViewInfo> g_views;
+
+void Draw(GLFWwindow *window);
 
 auto GetWidthHeightForView() {
   return std::make_pair(g_width / g_views.size(), g_height);
@@ -414,6 +419,15 @@ void cursor_pos_callback(GLFWwindow *window, double xoffset, double yoffset) {
   if (g_mouse_r_pressed) {
     g_to_process_drag_r = true;
   }
+
+  g_prev_subwindow_id = g_subwindow_id;
+  for (uint32_t vidx = 0; vidx < static_cast<uint32_t>(g_views.size());
+       vidx++) {
+    if (IsCursorOnView(vidx)) {
+      g_subwindow_id = vidx;
+      break;
+    }
+  }
 }
 
 void LoadMesh(const std::string &path) {
@@ -452,6 +466,76 @@ void drop_callback(GLFWwindow *window, int count, const char **paths) {
               << std::endl;
   }
   LoadMesh(paths[0]);
+}
+
+void window_size_callback(GLFWwindow *window, int width, int height) {
+  // std::cout << width << " " << height << std::endl;
+
+  if (width < 1 && height < 1) {
+    return;
+  }
+
+  g_width = width;
+  g_height = height;
+
+  for (auto &view : g_views) {
+    view.Reset();
+  }
+
+  // Draw(window);
+
+  // glViewport(0, 0, width, height);
+  // std::cout << "window size " << width << " " << height << std::endl;
+}
+
+void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
+// glViewport(0, 0, width, height)
+#if 0
+  g_width = width;
+  g_height = height;
+
+  g_camera->set_size(g_width, g_height);
+  g_camera->set_fov_y(45.0f);
+  g_camera->set_principal_point({g_width / 2.f, g_height / 2.f});
+
+  g_renderer->SetSize(g_width, g_height);
+#endif
+  // ResetGl();
+
+  // glViewport(0, 0, width/2, height);
+
+  Draw(window);
+
+  // std::cout << "frame buffer size " << width << " " << height << std::endl;
+}
+
+void cursor_enter_callback(GLFWwindow *window, int entered) {
+  g_to_process_drag_l = false;
+  g_to_process_drag_r = false;
+  g_to_process_drag_m = false;
+
+  g_subwindow_id = ~0u;
+}
+
+void SetupWindow(GLFWwindow *window) {
+  if (window == NULL) return;
+  glfwMakeContextCurrent(window);
+  glfwSwapInterval(1);  // Enable vsync
+
+  glfwSetCursorPosCallback(window, cursor_pos_callback);
+
+  glfwSetKeyCallback(window, key_callback);
+
+  glfwSetMouseButtonCallback(window, mouse_button_callback);
+
+  glfwSetScrollCallback(window, mouse_wheel_callback);
+
+  glfwSetDropCallback(window, drop_callback);
+
+  glfwSetCursorEnterCallback(window, cursor_enter_callback);
+
+  glfwSetWindowSizeCallback(window, window_size_callback);
+  glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 }
 
 void Draw(GLFWwindow *window) {
@@ -629,12 +713,12 @@ void Draw(GLFWwindow *window) {
 
   if (!ImGui::IsAnyItemActive()) {
     Eigen::Vector3f bb_max, bb_min;
-    for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+
+    if (g_subwindow_id != ~0u && g_subwindow_id == g_prev_subwindow_id) {
+      uint32_t vidx = g_subwindow_id;
       auto &view = g_views[vidx];
-      view.renderer->GetMergedBoundingBox(bb_max, bb_min);
-      if (!IsCursorOnView(vidx)) {
-        continue;
-      }
+
+        view.renderer->GetMergedBoundingBox(bb_max, bb_min);
 
       if (g_to_process_drag_l) {
         g_to_process_drag_l = false;
@@ -658,20 +742,15 @@ void Draw(GLFWwindow *window) {
 
           view.camera->set_c2w(cam_pose_new);
         }
+
+        //  g_prev_to_process_drag_l_id = vidx;
       }
-    }
 
-    if (g_to_process_drag_m) {
-      g_to_process_drag_m = false;
-      Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
-      if (diff.norm() > drag_th) {
-        const double trans_speed = (bb_max - bb_min).maxCoeff() / g_height;
-
-        for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
-          auto &view = g_views[vidx];
-          if (!IsCursorOnView(vidx)) {
-            continue;
-          }
+      if (g_to_process_drag_m) {
+        g_to_process_drag_m = false;
+        Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
+        if (diff.norm() > drag_th) {
+          const double trans_speed = (bb_max - bb_min).maxCoeff() / g_height;
 
           Eigen::Affine3d cam_pose_cur = view.camera->c2w();
           Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
@@ -688,47 +767,32 @@ void Draw(GLFWwindow *window) {
           view.camera->set_c2w(cam_pose_new);
         }
       }
-    }
 
-    if (g_to_process_drag_r) {
-      g_to_process_drag_r = false;
-      CastRayResult result;
-      bool is_close = false;
-      size_t id;
-      for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
-        auto &view = g_views[vidx];
-        if (!IsCursorOnView(vidx)) {
-          continue;
-        }
+      if (g_to_process_drag_r) {
+        g_to_process_drag_r = false;
+        CastRayResult result;
+        bool is_close = false;
+        size_t id;
         result = view.CastRay();
         if (result.min_geoid != ~0u) {
           std::tie(is_close, id) = view.FindClosestSelectedPoint(g_cursor_pos);
-          if (is_close) {
-            break;
+        }
+
+        if (is_close) {
+          g_selected_positions[g_meshes[result.min_geoid]][id] =
+              result.min_geo_dist_pos;
+          for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+            auto &view = g_views[vidx];
+            view.renderer->AddSelectedPositions(
+                g_meshes[result.min_geoid],
+                g_selected_positions[g_meshes[result.min_geoid]]);
           }
         }
       }
+      if (g_to_process_wheel) {
+        g_to_process_wheel = false;
+        const double wheel_speed = (bb_max - bb_min).maxCoeff() / 20;
 
-      if (is_close) {
-        g_selected_positions[g_meshes[result.min_geoid]][id] =
-            result.min_geo_dist_pos;
-        for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
-          auto &view = g_views[vidx];
-          view.renderer->AddSelectedPositions(
-              g_meshes[result.min_geoid],
-              g_selected_positions[g_meshes[result.min_geoid]]);
-        }
-      }
-    }
-    if (g_to_process_wheel) {
-      g_to_process_wheel = false;
-      const double wheel_speed = (bb_max - bb_min).maxCoeff() / 20;
-
-      for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
-        auto &view = g_views[vidx];
-        if (!IsCursorOnView(vidx)) {
-          continue;
-        }
         Eigen::Affine3d cam_pose_cur = view.camera->c2w();
         Eigen::Vector3d t_offset = cam_pose_cur.rotation().col(2) *
                                    -g_mouse_wheel_yoffset * wheel_speed;
@@ -752,66 +816,6 @@ void Draw(GLFWwindow *window) {
 
   glfwSwapBuffers(window);
 #endif
-}
-
-void window_size_callback(GLFWwindow *window, int width, int height) {
-  // std::cout << width << " " << height << std::endl;
-
-  if (width < 1 && height < 1) {
-    return;
-  }
-
-  g_width = width;
-  g_height = height;
-
-  for (auto &view : g_views) {
-    view.Reset();
-  }
-
-  // Draw(window);
-
-  // glViewport(0, 0, width, height);
-  std::cout << "window size " << width << " " << height << std::endl;
-}
-
-void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
-// glViewport(0, 0, width, height)
-#if 0
-  g_width = width;
-  g_height = height;
-
-  g_camera->set_size(g_width, g_height);
-  g_camera->set_fov_y(45.0f);
-  g_camera->set_principal_point({g_width / 2.f, g_height / 2.f});
-
-  g_renderer->SetSize(g_width, g_height);
-#endif
-  // ResetGl();
-
-  // glViewport(0, 0, width/2, height);
-
-  Draw(window);
-
-  std::cout << "frame buffer size " << width << " " << height << std::endl;
-}
-
-void SetupWindow(GLFWwindow *window) {
-  if (window == NULL) return;
-  glfwMakeContextCurrent(window);
-  glfwSwapInterval(1);  // Enable vsync
-
-  glfwSetCursorPosCallback(window, cursor_pos_callback);
-
-  glfwSetKeyCallback(window, key_callback);
-
-  glfwSetMouseButtonCallback(window, mouse_button_callback);
-
-  glfwSetScrollCallback(window, mouse_wheel_callback);
-
-  glfwSetDropCallback(window, drop_callback);
-
-  glfwSetWindowSizeCallback(window, window_size_callback);
-  glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 }
 
 }  // namespace
