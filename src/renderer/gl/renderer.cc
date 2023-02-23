@@ -197,9 +197,13 @@ bool RendererGl::Draw(double tic) {
   Eigen::Matrix4f prj_mat = m_cam->ProjectionMatrixOpenGl(m_near_z, m_far_z);
   m_gbuf_shader.SetMat4("projection", prj_mat);
 
-  for (auto mesh : m_geoms) {
+  for (const auto& mesh : m_geoms) {
     int model_loc = m_node_locs[mesh];
-    auto& trans = m_node_trans[mesh];
+    auto trans = m_node_trans[mesh];
+    if (!m_visibility[mesh]) {
+      // If invisible, move it far away
+      trans.translation().setConstant(std::numeric_limits<float>::max());
+    }
     glUniformMatrix4fv(model_loc, 1, GL_FALSE, trans.data());
     mesh->Draw(m_gbuf_shader);
   }
@@ -223,26 +227,28 @@ bool RendererGl::Draw(double tic) {
     if (!m_selected_positions[mesh].empty()) {
       // Eigen::Matrix4f prj_view_mat = prj_mat * view_mat;
       for (size_t i = 0; i < m_selected_positions.at(mesh).size(); i++) {
-        // Test visibility
+        Eigen::Vector3f p_gl_frag_camz(0.f, 0.f, 0.f);
+        if (m_visibility[mesh]) {
+          Eigen::Vector3f p_wld = m_selected_positions.at(mesh)[i];
+          Eigen::Vector4f p_cam =
+              view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
+          Eigen::Vector4f p_ndc = prj_mat * p_cam;
+          p_ndc /= p_ndc.w();  // NDC [-1:1]
 
-        Eigen::Vector3f p_wld = m_selected_positions.at(mesh)[i];
-        Eigen::Vector4f p_cam =
-            view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
-        Eigen::Vector4f p_ndc = prj_mat * p_cam;
-        p_ndc /= p_ndc.w();  // NDC [-1:1]
+          float cam_depth = -p_cam.z();
 
-        float cam_depth = -p_cam.z();
-
-        // [-1:1],[-1:1] -> [0:w], [0:h]
-        Eigen::Vector3f p_gl_frag_camz = Eigen::Vector3f(
-            ((p_ndc.x() + 1.f) / 2.f) * m_cam->width(),
-            ((p_ndc.y() + 1.f) / 2.f) * m_cam->height(), cam_depth);
+          // [-1:1],[-1:1] -> [0:w], [0:h]
+          p_gl_frag_camz = Eigen::Vector3f(
+              ((p_ndc.x() + 1.f) / 2.f) * m_cam->width(),
+              ((p_ndc.y() + 1.f) / 2.f) * m_cam->height(), cam_depth);
+        }
         selected_positions_prj.push_back(p_gl_frag_camz);
       }
     }
   }
   if (!selected_positions_prj.empty()) {
-    m_deferred_shader.SetVec2("viewportOffset", Eigen::Vector2f(m_viewport_x, m_viewport_y));
+    m_deferred_shader.SetVec2("viewportOffset",
+                              Eigen::Vector2f(m_viewport_x, m_viewport_y));
     m_deferred_shader.SetVec3Array("selectedPositions", selected_positions_prj);
   }
 
@@ -467,12 +473,15 @@ void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans) {
     m_bb_max = ComputeMaxBound(std::vector{m_bb_max, stats.bb_max});
     m_bb_min = ComputeMinBound(std::vector{m_bb_min, stats.bb_min});
   }
+
+  m_visibility[mesh] = true;
 }
 void RendererGl::ClearMesh() {
   m_geoms.clear();
   m_node_trans.clear();
   m_node_locs.clear();
   m_bvhs.clear();
+  m_visibility.clear();
 }
 
 void RendererGl::SetFragType(const FragShaderType& frag_type) {
@@ -543,6 +552,14 @@ bool RendererGl::AddSelectedPositions(
 }
 
 void RendererGl::ClearSelectedPositions() { m_selected_positions.clear(); }
+
+void RendererGl::SetVisibility(const RenderableMeshPtr& geom, bool is_visible) {
+  m_visibility.at(geom) = is_visible;
+}
+
+bool RendererGl::GetVisibility(const RenderableMeshPtr& geom) const {
+  return m_visibility.at(geom);
+}
 
 void RendererGl::GetMergedBoundingBox(Eigen::Vector3f& bb_max,
                                       Eigen::Vector3f& bb_min) {

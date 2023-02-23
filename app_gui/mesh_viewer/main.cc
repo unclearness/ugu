@@ -6,6 +6,7 @@
 // https://github.com/ocornut/imgui/tree/master/docs
 
 #include <limits>
+#include <mutex>
 
 #include "glad/gl.h"
 #include "imgui.h"
@@ -79,6 +80,7 @@ int g_width = 1280;
 int g_height = 720;
 
 struct SplitViewInfo;
+std::mutex views_mtx;
 std::vector<SplitViewInfo> g_views;
 
 void Draw(GLFWwindow *window);
@@ -100,6 +102,8 @@ bool IsCursorOnView(uint32_t vidx) {
 
 // Global geometry info
 std::vector<RenderableMeshPtr> g_meshes;
+std::vector<std::string> g_mesh_names;
+std::vector<std::string> g_mesh_paths;
 std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
 
 std::unordered_map<RenderableMeshPtr, std::vector<Eigen::Vector3f>>
@@ -120,6 +124,8 @@ struct SplitViewInfo {
   Eigen::Vector3f wire_color = {0.45f, 0.55f, 0.60f};
 
   void Init(uint32_t vidx) {
+    std::lock_guard<std::mutex> lock(views_mtx);
+
     auto [w, h] = GetWidthHeightForView();
 
     offset.x() = vidx * w;
@@ -136,6 +142,8 @@ struct SplitViewInfo {
   }
 
   void Reset() {
+    std::lock_guard<std::mutex> lock(views_mtx);
+
     auto [w, h] = GetWidthHeightForView();
 
     camera->set_size(w, h);
@@ -150,6 +158,7 @@ struct SplitViewInfo {
   }
 
   void ResetGl() {
+
     renderer->ClearGlState();
     for (const auto &mesh : g_meshes) {
       renderer->SetMesh(mesh);
@@ -285,6 +294,16 @@ static void mouse_callback(GLFWwindow *window, int button, int action,
 }
 #endif
 
+void Clear() {
+  g_meshes.clear();
+  g_mesh_names.clear();
+  g_mesh_paths.clear();
+  g_selected_positions.clear();
+  for (auto &view : g_views) {
+    view.ResetGl();
+  }
+}
+
 void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
                   int mods) {
   if (key == GLFW_KEY_UP && action == GLFW_PRESS) {
@@ -308,11 +327,7 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
   }
   if (key == GLFW_KEY_R) {
     if (action == GLFW_PRESS) {
-      g_meshes.clear();
-      g_selected_positions.clear();
-      for (auto &view : g_views) {
-        view.ResetGl();
-      }
+      Clear();
     }
   }
 }
@@ -431,6 +446,7 @@ void cursor_pos_callback(GLFWwindow *window, double xoffset, double yoffset) {
 }
 
 void LoadMesh(const std::string &path) {
+
   auto ext = ugu::ExtractExt(path);
   auto mesh = ugu::RenderableMesh::Create();
   if (ext == "obj") {
@@ -439,6 +455,8 @@ void LoadMesh(const std::string &path) {
     if (!mesh->LoadObj(obj_path, obj_dir)) {
       return;
     }
+    g_mesh_names.push_back(ugu::ExtractFilename(obj_path, true));
+    g_mesh_paths.push_back(obj_path);
     g_meshes.push_back(mesh);
 
   } else {
@@ -538,179 +556,17 @@ void SetupWindow(GLFWwindow *window) {
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 }
 
-void Draw(GLFWwindow *window) {
-  // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-#if 1
-  // Start the Dear ImGui frame
-  ImGui_ImplOpenGL3_NewFrame();
-  ImGui_ImplGlfw_NewFrame();
-  ImGui::NewFrame();
-
-  // 1. Show the big demo window (Most of the sample code is in
-  // ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear
-  // ImGui!).
-  // if (show_demo_window) ImGui::ShowDemoWindow(&show_demo_window);
-
-  // 2. Show a simple window that we create ourselves. We use a Begin/End pair
-  // to create a named window.
-  {
-    static float f = 0.0f;
-    static int counter = 0;
-
-    ImGui::Begin("Hello, world!");  // Create a window called "Hello, world!"
-                                    // and append into it.
-
-    ImGui::Text("This is some useful text.");  // Display some text (you can
-                                               // use a format strings too)
-    // ImGui::Checkbox(
-    //     "Demo Window",
-    //     &show_demo_window);  // Edit bools storing our window open/close
-    //     state
-    // ImGui::Checkbox("Another Window", &show_another_window);
-
-    ImGui::SliderFloat("float", &f, 0.0f,
-                       1.0f);  // Edit 1 float using a slider from 0.0f to 1.0f
-    ImGui::ColorEdit3("clear color",
-                      (float *)&g_views[0]
-                          .clear_color);  // Edit 3 floats representing a color
-
-    if (ImGui::Button("Button"))  // Buttons return true when clicked (most
-                                  // widgets return true when edited/activated)
-      counter++;
-    ImGui::SameLine();
-    ImGui::Text("counter = %d", counter);
-
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-                1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-    ImGui::End();
-  }
-  // 3. Show another simple window.
-  // if (show_another_window) {
-  //  ImGui::Begin(
-  //      "Another Window",
-  //      &show_another_window);  // Pass a pointer to our bool variable (the
-  //                              // window will have a closing button that will
-  //                              // clear the bool when clicked)
-  //  ImGui::Text("Hello from another window!");
-  //  if (ImGui::Button("Close Me")) show_another_window = false;
-  //  ImGui::End();
-  //}
-
-  {
-    ImGui::Begin("Mesh Tool");
-
-    static char mesh_path[1024] = "../data/bunny/bunny.obj";
-    ImGui::InputText("Mesh path", mesh_path, 1024u);
-    if (ImGui::Button("Load mesh")) {
-      LoadMesh(mesh_path);
-    }
-
-    bool show_wire = g_views[0].renderer->GetShowWire();
-    if (ImGui::Checkbox("show wire", &show_wire)) {
-      for (auto &view : g_views) {
-        view.renderer->SetShowWire(show_wire);
-      }
-    }
-
-    Eigen::Vector3f wire_col = g_views[0].renderer->GetWireColor();
-    if (ImGui::ColorEdit3("wire color", wire_col.data())) {
-      for (auto &view : g_views) {
-        view.renderer->SetWireColor(Eigen::Vector3f(wire_col));
-      }
-    }
-
-    if (ImGui::Button("Save GBuffer")) {
-      for (auto &view : g_views) {
-        view.renderer->ReadGbuf();
-        GBuffer gbuf;
-        view.renderer->GetGbuf(gbuf);
-#if 1
-        Image3b vis_pos_wld, vis_pos_cam;
-        vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
-        imwrite("pos_wld.png", vis_pos_wld);
-        vis_pos_cam = ColorizePosMap(gbuf.pos_cam);
-        imwrite("pos_cam.png", vis_pos_cam);
-
-        Image3b vis_normal_wld, vis_normal_cam;
-        Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
-        imwrite("normal_wld.png", vis_normal_wld);
-        Normal2Color(gbuf.normal_cam, &vis_normal_cam, true);
-        imwrite("normal_cam.png", vis_normal_cam);
-#endif
-        Image3b vis_depth;
-        Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
-        imwrite("depth01.png", vis_depth);
-
-        Image3b vis_geoid;
-        FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
-        imwrite("geoid.png", vis_geoid);
-
-        Image3b vis_faceid;
-        FaceId2RandomColor(gbuf.face_id, &vis_faceid);
-        imwrite("faceid.png", vis_faceid);
-
-        Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
-        imwrite("bary.png", vis_bary);
-
-        Image3b vis_uv = ColorizeBarycentric(gbuf.uv);
-        imwrite("uv.png", vis_uv);
-
-        imwrite("color.png", gbuf.color);
-      }
-    }
-    ImGui::End();
-  }
-
-#endif
-
-  glClear(GL_COLOR_BUFFER_BIT);
-  glClearColor(g_views[0].clear_color.x(), g_views[0].clear_color.y(),
-               g_views[0].clear_color.z(), 1.f);
-
-#if 0
-    {
-      shader.Use();
-
-      model_mat.block(0, 0, 3, 3) =
-          Eigen::AngleAxisf(0.03 * count, Eigen::Vector3f(0, 1, 0)).matrix();
-      count++;
-
-      glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model_mat.data());
-      glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view_mat.data());
-      glUniformMatrix4fv(prjLoc, 1, GL_FALSE, prj_mat.data());
-
-      mesh.Draw(shader);
-    }
-#endif
-
-#if 0
-    model_mat.block(0, 0, 3, 3) =
-        Eigen::AngleAxisf(0.03f * count, Eigen::Vector3f(0, 1, 0)).matrix();
-
-    model_mat_2.block(0, 0, 3, 3) =
-        Eigen::AngleAxisf(0.05f * count, Eigen::Vector3f(1, 0, 0)).matrix();
-
-
-
-    renderer->SetMesh(mesh, Eigen::Affine3f(model_mat));
-
-    renderer->SetMesh(mesh2, Eigen::Affine3f(model_mat_2));
-#endif
-
-  // count++;
-
-  // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+void DrawViews() {
   glViewport(0, 0, g_width, g_height);
   for (size_t i = 0; i < g_views.size(); i++) {
     const auto &view = g_views[i];
     const auto offset_w = g_width / g_views.size();
-    // glViewport(offset_w * i, 0, offset_w, g_height);
-    // glScissor(offset_w * i, 0, offset_w, g_height);
     view.renderer->SetViewport(offset_w * i, 0, offset_w, g_height);
     view.renderer->Draw();
   }
+}
 
+void ProcessDrags() {
   if (!ImGui::IsAnyItemActive()) {
     Eigen::Vector3f bb_max, bb_min;
 
@@ -718,7 +574,7 @@ void Draw(GLFWwindow *window) {
       uint32_t vidx = g_subwindow_id;
       auto &view = g_views[vidx];
 
-        view.renderer->GetMergedBoundingBox(bb_max, bb_min);
+      view.renderer->GetMergedBoundingBox(bb_max, bb_min);
 
       if (g_to_process_drag_l) {
         g_to_process_drag_l = false;
@@ -803,19 +659,262 @@ void Draw(GLFWwindow *window) {
       }
     }
   }
-  glClear(GL_DEPTH_BUFFER_BIT);
+}
 
+void DrawImgui(GLFWwindow *window) {
+  std::lock_guard<std::mutex> lock(views_mtx);
+  // 1. Show the big demo window (Most of the sample code is in
+  // ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear
+  // ImGui!).
+  // if (show_demo_window) ImGui::ShowDemoWindow(&show_demo_window);
+
+  // 2. Show a simple window that we create ourselves. We use a Begin/End pair
+  // to create a named window.
+  {
+    static float f = 0.0f;
+    static int counter = 0;
+
+    ImGui::Begin("Hello, world!");  // Create a window called "Hello, world!"
+                                    // and append into it.
+
+    ImGui::Text("This is some useful text.");  // Display some text (you can
+                                               // use a format strings too)
+    // ImGui::Checkbox(
+    //     "Demo Window",
+    //     &show_demo_window);  // Edit bools storing our window open/close
+    //     state
+    // ImGui::Checkbox("Another Window", &show_another_window);
+
+    ImGui::SliderFloat("float", &f, 0.0f,
+                       1.0f);  // Edit 1 float using a slider from 0.0f to 1.0f
+    ImGui::ColorEdit3("clear color",
+                      (float *)&g_views[0]
+                          .clear_color);  // Edit 3 floats representing a color
+
+    if (ImGui::Button("Button"))  // Buttons return true when clicked (most
+                                  // widgets return true when edited/activated)
+      counter++;
+    ImGui::SameLine();
+    ImGui::Text("counter = %d", counter);
+
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+                1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    ImGui::End();
+  }
+  // 3. Show another simple window.
+  // if (show_another_window) {
+  //  ImGui::Begin(
+  //      "Another Window",
+  //      &show_another_window);  // Pass a pointer to our bool variable (the
+  //                              // window will have a closing button that will
+  //                              // clear the bool when clicked)
+  //  ImGui::Text("Hello from another window!");
+  //  if (ImGui::Button("Close Me")) show_another_window = false;
+  //  ImGui::End();
+  //}
+
+  for (size_t i = 0; i < g_views.size(); i++) {
+    auto &view = g_views[i];
+    const std::string title = std::string("View ") + std::to_string(i);
+
+    ImGui::Begin(title.c_str());
+
+    if (ImGui::TreeNodeEx("Meshes", ImGuiTreeNodeFlags_DefaultOpen)) {
+      for (size_t i = 0; i < g_meshes.size(); i++) {
+        bool v = view.renderer->GetVisibility(g_meshes[i]);
+        std::string label =
+            std::to_string(i) + " " + g_mesh_names[i] + ": " + g_mesh_paths[i];
+        if (ImGui::Checkbox(label.c_str(), &v)) {
+          view.renderer->SetVisibility(g_meshes[i], v);
+        }
+      }
+
+      ImGui::TreePop();
+    }
+
+    if (ImGui::TreeNodeEx("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
+      bool update_pose = false;
+      Eigen::Affine3f c2w_gl = view.camera->c2w().cast<float>();
+      Eigen::Vector3f pos = c2w_gl.translation();
+      Eigen::Matrix3f R_gl = c2w_gl.rotation();
+      Eigen::Matrix3f R_cv = R_gl;
+      R_cv.col(1) *= -1.f;
+      R_cv.col(2) *= -1.f;
+
+      Eigen::Vector2f nearfar;
+      view.renderer->GetNearFar(nearfar[0], nearfar[1]);
+      if (ImGui::InputFloat2("near far", nearfar.data())) {
+        view.renderer->SetNearFar(nearfar[0], nearfar[1]);
+      }
+
+      Eigen::Vector2i size(view.camera->width(), view.camera->height());
+      if (ImGui::InputInt2("width height", size.data())) {
+        view.camera->set_size(size[0], size[1]);
+      }
+
+      Eigen::Vector2f fov(view.camera->fov_x(), view.camera->fov_y());
+      if (ImGui::InputFloat2("FoV-X FoV-Y", nearfar.data())) {
+        view.camera->set_fov_x(fov[0]);
+        view.camera->set_fov_y(fov[1]);
+      }
+
+      if (ImGui::TreeNodeEx("OpenCV Style", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::InputFloat3("Position", pos.data())) {
+          update_pose = true;
+        }
+
+        if (ImGui::InputFloat3("Rotation", R_cv.data()) ||
+            ImGui::InputFloat3("        ", R_cv.data() + 3) ||
+            ImGui::InputFloat3("        ", R_cv.data() + 6)) {
+          update_pose = true;
+          R_gl = R_cv;
+          R_gl.col(1) *= -1.f;
+          R_gl.col(2) *= -1.f;
+        }
+
+        Eigen::Vector2f fxfy = view.camera->focal_length();
+        if (ImGui::InputFloat2("fx fy", fxfy.data())) {
+          view.camera->set_focal_length(fxfy);
+        }
+
+        Eigen::Vector2f cxcy = view.camera->principal_point();
+        if (ImGui::InputFloat2("cx cy", cxcy.data())) {
+          view.camera->set_principal_point(cxcy);
+        }
+
+        Eigen::Vector4f distortion(0.f, 0.f, 0.f, 0.f);
+        if (ImGui::InputFloat4("k1 k2 p1 p2 (TODO)", distortion.data())) {
+          // TODO
+        }
+
+        ImGui::TreePop();
+      }
+
+      if (ImGui::TreeNodeEx("OpenGL Style", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::InputFloat3("Position", pos.data())) {
+          update_pose = true;
+        }
+
+        if (ImGui::InputFloat3("Rotation", R_gl.data()) ||
+            ImGui::InputFloat3("        ", R_gl.data() + 3) ||
+            ImGui::InputFloat3("        ", R_gl.data() + 6)) {
+          update_pose = true;
+        }
+
+        Eigen::Matrix4f prj_gl =
+            view.camera->ProjectionMatrixOpenGl(nearfar[0], nearfar[1]);
+        if (ImGui::InputFloat4("Projection", prj_gl.data()) ||
+            ImGui::InputFloat4("        ", prj_gl.data() + 4) ||
+            ImGui::InputFloat4("        ", prj_gl.data() + 8) ||
+            ImGui::InputFloat4("        ", prj_gl.data() + 12)) {
+          ugu::LOGI("No update for GL projection matrix\n");
+        }
+
+        if (update_pose) {
+          c2w_gl = R_gl * Eigen::Translation3f(pos);
+          view.camera->set_c2w(c2w_gl.cast<double>());
+        }
+
+              ImGui::TreePop();
+      }
+
+      ImGui::TreePop();
+    }
+
+    ImGui::End();
+  }
+
+  {
+    ImGui::Begin("Mesh Tool");
+
+    static char mesh_path[1024] = "../data/bunny/bunny.obj";
+    ImGui::InputText("Mesh path", mesh_path, 1024u);
+    if (ImGui::Button("Load mesh")) {
+      LoadMesh(mesh_path);
+    }
+
+    bool show_wire = g_views[0].renderer->GetShowWire();
+    if (ImGui::Checkbox("show wire", &show_wire)) {
+      for (auto &view : g_views) {
+        view.renderer->SetShowWire(show_wire);
+      }
+    }
+
+    Eigen::Vector3f wire_col = g_views[0].renderer->GetWireColor();
+    if (ImGui::ColorEdit3("wire color", wire_col.data())) {
+      for (auto &view : g_views) {
+        view.renderer->SetWireColor(Eigen::Vector3f(wire_col));
+      }
+    }
+
+    if (ImGui::Button("Save GBuffer")) {
+      for (auto &view : g_views) {
+        view.renderer->ReadGbuf();
+        GBuffer gbuf;
+        view.renderer->GetGbuf(gbuf);
 #if 1
-  // glClear(GL_COLOR_BUFFER_BIT);
-  //  Rendering
+        Image3b vis_pos_wld, vis_pos_cam;
+        vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
+        imwrite("pos_wld.png", vis_pos_wld);
+        vis_pos_cam = ColorizePosMap(gbuf.pos_cam);
+        imwrite("pos_cam.png", vis_pos_cam);
+
+        Image3b vis_normal_wld, vis_normal_cam;
+        Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
+        imwrite("normal_wld.png", vis_normal_wld);
+        Normal2Color(gbuf.normal_cam, &vis_normal_cam, true);
+        imwrite("normal_cam.png", vis_normal_cam);
+#endif
+        Image3b vis_depth;
+        Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
+        imwrite("depth01.png", vis_depth);
+
+        Image3b vis_geoid;
+        FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
+        imwrite("geoid.png", vis_geoid);
+
+        Image3b vis_faceid;
+        FaceId2RandomColor(gbuf.face_id, &vis_faceid);
+        imwrite("faceid.png", vis_faceid);
+
+        Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
+        imwrite("bary.png", vis_bary);
+
+        Image3b vis_uv = ColorizeBarycentric(gbuf.uv);
+        imwrite("uv.png", vis_uv);
+
+        imwrite("color.png", gbuf.color);
+      }
+    }
+    ImGui::End();
+  }
+
   ImGui::Render();
   int display_w, display_h;
   glfwGetFramebufferSize(window, &display_w, &display_h);
   glViewport(0, 0, display_w, display_h);
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+void Draw(GLFWwindow *window) {
+  glClear(GL_COLOR_BUFFER_BIT);
+  glClearColor(g_views[0].clear_color.x(), g_views[0].clear_color.y(),
+               g_views[0].clear_color.z(), 1.f);
+
+  // Start the Dear ImGui frame
+  ImGui_ImplOpenGL3_NewFrame();
+  ImGui_ImplGlfw_NewFrame();
+  ImGui::NewFrame();
+
+  DrawViews();
+
+  ProcessDrags();
+
+  glClear(GL_DEPTH_BUFFER_BIT);
+
+  DrawImgui(window);
 
   glfwSwapBuffers(window);
-#endif
 }
 
 }  // namespace

@@ -7,9 +7,8 @@
 
 #include <algorithm>
 
-namespace ugu {
-
-std::string ExtractDir(const std::string& path) {
+namespace {
+std::string::size_type FindLastSeparatorPos(const std::string& path) {
   std::string::size_type pos = std::string::npos;
   const std::string::size_type unix_pos = path.find_last_of('/');
   const std::string::size_type windows_pos = path.find_last_of('\\');
@@ -27,6 +26,25 @@ std::string ExtractDir(const std::string& path) {
       pos = std::max(pos, unix_pos);
     }
   }
+  return pos;
+}
+
+}  // namespace
+
+namespace ugu {
+
+std::string ExtractFilename(const std::string& path, bool without_ext) {
+  std::string::size_type pos = FindLastSeparatorPos(path);
+  std::string fn =
+      (pos == std::string::npos) ? path : path.substr(pos + 1, path.size());
+  if (without_ext) {
+    return ExtractPathWithoutExt(fn);
+  }
+  return fn;
+}
+
+std::string ExtractDir(const std::string& path) {
+  std::string::size_type pos = FindLastSeparatorPos(path);
   return (pos == std::string::npos) ? "./" : path.substr(0, pos + 1);
 }
 

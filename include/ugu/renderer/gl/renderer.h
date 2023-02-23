@@ -49,10 +49,12 @@ class RendererGl {
 
   bool AddSelectedPosition(const RenderableMeshPtr& geom,
                            const Eigen::Vector3f& pos);
-  bool AddSelectedPositions(
-      const RenderableMeshPtr& geom,
-      const std::vector<Eigen::Vector3f>& pos_list);
+  bool AddSelectedPositions(const RenderableMeshPtr& geom,
+                            const std::vector<Eigen::Vector3f>& pos_list);
   void ClearSelectedPositions();
+
+  void SetVisibility(const RenderableMeshPtr& geom, bool is_visible);
+  bool GetVisibility(const RenderableMeshPtr& geom) const;
 
   void GetMergedBoundingBox(Eigen::Vector3f& bb_max, Eigen::Vector3f& bb_min);
 
@@ -89,6 +91,8 @@ class RendererGl {
                      BvhPtr<Eigen::Vector3f, Eigen::Vector3i>>
       m_bvhs;
 
+  std::unordered_map<RenderableMeshPtr, bool> m_visibility;
+
   Shader m_gbuf_shader;
   Shader m_deferred_shader;
 
@@ -100,8 +104,8 @@ class RendererGl {
   Eigen::Vector3f m_bb_min;
 
   const uint32_t MAX_SELECTED_POS = 32;  // Sync with GLSL
-  std::unordered_map <RenderableMeshPtr,
-      std::vector<Eigen::Vector3f>> m_selected_positions;
+  std::unordered_map<RenderableMeshPtr, std::vector<Eigen::Vector3f>>
+      m_selected_positions;
   // std::vector<Eigen::Vector3f> m_selected_positions_1;
 
   GBuffer m_gbuf;

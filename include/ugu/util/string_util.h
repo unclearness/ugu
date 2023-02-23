@@ -12,6 +12,7 @@
 
 namespace ugu {
 
+std::string ExtractFilename(const std::string& path, bool without_ext = false);
 std::string ExtractDir(const std::string& path);
 std::string ExtractExt(const std::string& path, bool no_dot = true);
 std::string ExtractPathWithoutExt(const std::string& fn);
