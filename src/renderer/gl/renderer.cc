@@ -638,7 +638,9 @@ RendererGl::TestVisibility(const Eigen::Vector3f& point) const {
   // Ray from point to camera
   Ray ray;
   ray.dir = (wld_campos - point).normalized();
-  ray.org = point;
+  Eigen::Vector3f offset = ray.dir * (m_bb_max - m_bb_min).maxCoeff() *
+                           1e-3f;  // Small offset to avoid hitting itself...
+  ray.org = point + offset;
 
   auto results_all = Intersect(ray);
 

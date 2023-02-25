@@ -67,8 +67,9 @@ uint32_t g_prev_subwindow_id = ~0u;
 bool g_mouse_l_pressed = false;
 bool g_mouse_m_pressed = false;
 bool g_mouse_r_pressed = false;
-const double drag_th = 2.0;
-const double g_drag_point_pix_dist_th = 10.0;
+const double drag_th = 0.0;
+const double g_drag_point_pix_dist_th = 20.0;
+uint32_t g_selecting_point_id = ~0u;
 
 double g_mouse_wheel_yoffset = 0.0;
 bool g_to_process_wheel = false;
@@ -82,6 +83,8 @@ int g_height = 720;
 struct SplitViewInfo;
 std::mutex views_mtx;
 std::vector<SplitViewInfo> g_views;
+
+std::mutex mouse_mtx;
 
 Eigen::Vector3f default_clear_color = {0.45f, 0.55f, 0.60f};
 Eigen::Vector3f default_wire_color = {0.1f, 0.1f, 0.1f};
@@ -174,7 +177,7 @@ struct SplitViewInfo {
     // Substract offset to align cursor pos on window to corresponding positon
     // on framebuffer
     camera->ray_c(static_cast<float>(g_cursor_pos[0] - offset.x()),
-                  static_cast<float>(g_cursor_pos[1] + offset.y()), &dir_c_cv);
+                  static_cast<float>(g_cursor_pos[1] - offset.y()), &dir_c_cv);
 
     const Eigen::Affine3d offset =
         Eigen::Affine3d(Eigen::AngleAxisd(pi, Eigen::Vector3d::UnitX()))
@@ -200,8 +203,8 @@ struct SplitViewInfo {
       }
       const std::vector<IntersectResult> &results = results_all[geoid];
       if (!results.empty()) {
-        std::cout << geoid << ": " << results[0].t << " " << results[0].fid
-                  << " " << results[0].u << ", " << results[0].v << std::endl;
+       // std::cout << geoid << ": " << results[0].t << " " << results[0].fid
+       //           << " " << results[0].u << ", " << results[0].v << std::endl;
         if (results[0].t < min_geo_dist) {
           min_geoid = geoid;
           min_geo_dist = results[0].t;
@@ -211,7 +214,7 @@ struct SplitViewInfo {
     }
 
     if (min_geoid != ~0u) {
-      std::cout << "closest geo: " << min_geoid << std::endl;
+      //std::cout << "closest geo: " << min_geoid << std::endl;
     }
 
     CastRayResult result;
@@ -242,9 +245,9 @@ struct SplitViewInfo {
         const auto &p_wld = g_selected_positions[mesh][i];
         auto [is_visible, results_all] = renderer->TestVisibility(p_wld);
         if (is_visible) {
-          std::cout << "selected " << i << ": visibile" << std::endl;
+          //std::cout << "selected " << i << ": visibile" << std::endl;
         } else {
-          std::cout << "selected " << i << ": not visibile" << std::endl;
+        //  std::cout << "selected " << i << ": not visibile" << std::endl;
         }
         if (is_visible) {
           Eigen::Vector4f p_cam =
@@ -261,8 +264,11 @@ struct SplitViewInfo {
 
           p_gl_frag.y() = camera->height() - p_gl_frag.y();
 
+          // Add offset
+          p_gl_frag += offset.cast<double>();
+
           double dist = (p_gl_frag - cursor_pos).norm();
-          // std::cout << dist << std::endl;
+          std::cout << i << " " << dist << std::endl;
           if (dist < g_drag_point_pix_dist_th && dist < min_dist) {
             not_close = false;
             min_dist = dist;
@@ -273,7 +279,9 @@ struct SplitViewInfo {
         }
       }
     }
-    return std::make_tuple(!not_close, closest_selected_id);
+
+
+    return std::make_tuple(!not_close, closest_selected_id, min_dist);
   }
 };
 
@@ -339,6 +347,8 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
 }
 
 void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
+  //std::lock_guard<std::mutex> lock(mouse_mtx);
+
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
     // printf("L - down\n");
     // g_prev_mouse_l_pressed = g_mouse_l_pressed;
@@ -366,33 +376,31 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
     if (g_mouse_r_pressed) {
       bool not_close = false;
       CastRayResult result;
-      for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
-        auto &view = g_views[vidx];
-        if (!IsCursorOnView(vidx)) {
-          continue;
-        }
-        result = view.CastRay();
-        if (result.min_geoid == ~0u) {
-          continue;
-        }
-        auto [is_close, id] =
+      double min_dist;
+      // for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+      auto &view = g_views[g_subwindow_id];
+      result = view.CastRay();
+      if (result.min_geoid != ~0u) {
+        auto [is_close, id, min_dist_] =
             view.FindClosestSelectedPoint(g_mouse_r_pressed_pos);
         not_close = !is_close;
-        break;
+        // break;
+        //}
+        min_dist = min_dist_;
       }
 
       if (not_close) {
-        for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
-          auto &view = g_views[vidx];
-          view.renderer->AddSelectedPosition(g_meshes[result.min_geoid],
-                                             result.min_geo_dist_pos);
-        }
         g_selected_positions[g_meshes[result.min_geoid]].push_back(
             result.min_geo_dist_pos);
+        for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+          auto &view = g_views[vidx];
+          view.renderer->AddSelectedPositions(g_meshes[result.min_geoid],
+              g_selected_positions[g_meshes[result.min_geoid]]);
+        }
 
-        std::cout << "added" << std::endl;
+        std::cout << "added " << min_dist << std::endl;
       } else {
-        std::cout << "ignored" << std::endl;
+        std::cout << "ignored " << min_dist << std::endl;
       }
     }
   }
@@ -572,6 +580,9 @@ void DrawViews() {
 }
 
 void ProcessDrags() {
+  //std::lock_guard<std::mutex> lock(mouse_mtx);
+
+
   if (!ImGui::IsAnyItemActive()) {
     Eigen::Vector3f bb_max, bb_min;
 
@@ -633,20 +644,24 @@ void ProcessDrags() {
         g_to_process_drag_r = false;
         CastRayResult result;
         bool is_close = false;
+        double min_dist;
         size_t id;
         result = view.CastRay();
         if (result.min_geoid != ~0u) {
-          std::tie(is_close, id) = view.FindClosestSelectedPoint(g_cursor_pos);
-        }
+          std::tie(is_close, id, min_dist) =
+              view.FindClosestSelectedPoint(g_cursor_pos);
 
-        if (is_close) {
-          g_selected_positions[g_meshes[result.min_geoid]][id] =
-              result.min_geo_dist_pos;
-          for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
-            auto &view = g_views[vidx];
-            view.renderer->AddSelectedPositions(
-                g_meshes[result.min_geoid],
-                g_selected_positions[g_meshes[result.min_geoid]]);
+          if (is_close) {
+            g_selected_positions[g_meshes[result.min_geoid]][id] =
+                result.min_geo_dist_pos;
+            for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+              auto &view = g_views[vidx];
+              view.renderer->AddSelectedPositions(
+                  g_meshes[result.min_geoid],
+                  g_selected_positions[g_meshes[result.min_geoid]]);
+            }
+          } else {
+            std::cout << "Failed " << min_dist << std::endl;
           }
         }
       }
