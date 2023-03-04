@@ -68,7 +68,7 @@ endif()
 ########################################################################
 
 ############################## Optional ################################
-set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs_texturing libigl glfw imgui glad poisson_reconstruction)
+set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs_texturing libigl glfw imgui glad poisson_reconstruction freetype)
 set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyobjloader
@@ -85,6 +85,7 @@ set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/PoissonRecon/Src
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/freetype/include
   )
 
 function(ugu_set_install_dir LIB_NAME DEFAULT_INSTALL_DIR)
@@ -198,8 +199,8 @@ endif()
 
 
 ########################### Include only ###############################
-set(OPTIONAL_EXTERNAL_NO_COMPILE tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts libigl poisson_reconstruction)
-set(OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ON ON ON ON OFF ON ON ON)
+set(OPTIONAL_EXTERNAL_NO_COMPILE tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts libigl poisson_reconstruction freetype)
+set(OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ON ON ON ON OFF ON ON ON ON)
 function(ugu_set_default_option LIB_NAME DEFAULT_OPTION)
   string(TOUPPER ${LIB_NAME} LIB_NAME)
   set(OPTION_NAME "UGU_USE_${LIB_NAME}")
