@@ -1,3 +1,7 @@
+#include "ugu/external/external.h"
+
+#ifdef UGU_USE_POISSON_RECONSTRUCTION
+
 /*
 Copyright (c) 2006, Michael Kazhdan and Matthew Bolitho
 All rights reserved.
@@ -33,6 +37,24 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma warning(push, 0)
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-overflow="
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wreorder"
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
+#pragma GCC diagnostic ignored "-Wdelete-non-virtual-dtor"
+#pragma GCC diagnostic ignored "-Wdangling-else"
+#pragma GCC diagnostic ignored "-Wunused-local-typedefs"
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wall"
+#pragma clang diagnostic ignored "-Wextra"
+
 #include "PoissonRecon/Src/MyMiscellany.h"
 #include "PoissonRecon/Src/PreProcessor.h"
 
@@ -60,13 +82,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "PoissonRecon/Src/FEMTree.h"
 // #include "PoissonRecon/Src/Image.h"
 #include "PoissonRecon/Src/PPolynomial.h"
-// #include "PoissonRecon/Src/Ply.h"
 #include "PoissonRecon/Src/RegularGrid.h"
 #include "PoissonRecon/Src/VertexFactory.h"
-
-#ifdef _WIN32
-#pragma warning(pop)
-#endif
 
 namespace {
 // ugu::MeshPtr input_points = nullptr;
@@ -541,25 +558,16 @@ void ExtractMesh(
     size_t nr_faces = mesh->polygonNum();
     mesh->resetIterator();
 
-
     typename VertexFactory::Transform unitCubeToModelTransform(unitCubeToModel);
     auto xForm = unitCubeToModelTransform;
 
-     typedef typename VertexFactory::VertexType VertType;
-     #if 1
+    typedef typename VertexFactory::VertexType VertType;
+#if 1
     auto add_vertex = [&](VertType vertex) {
-       Point<Real, Dim> pos = vertex.template get<0>();
-       typename VertType::VectorType<2> col = vertex.template get<2>();
-       typename VertType::VectorType<1> nor = vertex.template get<1>();
-       //typename VertType::VectorType<2> nor = vertex.template get<2>();
-       //auto col = tmp.get<0>();
-      // = vertex.get().get<1>();
-       //.template get();
-      //Point<Real, Dim> col;  //= vertex.get<1>();
-      // Point<Real, Dim> col = vertex.get<2>();
-     // auto c = Point<Real, Dim>(col_).coords[0];
-       //std::cout << vertex << std::endl;
-     //  std::cout << pos << " " << col << " " << nor << std::endl;
+      Point<Real, Dim> pos = vertex.template get<0>();
+      Point<Real, Dim> nor = vertex.template get<1>();
+      Point<Real, Dim> col = vertex.template get<2>();
+
       Eigen::Vector3f ugu_pos(pos[0], pos[1], pos[2]);
       Eigen::Vector3f ugu_col(col[0], col[1], col[2]);
       Eigen::Vector3f ugu_nor(nor[0], nor[1], nor[2]);
@@ -569,39 +577,23 @@ void ExtractMesh(
       out_colors_.push_back(ugu_col);
       out_normals_.push_back(ugu_nor);
     };
-    #endif
-
-
+#endif
 
     if (vertexFactory.isStaticallyAllocated()) {
       for (size_t i = 0; i < mesh->inCoreVertices.size(); i++) {
-        VertType vertex =
-            xForm(mesh->inCoreVertices[i]);
+        VertType vertex = xForm(mesh->inCoreVertices[i]);
         add_vertex(vertex);
-        #if 0
-        Point<Real, Dim> pos = vertex.template get<0>();
-        auto col = vertex.template get<1>();
-        Eigen::Vector3f ugu_pos(pos[0], pos[1], pos[2]);
-        Eigen::Vector3f ugu_col(col[0], col[1], col[2]);
-        out_points_.push_back(ugu_pos);
-        out_colors_.push_back(ugu_col);
-        #endif
       }
       for (size_t i = 0; i < mesh->outOfCoreVertexNum(); i++) {
         VertType vertex = vertexFactory();
         mesh->nextOutOfCoreVertex(vertex);
         vertex = xForm(vertex);
         add_vertex(vertex);
-        #if 0      
-        Point<Real, Dim> pos = vertex.template get<0>();
-        auto col = vertex.template get<1>();
-        Eigen::Vector3f ugu_pos(pos[0], pos[1], pos[2]);
-        Eigen::Vector3f ugu_col(col[0], col[1], col[2]);
-        out_points_.push_back(ugu_pos);
-        out_colors_.push_back(ugu_col);
-        #endif
       }
     } else {
+      // TODO
+      ugu::LOGE("Not implemented yet...");
+#if 0
       char *buffer = new char[vertexFactory.bufferSize()];
       for (size_t i = 0; i < mesh->inCoreVertices.size(); i++) {
         VertType vertex =
@@ -616,6 +608,7 @@ void ExtractMesh(
         // ply->put_element((void *)buffer);
       }
       delete[] buffer;
+#endif
     }
 
     std::vector<CoredVertexIndex<node_index_type> > polygon;
@@ -847,7 +840,7 @@ void Execute(UIntPack<FEMSigs...>, const AuxDataFactory &auxDataFactory) {
   {
     profiler.start();
     InputPointStream *pointStream;
-    char *ext = GetFileExtension(In.value);
+    // char *ext = GetFileExtension(In.value);
     sampleData = new std::vector<InputSampleDataType>();
     std::vector<InputSampleType> inCorePoints;
 
@@ -1443,7 +1436,7 @@ void Execute(UIntPack<FEMSigs...>, const AuxDataFactory &auxDataFactory) {
     DeletePointer(values);
   }
 
-  #if 0
+#if 0
   if (Out.set) {
     if (Normals.value) {
       if (Density.set) {
@@ -1549,11 +1542,11 @@ void Execute(UIntPack<FEMSigs...>, const AuxDataFactory &auxDataFactory) {
       sampleData = NULL;
     }
   }
-  #endif
+#else
 
+  // Normal and vertex color version
   {
-
-            typedef Factory<Real, PositionFactory<Real, Dim>, NormalFactory<Real, Dim>,
+    typedef Factory<Real, PositionFactory<Real, Dim>, NormalFactory<Real, Dim>,
                     AuxDataFactory>
         VertexFactory;
     VertexFactory vertexFactory(PositionFactory<Real, Dim>(),
@@ -1569,6 +1562,8 @@ void Execute(UIntPack<FEMSigs...>, const AuxDataFactory &auxDataFactory) {
                 sampleData, density, vertexFactory, inputSampleDataFactory(),
                 SetVertex, comments, unitCubeToModel);
   }
+
+#endif
 
   if (density) delete density, density = NULL;
   messageWriter(comments, "#          Total Solve: %9.1f (s), %9.1f (MB)\n",
@@ -1618,16 +1613,24 @@ namespace ugu {
 
 MeshPtr PoissonRecon(const std::vector<Eigen::Vector3f> &points,
                      const std::vector<Eigen::Vector3f> &normals,
-                     const std::vector<Eigen::Vector3f> &colors) {
+                     const std::vector<Eigen::Vector3f> &colors, int depth,
+                     int width, float scale, bool linear_fit, int n_threads,
+                     bool verbose) {
   if (points.empty() || points.size() != normals.size()) {
     return nullptr;
   }
 
-  char *in_tmp[1] = {"hoge"};
-  In.read(in_tmp, 1);
-  char *out_tmp[1] = {"../data/bunny/bunny_spr.ply"};
-  Out.read(out_tmp, 1);
-  Verbose.set = true;
+  if (n_threads <= 0) {
+    n_threads = static_cast<int>(std::thread::hardware_concurrency());
+  }
+
+  Width.value = width;
+  Scale.value = scale > 0 ? scale : 1.f;
+  Depth.value = std::max(1, depth);
+  LinearFit.set = linear_fit;
+  Threads.value = n_threads;
+
+  Verbose.set = verbose;
   Normals.set = true;
   Normals.value = NORMALS_GRADIENTS;
 
@@ -1808,8 +1811,43 @@ MeshPtr PoissonRecon(const std::vector<Eigen::Vector3f> &points,
   return recon_mesh;
 }
 
-MeshPtr PoissonRecon(const MeshPtr &src) {
-  return PoissonRecon(src->vertices(), src->normals(), src->vertex_colors());
+MeshPtr PoissonRecon(const MeshPtr &src, int depth, int width, float scale,
+                     bool linear_fit, int n_threads, bool verbose) {
+  return PoissonRecon(src->vertices(), src->normals(), src->vertex_colors(),
+                      depth, width, scale, linear_fit, n_threads, verbose);
 }
 
 }  // namespace ugu
+
+#pragma clang diagnostic pop
+
+#pragma GCC diagnostic pop
+
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
+#else
+
+namespace ugu {
+
+MeshPtr PoissonRecon(const std::vector<Eigen::Vector3f>& points,
+                     const std::vector<Eigen::Vector3f>& normals,
+                     const std::vector<Eigen::Vector3f>& colors, int depth,
+                     int width, float scale, bool linear_fit, int n_threads,
+                     bool verbose) {
+  (void)points, normals, colors, depth, width, scale, linear_fit, n_threads,
+      verbose;
+  LOGE("Not available in current configuration\n");
+  return nullptr;
+}
+
+MeshPtr PoissonRecon(const MeshPtr& src, int depth, int width, float scale,
+                     bool linear_fit, int n_threads, bool verbose) {
+  (void)src, depth, width, scale, linear_fit, n_threads, verbose;
+  LOGE("Not available in current configuration\n");
+  return nullptr;
+}
+}  // namespace ugu
+
+#endif

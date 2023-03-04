@@ -40,10 +40,15 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
 
 bool LibiglLscm(Mesh& mesh, int tex_w, int tex_h);
 
-MeshPtr PoissonRecon(const std::vector<Eigen::Vector3f>& points,
-                     const std::vector<Eigen::Vector3f>& normals,
-                     const std::vector<Eigen::Vector3f>& colors =
-                         std::vector<Eigen::Vector3f>());
-MeshPtr PoissonRecon(const MeshPtr& src);
+MeshPtr PoissonRecon(
+    const std::vector<Eigen::Vector3f>& points,
+    const std::vector<Eigen::Vector3f>& normals,
+    const std::vector<Eigen::Vector3f>& colors = std::vector<Eigen::Vector3f>(),
+    int depth = 8, int width = 0, float scale = 1.1f, bool linear_fit = false,
+    int n_threads = -1, bool verbose = false);
+
+MeshPtr PoissonRecon(const MeshPtr& src, int depth = 8, int width = 0,
+                     float scale = 1.1f, bool linear_fit = false,
+                     int n_threads = -1, bool verbose = false);
 
 }  // namespace ugu
