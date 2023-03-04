@@ -474,8 +474,12 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   tinyobj::attrib_t attrib;
   std::string err_str, warn_str;
   bool return_default_vertex_color{false};
+  std::string mtl_dir_ = mtl_dir;
+  if (mtl_dir_.empty()) {
+    mtl_dir_ = ExtractDir(obj_path);
+  }
   bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn_str, &err_str,
-                              obj_path.c_str(), mtl_dir.c_str(), true,
+                              obj_path.c_str(), mtl_dir_.c_str(), true,
                               return_default_vertex_color);
 
   if (!err_str.empty()) {  // `err` may contain warning message.
@@ -616,7 +620,7 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
       materials_[i].illum = materials[i].illum;
 
       materials_[i].diffuse_texname = materials[i].diffuse_texname;
-      materials_[i].diffuse_texpath = mtl_dir + materials_[i].diffuse_texname;
+      materials_[i].diffuse_texpath = mtl_dir_ + materials_[i].diffuse_texname;
       std::ifstream ifs(materials_[i].diffuse_texpath);
       if (ifs.is_open()) {
 #if defined(UGU_USE_STB) || defined(UGU_USE_OPENCV)

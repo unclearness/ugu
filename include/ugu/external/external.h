@@ -40,4 +40,10 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
 
 bool LibiglLscm(Mesh& mesh, int tex_w, int tex_h);
 
+MeshPtr PoissonRecon(const std::vector<Eigen::Vector3f>& points,
+                     const std::vector<Eigen::Vector3f>& normals,
+                     const std::vector<Eigen::Vector3f>& colors =
+                         std::vector<Eigen::Vector3f>());
+MeshPtr PoissonRecon(const MeshPtr& src);
+
 }  // namespace ugu
