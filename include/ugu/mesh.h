@@ -179,7 +179,7 @@ class Mesh {
   bool set_keyframes(const std::map<float, AnimKeyframe>& keyframes);
   bool set_anim_interp(const AnimInterp& anim_interp);
 
-  bool LoadObj(const std::string& obj_path, const std::string& mtl_dir);
+  bool LoadObj(const std::string& obj_path, const std::string& mtl_dir = "");
   bool LoadPly(const std::string& ply_path);
   bool WritePly(const std::string& ply_path) const;
   // not const since this will update texture name and path

@@ -68,7 +68,7 @@ endif()
 ########################################################################
 
 ############################## Optional ################################
-set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs_texturing libigl glfw imgui glad)
+set(OPTIONAL_EXTERNAL_ALL stb tinyobjloader lodepng tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts mvs_texturing libigl glfw imgui glad poisson_reconstruction)
 set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyobjloader
@@ -84,6 +84,7 @@ set(OPTIONAL_EXTERNAL_ALL_DEFAULT_INSTALL_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glfw
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/PoissonRecon/Src
   )
 
 function(ugu_set_install_dir LIB_NAME DEFAULT_INSTALL_DIR)
@@ -197,8 +198,8 @@ endif()
 
 
 ########################### Include only ###############################
-set(OPTIONAL_EXTERNAL_NO_COMPILE tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts libigl)
-set(OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ON ON ON ON OFF ON ON)
+set(OPTIONAL_EXTERNAL_NO_COMPILE tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts libigl poisson_reconstruction)
+set(OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ON ON ON ON OFF ON ON ON)
 function(ugu_set_default_option LIB_NAME DEFAULT_OPTION)
   string(TOUPPER ${LIB_NAME} LIB_NAME)
   set(OPTION_NAME "UGU_USE_${LIB_NAME}")
@@ -246,6 +247,8 @@ if(UGU_USE_OPENMP)
 endif()
 ########################################################################
 
+# Add base third_party dir
+set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
 set(
   UGU_SOURCE
@@ -397,6 +400,7 @@ set(
   src/external/fast_quadric_mesh_simplification.cc
   src/external/mvs_texturing.cc
   src/external/libigl.cc
+  src/external/poisson_reconstruction.cc
 
   # implementations of header-only library
   ${UGU_STB_IMPLEMENTATION_CC}
@@ -485,6 +489,7 @@ if (UGU_BUILD_EXAMPLES)
   setup_exe(ex23_rigid examples/ex23_rigid.cc)
   setup_exe(ex24_nonrigid examples/ex24_nonrigid.cc)
   setup_exe(ex25_superpixel examples/ex25_superpixel.cc)
+  setup_exe(ex26_poisson_recon examples/ex26_poisson_recon.cc)
 endif()
 
 if (UGU_BUILD_APP)

@@ -43,3 +43,6 @@
 [submodule "third_party/glfw"]
 	path = third_party/glfw
 	url = https://github.com/glfw/glfw.git
+[submodule "third_party/PoissonRecon"]
+	path = third_party/PoissonRecon
+	url = https://github.com/mkazhdan/PoissonRecon.git
