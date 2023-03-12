@@ -11,7 +11,7 @@
 #include "glad/gl.h"
 #endif
 
-#include <ft2build.h>
+#include "ft2build.h"
 #include FT_FREETYPE_H
 
 #include "font/Open_Sans/static_OpenSans_OpenSans_Regular_ttf.h"

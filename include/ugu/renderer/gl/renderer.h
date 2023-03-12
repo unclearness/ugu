@@ -23,7 +23,7 @@ struct RendererCharacter {
   unsigned int TextureID;   // ID handle of the glyph texture
   Eigen::Vector2i Size;     // size of glyph
   Eigen::Vector2i Bearing;  // offset from baseline to left/top of glyph
-  unsigned int Advance;     // horizontal offset to advance to next glyph
+  uint32_t Advance;         // horizontal offset to advance to next glyph
 };
 
 // A renderer class for rendering text displayed by a font loaded using the
@@ -40,8 +40,9 @@ class TextRendererGl {
   // pre-compiles a list of characters from the given font
   void Load(std::string font, unsigned int fontSize);
   // renders a string of text using the precompiled list of characters
-  void RenderText(const std::string& text, float x, float y, float scale,
-                  const Eigen::Vector3f& color = Eigen::Vector3f(1.0f));
+  void RenderText(
+      const std::string& text, float x, float y, float scale,
+      const Eigen::Vector3f& color = Eigen::Vector3f::Constant(1.f));
   struct Text {
     std::string body;
     float x;
@@ -53,7 +54,7 @@ class TextRendererGl {
 
  private:
   // render state
-  unsigned int VAO, VBO;
+  uint32_t VAO = ~0u, VBO = ~0u;
 };
 
 class RendererGl {

@@ -200,10 +200,13 @@ option(UGU_USE_FREETYPE "Use freetype" ON)
 message("UGU_USE_FREETYPE: ${UGU_USE_FREETYPE}")
 if(UGU_USE_FREETYPE)
 
-  #set(FT_DISABLE_ZLIB "" ON)
-  #set(FT_DISABLE_BZIP2 "" ON)
-  #set(FT_DISABLE_PNG "" ON)
-
+  set(FT_DISABLE_ZLIB ON CACHE BOOL "")
+  set(FT_DISABLE_BZIP2 ON CACHE BOOL "")
+  set(FT_DISABLE_PNG ON CACHE BOOL "")
+  set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "")
+  set(FT_DISABLE_BROTLI ON CACHE BOOL "")
+  set(FT_ENABLE_ERROR_STRINGS ON CACHE BOOL "")
+  
   add_subdirectory(${FREETYPE_INSTALL_DIR})
   set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${FREETYPE_INSTALL_DIR}/include)
   set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_FREETYPE)
@@ -530,7 +533,8 @@ if (UGU_BUILD_GUI_APP)
       ${IMGUI_INSTALL_DIR}/backends/imgui_impl_glfw.h)
 
   add_executable(mesh_viewer app_gui/mesh_viewer/main.cc ${IMGUI_SOURCES} ${IMGUI_HEADERS} ${IMGUI_GL_SOURCES} ${GLAD_HEADERS} ${GLAD_SOURCES})
-  target_include_directories(mesh_viewer PRIVATE ${Ugu_INCLUDE_DIRS} ${IMGUI_INSTALL_DIR} ${IMGUI_INSTALL_DIR}/backends)
+  # Add `BEFORE` to avoid seeing system freetype headers
+  target_include_directories(mesh_viewer PRIVATE BEFORE ${Ugu_INCLUDE_DIRS} ${IMGUI_INSTALL_DIR} ${IMGUI_INSTALL_DIR}/backends)
 if (WIN32)
   target_link_libraries(mesh_viewer ${Ugu_LIBS} opengl32)
 else()
