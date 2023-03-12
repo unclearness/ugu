@@ -32,7 +32,8 @@ void ClusteringForParameterization(
     std::vector<std::vector<Eigen::Vector3i>>& clusters,
     std::vector<std::vector<uint32_t>>& cluster_fids) {
   auto [clusters_v, non_orphans, orphans, clusters_f] =
-      ugu::ClusterByConnectivity(vertex_indices, static_cast<int32_t>(vertices.size()), false);
+      ugu::ClusterByConnectivity(vertex_indices,
+                                 static_cast<int32_t>(vertices.size()), false);
 
   for (const auto& cluster_f : clusters_f) {
     std::vector<uint32_t> cluster_fid;
@@ -192,6 +193,10 @@ bool LibiglLscm(const std::vector<Eigen::Vector3f>& vertices,
   (void)vertex_indices;
   (void)tex_w;
   (void)tex_h;
+  (void)cluster_areas;
+  (void)clusters;
+  (void)cluster_fids;
+  (void)cluster_weights;
   (void)uvs;
   (void)uv_indices;
   ugu::LOGE("Not available in current configuration\n");

@@ -210,7 +210,7 @@ if(UGU_USE_FREETYPE)
   add_subdirectory(${FREETYPE_INSTALL_DIR})
   set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${FREETYPE_INSTALL_DIR}/include)
   set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_FREETYPE)
-  set(Ugu_LIBS ${Ugu_LIBS} freetype)
+  set(Freetype_LIBS freetype)
 endif()
 
 ########################################################################
@@ -218,7 +218,7 @@ endif()
 
 ########################### Include only ###############################
 set(OPTIONAL_EXTERNAL_NO_COMPILE tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts libigl poisson_reconstruction)
-set(OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ON ON ON ON OFF ON ON ON)
+set(OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ON ON ON ON OFF ON OFF ON)
 function(ugu_set_default_option LIB_NAME DEFAULT_OPTION)
   string(TOUPPER ${LIB_NAME} LIB_NAME)
   set(OPTION_NAME "UGU_USE_${LIB_NAME}")
@@ -435,7 +435,7 @@ add_library(${Ugu_LIB}
   STATIC
   ${UGU_SOURCE}
 )
-set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB} ${MvsTexturing_LIBS}) # This order is important in Ubuntu...
+set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB} ${MvsTexturing_LIBS} ${Freetype_LIBS}) # This order is important in Ubuntu...
 set(SOURCE_LIST ${SOURCE_LIST} ${UGU_SOURCE})
 
 target_compile_definitions(ugu PUBLIC ${Ugu_DEFINES})
@@ -533,8 +533,7 @@ if (UGU_BUILD_GUI_APP)
       ${IMGUI_INSTALL_DIR}/backends/imgui_impl_glfw.h)
 
   add_executable(mesh_viewer app_gui/mesh_viewer/main.cc ${IMGUI_SOURCES} ${IMGUI_HEADERS} ${IMGUI_GL_SOURCES} ${GLAD_HEADERS} ${GLAD_SOURCES})
-  # Add `BEFORE` to avoid seeing system freetype headers
-  target_include_directories(mesh_viewer PRIVATE BEFORE ${Ugu_INCLUDE_DIRS} ${IMGUI_INSTALL_DIR} ${IMGUI_INSTALL_DIR}/backends)
+  target_include_directories(mesh_viewer PRIVATE ${Ugu_INCLUDE_DIRS} ${IMGUI_INSTALL_DIR} ${IMGUI_INSTALL_DIR}/backends)
 if (WIN32)
   target_link_libraries(mesh_viewer ${Ugu_LIBS} opengl32)
 else()
