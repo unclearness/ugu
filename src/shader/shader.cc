@@ -50,7 +50,7 @@ bool CheckCompileErrors(GLuint shader, std::string type) {
 
 namespace ugu {
 
-Shader::Shader() : ID(uint32_t(~0)) {}
+Shader::Shader() : ID(ID_counter++) {}
 Shader::~Shader() {}
 
 void Shader::SetFragType(const FragShaderType &frag_type_) {
@@ -72,6 +72,8 @@ bool Shader::Prepare() {
     geometry_code = geom_dummy_code;
   } else if (vert_type == VertShaderType::DEFERRED) {
     vertex_code = vert_deferred_code;
+  } else if (vert_type == VertShaderType::TEXT) {
+    vertex_code = vert_text_code;
   }
 
   if (frag_type == FragShaderType::WHITE) {
@@ -84,6 +86,8 @@ bool Shader::Prepare() {
     fragment_code = frag_gbuf_code;
   } else if (frag_type == FragShaderType::DEFERRED) {
     fragment_code = frag_deferred_code;
+  } else if (frag_type == FragShaderType::TEXT) {
+    fragment_code = frag_text_code;
   }
 
   return LoadStr(vertex_code, fragment_code, geometry_code);

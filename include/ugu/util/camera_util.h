@@ -45,7 +45,10 @@ Eigen::Matrix4f GetProjectionMatrixOpenGlForPinhole(int width, int height,
                                                     float fx, float fy,
                                                     float cx, float cy,
                                                     float z_near, float z_far);
-
+Eigen::Matrix4f GetProjectionMatrixOpenGlForOrtho(float xmin, float xmax,
+                                                  float ymin, float ymax,
+                                                  float zmin = -1.f,
+                                                  float zmax = 1.f);
 void DistortPixelOpencv(float* u, float* v, float fx, float fy, float cx,
                         float cy, float k1, float k2, float p1, float p2,
                         float k3 = 0.0f, float k4 = 0.0f, float k5 = 0.0f,

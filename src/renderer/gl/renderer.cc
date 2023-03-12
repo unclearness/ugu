@@ -14,7 +14,13 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include "font/Open_Sans/static_OpenSans_OpenSans_Regular_ttf.h"
+
 namespace {
+
+const uint8_t* DEFAULT_FONT_DATA = ugu::static_OpenSans_OpenSans_Regular_ttf;
+
+uint32_t DEFAULT_FONT_DATA_LEN = ugu::static_OpenSans_OpenSans_Regular_ttf_len;
 
 Eigen::Vector3f GetDefaultSelectedPositionColor(uint32_t geomid) {
   Eigen::Vector3f table[3] = {
@@ -30,16 +36,20 @@ Eigen::Vector3f GetDefaultSelectedPositionColor(uint32_t geomid) {
 
 namespace ugu {
 
-#if 0
-TextRenderer::TextRenderer(unsigned int width, unsigned int height) {
+TextRendererGl::TextRendererGl(unsigned int width, unsigned int height) {
   // load and configure shader
-  this->TextShader =
-      ResourceManager::LoadShader("text_2d.vs", "text_2d.fs", nullptr, "text");
-  this->TextShader.SetMatrix4("projection",
-                              glm::ortho(0.0f, static_cast<float>(width),
-                                         static_cast<float>(height), 0.0f),
-                              true);
-  this->TextShader.SetInteger("text", 0);
+  this->TextShader.SetFragType(FragShaderType::TEXT);
+  this->TextShader.SetVertType(VertShaderType::TEXT);
+
+  this->TextShader.Prepare();
+
+  this->TextShader.Use();
+
+  this->TextShader.SetMat4("projection",
+                           GetProjectionMatrixOpenGlForOrtho(
+                               0.f, static_cast<float>(width),
+                               static_cast<float>(height), 0.f, -1.f, 1.f));
+  this->TextShader.SetInt("text", 0);
   // configure VAO/VBO for texture quads
   glGenVertexArrays(1, &this->VAO);
   glGenBuffers(1, &this->VBO);
@@ -52,7 +62,7 @@ TextRenderer::TextRenderer(unsigned int width, unsigned int height) {
   glBindVertexArray(0);
 }
 
-void TextRenderer::Load(std::string font, unsigned int fontSize) {
+void TextRendererGl::Load(std::string font, unsigned int fontSize) {
   // first clear the previously loaded Characters
   this->Characters.clear();
   // then initialize and load the FreeType library
@@ -63,8 +73,15 @@ void TextRenderer::Load(std::string font, unsigned int fontSize) {
               << std::endl;
   // load font as face
   FT_Face face;
-  if (FT_New_Face(ft, font.c_str(), 0, &face))
-    std::cout << "ERROR::FREETYPE: Failed to load font" << std::endl;
+  FT_Error err;
+
+  if (font == "default") {
+    err = FT_New_Memory_Face(ft, DEFAULT_FONT_DATA, DEFAULT_FONT_DATA_LEN, 0,
+                             &face);
+  } else {
+    err = FT_New_Face(ft, font.c_str(), 0, &face);
+  }
+  if (err) std::cout << "ERROR::FREETYPE: Failed to load font" << std::endl;
   // set size to load glyphs as
   FT_Set_Pixel_Sizes(face, 0, fontSize);
   // disable byte-alignment restriction
@@ -92,12 +109,12 @@ void TextRenderer::Load(std::string font, unsigned int fontSize) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     // now store character for later use
-    Character character = {
+    RendererCharacter character = {
         texture,
-        glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
-        glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
-        face->glyph->advance.x};
-    Characters.insert(std::pair<char, Character>(c, character));
+        Eigen::Vector2i(face->glyph->bitmap.width, face->glyph->bitmap.rows),
+        Eigen::Vector2i(face->glyph->bitmap_left, face->glyph->bitmap_top),
+        static_cast<uint32_t>(face->glyph->advance.x)};
+    Characters.insert(std::pair<char, RendererCharacter>(c, character));
   }
   glBindTexture(GL_TEXTURE_2D, 0);
   // destroy FreeType once we're finished
@@ -105,18 +122,23 @@ void TextRenderer::Load(std::string font, unsigned int fontSize) {
   FT_Done_FreeType(ft);
 }
 
-void TextRenderer::RenderText(std::string text, float x, float y, float scale,
-                              glm::vec3 color) {
+void TextRendererGl::RenderText(const std::string& text, float x, float y,
+                                float scale, const Eigen::Vector3f& color) {
   // activate corresponding render state
   this->TextShader.Use();
-  this->TextShader.SetVector3f("textColor", color);
+  this->TextShader.SetVec3("textColor", color);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
   glActiveTexture(GL_TEXTURE0);
   glBindVertexArray(this->VAO);
 
   // iterate through all characters
   std::string::const_iterator c;
   for (c = text.begin(); c != text.end(); c++) {
-    Character ch = Characters[*c];
+    RendererCharacter ch = Characters.at(*c);
+
+    // this->TextShader.SetInt("text", ch.TextureID);
 
     float xpos = x + ch.Bearing.x() * scale;
     float ypos =
@@ -147,9 +169,14 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale,
   }
   glBindVertexArray(0);
   glBindTexture(GL_TEXTURE_2D, 0);
+
+  glDisable(GL_BLEND);
+  // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
-#endif
+void TextRendererGl::RenderText(const Text& text) {
+  RenderText(text.body, text.x, text.y, text.scale, text.color);
+}
 
 RendererGl::RendererGl() {}
 
@@ -316,6 +343,9 @@ bool RendererGl::Init() {
 
   m_initialized = true;
 
+  m_text_renderer = std::make_shared<TextRendererGl>(m_width, m_height);
+  m_text_renderer->Load(m_font, m_font_size);
+
   return true;
 }
 
@@ -414,37 +444,19 @@ bool RendererGl::Draw(double tic) {
   glActiveTexture(GL_TEXTURE4);
   glBindTexture(GL_TEXTURE_2D, gFace);
 
-#if 0
-  // send light relevant uniforms
-  for (unsigned int i = 0; i < lightPositions.size(); i++) {
-    shaderLightingPass.setVec3("lights[" + std::to_string(i) + "].Position",
-                               lightPositions[i]);
-    shaderLightingPass.setVec3("lights[" + std::to_string(i) + "].Color",
-                               lightColors[i]);
-    // update attenuation parameters and calculate radius
-    const float linear = 0.7f;
-    const float quadratic = 1.8f;
-    shaderLightingPass.setFloat("lights[" + std::to_string(i) + "].Linear",
-                                linear);
-    shaderLightingPass.setFloat("lights[" + std::to_string(i) + "].Quadratic",
-                                quadratic);
-  }
-  shaderLightingPass.setVec3("viewPos", camera.Position);
-#endif
-
-#if 0
-  for (auto [mesh, trans] : m_nodes) {
-    int model_loc = m_node_locs[mesh];
-    glUniformMatrix4fv(model_loc, 1, GL_FALSE, trans.data());
-    mesh->Draw(m_gbuf_shader);
-  }
-#endif
-
   glBindVertexArray(quadVAO);
   glViewport(m_viewport_x, m_viewport_y, m_viewport_width, m_viewport_height);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
 #endif
+
+  // To write text on meshes
+  glClear(GL_DEPTH_BUFFER_BIT);
+
+  // Texts
+  for (const auto& text : m_texts) {
+    m_text_renderer->RenderText(text);
+  }
 
   return true;
 }
@@ -601,6 +613,7 @@ bool RendererGl::ReadGbuf() {
 }
 
 void RendererGl::SetCamera(const CameraPtr cam) { m_cam = cam; }
+CameraPtr RendererGl::GetCamera() const { return m_cam; }
 void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans) {
   if (m_node_trans.find(mesh) == m_node_trans.end()) {
     mesh->CalcStats();
@@ -787,5 +800,19 @@ uint32_t RendererGl::GetMeshId(const RenderableMeshPtr& mesh) const {
 
   return static_cast<uint32_t>(std::distance(m_geoms.begin(), pos));
 }
+
+void RendererGl::SetText(const TextRendererGl::Text& text) {
+  m_texts.push_back(text);
+}
+
+void RendererGl::SetTexts(const std::vector<TextRendererGl::Text>& texts) {
+  m_texts = texts;
+}
+
+const std::vector<TextRendererGl::Text>& RendererGl::GetTexts() const {
+  return m_texts;
+}
+
+std::vector<TextRendererGl::Text>& RendererGl::GetTexts() { return m_texts; }
 
 }  // namespace ugu

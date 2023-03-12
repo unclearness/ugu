@@ -12,8 +12,8 @@
 
 namespace ugu {
 
-enum class FragShaderType { WHITE, UNLIT, NORMAL, POS, UV, GBUF, DEFERRED };
-enum class VertShaderType { DEFAULT, GBUF, DEFERRED };
+enum class FragShaderType { WHITE, UNLIT, NORMAL, POS, UV, GBUF, DEFERRED, TEXT };
+enum class VertShaderType { DEFAULT, GBUF, DEFERRED, TEXT };
 
 class Shader {
  public:
@@ -52,5 +52,8 @@ class Shader {
                     const std::vector<Eigen::Vector2f> &values) const;
   void SetVec3Array(const std::string &name,
                     const std::vector<Eigen::Vector3f> &values) const;
+
+ private:
+  inline static uint32_t ID_counter = 0;
 };
 }  // namespace ugu

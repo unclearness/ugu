@@ -203,8 +203,9 @@ struct SplitViewInfo {
       }
       const std::vector<IntersectResult> &results = results_all[geoid];
       if (!results.empty()) {
-       // std::cout << geoid << ": " << results[0].t << " " << results[0].fid
-       //           << " " << results[0].u << ", " << results[0].v << std::endl;
+        // std::cout << geoid << ": " << results[0].t << " " << results[0].fid
+        //           << " " << results[0].u << ", " << results[0].v <<
+        //           std::endl;
         if (results[0].t < min_geo_dist) {
           min_geoid = geoid;
           min_geo_dist = results[0].t;
@@ -214,7 +215,7 @@ struct SplitViewInfo {
     }
 
     if (min_geoid != ~0u) {
-      //std::cout << "closest geo: " << min_geoid << std::endl;
+      // std::cout << "closest geo: " << min_geoid << std::endl;
     }
 
     CastRayResult result;
@@ -245,17 +246,15 @@ struct SplitViewInfo {
         const auto &p_wld = g_selected_positions[mesh][i];
         auto [is_visible, results_all] = renderer->TestVisibility(p_wld);
         if (is_visible) {
-          //std::cout << "selected " << i << ": visibile" << std::endl;
+          // std::cout << "selected " << i << ": visibile" << std::endl;
         } else {
-        //  std::cout << "selected " << i << ": not visibile" << std::endl;
+          //  std::cout << "selected " << i << ": not visibile" << std::endl;
         }
         if (is_visible) {
           Eigen::Vector4f p_cam =
               view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
           Eigen::Vector4f p_ndc = prj_mat * p_cam;
           p_ndc /= p_ndc.w();  // NDC [-1:1]
-
-          // float cam_depth = -p_cam.z();
 
           // [-1:1],[-1:1] -> [0:w], [0:h]
           Eigen::Vector2d p_gl_frag =
@@ -279,7 +278,6 @@ struct SplitViewInfo {
         }
       }
     }
-
 
     return std::make_tuple(!not_close, closest_selected_id, min_dist);
   }
@@ -347,7 +345,7 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
 }
 
 void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
-  //std::lock_guard<std::mutex> lock(mouse_mtx);
+  // std::lock_guard<std::mutex> lock(mouse_mtx);
 
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
     // printf("L - down\n");
@@ -394,7 +392,8 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
             result.min_geo_dist_pos);
         for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
           auto &view = g_views[vidx];
-          view.renderer->AddSelectedPositions(g_meshes[result.min_geoid],
+          view.renderer->AddSelectedPositions(
+              g_meshes[result.min_geoid],
               g_selected_positions[g_meshes[result.min_geoid]]);
         }
 
@@ -580,8 +579,7 @@ void DrawViews() {
 }
 
 void ProcessDrags() {
-  //std::lock_guard<std::mutex> lock(mouse_mtx);
-
+  // std::lock_guard<std::mutex> lock(mouse_mtx);
 
   if (!ImGui::IsAnyItemActive()) {
     Eigen::Vector3f bb_max, bb_min;
@@ -677,6 +675,50 @@ void ProcessDrags() {
             cam_pose_cur.rotation();
         view.camera->set_c2w(cam_pose_new);
       }
+    }
+  }
+
+  // Get visibile selected points
+  {
+    for (uint32_t vidx = 0; vidx < static_cast<uint32_t>(g_views.size());
+         vidx++) {
+      auto &view = g_views[vidx];
+      const auto &camera = view.renderer->GetCamera();
+      Eigen::Matrix4f view_mat = camera->c2w().inverse().matrix().cast<float>();
+      float near_z, far_z;
+      view.renderer->GetNearFar(near_z, far_z);
+      Eigen::Matrix4f prj_mat = camera->ProjectionMatrixOpenGl(near_z, far_z);
+
+      std::vector<TextRendererGl::Text> texts;
+      for (const auto &geo : g_meshes) {
+        if (!view.renderer->GetVisibility(geo)) {
+          continue;
+        }
+
+        for (size_t i = 0; i < g_selected_positions[geo].size(); i++) {
+          const auto &p = g_selected_positions[geo][i];
+          auto [is_visibile, results] = view.renderer->TestVisibility(p);
+          if (!is_visibile) {
+            continue;
+          }
+
+          Eigen::Vector4f p_cam =
+              view_mat * Eigen::Vector4f(p.x(), p.y(), p.z(), 1.f);
+          Eigen::Vector4f p_ndc = prj_mat * p_cam;
+          p_ndc /= p_ndc.w();  // NDC [-1:1]
+
+          // [-1:1],[-1:1] -> [0:w], [0:h]
+          TextRendererGl::Text text;
+          text.body = std::to_string(i);
+          text.x = ((p_ndc.x() + 1.f) / 2.f) * camera->width();
+          text.y = ((p_ndc.y() + 1.f) / 2.f) * camera->height();
+          text.y = camera->height() - text.y;
+          text.scale = 1.f;
+          text.color = Eigen::Vector3f(0.f, 0.f, 0.f);
+          texts.push_back(text);
+        }
+      }
+      view.renderer->SetTexts(texts);
     }
   }
 }

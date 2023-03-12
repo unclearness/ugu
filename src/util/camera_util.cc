@@ -251,6 +251,24 @@ Eigen::Matrix4f GetProjectionMatrixOpenGlForPinhole(int width, int height,
   return mat;
 }
 
+Eigen::Matrix4f GetProjectionMatrixOpenGlForOrtho(float xmin, float xmax,
+                                                  float ymin, float ymax,
+                                                  float zmin, float zmax) {
+  Eigen::Matrix4f mat;
+  mat.setZero();
+
+  mat(0, 0) = 2.f / (xmax - xmin);
+  mat(1, 1) = 2.f / (ymax - ymin);
+  mat(2, 2) = -2.f / (zmax - zmin);
+
+  mat(0, 3) = -(xmax + xmin) / (xmax - xmin);
+  mat(1, 3) = -(ymax + ymin) / (ymax - ymin);
+  mat(2, 3) = -(zmax + zmin) / (zmax - zmin);
+  mat(3, 3) = 1.f;
+
+  return mat;
+}
+
 // https://docs.opencv.org/4.3.0/d9/d0c/group__calib3d.html
 void DistortPixelOpencv(float* u, float* v, float fx, float fy, float cx,
                         float cy, float k1, float k2, float p1, float p2,

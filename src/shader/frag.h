@@ -151,4 +151,17 @@ void main() {
   //  Use specular for wire intensity
   gAlbedoSpec.a = clamp(I, 0.0, 1.0);
 })";
+static inline std::string frag_text_code =
+    R"(
+#version 330 core
+in vec2 TexCoords;
+out vec4 FragColor;
+
+uniform sampler2D text;
+uniform vec3 textColor;
+
+void main() {
+  vec4 sampled = vec4(1.0, 1.0, 1.0, texture(text, TexCoords).r);
+  FragColor = vec4(textColor, 1.0) * sampled;
+})";
 }  // namespace ugu
