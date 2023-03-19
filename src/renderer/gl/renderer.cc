@@ -389,7 +389,8 @@ bool RendererGl::Draw(double tic) {
   m_deferred_shader.SetFloat("farZ", m_far_z);
   m_deferred_shader.SetVec3("bkgCol", m_bkg_col);
 
-  std::vector<Eigen::Vector3f> selected_positions_prj;
+  std::vector<Eigen::Vector3f> selected_positions_prj(
+      MAX_SELECTED_POS * MAX_GEOM, Eigen::Vector3f::Constant(-1.f));  // Flatten
   std::vector<Eigen::Vector3f> selected_position_colors(
       m_geoms.size(), Eigen::Vector3f::Zero());
 
@@ -415,13 +416,13 @@ bool RendererGl::Draw(double tic) {
               ((p_ndc.x() + 1.f) / 2.f) * m_cam->width(),
               ((p_ndc.y() + 1.f) / 2.f) * m_cam->height(), cam_depth);
         }
-        selected_positions_prj.push_back(p_gl_frag_camz);
+        selected_positions_prj[j * MAX_SELECTED_POS + i] = p_gl_frag_camz;
       }
 
       selected_position_colors[j] = m_selected_position_colors[mesh];
     }
   }
-  if (!selected_positions_prj.empty()) {
+  if (!m_geoms.empty()) {
     m_deferred_shader.SetVec2("viewportOffset",
                               Eigen::Vector2f(m_viewport_x, m_viewport_y));
     m_deferred_shader.SetVec3Array("selectedPositions", selected_positions_prj);
@@ -760,35 +761,38 @@ std::vector<std::vector<IntersectResult>> RendererGl::Intersect(
   std::vector<std::vector<IntersectResult>> results_all;
 
   for (size_t geoid = 0; geoid < m_geoms.size(); geoid++) {
-    std::vector<IntersectResult> results =
-        m_bvhs.at(m_geoms[geoid])->Intersect(ray, true);
+    std::vector<IntersectResult> results;
+    if (m_visibility.at(m_geoms[geoid])) {
+      results = m_bvhs.at(m_geoms[geoid])->Intersect(ray, true);
+    }
     results_all.push_back(results);
   }
 
   return results_all;
 }
 
-std::pair<bool, std::vector<std::vector<IntersectResult>>>
+std::pair<uint32_t, std::vector<std::vector<IntersectResult>>>
 RendererGl::TestVisibility(const Eigen::Vector3f& point) const {
   Eigen::Vector3f wld_campos = m_cam->c2w().translation().cast<float>();
 
-  // Ray from point to camera
   Ray ray;
-  ray.dir = (wld_campos - point).normalized();
-  Eigen::Vector3f offset = ray.dir * (m_bb_max - m_bb_min).maxCoeff() *
-                           1e-3f;  // Small offset to avoid hitting itself...
-  ray.org = point + offset;
+  ray.dir = (point - wld_campos).normalized();
+  ray.org = wld_campos;
 
   auto results_all = Intersect(ray);
 
-  // true if don't hit to any geometry
-  bool ret = std::accumulate(
-      results_all.begin(), results_all.end(), true,
-      [&](bool accumulated, const std::vector<IntersectResult>& results) {
-        return accumulated && results.empty();
-      });
+  uint32_t front_id = ~0u;
+  float min_dist = std::numeric_limits<float>::max();
+  for (size_t i = 0; i < results_all.size(); i++) {
+    if (!results_all[i].empty()) {
+      if (results_all[i][0].t < min_dist) {
+        front_id = static_cast<uint32_t>(i);
+        min_dist = results_all[i][0].t;
+      }
+    }
+  }
 
-  return std::make_pair(ret, results_all);
+  return std::make_pair(front_id, results_all);
 }
 
 uint32_t RendererGl::GetMeshId(const RenderableMeshPtr& mesh) const {

@@ -15,11 +15,12 @@ uniform float nearZ;
 uniform float farZ;
 uniform vec3 bkgCol;
 
-const int N_POSITIONS = 32;
-uniform vec3 selectedPositions[N_POSITIONS];
+const int N_GEOMS = 4;
+const int N_POSITIONS = 128;
+// uniform vec3 selectedPositions[N_POSITIONS];
+uniform vec3 selectedPositions[N_POSITIONS * N_GEOMS];
 uniform float selectedPosDepthTh;
 uniform vec2 viewportOffset;
-const int N_GEOMS = 32;
 uniform vec3 selectedPosColors[N_GEOMS];
 
 struct Light {
@@ -68,22 +69,24 @@ void main() {
   // FragColor = vec4(Specular, Specular, Specular, 1.0);
   FragColor = vec4(Diffuse, 1.0) * (1.0 - wire) + wire * wireCol4;
   bool is_frg = nearZ < depth && depth < farZ;
-  FragColor =
-      mix(vec4(bkgCol, 1.0), FragColor, vec4(is_frg));
+  FragColor = mix(vec4(bkgCol, 1.0), FragColor, vec4(is_frg));
 
-  vec3 selectPosColor = selectedPosColors[int(round(Id.y - 1))];
+  int geoid = int(round(Id.y - 1));
+  vec3 selectPosColor = selectedPosColors[geoid];
   const float SELECT_COLOR_RADIUS = 10;
   for (int i = 0; i < N_POSITIONS; ++i) {
     // Ignore defualt [0, 0]
-    if (selectedPositions[i].x < 1.0 && selectedPositions[i].y < 1.0) {
+    vec3 selected_pos = selectedPositions[geoid * N_POSITIONS + i];
+    if (selected_pos.x < 1.0 && selected_pos.y < 1.0) {
       continue;
     }
     // Handle occulsion by depth check
-    if (is_frg && selectedPositions[i].z - depth > selectedPosDepthTh) {
+    if (selected_pos.z < 0 && is_frg &&
+        selected_pos.z - depth > selectedPosDepthTh) {
       continue;
     }
     vec2 posInBuf = gl_FragCoord.xy - viewportOffset;
-    float dist = distance(posInBuf, selectedPositions[i].xy);
+    float dist = distance(posInBuf, selected_pos.xy);
     if (dist <= SELECT_COLOR_RADIUS) {
       FragColor = vec4(selectPosColor, 1.0);
     }

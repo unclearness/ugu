@@ -106,26 +106,38 @@ bool IsCursorOnView(uint32_t vidx) {
   return false;
 }
 
+struct CastRayResult {
+  size_t min_geoid = ~0u;
+  // float min_geo_dist = std::numeric_limits<float>::max();
+  Eigen::Vector3f min_geo_dist_pos =
+      Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
+  IntersectResult intersection;
+};
+
 // Global geometry info
 std::vector<RenderableMeshPtr> g_meshes;
 std::vector<std::string> g_mesh_names;
 std::vector<std::string> g_mesh_paths;
-std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
+// std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
 
-std::unordered_map<RenderableMeshPtr, std::vector<Eigen::Vector3f>>
+std::unordered_map<RenderableMeshPtr, std::vector<CastRayResult>>
     g_selected_positions;
 
-struct CastRayResult {
-  size_t min_geoid = ~0u;
-  float min_geo_dist = std::numeric_limits<float>::max();
-  Eigen::Vector3f min_geo_dist_pos =
-      Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
-};
+std::vector<Eigen::Vector3f> ExtractPos(
+    const std::vector<CastRayResult> &results) {
+  std::vector<Eigen::Vector3f> poss;
+
+  std::transform(results.begin(), results.end(), std::back_inserter(poss),
+                 [](const CastRayResult &res) { return res.min_geo_dist_pos; });
+
+  return poss;
+}
 
 struct SplitViewInfo {
   RendererGlPtr renderer;
   PinholeCameraPtr camera;
   Eigen::Vector2i offset = {0, 0};
+  std::unordered_map<RenderableMeshPtr, int> selected_point_idx;
 
   void Init(uint32_t vidx) {
     std::lock_guard<std::mutex> lock(views_mtx);
@@ -165,7 +177,8 @@ struct SplitViewInfo {
     renderer->ClearGlState();
     for (const auto &mesh : g_meshes) {
       renderer->SetMesh(mesh);
-      renderer->AddSelectedPositions(mesh, g_selected_positions[mesh]);
+      renderer->AddSelectedPositions(mesh,
+                                     ExtractPos(g_selected_positions[mesh]));
     }
 
     renderer->Init();
@@ -188,7 +201,9 @@ struct SplitViewInfo {
         camera->c2w().rotation().cast<float>() * dir_c_gl;
 
     size_t min_geoid = ~0u;
-    float min_geo_dist = std::numeric_limits<float>::max();
+    // float min_geo_dist = std::numeric_limits<float>::max();
+    IntersectResult min_intersect;
+    min_intersect.t = std::numeric_limits<float>::max();
     Eigen::Vector3f min_geo_dist_pos =
         Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
 
@@ -206,9 +221,9 @@ struct SplitViewInfo {
         // std::cout << geoid << ": " << results[0].t << " " << results[0].fid
         //           << " " << results[0].u << ", " << results[0].v <<
         //           std::endl;
-        if (results[0].t < min_geo_dist) {
+        if (results[0].t < min_intersect.t) {
           min_geoid = geoid;
-          min_geo_dist = results[0].t;
+          min_intersect = results[0];
           min_geo_dist_pos = results[0].t * ray.dir + ray.org;
         }
       }
@@ -220,7 +235,7 @@ struct SplitViewInfo {
 
     CastRayResult result;
     result.min_geoid = min_geoid;
-    result.min_geo_dist = min_geo_dist;
+    result.intersection = min_intersect;
     result.min_geo_dist_pos = min_geo_dist_pos;
 
     return result;
@@ -230,12 +245,14 @@ struct SplitViewInfo {
     bool not_close = true;
     size_t closest_selected_id = ~0u;
     double min_dist = std::numeric_limits<double>::max();
+    uint32_t min_geoid = ~0u;
     // RenderableMeshPtr closest_mesh = nullptr;
     float near_z, far_z;
     renderer->GetNearFar(near_z, far_z);
     Eigen::Matrix4f view_mat = camera->c2w().inverse().matrix().cast<float>();
     Eigen::Matrix4f prj_mat = camera->ProjectionMatrixOpenGl(near_z, far_z);
-    for (const auto &mesh : g_meshes) {
+    for (size_t k = 0; k < g_meshes.size(); k++) {
+      const auto &mesh = g_meshes[k];
       if (g_selected_positions.find(mesh) == g_selected_positions.end()) {
         continue;
       }
@@ -243,43 +260,45 @@ struct SplitViewInfo {
         continue;
       }
       for (size_t i = 0; i < g_selected_positions[mesh].size(); i++) {
-        const auto &p_wld = g_selected_positions[mesh][i];
-        auto [is_visible, results_all] = renderer->TestVisibility(p_wld);
-        if (is_visible) {
-          // std::cout << "selected " << i << ": visibile" << std::endl;
-        } else {
-          //  std::cout << "selected " << i << ": not visibile" << std::endl;
+        const auto &p_wld = g_selected_positions[mesh][i].min_geo_dist_pos;
+        auto [front_id, results_all] = renderer->TestVisibility(p_wld);
+        if (front_id == ~0u) {
+          continue;
         }
-        if (is_visible) {
-          Eigen::Vector4f p_cam =
-              view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
-          Eigen::Vector4f p_ndc = prj_mat * p_cam;
-          p_ndc /= p_ndc.w();  // NDC [-1:1]
 
-          // [-1:1],[-1:1] -> [0:w], [0:h]
-          Eigen::Vector2d p_gl_frag =
-              Eigen::Vector2d(((p_ndc.x() + 1.f) / 2.f) * camera->width(),
-                              ((p_ndc.y() + 1.f) / 2.f) * camera->height());
+        if (renderer->GetMeshId(mesh) != front_id) {
+          continue;
+        }
 
-          p_gl_frag.y() = camera->height() - p_gl_frag.y();
+        Eigen::Vector4f p_cam =
+            view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
+        Eigen::Vector4f p_ndc = prj_mat * p_cam;
+        p_ndc /= p_ndc.w();  // NDC [-1:1]
 
-          // Add offset
-          p_gl_frag += offset.cast<double>();
+        // [-1:1],[-1:1] -> [0:w], [0:h]
+        Eigen::Vector2d p_gl_frag =
+            Eigen::Vector2d(((p_ndc.x() + 1.f) / 2.f) * camera->width(),
+                            ((p_ndc.y() + 1.f) / 2.f) * camera->height());
 
-          double dist = (p_gl_frag - cursor_pos).norm();
-          std::cout << i << " " << dist << std::endl;
-          if (dist < g_drag_point_pix_dist_th && dist < min_dist) {
-            not_close = false;
-            min_dist = dist;
-            closest_selected_id = i;
-            // closest_mesh = mesh;
-            //  break;
-          }
+        p_gl_frag.y() = camera->height() - p_gl_frag.y();
+
+        // Add offset
+        p_gl_frag += offset.cast<double>();
+
+        double dist = (p_gl_frag - cursor_pos).norm();
+        std::cout << i << " " << dist << std::endl;
+        if (dist < g_drag_point_pix_dist_th && dist < min_dist) {
+          not_close = false;
+          min_dist = dist;
+          closest_selected_id = i;
+          min_geoid = k;
+          // closest_mesh = mesh;
+          //  break;
         }
       }
     }
 
-    return std::make_tuple(!not_close, closest_selected_id, min_dist);
+    return std::make_tuple(!not_close, min_geoid, closest_selected_id, min_dist);
   }
 };
 
@@ -374,27 +393,29 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
     if (g_mouse_r_pressed) {
       bool not_close = false;
       CastRayResult result;
-      double min_dist;
+      uint32_t min_geoid;
+      double min_dist = std::numeric_limits<double>::max();
       // for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
       auto &view = g_views[g_subwindow_id];
       result = view.CastRay();
-      if (result.min_geoid != ~0u) {
-        auto [is_close, id, min_dist_] =
+      if (result.min_geoid != ~0u &&
+          view.renderer->GetVisibility(g_meshes[result.min_geoid])) {
+        auto [is_close, min_geoid_, id, min_dist_] =
             view.FindClosestSelectedPoint(g_mouse_r_pressed_pos);
         not_close = !is_close;
         // break;
         //}
         min_dist = min_dist_;
+        min_geoid = min_geoid_;
       }
 
       if (not_close) {
-        g_selected_positions[g_meshes[result.min_geoid]].push_back(
-            result.min_geo_dist_pos);
+        g_selected_positions[g_meshes[result.min_geoid]].push_back(result);
         for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
           auto &view = g_views[vidx];
           view.renderer->AddSelectedPositions(
               g_meshes[result.min_geoid],
-              g_selected_positions[g_meshes[result.min_geoid]]);
+              ExtractPos(g_selected_positions[g_meshes[result.min_geoid]]));
         }
 
         std::cout << "added " << min_dist << std::endl;
@@ -643,20 +664,20 @@ void ProcessDrags() {
         CastRayResult result;
         bool is_close = false;
         double min_dist;
+        uint32_t min_geoid;
         size_t id;
         result = view.CastRay();
         if (result.min_geoid != ~0u) {
-          std::tie(is_close, id, min_dist) =
+          std::tie(is_close, min_geoid, id, min_dist) =
               view.FindClosestSelectedPoint(g_cursor_pos);
 
-          if (is_close) {
-            g_selected_positions[g_meshes[result.min_geoid]][id] =
-                result.min_geo_dist_pos;
+          if (result.min_geoid == min_geoid && is_close) {
+            g_selected_positions[g_meshes[min_geoid]][id] = result;
             for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
               auto &view = g_views[vidx];
               view.renderer->AddSelectedPositions(
-                  g_meshes[result.min_geoid],
-                  g_selected_positions[g_meshes[result.min_geoid]]);
+                  g_meshes[min_geoid],
+                  ExtractPos(g_selected_positions[g_meshes[min_geoid]]));
             }
           } else {
             std::cout << "Failed " << min_dist << std::endl;
@@ -696,9 +717,13 @@ void ProcessDrags() {
         }
 
         for (size_t i = 0; i < g_selected_positions[geo].size(); i++) {
-          const auto &p = g_selected_positions[geo][i];
-          auto [is_visibile, results] = view.renderer->TestVisibility(p);
-          if (!is_visibile) {
+          const auto &p = g_selected_positions[geo][i].min_geo_dist_pos;
+          auto [front_id, results] = view.renderer->TestVisibility(p);
+          if (front_id == ~0u) {
+            continue;
+          }
+
+          if (view.renderer->GetMeshId(geo) != front_id) {
             continue;
           }
 
@@ -777,6 +802,7 @@ void DrawImgui(GLFWwindow *window) {
   //  ImGui::End();
   //}
 
+  bool reset_points = false;
   for (size_t i = 0; i < g_views.size(); i++) {
     auto &view = g_views[i];
     const std::string title = std::string("View ") + std::to_string(i);
@@ -796,6 +822,79 @@ void DrawImgui(GLFWwindow *window) {
         if (ImGui::ColorEdit3((label + "select color").c_str(), pos_col.data(),
                               ImGuiColorEditFlags_NoLabel)) {
           view.renderer->AddSelectedPositionColor(g_meshes[i], pos_col);
+        }
+
+#if 0
+        if (ImGui::TreeNodeEx("Points (fid, u, v) (x, y, z)",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+          const auto &points = g_selected_positions[g_meshes[i]];
+          // ImGui::BeginChild("Scrolling");
+          for (size_t i = 0; i < points.size(); i++) {
+            std::string line =
+                ugu::zfill(i, 2) + ": (" +
+                std::to_string(points[i].intersection.fid) + ", " +
+                std::to_string(points[i].intersection.u) + ", " +
+                std::to_string(points[i].intersection.v) + ")" + " (" +
+                std::to_string(points[i].min_geo_dist_pos[0]) + ", " +
+                std::to_string(points[i].min_geo_dist_pos[0]) + ", " +
+                std::to_string(points[i].min_geo_dist_pos[0]) + ")";
+            ImGui::Text(line.c_str());
+          }
+          // ImGui::EndChild();
+
+          ImGui::TreePop();
+        }
+#endif
+        // ImGui::BeginListBox("Points (fid, u, v) (x, y, z)");
+        // ImGui::EndListBox();
+        const auto draw_list_size = ImVec2(360, 240);
+        // const char *items[RendererGl::MAX_SELECTED_POS];
+        if (view.selected_point_idx.find(g_meshes[i]) ==
+            view.selected_point_idx.end()) {
+          view.selected_point_idx[g_meshes[i]] = 0;
+        }
+        auto &points = g_selected_positions[g_meshes[i]];
+
+        if (view.selected_point_idx[g_meshes[i]] >= points.size()) {
+          view.selected_point_idx[g_meshes[i]] = 0;
+        }
+
+        std::vector<std::string> lines;  // For owership of const char*
+        for (size_t i = 0; i < points.size(); i++) {
+          std::string line =
+              ugu::zfill(i, 2) + ": (" +
+              std::to_string(points[i].intersection.fid) + ", " +
+              std::to_string(points[i].intersection.u) + ", " +
+              std::to_string(points[i].intersection.v) + ")" + " (" +
+              std::to_string(points[i].min_geo_dist_pos[0]) + ", " +
+              std::to_string(points[i].min_geo_dist_pos[0]) + ", " +
+              std::to_string(points[i].min_geo_dist_pos[0]) + ")";
+          lines.push_back(line);
+        }
+        if (ImGui::BeginListBox((std::to_string(i) + " : " +
+                                 std::string("Points (fid, u, v) (x, y, z)"))
+                                    .c_str(),
+                                draw_list_size)) {
+          for (int n = 0; n < points.size(); ++n) {
+            const bool is_selected =
+                (view.selected_point_idx[g_meshes[i]] == n);
+            if (ImGui::Selectable(lines[n].c_str(), is_selected)) {
+              view.selected_point_idx[g_meshes[i]] = n;
+            }
+
+            // Set the initial focus when opening the combo (scrolling +
+            //// keyboard navigation focus)
+            // if (is_selected) {
+            //   ImGui::SetItemDefaultFocus();
+            // }
+          }
+          ImGui::EndListBox();
+        }
+
+        if (ImGui::Button(
+                (std::string("Remove point ") + std::to_string(i)).c_str())) {
+          points.erase(points.begin() + view.selected_point_idx[g_meshes[i]]);
+          reset_points = true;
         }
       }
 
@@ -980,6 +1079,16 @@ void DrawImgui(GLFWwindow *window) {
     ImGui::End();
   }
 
+  if (reset_points) {
+    for (size_t gidx = 0; gidx < g_meshes.size(); gidx++) {
+      for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
+        auto &view = g_views[vidx];
+        view.renderer->AddSelectedPositions(
+            g_meshes[gidx], ExtractPos(g_selected_positions[g_meshes[gidx]]));
+      }
+    }
+  }
+
   ImGui::Render();
   int display_w, display_h;
   glfwGetFramebufferSize(window, &display_w, &display_h);
@@ -1066,7 +1175,7 @@ int main(int, char **) {
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
   (void)io;
-  // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable
   // Keyboard Controls io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; //
   // Enable Gamepad Controls
 

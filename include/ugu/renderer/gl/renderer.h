@@ -105,7 +105,7 @@ class RendererGl {
 
   std::vector<std::vector<IntersectResult>> Intersect(const Ray& ray) const;
 
-  std::pair<bool, std::vector<std::vector<IntersectResult>>> TestVisibility(
+  std::pair<uint32_t, std::vector<std::vector<IntersectResult>>> TestVisibility(
       const Eigen::Vector3f& point) const;
 
   uint32_t GetMeshId(const RenderableMeshPtr& mesh) const;
@@ -115,12 +115,15 @@ class RendererGl {
   const std::vector<TextRendererGl::Text>& GetTexts() const;
   std::vector<TextRendererGl::Text>& GetTexts();
 
+  static const uint32_t MAX_SELECTED_POS = 128;  // Sync with GLSL
+  static const uint32_t MAX_GEOM = 4;            // Sync with GLSL
+
  private:
   bool m_initialized = false;
+
   float m_near_z = 0.01f;
   float m_far_z = 1000.f;
   CameraPtr m_cam = nullptr;
-
   uint32_t m_width = 1024;
   uint32_t m_height = 720;
 
@@ -155,7 +158,6 @@ class RendererGl {
   Eigen::Vector3f m_bb_max;
   Eigen::Vector3f m_bb_min;
 
-  const uint32_t MAX_SELECTED_POS = 32;  // Sync with GLSL
   std::unordered_map<RenderableMeshPtr, std::vector<Eigen::Vector3f>>
       m_selected_positions;
   std::unordered_map<RenderableMeshPtr, Eigen::Vector3f>
