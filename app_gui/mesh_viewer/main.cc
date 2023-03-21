@@ -124,6 +124,8 @@ std::unordered_map<RenderableMeshPtr, std::vector<CastRayResult>>
 std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> g_model_matices;
 std::unordered_map<RenderableMeshPtr, bool> g_update_bvh;
 
+bool g_first_frame = true;
+
 Eigen::Vector3f GetPos(const CastRayResult &res) {
   const auto &mesh = g_meshes.at(res.min_geoid);
   const auto &trans = g_model_matices.at(mesh);
@@ -842,12 +844,20 @@ void DrawImgui(GLFWwindow *window) {
   //}
 
   bool reset_points = false;
+  auto [w, h] = GetWidthHeightForView();
   for (size_t j = 0; j < g_views.size(); j++) {
     auto &view = g_views[j];
     const std::string title = std::string("View ") + std::to_string(j);
 
-    ImGui::Begin(title.c_str());
+    // if (g_first_frame) {
+    ImGui::SetNextWindowSize({static_cast<float>(w / 2), static_cast<float>(h)},
+                             ImGuiCond_Once);
+    ImGui::SetNextWindowPos({static_cast<float>(w * (j + 0.5)), 50.f},
+                            ImGuiCond_Once);
+    ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
+    // }
 
+    ImGui::Begin(title.c_str());
     if (ImGui::TreeNodeEx("Meshes", ImGuiTreeNodeFlags_DefaultOpen)) {
       for (size_t i = 0; i < g_meshes.size(); i++) {
         bool v = view.renderer->GetVisibility(g_meshes[i]);
@@ -1130,6 +1140,9 @@ void DrawImgui(GLFWwindow *window) {
   }
 
   {
+    ImGui::SetNextWindowPos({0.f, 0.f}, ImGuiCond_Once);
+    ImGui::SetNextWindowCollapsed(false, ImGuiCond_Once);
+
     ImGui::Begin("General");
 
     static char mesh_path[1024] = "../data/bunny/bunny.obj";
@@ -1149,6 +1162,15 @@ void DrawImgui(GLFWwindow *window) {
             g_meshes[gidx], ExtractPos(g_selected_positions[g_meshes[gidx]]));
       }
     }
+  }
+
+  // Draw divider lines
+  auto drawlist = ImGui::GetBackgroundDrawList();
+  for (size_t vidx = 0; vidx < g_views.size() - 1; vidx++) {
+    const float thickness = 2.f;
+    float w_c = static_cast<float>((vidx + 1) * w) - thickness / 2;
+    drawlist->AddLine({w_c, 0.f}, {w_c, static_cast<float>(h)},
+                      ImGui::GetColorU32(IM_COL32(50, 50, 50, 255)), thickness);
   }
 
   ImGui::Render();
@@ -1317,6 +1339,8 @@ int main(int, char **) {
     // glfwSwapBuffers(window2);
 
     glViewport(0, 0, g_width, g_height);
+
+    g_first_frame = false;
   }
 
   // Cleanup

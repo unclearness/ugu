@@ -170,9 +170,9 @@ void DecomposeRtsImpl(const Eigen::Transform<Scalar, 3, Eigen::Affine>& T,
   R = T.rotation();
   t = T.translation();
   auto mat = T.matrix();
-  s[0] = mat.block<3, 1>(0, 0).norm();
-  s[1] = mat.block<3, 1>(0, 1).norm();
-  s[2] = mat.block<3, 1>(0, 2).norm();
+  s[0] = mat.template block<3, 1>(0, 0).norm();
+  s[1] = mat.template block<3, 1>(0, 1).norm();
+  s[2] = mat.template block<3, 1>(0, 2).norm();
 }
 
 }  // namespace
