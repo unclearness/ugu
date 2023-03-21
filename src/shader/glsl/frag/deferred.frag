@@ -77,11 +77,11 @@ void main() {
   for (int i = 0; i < N_POSITIONS; ++i) {
     // Ignore defualt [0, 0]
     vec3 selected_pos = selectedPositions[geoid * N_POSITIONS + i];
-    if (selected_pos.x < 1.0 && selected_pos.y < 1.0) {
+    if (selected_pos.x < 1.0 || selected_pos.y < 1.0) {
       continue;
     }
     // Handle occulsion by depth check
-    if (selected_pos.z < 0 && is_frg &&
+    if (is_frg &&
         selected_pos.z - depth > selectedPosDepthTh) {
       continue;
     }

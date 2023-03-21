@@ -368,7 +368,7 @@ bool RendererGl::Draw(double tic) {
   for (const auto& mesh : m_geoms) {
     int model_loc = m_node_locs[mesh];
     auto trans = m_node_trans[mesh];
-    if (!m_visibility[mesh]) {
+    if (!m_visibility.at(mesh)) {
       // If invisible, move it far away
       trans.translation().setConstant(std::numeric_limits<float>::max());
     }
@@ -402,7 +402,7 @@ bool RendererGl::Draw(double tic) {
       // Eigen::Matrix4f prj_view_mat = prj_mat * view_mat;
       for (size_t i = 0; i < m_selected_positions.at(mesh).size(); i++) {
         Eigen::Vector3f p_gl_frag_camz(0.f, 0.f, 0.f);
-        if (m_visibility[mesh]) {
+        if (m_visibility.at(mesh)) {
           Eigen::Vector3f p_wld = m_selected_positions.at(mesh)[i];
           Eigen::Vector4f p_cam =
               view_mat * Eigen::Vector4f(p_wld.x(), p_wld.y(), p_wld.z(), 1.f);
@@ -430,8 +430,7 @@ bool RendererGl::Draw(double tic) {
                                    selected_position_colors);
   }
 
-  m_deferred_shader.SetFloat("selectedPosDepthTh",
-                             (m_bb_max - m_bb_min).maxCoeff() * 0.01f);
+  m_deferred_shader.SetFloat("selectedPosDepthTh", GetDepthThreshold());
 
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, gPosition);
@@ -621,6 +620,8 @@ void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans,
   if (first_set) {
     mesh->CalcStats();
     m_geoms.push_back(mesh);
+
+    m_visibility[mesh] = true;
   }
 
   if (first_set || update_bvh) {
@@ -644,8 +645,6 @@ void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans,
     m_bb_max = ComputeMaxBound(std::vector{m_bb_max, trans * stats.bb_max});
     m_bb_min = ComputeMinBound(std::vector{m_bb_min, trans * stats.bb_min});
   }
-
-  m_visibility[mesh] = true;
 }
 
 void RendererGl::ClearMesh() {
@@ -762,9 +761,13 @@ bool RendererGl::GetVisibility(const RenderableMeshPtr& geom) const {
 }
 
 void RendererGl::GetMergedBoundingBox(Eigen::Vector3f& bb_max,
-                                      Eigen::Vector3f& bb_min) {
+                                      Eigen::Vector3f& bb_min) const {
   bb_max = m_bb_max;
   bb_min = m_bb_min;
+}
+
+float RendererGl::GetDepthThreshold() const {
+  return (m_bb_max - m_bb_min).maxCoeff() * 0.01f;
 }
 
 std::vector<std::vector<IntersectResult>> RendererGl::Intersect(

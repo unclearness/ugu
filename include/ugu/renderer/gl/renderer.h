@@ -102,7 +102,8 @@ class RendererGl {
   void SetVisibility(const RenderableMeshPtr& geom, bool is_visible);
   bool GetVisibility(const RenderableMeshPtr& geom) const;
 
-  void GetMergedBoundingBox(Eigen::Vector3f& bb_max, Eigen::Vector3f& bb_min);
+  void GetMergedBoundingBox(Eigen::Vector3f& bb_max, Eigen::Vector3f& bb_min) const;
+  float GetDepthThreshold() const;
 
   std::vector<std::vector<IntersectResult>> Intersect(const Ray& ray) const;
 

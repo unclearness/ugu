@@ -126,23 +126,22 @@ std::unordered_map<RenderableMeshPtr, bool> g_update_bvh;
 
 bool g_first_frame = true;
 
-Eigen::Vector3f GetPos(const CastRayResult &res) {
-  const auto &mesh = g_meshes.at(res.min_geoid);
+Eigen::Vector3f GetPos(const IntersectResult &intersection, uint32_t geoid) {
+  const auto &mesh = g_meshes.at(geoid);
   const auto &trans = g_model_matices.at(mesh);
-  const auto &face = mesh->vertex_indices()[res.intersection.fid];
+  const auto &face = mesh->vertex_indices()[intersection.fid];
   const auto &v0 = mesh->vertices()[face[0]];
   const auto &v1 = mesh->vertices()[face[1]];
   const auto &v2 = mesh->vertices()[face[2]];
-  // Eigen::Vector3f p = mesh->vertices()[face[0]] * res.intersection.u +
-  //                     mesh->vertices()[face[1]] * res.intersection.v +
-  //                     mesh->vertices()[face[2]] *
-  //                         (1.f - res.intersection.u - res.intersection.v);
-
   Eigen::Vector3f p =
-      res.intersection.u * (v1 - v0) + res.intersection.v * (v2 - v0) + v0;
+      intersection.u * (v1 - v0) + intersection.v * (v2 - v0) + v0;
 
   p = trans * p;
   return p;
+}
+
+Eigen::Vector3f GetPos(const CastRayResult &res) {
+  return GetPos(res.intersection, res.min_geoid);
 }
 
 std::vector<Eigen::Vector3f> ExtractPos(
@@ -314,7 +313,7 @@ struct SplitViewInfo {
         p_gl_frag += offset.cast<double>();
 
         double dist = (p_gl_frag - cursor_pos).norm();
-        std::cout << i << " " << dist << std::endl;
+        // std::cout << i << " " << dist << std::endl;
         if (dist < g_drag_point_pix_dist_th && dist < min_dist) {
           not_close = false;
           min_dist = dist;
@@ -631,12 +630,14 @@ void DrawViews() {
     for (const auto &mesh : g_meshes) {
       view.renderer->SetMesh(mesh, g_model_matices.at(mesh),
                              g_update_bvh.at(mesh));
-      g_update_bvh[mesh] = false;
     }
-
     const auto offset_w = g_width / g_views.size();
     view.renderer->SetViewport(offset_w * i, 0, offset_w, g_height);
     view.renderer->Draw();
+  }
+
+  for (const auto &mesh : g_meshes) {
+    g_update_bvh[mesh] = false;
   }
 }
 
@@ -768,8 +769,15 @@ void ProcessDrags() {
             continue;
           }
 
-          Eigen::Vector4f p_cam =
-              view_mat * Eigen::Vector4f(p.x(), p.y(), p.z(), 1.f);
+          if ((GetPos(results[view.renderer->GetMeshId(geo)][0],
+                      view.renderer->GetMeshId(geo)) -
+               p)
+                  .norm() > view.renderer->GetDepthThreshold()) {
+            continue;
+          }
+
+         Eigen::Vector4f p_cam =
+                view_mat * Eigen::Vector4f(p.x(), p.y(), p.z(), 1.f);
           Eigen::Vector4f p_ndc = prj_mat * p_cam;
           p_ndc /= p_ndc.w();  // NDC [-1:1]
 
@@ -846,6 +854,8 @@ void DrawImgui(GLFWwindow *window) {
   bool reset_points = false;
   auto [w, h] = GetWidthHeightForView();
   for (size_t j = 0; j < g_views.size(); j++) {
+    ;
+
     auto &view = g_views[j];
     const std::string title = std::string("View ") + std::to_string(j);
 
@@ -959,8 +969,10 @@ void DrawImgui(GLFWwindow *window) {
         }
 
         if (ImGui::Button(
-                (std::string("Remove point ") + std::to_string(i)).c_str())) {
-          points.erase(points.begin() + view.selected_point_idx[g_meshes[i]]);
+                (std::string("Remove point###") + std::to_string(i)).c_str())) {
+          if (points.size() > view.selected_point_idx[g_meshes[i]]) {
+            points.erase(points.begin() + view.selected_point_idx[g_meshes[i]]);
+          }
           reset_points = true;
         }
       }
