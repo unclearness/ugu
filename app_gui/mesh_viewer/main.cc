@@ -14,6 +14,7 @@
 #include "imgui_impl_opengl3.h"
 #include "ugu/camera.h"
 #include "ugu/image_io.h"
+#include "ugu/registration/rigid.h"
 #include "ugu/renderable_mesh.h"
 #include "ugu/renderer/gl/renderer.h"
 #include "ugu/util/image_util.h"
@@ -108,9 +109,6 @@ bool IsCursorOnView(uint32_t vidx) {
 
 struct CastRayResult {
   size_t min_geoid = ~0u;
-  // float min_geo_dist = std::numeric_limits<float>::max();
-  Eigen::Vector3f min_geo_dist_pos =
-      Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
   IntersectResult intersection;
 };
 
@@ -123,13 +121,35 @@ std::vector<std::string> g_mesh_paths;
 std::unordered_map<RenderableMeshPtr, std::vector<CastRayResult>>
     g_selected_positions;
 
+std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> g_model_matices;
+std::unordered_map<RenderableMeshPtr, bool> g_update_bvh;
+
+Eigen::Vector3f GetPos(const CastRayResult &res) {
+  const auto &mesh = g_meshes.at(res.min_geoid);
+  const auto &trans = g_model_matices.at(mesh);
+  const auto &face = mesh->vertex_indices()[res.intersection.fid];
+  const auto &v0 = mesh->vertices()[face[0]];
+  const auto &v1 = mesh->vertices()[face[1]];
+  const auto &v2 = mesh->vertices()[face[2]];
+  // Eigen::Vector3f p = mesh->vertices()[face[0]] * res.intersection.u +
+  //                     mesh->vertices()[face[1]] * res.intersection.v +
+  //                     mesh->vertices()[face[2]] *
+  //                         (1.f - res.intersection.u - res.intersection.v);
+
+  Eigen::Vector3f p =
+      res.intersection.u * (v1 - v0) + res.intersection.v * (v2 - v0) + v0;
+
+  p = trans * p;
+  return p;
+}
+
 std::vector<Eigen::Vector3f> ExtractPos(
     const std::vector<CastRayResult> &results) {
   std::vector<Eigen::Vector3f> poss;
 
-  std::transform(results.begin(), results.end(), std::back_inserter(poss),
-                 [](const CastRayResult &res) { return res.min_geo_dist_pos; });
-
+  for (const auto &res : results) {
+    poss.push_back(GetPos(res));
+  }
   return poss;
 }
 
@@ -138,11 +158,14 @@ struct SplitViewInfo {
   PinholeCameraPtr camera;
   Eigen::Vector2i offset = {0, 0};
   std::unordered_map<RenderableMeshPtr, int> selected_point_idx;
+  uint32_t id = ~0u;
 
   void Init(uint32_t vidx) {
     std::lock_guard<std::mutex> lock(views_mtx);
 
     auto [w, h] = GetWidthHeightForView();
+
+    id = vidx;
 
     offset.x() = vidx * w;
     offset.y() = 0;
@@ -168,6 +191,9 @@ struct SplitViewInfo {
 
     renderer->SetSize(w, h);
 
+    offset.x() = id * w;
+    offset.y() = 0;
+
     // renderer->SetSize(w, h);
 
     ResetGl();
@@ -176,9 +202,9 @@ struct SplitViewInfo {
   void ResetGl() {
     renderer->ClearGlState();
     for (const auto &mesh : g_meshes) {
-      renderer->SetMesh(mesh);
+      renderer->SetMesh(mesh, g_model_matices.at(mesh), g_update_bvh.at(mesh));
       renderer->AddSelectedPositions(mesh,
-                                     ExtractPos(g_selected_positions[mesh]));
+                                     ExtractPos(g_selected_positions.at(mesh)));
     }
 
     renderer->Init();
@@ -236,7 +262,7 @@ struct SplitViewInfo {
     CastRayResult result;
     result.min_geoid = min_geoid;
     result.intersection = min_intersect;
-    result.min_geo_dist_pos = min_geo_dist_pos;
+    // result.min_geo_dist_pos = min_geo_dist_pos;
 
     return result;
   }
@@ -260,7 +286,7 @@ struct SplitViewInfo {
         continue;
       }
       for (size_t i = 0; i < g_selected_positions[mesh].size(); i++) {
-        const auto &p_wld = g_selected_positions[mesh][i].min_geo_dist_pos;
+        const auto &p_wld = GetPos(g_selected_positions[mesh][i]);
         auto [front_id, results_all] = renderer->TestVisibility(p_wld);
         if (front_id == ~0u) {
           continue;
@@ -298,7 +324,8 @@ struct SplitViewInfo {
       }
     }
 
-    return std::make_tuple(!not_close, min_geoid, closest_selected_id, min_dist);
+    return std::make_tuple(!not_close, min_geoid, closest_selected_id,
+                           min_dist);
   }
 };
 
@@ -491,13 +518,17 @@ void LoadMesh(const std::string &path) {
     g_mesh_names.push_back(ugu::ExtractFilename(obj_path, true));
     g_mesh_paths.push_back(obj_path);
     g_meshes.push_back(mesh);
-
+    g_model_matices[mesh] = Eigen::Affine3f::Identity();
+    g_update_bvh[mesh] = true;
+    g_selected_positions[mesh] = {};
   } else {
     return;
   }
 
   for (auto &view : g_views) {
     view.ResetGl();
+
+    // Reset camera pos
 
     Eigen::Vector3f bb_max, bb_min;
     view.renderer->GetMergedBoundingBox(bb_max, bb_min);
@@ -591,8 +622,16 @@ void SetupWindow(GLFWwindow *window) {
 
 void DrawViews() {
   glViewport(0, 0, g_width, g_height);
+
   for (size_t i = 0; i < g_views.size(); i++) {
     const auto &view = g_views[i];
+
+    for (const auto &mesh : g_meshes) {
+      view.renderer->SetMesh(mesh, g_model_matices.at(mesh),
+                             g_update_bvh.at(mesh));
+      g_update_bvh[mesh] = false;
+    }
+
     const auto offset_w = g_width / g_views.size();
     view.renderer->SetViewport(offset_w * i, 0, offset_w, g_height);
     view.renderer->Draw();
@@ -717,7 +756,7 @@ void ProcessDrags() {
         }
 
         for (size_t i = 0; i < g_selected_positions[geo].size(); i++) {
-          const auto &p = g_selected_positions[geo][i].min_geo_dist_pos;
+          const auto &p = GetPos(g_selected_positions[geo][i]);
           auto [front_id, results] = view.renderer->TestVisibility(p);
           if (front_id == ~0u) {
             continue;
@@ -803,9 +842,9 @@ void DrawImgui(GLFWwindow *window) {
   //}
 
   bool reset_points = false;
-  for (size_t i = 0; i < g_views.size(); i++) {
-    auto &view = g_views[i];
-    const std::string title = std::string("View ") + std::to_string(i);
+  for (size_t j = 0; j < g_views.size(); j++) {
+    auto &view = g_views[j];
+    const std::string title = std::string("View ") + std::to_string(j);
 
     ImGui::Begin(title.c_str());
 
@@ -824,27 +863,45 @@ void DrawImgui(GLFWwindow *window) {
           view.renderer->AddSelectedPositionColor(g_meshes[i], pos_col);
         }
 
-#if 0
-        if (ImGui::TreeNodeEx("Points (fid, u, v) (x, y, z)",
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
-          const auto &points = g_selected_positions[g_meshes[i]];
-          // ImGui::BeginChild("Scrolling");
-          for (size_t i = 0; i < points.size(); i++) {
-            std::string line =
-                ugu::zfill(i, 2) + ": (" +
-                std::to_string(points[i].intersection.fid) + ", " +
-                std::to_string(points[i].intersection.u) + ", " +
-                std::to_string(points[i].intersection.v) + ")" + " (" +
-                std::to_string(points[i].min_geo_dist_pos[0]) + ", " +
-                std::to_string(points[i].min_geo_dist_pos[0]) + ", " +
-                std::to_string(points[i].min_geo_dist_pos[0]) + ")";
-            ImGui::Text(line.c_str());
+        {
+          auto &model_mat = g_model_matices.at(g_meshes[i]);
+          Eigen::Vector3f t, s;
+          Eigen::Matrix3f R;
+          DecomposeRts(model_mat, R, t, s);
+          // bool update_model_mat = false;
+          bool update_rts = false;
+          if (ImGui::InputFloat3(
+                  ("Translation###t" + std::to_string(i)).c_str(), t.data())) {
+            update_rts = true;
           }
-          // ImGui::EndChild();
+          if (ImGui::InputFloat3(("Rotation###r" + std::to_string(i)).c_str(),
+                                 R.data()) ||
+              ImGui::InputFloat3("        ", R.data() + 3) ||
+              ImGui::InputFloat3("        ", R.data() + 6)) {
+            update_rts = true;
+          }
+          if (ImGui::InputFloat3(("Scale###s" + std::to_string(i)).c_str(),
+                                 s.data())) {
+            update_rts = true;
+          }
+          Eigen::Matrix4f model_mat_t =
+              model_mat.matrix().transpose();  // To row-major
+          if (ImGui::InputFloat4(
+                  ("Affine Matrix###m" + std::to_string(i)).c_str(),
+                  model_mat_t.data()) ||
+              ImGui::InputFloat4("        ", model_mat_t.data() + 4) ||
+              ImGui::InputFloat4("        ", model_mat_t.data() + 8) ||
+              ImGui::InputFloat4("        ", model_mat_t.data() + 12)) {
+            // update_model_mat = true;
+          }
 
-          ImGui::TreePop();
+          if (update_rts) {
+            model_mat = Eigen::Translation3f(t) * R * Eigen::Scaling(s);
+            g_update_bvh[g_meshes[i]] = true;
+            reset_points = true;
+          }
         }
-#endif
+
         // ImGui::BeginListBox("Points (fid, u, v) (x, y, z)");
         // ImGui::EndListBox();
         const auto draw_list_size = ImVec2(360, 240);
@@ -861,14 +918,14 @@ void DrawImgui(GLFWwindow *window) {
 
         std::vector<std::string> lines;  // For owership of const char*
         for (size_t i = 0; i < points.size(); i++) {
-          std::string line =
-              ugu::zfill(i, 2) + ": (" +
-              std::to_string(points[i].intersection.fid) + ", " +
-              std::to_string(points[i].intersection.u) + ", " +
-              std::to_string(points[i].intersection.v) + ")" + " (" +
-              std::to_string(points[i].min_geo_dist_pos[0]) + ", " +
-              std::to_string(points[i].min_geo_dist_pos[0]) + ", " +
-              std::to_string(points[i].min_geo_dist_pos[0]) + ")";
+          auto p_wld = GetPos(points[i]);
+          std::string line = ugu::zfill(i, 2) + ": (" +
+                             std::to_string(points[i].intersection.fid) + ", " +
+                             std::to_string(points[i].intersection.u) + ", " +
+                             std::to_string(points[i].intersection.v) + ")" +
+                             " (" + std::to_string(p_wld[0]) + ", " +
+                             std::to_string(p_wld[1]) + ", " +
+                             std::to_string(p_wld[2]) + ")";
           lines.push_back(line);
         }
         if (ImGui::BeginListBox((std::to_string(i) + " : " +
@@ -923,9 +980,13 @@ void DrawImgui(GLFWwindow *window) {
       }
 
       Eigen::Vector2f fov(view.camera->fov_x(), view.camera->fov_y());
-      if (ImGui::InputFloat2("FoV-X FoV-Y", nearfar.data())) {
-        view.camera->set_fov_x(fov[0]);
-        view.camera->set_fov_y(fov[1]);
+      Eigen::Vector2f fov_org = fov;
+      if (ImGui::InputFloat2("FoV-X FoV-Y", fov.data())) {
+        if (std::abs(fov_org[0] - fov[0]) > 0.01f) {
+          view.camera->set_fov_x(fov[0]);
+        } else {
+          view.camera->set_fov_y(fov[1]);
+        }
       }
 
       if (ImGui::TreeNodeEx("OpenCV Style", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -971,8 +1032,9 @@ void DrawImgui(GLFWwindow *window) {
           update_pose = true;
         }
 
-        Eigen::Matrix4f prj_gl =
+        Eigen::Matrix4f prj_gl_org =
             view.camera->ProjectionMatrixOpenGl(nearfar[0], nearfar[1]);
+        Eigen::Matrix4f prj_gl = prj_gl_org.transpose();  // To row-major
         if (ImGui::InputFloat4("Projection", prj_gl.data()) ||
             ImGui::InputFloat4("        ", prj_gl.data() + 4) ||
             ImGui::InputFloat4("        ", prj_gl.data() + 8) ||

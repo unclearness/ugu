@@ -40,6 +40,11 @@ Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
 Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
     const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst);
 
+void DecomposeRts(const Eigen::Affine3f& T, Eigen::Matrix3f& R,
+                  Eigen::Vector3f& t, Eigen::Vector3f& s); 
+void DecomposeRts(const Eigen::Affine3d& T, Eigen::Matrix3d& R,
+                  Eigen::Vector3d& t, Eigen::Vector3d& s);
+
 enum class IcpLossType { kPointToPoint = 0, kPointToPlane = 1 };
 
 struct IcpTerminateCriteria {

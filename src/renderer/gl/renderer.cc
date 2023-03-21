@@ -615,28 +615,39 @@ bool RendererGl::ReadGbuf() {
 
 void RendererGl::SetCamera(const CameraPtr cam) { m_cam = cam; }
 CameraPtr RendererGl::GetCamera() const { return m_cam; }
-void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans) {
-  if (m_node_trans.find(mesh) == m_node_trans.end()) {
+void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans,
+                         bool update_bvh) {
+  bool first_set = m_node_trans.find(mesh) == m_node_trans.end();
+  if (first_set) {
     mesh->CalcStats();
     m_geoms.push_back(mesh);
-    // Init BVH once
+  }
+
+  if (first_set || update_bvh) {
+    // Init BVH
     auto bvh = GetDefaultBvh<Eigen::Vector3f, Eigen::Vector3i>();
-    bvh->SetData(mesh->vertices(), mesh->vertex_indices());
+    auto scaled_verts = mesh->vertices();
+    for (auto& v : scaled_verts) {
+      v = trans * v;
+    }
+    bvh->SetData(scaled_verts, mesh->vertex_indices());
     bvh->Build();
     m_bvhs[mesh] = bvh;
   }
+
   m_node_trans[mesh] = trans;
 
   m_bb_max.setConstant(std::numeric_limits<float>::lowest());
   m_bb_min.setConstant(std::numeric_limits<float>::max());
   for (const auto& geom : m_geoms) {
     auto stats = geom->stats();
-    m_bb_max = ComputeMaxBound(std::vector{m_bb_max, stats.bb_max});
-    m_bb_min = ComputeMinBound(std::vector{m_bb_min, stats.bb_min});
+    m_bb_max = ComputeMaxBound(std::vector{m_bb_max, trans * stats.bb_max});
+    m_bb_min = ComputeMinBound(std::vector{m_bb_min, trans * stats.bb_min});
   }
 
   m_visibility[mesh] = true;
 }
+
 void RendererGl::ClearMesh() {
   m_geoms.clear();
   m_node_trans.clear();

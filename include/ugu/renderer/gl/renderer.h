@@ -70,7 +70,8 @@ class RendererGl {
   void SetCamera(const CameraPtr cam);
   CameraPtr GetCamera() const;
   void SetMesh(RenderableMeshPtr mesh,
-               const Eigen::Affine3f& trans = Eigen::Affine3f::Identity());
+               const Eigen::Affine3f& trans = Eigen::Affine3f::Identity(),
+               bool update_bvh = false);
   void ClearMesh();
   void SetFragType(const FragShaderType& frag_type);
   void SetNearFar(float near_z, float far_z);

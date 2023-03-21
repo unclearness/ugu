@@ -162,6 +162,19 @@ bool RigidIcpPointToPlaneImpl(const std::vector<Eigen::Vector3<T>>& src_points,
                       KdTreePtr<T, 3>(nullptr), corresp_finder);
 }
 
+template <typename Scalar>
+void DecomposeRtsImpl(const Eigen::Transform<Scalar, 3, Eigen::Affine>& T,
+                      Eigen::Matrix<Scalar, 3, 3>& R,
+                      Eigen::Matrix<Scalar, 3, 1>& t,
+                      Eigen::Matrix<Scalar, 3, 1>& s) {
+  R = T.rotation();
+  t = T.translation();
+  auto mat = T.matrix();
+  s[0] = mat.block<3, 1>(0, 0).norm();
+  s[1] = mat.block<3, 1>(0, 1).norm();
+  s[2] = mat.block<3, 1>(0, 2).norm();
+}
+
 }  // namespace
 
 namespace ugu {
@@ -376,15 +389,22 @@ bool FindSimilarityTransformFromPointCorrespondences(
   tmp.matrix() = T;
   R = tmp.rotation();
   t = tmp.translation();
-  double Sx = T.block<3, 1>(0, 0).norm();
-  double Sy = T.block<3, 1>(0, 1).norm();
-  double Sz = T.block<3, 1>(0, 2).norm();
   scale = Eigen::MatrixXd::Identity(R.rows(), R.cols());
-  scale(0, 0) = Sx;
-  scale(1, 1) = Sy;
-  scale(2, 2) = Sz;
+  for (Eigen::Index i = 0; i < R.rows(); i++) {
+    scale(i, i) = T.block(i, i, R.rows(), 1).norm();
+  }
   return true;
 #endif
+}
+
+void DecomposeRts(const Eigen::Affine3f& T, Eigen::Matrix3f& R,
+                  Eigen::Vector3f& t, Eigen::Vector3f& s) {
+  DecomposeRtsImpl(T, R, t, s);
+}
+
+void DecomposeRts(const Eigen::Affine3d& T, Eigen::Matrix3d& R,
+                  Eigen::Vector3d& t, Eigen::Vector3d& s) {
+  DecomposeRtsImpl(T, R, t, s);
 }
 
 bool RigidIcpPointToPoint(const std::vector<Eigen::Vector3f>& src,
