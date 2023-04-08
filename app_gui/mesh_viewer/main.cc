@@ -61,6 +61,9 @@ Eigen::Vector2d g_mouse_r_released_pos;
 
 std::string g_error_message;
 
+std::string g_callback_message;
+bool g_callback_finished = true;
+
 bool g_to_process_drag_l = false;
 bool g_to_process_drag_m = false;
 bool g_to_process_drag_r = false;
@@ -91,6 +94,102 @@ std::vector<SplitViewInfo> g_views;
 Eigen::Vector3f default_clear_color = {0.45f, 0.55f, 0.60f};
 Eigen::Vector3f default_wire_color = {0.1f, 0.1f, 0.1f};
 
+// Global geometry info
+std::vector<RenderableMeshPtr> g_meshes;
+std::vector<std::string> g_mesh_names;
+std::vector<std::string> g_mesh_paths;
+// std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
+
+struct CastRayResult {
+  size_t min_geoid = ~0u;
+  IntersectResult intersection;
+};
+
+std::unordered_map<RenderableMeshPtr, std::vector<CastRayResult>>
+    g_selected_positions;
+
+std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> g_model_matices;
+std::unordered_map<RenderableMeshPtr, bool> g_update_bvh;
+
+bool g_first_frame = true;
+
+struct IcpData {
+  RenderableMeshPtr src_mesh;
+  std::vector<Eigen::Vector3f> src_points;
+  std::vector<Eigen::Vector3f> dst_points;
+  std::vector<Eigen::Vector3i> dst_faces;
+  IcpTerminateCriteria terminate_criteria;
+  IcpOutput output;
+  bool with_scale = false;
+  CorrespFinderPtr corresp_finder = nullptr;
+  IcpCallbackFunc callback = nullptr;
+};
+
+IcpData g_icp_data;
+bool g_icp_run = false;
+bool g_icp_process_finish = false;
+Eigen::Affine3f g_icp_start_trans;
+std::mutex icp_mtx;
+
+void IcpProcessCallback(const IcpTerminateCriteria &terminate_criteria,
+                        const IcpOutput &output) {
+  g_callback_message = "ICP : " + std::to_string(output.loss_histroty.size()) +
+                       " / " + std::to_string(terminate_criteria.iter_max) +
+                       "   " + std::to_string(output.loss_histroty.back());
+
+  std::cout << g_callback_message << std::endl;
+
+  const auto &last_trans = g_icp_data.output.transform_histry.back();
+
+  g_model_matices[g_icp_data.src_mesh] =
+      last_trans.cast<float>() * g_icp_start_trans;
+}
+
+void IcpFinishCallback(const Eigen::Affine3f &orignal_trans) {
+  const auto &last_trans = g_icp_data.output.transform_histry.back();
+
+  g_model_matices[g_icp_data.src_mesh] =
+      last_trans.cast<float>() * orignal_trans;
+  g_update_bvh[g_icp_data.src_mesh] = true;
+
+  g_callback_finished = true;
+}
+
+void IcpProcess() {
+  while (!g_icp_process_finish) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    std::lock_guard<std::mutex> lock(icp_mtx);
+
+    if (g_icp_run) {
+      g_icp_run = false;
+
+      g_icp_start_trans = g_model_matices[g_icp_data.src_mesh];
+
+      Timer timer;
+      timer.Start();
+#if 0
+      RigidIcpPointToPoint(g_icp_data.src_points, g_icp_data.dst_points,
+                           g_icp_data.terminate_criteria,
+                           g_icp_data.output, g_icp_data.with_scale,
+                           nullptr, g_icp_data.callback);
+#else
+      RigidIcpPointToPlane(g_icp_data.src_points, g_icp_data.dst_points,
+                           g_icp_data.dst_faces, g_icp_data.terminate_criteria,
+                           g_icp_data.output, g_icp_data.with_scale,
+                           g_icp_data.corresp_finder, g_icp_data.callback);
+#endif
+      timer.End();
+      g_callback_message =
+          "ICP took " + std::to_string(timer.elapsed_msec() / 1000) + " sec.";
+
+      std::cout << g_callback_message << std::endl;
+
+      IcpFinishCallback(g_icp_start_trans);
+    }
+  }
+}
+
 void Draw(GLFWwindow *window);
 
 auto GetWidthHeightForView() {
@@ -107,25 +206,6 @@ bool IsCursorOnView(uint32_t vidx) {
 
   return false;
 }
-
-struct CastRayResult {
-  size_t min_geoid = ~0u;
-  IntersectResult intersection;
-};
-
-// Global geometry info
-std::vector<RenderableMeshPtr> g_meshes;
-std::vector<std::string> g_mesh_names;
-std::vector<std::string> g_mesh_paths;
-// std::vector<BvhPtr<Eigen::Vector3f, Eigen::Vector3i>> g_bvhs;
-
-std::unordered_map<RenderableMeshPtr, std::vector<CastRayResult>>
-    g_selected_positions;
-
-std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> g_model_matices;
-std::unordered_map<RenderableMeshPtr, bool> g_update_bvh;
-
-bool g_first_frame = true;
 
 Eigen::Vector3f GetPos(const IntersectResult &intersection, uint32_t geoid) {
   const auto &mesh = g_meshes.at(geoid);
@@ -1151,7 +1231,7 @@ void DrawImgui(GLFWwindow *window) {
 
     ImGui::Begin("General");
 
-    static char mesh_path[1024] = "../data/bunny/bunny.obj";
+    static char mesh_path[1024] = "../data/spot/spot_triangulated.obj";
     ImGui::InputText("Mesh path", mesh_path, 1024u);
     if (ImGui::Button("Load mesh")) {
       LoadMesh(mesh_path);
@@ -1256,25 +1336,41 @@ void DrawImgui(GLFWwindow *window) {
         auto transed_dst_points =
             apply_trans(dst_mesh->vertices(), g_model_matices[dst_mesh]);
 
-        Timer timer;
-        timer.Start();
-        RigidIcpPointToPlane(transed_src_points, transed_dst_points,
-                             dst_mesh->vertex_indices(), IcpTerminateCriteria(),
-                             output);
-        timer.End();
-        const auto &last_trans = output.transform_histry.back();
+        ImGui::OpenPopup("Algorithm Callback");
+        std::lock_guard<std::mutex> lock(icp_mtx);
+        g_icp_data.src_mesh = src_mesh;
+        g_icp_data.src_points = std::move(transed_src_points);
+        g_icp_data.dst_points = std::move(transed_dst_points);
+        g_icp_data.dst_faces = dst_mesh->vertex_indices();
+        g_icp_data.callback = IcpProcessCallback;
+        g_icp_data.output.loss_histroty.clear();
+        g_icp_data.output.transform_histry.clear();
 
-        g_model_matices[src_mesh] =
-            last_trans.cast<float>() * g_model_matices[src_mesh];
-        g_update_bvh[src_mesh] = true;
-
-        reset_points = true;
+        g_callback_finished = false;
+        g_icp_run = true;
       }
     }
 
     if (ImGui::Button("Non-Rigid ICP")) {
       if (validate_func()) {
       }
+    }
+
+    ImGui::SetNextWindowSize({100.f, 300.f}, ImGuiCond_Once);
+    if (ImGui::BeginPopupModal("Algorithm Callback")) {
+      // Draw popup contents.
+      ImGui::Text(g_callback_message.c_str());
+
+      if (g_callback_finished) {
+        if (ImGui::Button("OK")) {
+          g_callback_finished = true;
+          g_callback_message = "";
+          reset_points = true;
+          ImGui::CloseCurrentPopup();
+        }
+      }
+
+      ImGui::EndPopup();
     }
 
     if (ImGui::BeginPopupModal("Error")) {
@@ -1455,6 +1551,8 @@ int main(int, char **) {
     view.Init(vidx);
   }
 
+  std::thread icp_thread(IcpProcess);
+
   //  Main loop
   while (!glfwWindowShouldClose(window)) {
     // Poll and handle events (inputs, window resize, etc.)
@@ -1488,6 +1586,9 @@ int main(int, char **) {
 
   glfwDestroyWindow(window);
   glfwTerminate();
+
+  g_icp_process_finish = true;
+  icp_thread.join();
 
   return 0;
 }

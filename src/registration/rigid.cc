@@ -96,7 +96,7 @@ bool RigidIcpImpl(const std::vector<Eigen::Vector3<T>>& src_points,
                   IcpOutput& output, bool with_scale, IcpLossType loss_type,
                   KdTreePtr<T, 3> kdtree = nullptr,
                   CorrespFinderPtr corresp_finder = nullptr,
-                  int num_theads = -1) {
+                  int num_theads = -1, IcpCallbackFunc callback = nullptr) {
   if (loss_type == IcpLossType::kPointToPoint &&
       (kdtree == nullptr || !kdtree->IsInitialized())) {
     kdtree = GetDefaultKdTree<T, 3>();
@@ -199,6 +199,10 @@ bool RigidIcpImpl(const std::vector<Eigen::Vector3<T>>& src_points,
     output.transform_histry.push_back(accum_transform.template cast<double>());
     output.loss_histroty.push_back(loss_ave);
 
+    if (callback != nullptr) {
+      callback(terminate_criteria, output);
+    }
+
 #ifdef UGU_DEBUG_ICP
     std::cout << iter << " " << loss_ave << std::endl;
 
@@ -223,9 +227,11 @@ bool RigidIcpPointToPointImpl(const std::vector<Eigen::Vector3<T>>& src,
                               const std::vector<Eigen::Vector3<T>>& dst,
                               const IcpTerminateCriteria& terminate_criteria,
                               IcpOutput& output, bool with_scale,
-                              KdTreePtr<T, 3> kdtree = nullptr) {
+                              KdTreePtr<T, 3> kdtree = nullptr,
+                              IcpCallbackFunc callback = nullptr) {
   return RigidIcpImpl(src, dst, {}, terminate_criteria, output, with_scale,
-                      IcpLossType::kPointToPoint, kdtree, nullptr);
+                      IcpLossType::kPointToPoint, kdtree, nullptr, -1,
+                      callback);
 }
 
 template <typename T>
@@ -234,10 +240,11 @@ bool RigidIcpPointToPlaneImpl(const std::vector<Eigen::Vector3<T>>& src_points,
                               const std::vector<Eigen::Vector3i>& dst_faces,
                               const IcpTerminateCriteria& terminate_criteria,
                               IcpOutput& output, bool with_scale,
-                              CorrespFinderPtr corresp_finder = nullptr) {
+                              CorrespFinderPtr corresp_finder = nullptr,
+                              IcpCallbackFunc callback = nullptr) {
   return RigidIcpImpl(src_points, dst_points, dst_faces, terminate_criteria,
                       output, with_scale, IcpLossType::kPointToPlane,
-                      KdTreePtr<T, 3>(nullptr), corresp_finder);
+                      KdTreePtr<T, 3>(nullptr), corresp_finder, -1, callback);
 }
 
 template <typename Scalar>
@@ -449,18 +456,20 @@ bool RigidIcpPointToPoint(const std::vector<Eigen::Vector3f>& src,
                           const std::vector<Eigen::Vector3f>& dst,
                           const IcpTerminateCriteria& terminate_criteria,
                           IcpOutput& output, bool with_scale,
-                          KdTreePtr<float, 3> kdtree) {
+                          KdTreePtr<float, 3> kdtree,
+                          IcpCallbackFunc callback) {
   return RigidIcpPointToPointImpl(src, dst, terminate_criteria, output,
-                                  with_scale, kdtree);
+                                  with_scale, kdtree, callback);
 }
 
 bool RigidIcpPointToPoint(const std::vector<Eigen::Vector3d>& src,
                           const std::vector<Eigen::Vector3d>& dst,
                           const IcpTerminateCriteria& terminate_criteria,
                           IcpOutput& output, bool with_scale,
-                          KdTreePtr<double, 3> kdtree) {
+                          KdTreePtr<double, 3> kdtree,
+                          IcpCallbackFunc callback) {
   return RigidIcpPointToPointImpl(src, dst, terminate_criteria, output,
-                                  with_scale, kdtree);
+                                  with_scale, kdtree, callback);
 }
 
 bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3f>& src_points,
@@ -468,10 +477,11 @@ bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3f>& src_points,
                           const std::vector<Eigen::Vector3i>& dst_faces,
                           const IcpTerminateCriteria& terminate_criteria,
                           IcpOutput& output, bool with_scale,
-                          CorrespFinderPtr corresp_finder) {
+                          CorrespFinderPtr corresp_finder,
+                          IcpCallbackFunc callback) {
   return RigidIcpPointToPlaneImpl(src_points, dst_points, dst_faces,
                                   terminate_criteria, output, with_scale,
-                                  corresp_finder);
+                                  corresp_finder, callback);
 }
 
 bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3d>& src_points,
@@ -479,23 +489,25 @@ bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3d>& src_points,
                           const std::vector<Eigen::Vector3i>& dst_faces,
                           const IcpTerminateCriteria& terminate_criteria,
                           IcpOutput& output, bool with_scale,
-                          CorrespFinderPtr corresp_finder) {
+                          CorrespFinderPtr corresp_finder,
+                          IcpCallbackFunc callback) {
   return RigidIcpPointToPlaneImpl(src_points, dst_points, dst_faces,
                                   terminate_criteria, output, with_scale,
-                                  corresp_finder);
+                                  corresp_finder, callback);
 }
 
 bool RigidIcp(const Mesh& src, const Mesh& dst, const IcpLossType& loss_type,
               const IcpTerminateCriteria& terminate_criteria, IcpOutput& output,
               bool with_scale, KdTreePtr<float, 3> kdtree,
-              CorrespFinderPtr corresp_finder) {
+              CorrespFinderPtr corresp_finder, IcpCallbackFunc callback) {
   if (loss_type == IcpLossType::kPointToPoint) {
     return RigidIcpPointToPoint(src.vertices(), dst.vertices(),
-                                terminate_criteria, output, with_scale, kdtree);
+                                terminate_criteria, output, with_scale, kdtree,
+                                callback);
   } else if (loss_type == IcpLossType::kPointToPlane) {
     return RigidIcpPointToPlane(src.vertices(), dst.vertices(),
                                 dst.vertex_indices(), terminate_criteria,
-                                output, with_scale, corresp_finder);
+                                output, with_scale, corresp_finder, callback);
   }
   throw std::runtime_error("Not implemented");
 }
