@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include "ugu/accel/kdtree.h"
 #include "ugu/correspondence/correspondence_finder.h"
 #include "ugu/mesh.h"

@@ -7,6 +7,7 @@
 
 #include <limits>
 #include <mutex>
+#include <thread>
 
 #include "glad/gl.h"
 #include "imgui.h"
@@ -14,6 +15,7 @@
 #include "imgui_impl_opengl3.h"
 #include "ugu/camera.h"
 #include "ugu/image_io.h"
+#include "ugu/registration/nonrigid.h"
 #include "ugu/registration/rigid.h"
 #include "ugu/renderable_mesh.h"
 #include "ugu/renderer/gl/renderer.h"
@@ -108,7 +110,7 @@ struct CastRayResult {
 std::unordered_map<RenderableMeshPtr, std::vector<CastRayResult>>
     g_selected_positions;
 
-std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> g_model_matices;
+std::unordered_map<RenderableMeshPtr, Eigen::Affine3f> g_model_matrices;
 std::unordered_map<RenderableMeshPtr, bool> g_update_bvh;
 
 bool g_first_frame = true;
@@ -125,11 +127,18 @@ struct IcpData {
   IcpCallbackFunc callback = nullptr;
 };
 
+struct NonrigidIcpData {
+  RenderableMeshPtr src_mesh;
+  RenderableMeshPtr dst_mesh;
+};
+
 IcpData g_icp_data;
+NonrigidIcpData g_nonrigidicp_data;
 bool g_icp_run = false;
-bool g_icp_process_finish = false;
+bool g_nonrigidicp_run = false;
+bool g_algorithm_process_finish = false;
 Eigen::Affine3f g_icp_start_trans;
-std::mutex icp_mtx;
+std::mutex icp_mtx, nonrigidicp_mtx, nonrigidicp_update_mtx;
 
 void IcpProcessCallback(const IcpTerminateCriteria &terminate_criteria,
                         const IcpOutput &output) {
@@ -141,51 +150,148 @@ void IcpProcessCallback(const IcpTerminateCriteria &terminate_criteria,
 
   const auto &last_trans = g_icp_data.output.transform_histry.back();
 
-  g_model_matices[g_icp_data.src_mesh] =
+  g_model_matrices[g_icp_data.src_mesh] =
       last_trans.cast<float>() * g_icp_start_trans;
 }
 
 void IcpFinishCallback(const Eigen::Affine3f &orignal_trans) {
   const auto &last_trans = g_icp_data.output.transform_histry.back();
 
-  g_model_matices[g_icp_data.src_mesh] =
+  g_model_matrices[g_icp_data.src_mesh] =
       last_trans.cast<float>() * orignal_trans;
   g_update_bvh[g_icp_data.src_mesh] = true;
 
   g_callback_finished = true;
 }
 
-void IcpProcess() {
-  while (!g_icp_process_finish) {
+void AlgorithmProcess() {
+  while (!g_algorithm_process_finish) {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    std::lock_guard<std::mutex> lock(icp_mtx);
+    {
+      std::lock_guard<std::mutex> lock(icp_mtx);
+      if (g_icp_run) {
+        g_icp_run = false;
 
-    if (g_icp_run) {
-      g_icp_run = false;
+        g_icp_start_trans = g_model_matrices[g_icp_data.src_mesh];
 
-      g_icp_start_trans = g_model_matices[g_icp_data.src_mesh];
-
-      Timer timer;
-      timer.Start();
+        Timer timer;
+        timer.Start();
 #if 0
       RigidIcpPointToPoint(g_icp_data.src_points, g_icp_data.dst_points,
                            g_icp_data.terminate_criteria,
                            g_icp_data.output, g_icp_data.with_scale,
                            nullptr, g_icp_data.callback);
 #else
-      RigidIcpPointToPlane(g_icp_data.src_points, g_icp_data.dst_points,
-                           g_icp_data.dst_faces, g_icp_data.terminate_criteria,
-                           g_icp_data.output, g_icp_data.with_scale,
-                           g_icp_data.corresp_finder, g_icp_data.callback);
+        RigidIcpPointToPlane(g_icp_data.src_points, g_icp_data.dst_points,
+                             g_icp_data.dst_faces,
+                             g_icp_data.terminate_criteria, g_icp_data.output,
+                             g_icp_data.with_scale, g_icp_data.corresp_finder,
+                             g_icp_data.callback);
 #endif
-      timer.End();
-      g_callback_message =
-          "ICP took " + std::to_string(timer.elapsed_msec() / 1000) + " sec.";
+        timer.End();
+        g_callback_message =
+            "ICP took " + std::to_string(timer.elapsed_msec() / 1000) + " sec.";
 
-      std::cout << g_callback_message << std::endl;
+        std::cout << g_callback_message << std::endl;
 
-      IcpFinishCallback(g_icp_start_trans);
+        IcpFinishCallback(g_icp_start_trans);
+      }
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(nonrigidicp_mtx);
+      if (g_nonrigidicp_run) {
+        g_nonrigidicp_run = false;
+
+        Timer timer;
+        timer.Start();
+
+        ugu::NonRigidIcp nicp;
+        nicp.SetSrc(*g_nonrigidicp_data.src_mesh.get(),
+                    g_model_matrices[g_nonrigidicp_data.src_mesh]);
+        auto transed_dst_mesh = Mesh::Create(
+            *std::static_pointer_cast<Mesh>(g_nonrigidicp_data.dst_mesh));
+        transed_dst_mesh->Transform(
+            g_model_matrices[g_nonrigidicp_data.dst_mesh]);
+        nicp.SetDst(*transed_dst_mesh);
+
+        nicp.Init(false, 0.65f, false, false);
+
+        double max_alpha = 10.0;
+        double min_alpha = 0.1;
+        double beta = 10.0;
+        double gamma = 1.0;
+        int step = 10;
+
+        auto update_mesh = [&](bool update_base = false) {
+          ugu::MeshPtr deformed = nicp.GetDeformedSrc();
+          deformed->Transform(
+              g_model_matrices[g_nonrigidicp_data.src_mesh].inverse());
+          deformed->CalcNormal();
+
+          auto fnum = static_cast<int>(
+              g_nonrigidicp_data.src_mesh->vertex_indices().size());
+          {
+            std::lock_guard<std::mutex> lock_update(nonrigidicp_update_mtx);
+            // std::cout << "start update" << std::endl;
+            for (int i = 0; i < fnum; i++) {
+              const auto &face =
+                  g_nonrigidicp_data.src_mesh->vertex_indices()[i];
+              for (int j = 0; j < 3; j++) {
+                uint32_t index = i * 3 + j;
+                g_nonrigidicp_data.src_mesh->renderable_vertices[index].pos =
+                    deformed->vertices()[face[j]];
+
+                g_nonrigidicp_data.src_mesh->renderable_vertices[index].nor =
+                    deformed->normals()[face[j]];
+              }
+            }
+            // std::cout << "end update" << std::endl;
+          }
+
+          // OpenGL APIs MUST NOT BE CALLED IN SUB THREADS
+
+          // g_nonrigidicp_data.src_mesh->UpdateMesh();
+
+          if (update_base) {
+            g_nonrigidicp_data.src_mesh->set_vertices(deformed->vertices());
+            g_nonrigidicp_data.src_mesh->CalcNormal();
+          }
+        };
+
+        for (int i = 1; i <= step; ++i) {
+          double alpha = max_alpha - i * (max_alpha - min_alpha) / step;
+
+          g_callback_message = "NonRigid-ICP : " + std::to_string(i) + " / " +
+                               std::to_string(step) + "  with alpha " +
+                               std::to_string(alpha);
+          std::cout << g_callback_message << std::endl;
+
+          nicp.Registrate(alpha, beta, gamma);
+
+          update_mesh();
+        }
+
+        timer.End();
+        g_callback_message = "NonRigid-ICP took " +
+                             std::to_string(timer.elapsed_msec() / 1000) +
+                             " sec.";
+
+        std::cout << g_callback_message << std::endl;
+
+        update_mesh(true);
+
+        ugu::MeshPtr deformed = nicp.GetDeformedSrc();
+        deformed->Transform(
+            g_model_matrices[g_nonrigidicp_data.src_mesh].inverse());
+
+        deformed->WriteObj("./", "out");
+
+        g_update_bvh[g_nonrigidicp_data.src_mesh] = true;
+
+        g_callback_finished = true;
+      }
     }
   }
 }
@@ -209,7 +315,7 @@ bool IsCursorOnView(uint32_t vidx) {
 
 Eigen::Vector3f GetPos(const IntersectResult &intersection, uint32_t geoid) {
   const auto &mesh = g_meshes.at(geoid);
-  const auto &trans = g_model_matices.at(mesh);
+  const auto &trans = g_model_matrices.at(mesh);
   const auto &face = mesh->vertex_indices()[intersection.fid];
   const auto &v0 = mesh->vertices()[face[0]];
   const auto &v1 = mesh->vertices()[face[1]];
@@ -285,7 +391,7 @@ struct SplitViewInfo {
   void ResetGl() {
     renderer->ClearGlState();
     for (const auto &mesh : g_meshes) {
-      renderer->SetMesh(mesh, g_model_matices.at(mesh), g_update_bvh.at(mesh));
+      renderer->SetMesh(mesh, g_model_matrices.at(mesh), g_update_bvh.at(mesh));
       renderer->AddSelectedPositions(mesh,
                                      ExtractPos(g_selected_positions.at(mesh)));
     }
@@ -601,7 +707,7 @@ void LoadMesh(const std::string &path) {
     g_mesh_names.push_back(ugu::ExtractFilename(obj_path, true));
     g_mesh_paths.push_back(obj_path);
     g_meshes.push_back(mesh);
-    g_model_matices[mesh] = Eigen::Affine3f::Identity();
+    g_model_matrices[mesh] = Eigen::Affine3f::Identity();
     g_update_bvh[mesh] = true;
     g_selected_positions[mesh] = {};
   } else {
@@ -710,7 +816,7 @@ void DrawViews() {
     const auto &view = g_views[i];
 
     for (const auto &mesh : g_meshes) {
-      view.renderer->SetMesh(mesh, g_model_matices.at(mesh),
+      view.renderer->SetMesh(mesh, g_model_matrices.at(mesh),
                              g_update_bvh.at(mesh));
     }
     const auto offset_w = g_width / g_views.size();
@@ -964,7 +1070,7 @@ void DrawImgui(GLFWwindow *window) {
         }
 
         {
-          auto &model_mat = g_model_matices.at(g_meshes[i]);
+          auto &model_mat = g_model_matrices.at(g_meshes[i]);
           Eigen::Vector3f t, s;
           Eigen::Matrix3f R;
           DecomposeRts(model_mat, R, t, s);
@@ -1301,8 +1407,8 @@ void DrawImgui(GLFWwindow *window) {
             src2dst =
                 FindRigidTransformFrom3dCorrespondences(src_points, dst_points);
           }
-          g_model_matices[src_mesh] =
-              src2dst.cast<float>() * g_model_matices[src_mesh];
+          g_model_matrices[src_mesh] =
+              src2dst.cast<float>() * g_model_matrices[src_mesh];
           g_update_bvh[src_mesh] = true;
 
           reset_points = true;
@@ -1320,8 +1426,6 @@ void DrawImgui(GLFWwindow *window) {
 
     if (ImGui::Button("Rigid ICP")) {
       if (validate_func()) {
-        IcpOutput output;
-
         auto apply_trans = [&](const std::vector<Eigen::Vector3f> &points,
                                const Eigen::Affine3f &T) {
           std::vector<Eigen::Vector3f> transed;
@@ -1332,9 +1436,9 @@ void DrawImgui(GLFWwindow *window) {
         };
 
         auto transed_src_points =
-            apply_trans(src_mesh->vertices(), g_model_matices[src_mesh]);
+            apply_trans(src_mesh->vertices(), g_model_matrices[src_mesh]);
         auto transed_dst_points =
-            apply_trans(dst_mesh->vertices(), g_model_matices[dst_mesh]);
+            apply_trans(dst_mesh->vertices(), g_model_matrices[dst_mesh]);
 
         ImGui::OpenPopup("Algorithm Callback");
         std::lock_guard<std::mutex> lock(icp_mtx);
@@ -1353,10 +1457,26 @@ void DrawImgui(GLFWwindow *window) {
 
     if (ImGui::Button("Non-Rigid ICP")) {
       if (validate_func()) {
+        ImGui::OpenPopup("Algorithm Callback");
+        std::lock_guard<std::mutex> lock(nonrigidicp_mtx);
+        g_nonrigidicp_data.src_mesh = src_mesh;
+        g_nonrigidicp_data.dst_mesh = dst_mesh;
+
+        g_callback_finished = false;
+        g_nonrigidicp_run = true;
       }
     }
 
-    ImGui::SetNextWindowSize({100.f, 300.f}, ImGuiCond_Once);
+    if (!nonrigidicp_mtx.try_lock()) {
+      std::lock_guard<std::mutex> lock_update(nonrigidicp_update_mtx);
+      // OpenGL API must be called in the main thread
+      g_nonrigidicp_data.src_mesh->UpdateMesh();
+
+    } else {
+      nonrigidicp_mtx.unlock();
+    }
+
+    ImGui::SetNextWindowSize({200.f, 300.f}, ImGuiCond_Once);
     if (ImGui::BeginPopupModal("Algorithm Callback")) {
       // Draw popup contents.
       ImGui::Text(g_callback_message.c_str());
@@ -1427,7 +1547,6 @@ void Draw(GLFWwindow *window) {
   DrawViews();
 
   ProcessDrags();
-
   glClear(GL_DEPTH_BUFFER_BIT);
 
   DrawImgui(window);
@@ -1551,7 +1670,7 @@ int main(int, char **) {
     view.Init(vidx);
   }
 
-  std::thread icp_thread(IcpProcess);
+  std::thread algorithm_thread(AlgorithmProcess);
 
   //  Main loop
   while (!glfwWindowShouldClose(window)) {
@@ -1569,7 +1688,6 @@ int main(int, char **) {
     glfwMakeContextCurrent(window);
     Draw(window);
     // glfwSwapBuffers(window);
-
     // glfwMakeContextCurrent(window2);
     // Draw(window2);
     // glfwSwapBuffers(window2);
@@ -1587,8 +1705,8 @@ int main(int, char **) {
   glfwDestroyWindow(window);
   glfwTerminate();
 
-  g_icp_process_finish = true;
-  icp_thread.join();
+  g_algorithm_process_finish = true;
+  algorithm_thread.join();
 
   return 0;
 }

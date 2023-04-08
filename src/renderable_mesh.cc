@@ -170,7 +170,7 @@ void RenderableMesh::SetupMesh(int geo_id) {
   glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
   glBufferData(GL_ARRAY_BUFFER, renderable_vertices.size() * sizeof(Vertex),
-               &renderable_vertices[0], GL_STATIC_DRAW);
+               &renderable_vertices[0], GL_DYNAMIC_DRAW);
 
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 
@@ -189,7 +189,7 @@ void RenderableMesh::SetupMesh(int geo_id) {
 
   glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                flatten_indices.size() * sizeof(uint32_t), &flatten_indices[0],
-               GL_STATIC_DRAW);
+               GL_DYNAMIC_DRAW);
 
   // vertex positions
   glEnableVertexAttribArray(0);
@@ -216,6 +216,13 @@ void RenderableMesh::SetupMesh(int geo_id) {
                         (void *)offsetof(Vertex, id));
 
   glBindVertexArray(0);
+}
+
+void RenderableMesh::UpdateMesh() {
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferSubData(GL_ARRAY_BUFFER, 0,
+                  renderable_vertices.size() * sizeof(Vertex),
+                  &renderable_vertices[0]);
 }
 
 void RenderableMesh::ClearGlState() const {
