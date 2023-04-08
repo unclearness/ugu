@@ -85,8 +85,6 @@ struct SplitViewInfo;
 std::mutex views_mtx;
 std::vector<SplitViewInfo> g_views;
 
-std::mutex mouse_mtx;
-
 Eigen::Vector3f default_clear_color = {0.45f, 0.55f, 0.60f};
 Eigen::Vector3f default_wire_color = {0.1f, 0.1f, 0.1f};
 
@@ -776,8 +774,8 @@ void ProcessDrags() {
             continue;
           }
 
-         Eigen::Vector4f p_cam =
-                view_mat * Eigen::Vector4f(p.x(), p.y(), p.z(), 1.f);
+          Eigen::Vector4f p_cam =
+              view_mat * Eigen::Vector4f(p.x(), p.y(), p.z(), 1.f);
           Eigen::Vector4f p_ndc = prj_mat * p_cam;
           p_ndc /= p_ndc.w();  // NDC [-1:1]
 
@@ -854,8 +852,6 @@ void DrawImgui(GLFWwindow *window) {
   bool reset_points = false;
   auto [w, h] = GetWidthHeightForView();
   for (size_t j = 0; j < g_views.size(); j++) {
-    ;
-
     auto &view = g_views[j];
     const std::string title = std::string("View ") + std::to_string(j);
 
@@ -958,12 +954,6 @@ void DrawImgui(GLFWwindow *window) {
             if (ImGui::Selectable(lines[n].c_str(), is_selected)) {
               view.selected_point_idx[g_meshes[i]] = n;
             }
-
-            // Set the initial focus when opening the combo (scrolling +
-            //// keyboard navigation focus)
-            // if (is_selected) {
-            //   ImGui::SetItemDefaultFocus();
-            // }
           }
           ImGui::EndListBox();
         }
@@ -1161,6 +1151,87 @@ void DrawImgui(GLFWwindow *window) {
     ImGui::InputText("Mesh path", mesh_path, 1024u);
     if (ImGui::Button("Load mesh")) {
       LoadMesh(mesh_path);
+    }
+
+    static int src_id = 0;
+    static int dst_id = 0;
+    if (ImGui::BeginListBox("source")) {
+      if (g_meshes.empty()) {
+        src_id = -1;
+      }
+      for (int n = 0; n < g_meshes.size(); ++n) {
+        const bool is_selected = (src_id == n);
+        if (ImGui::Selectable(std::to_string(n).c_str(), is_selected)) {
+          src_id = n;
+        }
+      }
+      ImGui::EndListBox();
+    }
+
+    if (ImGui::BeginListBox("target")) {
+      if (g_meshes.empty()) {
+        dst_id = -1;
+      }
+      for (int n = 0; n < g_meshes.size(); ++n) {
+        const bool is_selected = (dst_id == n);
+        if (ImGui::Selectable(std::to_string(n).c_str(), is_selected)) {
+          dst_id = n;
+        }
+      }
+      ImGui::EndListBox();
+    }
+
+    auto validate_func = [&]() {
+      if (src_id < 0 || dst_id < 0) {
+        return false;
+      }
+      if (src_id == dst_id) {
+        return false;
+      }
+      return true;
+    };
+
+    RenderableMeshPtr src_mesh = 0 <= src_id ? g_meshes[src_id] : nullptr;
+    RenderableMeshPtr dst_mesh = 0 <= dst_id ? g_meshes[dst_id] : nullptr;
+
+    static bool with_scale = false;
+    if (ImGui::Checkbox("With scale", &with_scale)) {
+    }
+
+    if (ImGui::Button("Alignment by Selected Points")) {
+      if (validate_func()) {
+        auto src_points = ExtractPos(g_selected_positions[src_mesh]);
+        auto dst_points = ExtractPos(g_selected_positions[dst_mesh]);
+
+        if (3 <= src_points.size() && src_points.size() == dst_points.size()) {
+          Eigen::Affine3d src2dst;
+
+          if (with_scale) {
+            src2dst = FindSimilarityTransformFrom3dCorrespondences(src_points,
+                                                                   dst_points);
+          } else {
+            src2dst =
+                FindRigidTransformFrom3dCorrespondences(src_points, dst_points);
+          }
+          g_model_matices[src_mesh] =
+              src2dst.cast<float>() * g_model_matices[src_mesh];
+          g_update_bvh[src_mesh] = true;
+
+          reset_points = true;
+
+        } else {
+        }
+      }
+    }
+
+    if (ImGui::Button("Rigid ICP")) {
+      if (validate_func()) {
+      }
+    }
+
+    if (ImGui::Button("Non-Rigid ICP")) {
+      if (validate_func()) {
+      }
     }
 
     ImGui::End();

@@ -5,10 +5,88 @@
 
 #include "ugu/registration/rigid.h"
 
-// #define UGU_USE_OWN_UMEYAMA
-
 namespace {
 using namespace ugu;
+
+template <typename Derived, typename OtherDerived>
+void my_umeyama(const Eigen::MatrixBase<Derived>& src,
+                const Eigen::MatrixBase<OtherDerived>& dst,
+                typename Eigen::internal::umeyama_transform_matrix_type<
+                    Derived, OtherDerived>::type& T_similarity,
+                typename Eigen::internal::umeyama_transform_matrix_type<
+                    Derived, OtherDerived>::type& T_rigid) {
+  using namespace Eigen;
+  typedef typename internal::umeyama_transform_matrix_type<
+      Derived, OtherDerived>::type TransformationMatrixType;
+  typedef typename internal::traits<TransformationMatrixType>::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::IsComplex, NUMERIC_TYPE_MUST_BE_REAL)
+  EIGEN_STATIC_ASSERT(
+      (internal::is_same<
+          Scalar, typename internal::traits<OtherDerived>::Scalar>::value),
+      YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
+
+  enum {
+    Dimension = EIGEN_SIZE_MIN_PREFER_DYNAMIC(Derived::RowsAtCompileTime,
+                                              OtherDerived::RowsAtCompileTime)
+  };
+
+  typedef Matrix<Scalar, Dimension, 1> VectorType;
+  typedef Matrix<Scalar, Dimension, Dimension> MatrixType;
+  typedef typename internal::plain_matrix_type_row_major<Derived>::type
+      RowMajorMatrixType;
+
+  const Index m = src.rows();  // dimension
+  const Index n = src.cols();  // number of measurements
+
+  // required for demeaning ...
+  const RealScalar one_over_n = RealScalar(1) / static_cast<RealScalar>(n);
+
+  // computation of mean
+  const VectorType src_mean = src.rowwise().sum() * one_over_n;
+  const VectorType dst_mean = dst.rowwise().sum() * one_over_n;
+
+  // demeaning of src and dst points
+  const RowMajorMatrixType src_demean = src.colwise() - src_mean;
+  const RowMajorMatrixType dst_demean = dst.colwise() - dst_mean;
+
+  // Eq. (36)-(37)
+  const Scalar src_var = src_demean.rowwise().squaredNorm().sum() * one_over_n;
+
+  // Eq. (38)
+  const MatrixType sigma = one_over_n * dst_demean * src_demean.transpose();
+
+  JacobiSVD<MatrixType> svd(sigma, ComputeFullU | ComputeFullV);
+
+  // Initialize the resulting transformation with an identity matrix...
+  TransformationMatrixType Rt =
+      TransformationMatrixType::Identity(m + 1, m + 1);
+
+  // Eq. (39)
+  VectorType S = VectorType::Ones(m);
+
+  if (svd.matrixU().determinant() * svd.matrixV().determinant() < 0)
+    S(m - 1) = -1;
+
+  // Eq. (40) and (43)
+  Rt.block(0, 0, m, m).noalias() =
+      svd.matrixU() * S.asDiagonal() * svd.matrixV().transpose();
+
+  T_similarity = Rt;
+  // Eq. (42)
+  const Scalar c = Scalar(1) / src_var * svd.singularValues().dot(S);
+
+  // Eq. (41)
+  T_similarity.col(m).head(m) = dst_mean;
+  T_similarity.col(m).head(m).noalias() -=
+      c * Rt.topLeftCorner(m, m) * src_mean;
+  T_similarity.block(0, 0, m, m) *= c;
+
+  T_rigid = Rt;
+  T_rigid.col(m).head(m) = dst_mean;
+  T_rigid.col(m).head(m).noalias() -= Rt.topLeftCorner(m, m) * src_mean;
+}
 
 template <typename T>
 bool RigidIcpImpl(const std::vector<Eigen::Vector3<T>>& src_points,
@@ -177,6 +255,8 @@ void DecomposeRtsImpl(const Eigen::Transform<Scalar, 3, Eigen::Affine>& T,
 
 }  // namespace
 
+// #define UGU_USE_UMEYAMA_FOR_RIGID
+
 namespace ugu {
 
 // FINDING OPTIMAL ROTATION AND TRANSLATION BETWEEN CORRESPONDING 3D POINTS
@@ -184,6 +264,27 @@ namespace ugu {
 Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
     const std::vector<Eigen::Vector3d>& src,
     const std::vector<Eigen::Vector3d>& dst) {
+#ifdef UGU_USE_UMEYAMA_FOR_RIGID
+
+  Eigen::MatrixXd src_(src.size(), 3);
+  for (size_t i = 0; i < src.size(); i++) {
+    src_.row(i) = src[i];
+  }
+  Eigen::MatrixXd dst_(dst.size(), 3);
+  for (size_t i = 0; i < dst.size(); i++) {
+    dst_.row(i) = dst[i];
+  }
+
+  Eigen::MatrixXd R_sim, R_rigid;
+  Eigen::MatrixXd t_sim, t_rigid;
+  Eigen::MatrixXd scale;
+  Eigen::MatrixXd T_sim, T_rigid;
+  bool ret = FindSimilarityTransformFromPointCorrespondences(
+      src_, dst_, R_sim, t_sim, scale, T_sim, R_rigid, t_rigid, T_rigid);
+
+  Eigen::Affine3d T = Eigen::Translation3d(t_rigid) * R_rigid;
+  return T;
+#else
   if (src.size() < 3 || src.size() != dst.size()) {
     return Eigen::Affine3d::Identity();
   }
@@ -240,8 +341,9 @@ Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
   Eigen::Vector3d t = dst_centroid - R * src_centroid;
 
   Eigen::Affine3d T = Eigen::Translation3d(t) * R;
-
   return T;
+
+#endif
 }
 
 Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
@@ -289,12 +391,12 @@ Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
 
 Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
     const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst) {
-  Eigen::MatrixXd R;
-  Eigen::MatrixXd t;
+  Eigen::MatrixXd R, R_rigid;
+  Eigen::MatrixXd t, t_rigid;
   Eigen::MatrixXd scale;
-  Eigen::MatrixXd T;
-  bool ret =
-      FindSimilarityTransformFromPointCorrespondences(src, dst, R, t, scale, T);
+  Eigen::MatrixXd T, T_rigid;
+  bool ret = FindSimilarityTransformFromPointCorrespondences(
+      src, dst, R, t, scale, T, R_rigid, t_rigid, T_rigid);
   assert(R.rows() == 3 && R.cols() == 3);
   assert(t.rows() == 3 && t.cols() == 1);
   assert(T.rows() == 4 && T.cols() == 4);
@@ -307,94 +409,30 @@ Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
 }
 
 bool FindSimilarityTransformFromPointCorrespondences(
-    const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst, Eigen::MatrixXd& R,
-    Eigen::MatrixXd& t, Eigen::MatrixXd& scale, Eigen::MatrixXd& T) {
-#ifdef UGU_USE_OWN_UMEYAMA
-  const size_t n_data = src.rows();
-  const size_t n_dim = src.cols();
-  if (n_data < 1 || n_dim < 1 || n_data < n_dim || src.rows() != dst.rows() ||
-      src.cols() != dst.cols()) {
-    return false;
+    const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst,
+    Eigen::MatrixXd& R_similarity, Eigen::MatrixXd& t_similarity,
+    Eigen::MatrixXd& scale, Eigen::MatrixXd& T_similarity,
+    Eigen::MatrixXd& R_rigid, Eigen::MatrixXd& t_rigid,
+    Eigen::MatrixXd& T_rigid) {
+  Eigen::MatrixXd src_t = src.transpose();
+  Eigen::MatrixXd dst_t = dst.transpose();
+  my_umeyama(src_t, dst_t, T_similarity, T_rigid);
+
+  Eigen::Affine3d tmp_similarity;
+  tmp_similarity.matrix() = T_similarity;
+  R_similarity = tmp_similarity.rotation();
+  t_similarity = tmp_similarity.translation();
+  scale = Eigen::MatrixXd::Identity(R_similarity.rows(), R_similarity.cols());
+  for (Eigen::Index i = 0; i < R_similarity.cols(); i++) {
+    scale(i, i) = T_similarity.block(0, i, R_similarity.rows(), 1).norm();
   }
 
-  Eigen::VectorXd src_mean = src.colwise().mean();
-  Eigen::VectorXd dst_mean = dst.colwise().mean();
-
-  Eigen::MatrixXd src_demean = src.rowwise() - src_mean.transpose();
-  Eigen::MatrixXd dst_demean = dst.rowwise() - dst_mean.transpose();
-
-  Eigen::MatrixXd A =
-      dst_demean.transpose() * src_demean / static_cast<double>(n_data);
-
-  Eigen::VectorXd d = Eigen::VectorXd::Ones(n_dim);
-  double det_A = A.determinant();
-  if (det_A < 0) {
-    d.coeffRef(n_dim - 1, 0) = -1;
-  }
-
-  T = Eigen::MatrixXd::Identity(n_dim + 1, n_dim + 1);
-
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd(
-      A, Eigen::ComputeFullU | Eigen::ComputeFullV);
-  Eigen::MatrixXd U = svd.matrixU();
-  Eigen::MatrixXd S = svd.singularValues().asDiagonal();
-  Eigen::MatrixXd V = svd.matrixV();
-
-  double det_U = U.determinant();
-  double det_V = V.determinant();
-  double det_orgR = det_U * det_V;
-  constexpr double assert_eps = 0.001;
-  assert(std::abs(std::abs(det_orgR) - 1.0) < assert_eps);
-
-  size_t rank_A = static_cast<size_t>(svd.rank());
-  if (rank_A == 0) {
-    // null matrix case
-    return false;
-    // R = U * d.asDiagonal() * V.transpose();
-  } else if (rank_A == (n_dim - 1)) {
-    if (det_orgR > 0) {
-      // Valid rotation case
-      R = U * V.transpose();
-    } else {
-      // Mirror (reflection) case
-      double s = d.coeff(n_dim - 1, 0);
-      d.coeffRef(n_dim - 1, 0) = -1;
-      R = U * d.asDiagonal() * V.transpose();
-      d.coeffRef(n_dim - 1, 0) = s;
-    }
-  } else {
-    // degenerate case
-    R = U * d.asDiagonal() * V.transpose();
-  }
-  assert(std::abs(R.determinant() - 1.0) < assert_eps);
-
-  // Eigen::MatrixXd src_demean_cov =
-  //    (src_demean.adjoint() * src_demean) / double(n_data);
-  double src_var =
-      src_demean.rowwise().squaredNorm().sum() / double(n_data) + 1e-30;
-  double uniform_scale = 1.0 / src_var * (S * d.asDiagonal()).trace();
-  // Question: Is it possible to estimate non-uniform scale?
-  scale = Eigen::MatrixXd::Identity(R.rows(), R.cols());
-  scale *= uniform_scale;
-
-  t = dst_mean - scale * R * src_mean;
-
-  T.block(0, 0, n_dim, n_dim) = scale * R;
-  T.block(0, n_dim, n_dim, 1) = t;
+  Eigen::Affine3d tmp_rigid;
+  tmp_rigid.matrix() = T_rigid;
+  R_rigid = tmp_rigid.rotation();
+  t_rigid = tmp_rigid.translation();
 
   return true;
-#else
-  T = Eigen::umeyama(src.transpose(), dst.transpose(), true);
-  Eigen::Affine3d tmp;
-  tmp.matrix() = T;
-  R = tmp.rotation();
-  t = tmp.translation();
-  scale = Eigen::MatrixXd::Identity(R.rows(), R.cols());
-  for (Eigen::Index i = 0; i < R.rows(); i++) {
-    scale(i, i) = T.block(i, i, R.rows(), 1).norm();
-  }
-  return true;
-#endif
 }
 
 void DecomposeRts(const Eigen::Affine3f& T, Eigen::Matrix3f& R,

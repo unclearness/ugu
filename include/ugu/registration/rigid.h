@@ -26,8 +26,11 @@ Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
 // implementation reference:
 // https://github.com/scikit-image/scikit-image/blob/main/skimage/transform/_geometric.py#L63
 bool FindSimilarityTransformFromPointCorrespondences(
-    const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst, Eigen::MatrixXd& R,
-    Eigen::MatrixXd& t, Eigen::MatrixXd& scale, Eigen::MatrixXd& T);
+    const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst,
+    Eigen::MatrixXd& R_similarity, Eigen::MatrixXd& t_similarity,
+    Eigen::MatrixXd& scale, Eigen::MatrixXd& T_similarity,
+    Eigen::MatrixXd& R_rigid, Eigen::MatrixXd& t_rigid,
+    Eigen::MatrixXd& T_rigid);
 
 Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
     const std::vector<Eigen::Vector3d>& src,
@@ -41,7 +44,7 @@ Eigen::Affine3d FindSimilarityTransformFrom3dCorrespondences(
     const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst);
 
 void DecomposeRts(const Eigen::Affine3f& T, Eigen::Matrix3f& R,
-                  Eigen::Vector3f& t, Eigen::Vector3f& s); 
+                  Eigen::Vector3f& t, Eigen::Vector3f& s);
 void DecomposeRts(const Eigen::Affine3d& T, Eigen::Matrix3d& R,
                   Eigen::Vector3d& t, Eigen::Vector3d& s);
 
