@@ -38,6 +38,7 @@ class RenderableMesh : public Mesh {
   uint32_t EBO = ~0u;
 
   std::vector<Vertex> renderable_vertices;
+  std::vector<Eigen::Vector3i> renderable_indices;
   std::vector<uint32_t> flatten_indices;
   std::vector<uint32_t> texture_ids;
 };

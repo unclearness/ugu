@@ -17,6 +17,7 @@
 #include "ugu/registration/rigid.h"
 #include "ugu/renderable_mesh.h"
 #include "ugu/renderer/gl/renderer.h"
+#include "ugu/timer.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/string_util.h"
 // #define GL_SILENCE_DEPRECATION
@@ -57,6 +58,8 @@ Eigen::Vector2d g_mouse_m_pressed_pos;
 Eigen::Vector2d g_mouse_m_released_pos;
 Eigen::Vector2d g_mouse_r_pressed_pos;
 Eigen::Vector2d g_mouse_r_released_pos;
+
+std::string g_error_message;
 
 bool g_to_process_drag_l = false;
 bool g_to_process_drag_m = false;
@@ -187,6 +190,7 @@ struct SplitViewInfo {
     camera->set_size(w, h);
     camera->set_fov_y(45.0f);
     camera->set_principal_point({w / 2.f, h / 2.f});
+    camera->set_c2w(Eigen::Affine3d::Identity());
 
     renderer->SetSize(w, h);
 
@@ -1183,9 +1187,13 @@ void DrawImgui(GLFWwindow *window) {
 
     auto validate_func = [&]() {
       if (src_id < 0 || dst_id < 0) {
+        ImGui::OpenPopup("Error");
+        g_error_message = "Select source and target";
         return false;
       }
       if (src_id == dst_id) {
+        ImGui::OpenPopup("Error");
+        g_error_message = "Source and target must be different";
         return false;
       }
       return true;
@@ -1220,18 +1228,65 @@ void DrawImgui(GLFWwindow *window) {
           reset_points = true;
 
         } else {
+          ImGui::OpenPopup("Error");
+          if (src_points.size() < 3) {
+            g_error_message = "At least 3 correspondences";
+          } else {
+            g_error_message = "Must have the same number of selected points";
+          }
         }
       }
     }
 
     if (ImGui::Button("Rigid ICP")) {
       if (validate_func()) {
+        IcpOutput output;
+
+        auto apply_trans = [&](const std::vector<Eigen::Vector3f> &points,
+                               const Eigen::Affine3f &T) {
+          std::vector<Eigen::Vector3f> transed;
+          for (const auto &p : points) {
+            transed.push_back(T * p);
+          }
+          return transed;
+        };
+
+        auto transed_src_points =
+            apply_trans(src_mesh->vertices(), g_model_matices[src_mesh]);
+        auto transed_dst_points =
+            apply_trans(dst_mesh->vertices(), g_model_matices[dst_mesh]);
+
+        Timer timer;
+        timer.Start();
+        RigidIcpPointToPlane(transed_src_points, transed_dst_points,
+                             dst_mesh->vertex_indices(), IcpTerminateCriteria(),
+                             output);
+        timer.End();
+        const auto &last_trans = output.transform_histry.back();
+
+        g_model_matices[src_mesh] =
+            last_trans.cast<float>() * g_model_matices[src_mesh];
+        g_update_bvh[src_mesh] = true;
+
+        reset_points = true;
       }
     }
 
     if (ImGui::Button("Non-Rigid ICP")) {
       if (validate_func()) {
       }
+    }
+
+    if (ImGui::BeginPopupModal("Error")) {
+      // Draw popup contents.
+      ImGui::Text(g_error_message.c_str());
+
+      if (ImGui::Button("OK")) {
+        ImGui::CloseCurrentPopup();
+        g_error_message = "";
+      }
+
+      ImGui::EndPopup();
     }
 
     ImGui::End();

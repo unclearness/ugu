@@ -62,9 +62,26 @@ void RenderableMesh::BindTextures() {
 
 void RenderableMesh::SetupMesh(int geo_id) {
 #if 1
-  if (!uv_.empty() && (vertices_.size() != uv_.size())) {
+
+  // Keep original vertices
+  std::vector<Eigen::Vector3f> vertices_org, normals_org;
+  std::vector<Eigen::Vector2f> uv_org;
+  std::vector<Eigen::Vector3i> indices_org, uv_indices_org, normal_indices_org;
+
+  bool to_split_uv = !uv_.empty() && (vertices_.size() != uv_.size());
+  if (to_split_uv) {
+    vertices_org = vertices_;
+    normals_org = normals_;
+    uv_org = uv_;
+    indices_org = vertex_indices_;
+    uv_indices_org = uv_indices_;
+    normal_indices_org = normal_indices_;
+
     SplitMultipleUvVertices();
   }
+
+  renderable_indices = vertex_indices_;
+
   renderable_vertices.clear();
   for (size_t i = 0; i < vertices().size(); i++) {
     Vertex v;
@@ -93,6 +110,16 @@ void RenderableMesh::SetupMesh(int geo_id) {
     v.id[1] = static_cast<float>(geo_id);
 
     renderable_vertices.push_back(v);
+  }
+
+  if (to_split_uv) {
+    // Copy back
+    vertices_ = vertices_org;
+    normals_ = normals_org;
+    uv_ = uv_org;
+    vertex_indices_ = indices_org;
+    uv_indices_ = uv_indices_org;
+    normal_indices_ = normal_indices_org;
   }
 #else
 
@@ -149,7 +176,7 @@ void RenderableMesh::SetupMesh(int geo_id) {
 
   flatten_indices.clear();
 #if 1
-  for (const auto &i : vertex_indices()) {
+  for (const auto &i : renderable_indices) {
     flatten_indices.push_back(i[0]);
     flatten_indices.push_back(i[1]);
     flatten_indices.push_back(i[2]);

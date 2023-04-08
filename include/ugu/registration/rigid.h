@@ -80,14 +80,14 @@ bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3f>& src_points,
                           const std::vector<Eigen::Vector3f>& dst_points,
                           const std::vector<Eigen::Vector3i>& dst_faces,
                           const IcpTerminateCriteria& terminate_criteria,
-                          IcpOutput& output, bool with_scale,
+                          IcpOutput& output, bool with_scale = false,
                           CorrespFinderPtr corresp_finder = nullptr);
 
 bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3d>& src_points,
                           const std::vector<Eigen::Vector3d>& dst_points,
                           const std::vector<Eigen::Vector3i>& dst_faces,
                           const IcpTerminateCriteria& terminate_criteria,
-                          IcpOutput& output, bool with_scale,
+                          IcpOutput& output, bool with_scale = false,
                           CorrespFinderPtr corresp_finder = nullptr);
 
 bool RigidIcp(const Mesh& src, const Mesh& dst, const IcpLossType& loss_type,
