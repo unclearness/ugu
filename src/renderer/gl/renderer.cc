@@ -430,6 +430,8 @@ bool RendererGl::Draw(double tic) {
                                    selected_position_colors);
   }
 
+  m_deferred_shader.SetVec3("viewPos", m_cam->c2w().translation().cast<float>());
+
   m_deferred_shader.SetFloat("selectedPosDepthTh", GetDepthThreshold());
 
   glActiveTexture(GL_TEXTURE0);

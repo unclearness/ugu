@@ -67,6 +67,18 @@ void main() {
   float wire = mix(0.0, Specular, showWire);
   float depth = Id.z;
   // FragColor = vec4(Specular, Specular, Specular, 1.0);
+
+  vec3 surface_col = vec3(1.0, 1.0, 1.0);
+  float ratio = 0.7;
+  float scale = dot(viewDir, Normal);
+  if (scale > 0.0) {
+    scale = scale * ratio + (1.0 - ratio);
+  } else {
+    scale = (scale + 1.0) * (1.0 - ratio);
+  }
+  //(dot(viewDir, Normal) + 1.0) * 0.5, * ratio + (1.0 - ratio);
+  Diffuse = Diffuse * surface_col * scale;
+
   FragColor = vec4(Diffuse, 1.0) * (1.0 - wire) + wire * wireCol4;
   bool is_frg = nearZ < depth && depth < farZ;
   FragColor = mix(vec4(bkgCol, 1.0), FragColor, vec4(is_frg));

@@ -730,6 +730,19 @@ void LoadMesh(const std::string &path) {
     if (!mesh->LoadObj(obj_path, obj_dir)) {
       return;
     }
+
+    auto mat = mesh->materials();
+    if (mat[0].diffuse_tex.empty()) {
+      mat[0].diffuse_tex = Image3b(1, 1);
+      auto& col = mat[0].diffuse_tex.at<Vec3b>(0, 0);
+      col[0] = 125;
+      col[1] = 125;
+      col[2] = 200;
+      mat[0].diffuse_texname = "tmp";
+      mat[0].diffuse_texpath = "tmp.png";
+      mesh->set_materials(mat);
+    }
+
     g_mesh_names.push_back(ugu::ExtractFilename(obj_path, true));
     g_mesh_paths.push_back(obj_path);
     g_meshes.push_back(mesh);
@@ -1013,6 +1026,7 @@ void ProcessDrags() {
 
 void DrawImgui(GLFWwindow *window) {
   std::lock_guard<std::mutex> lock(views_mtx);
+
   // 1. Show the big demo window (Most of the sample code is in
   // ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear
   // ImGui!).
@@ -1241,31 +1255,31 @@ void DrawImgui(GLFWwindow *window) {
               reset_points = true;
             }
           }
-        }
 
-        static char export_path_buf[1024] = "./points.json";
-        ImGui::InputText(
-            (std::string("Export Path###export_path") + std::to_string(i))
-                .c_str(),
-            export_path_buf, 1024);
+          static char export_path_buf[1024] = "./points.json";
+          ImGui::InputText(
+              (std::string("Export Path###export_path") + std::to_string(i))
+                  .c_str(),
+              export_path_buf, 1024);
 
-        if (ImGui::Button(
-                (std::string("Export###export") + std::to_string(i)).c_str())) {
-          int fill_digits = CalcFillDigits(points.size());
-          std::vector<PointOnFace> pofs;
-          for (size_t p_idx = 0; p_idx < points.size(); p_idx++) {
-            const auto &p = points[p_idx];
-            PointOnFace pof;
-            pof.name = zfill(p_idx, fill_digits);
-            pof.fid = p.intersection.fid;
-            pof.u = p.intersection.u;
-            pof.v = p.intersection.v;
-            pof.pos = GetPos(p);
-            pofs.push_back(pof);
+          if (ImGui::Button((std::string("Export###export") + std::to_string(i))
+                                .c_str())) {
+            int fill_digits = CalcFillDigits(points.size());
+            std::vector<PointOnFace> pofs;
+            for (size_t p_idx = 0; p_idx < points.size(); p_idx++) {
+              const auto &p = points[p_idx];
+              PointOnFace pof;
+              pof.name = zfill(p_idx, fill_digits);
+              pof.fid = p.intersection.fid;
+              pof.u = p.intersection.u;
+              pof.v = p.intersection.v;
+              pof.pos = GetPos(p);
+              pofs.push_back(pof);
+            }
+            WritePoints(std::string(export_path_buf), pofs, pof_type);
           }
-          WritePoints(std::string(export_path_buf), pofs, pof_type);
-        }
 #endif
+        }
       }
       ImGui::TreePop();
     }
