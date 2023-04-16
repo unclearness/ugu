@@ -72,24 +72,11 @@ struct AnimKeyframe {
 
   std::vector<float> weights;
 
-  bool valid() const { return R_valid & t_valid & s_valid & weights_valid; }
+  bool valid() const { return R_valid && t_valid && s_valid && weights_valid; }
 };
 
 class Mesh;
 using MeshPtr = std::shared_ptr<Mesh>;
-
-#if 0
-				class AnimationSystem {
-private:
-  std::vector<MeshPtr> meshes_;
-  std::unordered_map<MeshPtr, std::map<uint32_t, AnimKeyframe>> keyframes_;
-  uint32_t fps_ = 30;
-  AnimInterp anim_interp_ = AnimInterp::LINEAR;
-
-public:
-  
-};
-#endif  // 0
 
 class Mesh {
  protected:

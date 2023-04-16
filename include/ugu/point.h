@@ -41,4 +41,25 @@ using Point = Point2i;
 
 #endif
 
+enum class PointOnFaceType {
+  NAMED_POINT_ON_TRIANGLE,
+  POINT_ON_TRIANGLE,
+  THREED_POINT
+};
+
+struct PointOnFace {
+  std::string name;
+  uint32_t fid = ~0u;
+  float u = -1.f;
+  float v = -1.f;
+  Eigen::Vector3f pos;
+};
+
+std::vector<PointOnFace> LoadPoints(const std::string& json_path,
+                                    const PointOnFaceType& type);
+
+void WritePoints(const std::string& json_path,
+                 const std::vector<PointOnFace>& points,
+                 const PointOnFaceType& type);
+
 }  // namespace ugu

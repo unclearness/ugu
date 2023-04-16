@@ -15,6 +15,7 @@
 #include "imgui_impl_opengl3.h"
 #include "ugu/camera.h"
 #include "ugu/image_io.h"
+#include "ugu/point.h"
 #include "ugu/registration/nonrigid.h"
 #include "ugu/registration/rigid.h"
 #include "ugu/renderable_mesh.h"
@@ -167,7 +168,7 @@ void IcpFinishCallback(const Eigen::Affine3f &orignal_trans) {
 void AlgorithmProcess() {
   while (!g_algorithm_process_finish) {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
+    // continue;
     {
       std::lock_guard<std::mutex> lock(icp_mtx);
       if (g_icp_run) {
@@ -235,16 +236,35 @@ void AlgorithmProcess() {
           {
             std::lock_guard<std::mutex> lock_update(nonrigidicp_update_mtx);
             // std::cout << "start update" << std::endl;
-            for (int i = 0; i < fnum; i++) {
-              const auto &face =
-                  g_nonrigidicp_data.src_mesh->vertex_indices()[i];
-              for (int j = 0; j < 3; j++) {
-                uint32_t index = i * 3 + j;
-                g_nonrigidicp_data.src_mesh->renderable_vertices[index].pos =
-                    deformed->vertices()[face[j]];
 
-                g_nonrigidicp_data.src_mesh->renderable_vertices[index].nor =
-                    deformed->normals()[face[j]];
+            bool to_split_uv =
+                !g_nonrigidicp_data.src_mesh->uv().empty() &&
+                (g_nonrigidicp_data.src_mesh->vertices().size() !=
+                 g_nonrigidicp_data.src_mesh->uv().size());
+            if (to_split_uv) {
+              for (int i = 0; i < fnum; i++) {
+                const auto &face =
+                    g_nonrigidicp_data.src_mesh->vertex_indices()[i];
+                for (int j = 0; j < 3; j++) {
+                  uint32_t index = i * 3 + j;
+                  g_nonrigidicp_data.src_mesh->renderable_vertices[index].pos =
+                      deformed->vertices()[face[j]];
+
+                  g_nonrigidicp_data.src_mesh->renderable_vertices[index].nor =
+                      deformed->normals()[face[j]];
+                }
+              }
+            } else {
+              for (int i = 0; i < fnum; i++) {
+                const auto &face =
+                    g_nonrigidicp_data.src_mesh->vertex_indices()[i];
+                for (int j = 0; j < 3; j++) {
+                  g_nonrigidicp_data.src_mesh->renderable_vertices[face[j]]
+                      .pos = deformed->vertices()[face[j]];
+
+                  g_nonrigidicp_data.src_mesh->renderable_vertices[face[j]]
+                      .nor = deformed->normals()[face[j]];
+                }
               }
             }
             // std::cout << "end update" << std::endl;
@@ -339,6 +359,12 @@ std::vector<Eigen::Vector3f> ExtractPos(
     poss.push_back(GetPos(res));
   }
   return poss;
+}
+
+template <typename T>
+int CalcFillDigits(const T &point_num) {
+  return std::max(
+      2, static_cast<int>(std::log10(static_cast<double>(point_num)) + 1));
 }
 
 struct SplitViewInfo {
@@ -1123,9 +1149,11 @@ void DrawImgui(GLFWwindow *window) {
         }
 
         std::vector<std::string> lines;  // For owership of const char*
+
+        int fill_digits = CalcFillDigits(points.size());
         for (size_t i = 0; i < points.size(); i++) {
           auto p_wld = GetPos(points[i]);
-          std::string line = ugu::zfill(i, 2) + ": (" +
+          std::string line = ugu::zfill(i, fill_digits) + ": (" +
                              std::to_string(points[i].intersection.fid) + ", " +
                              std::to_string(points[i].intersection.u) + ", " +
                              std::to_string(points[i].intersection.v) + ")" +
@@ -1149,14 +1177,96 @@ void DrawImgui(GLFWwindow *window) {
         }
 
         if (ImGui::Button(
-                (std::string("Remove point###") + std::to_string(i)).c_str())) {
+                (std::string("Remove###remove_point") + std::to_string(i))
+                    .c_str())) {
           if (points.size() > view.selected_point_idx[g_meshes[i]]) {
             points.erase(points.begin() + view.selected_point_idx[g_meshes[i]]);
           }
           reset_points = true;
         }
-      }
+#if 1
+        static PointOnFaceType pof_type = PointOnFaceType::POINT_ON_TRIANGLE;
+        if (ImGui::BeginListBox(
+                (std::string("Point Type###ptype") + std::to_string(i))
+                    .c_str())) {
+          static bool is_selected = false;
+          std::array<std::string, 3> names = {"Named Point on Triangle",
+                                              "Point on Triangle", "3D-Point"};
+          static int type_id = -1;
+          for (int n = 0; n < names.size(); ++n) {
+            const bool is_selected = (type_id == n);
+            if (ImGui::Selectable(names[n].c_str(), is_selected)) {
+              type_id = n;
+            }
+          }
 
+          if (0 <= type_id) {
+            pof_type = static_cast<PointOnFaceType>(type_id);
+          }
+
+          ImGui::EndListBox();
+        }
+
+        static char import_path_buf[1024] = "./points.json";
+        ImGui::InputText(
+            (std::string("Import Path###inport_path") + std::to_string(i))
+                .c_str(),
+            import_path_buf, 1024);
+
+        if (ImGui::Button(
+                (std::string("Import###import") + std::to_string(i)).c_str())) {
+          if (pof_type == PointOnFaceType::THREED_POINT) {
+            ImGui::OpenPopup("Error");
+            g_error_message = "Not supported yet";
+          } else {
+            std::vector<PointOnFace> pofs;
+
+            try {
+              pofs = LoadPoints(std::string(import_path_buf), pof_type);
+            } catch (const std::exception &) {
+              std::cout << "Failed to load" << std::endl;
+            }
+
+            if (!pofs.empty()) {
+              g_selected_positions[g_meshes[i]].clear();
+              for (const auto &pof : pofs) {
+                CastRayResult res;
+                res.min_geoid = i;
+                res.intersection.fid = pof.fid;
+                res.intersection.u = pof.u;
+                res.intersection.v = pof.v;
+                g_selected_positions[g_meshes[i]].push_back(res);
+              }
+
+              reset_points = true;
+            }
+          }
+        }
+
+        static char export_path_buf[1024] = "./points.json";
+        ImGui::InputText(
+            (std::string("Export Path###export_path") + std::to_string(i))
+                .c_str(),
+            export_path_buf, 1024);
+
+        if (ImGui::Button(
+                (std::string("Export###export") + std::to_string(i)).c_str())) {
+          int fill_digits = CalcFillDigits(points.size());
+          std::vector<PointOnFace> pofs;
+          for (size_t p_idx = 0; p_idx < points.size(); p_idx++) {
+            const auto &p = points[p_idx];
+            PointOnFace pof;
+            pof.name = zfill(p_idx, fill_digits);
+            pof.fid = p.intersection.fid;
+            pof.u = p.intersection.u;
+            pof.v = p.intersection.v;
+            pof.pos = GetPos(p);
+            pofs.push_back(pof);
+          }
+          WritePoints(std::string(export_path_buf), pofs, pof_type);
+        }
+#endif
+      }
       ImGui::TreePop();
     }
 
@@ -1343,8 +1453,8 @@ void DrawImgui(GLFWwindow *window) {
       LoadMesh(mesh_path);
     }
 
-    static int src_id = 0;
-    static int dst_id = 0;
+    static int src_id = -1;
+    static int dst_id = -1;
     if (ImGui::BeginListBox("source")) {
       if (g_meshes.empty()) {
         src_id = -1;
@@ -1467,13 +1577,15 @@ void DrawImgui(GLFWwindow *window) {
       }
     }
 
-    if (!nonrigidicp_mtx.try_lock()) {
-      std::lock_guard<std::mutex> lock_update(nonrigidicp_update_mtx);
-      // OpenGL API must be called in the main thread
-      g_nonrigidicp_data.src_mesh->UpdateMesh();
+    if (g_nonrigidicp_run) {
+      if (!nonrigidicp_mtx.try_lock()) {
+        std::lock_guard<std::mutex> lock_update(nonrigidicp_update_mtx);
+        // OpenGL API must be called in the main thread
+        g_nonrigidicp_data.src_mesh->UpdateMesh();
 
-    } else {
-      nonrigidicp_mtx.unlock();
+      } else {
+        nonrigidicp_mtx.unlock();
+      }
     }
 
     ImGui::SetNextWindowSize({200.f, 300.f}, ImGuiCond_Once);

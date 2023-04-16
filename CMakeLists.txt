@@ -302,6 +302,7 @@ set(
   src/camera.cc
   src/line.cc
   src/plane.cc
+  src/point.cc
   src/image.cc
   src/image_io.cc
   src/image_proc.cc
