@@ -3,6 +3,7 @@ layout(triangles) in;
 layout(triangle_strip, max_vertices = 3) out;
 
 uniform vec2 WIN_SCALE;
+uniform float FLAT_NORMAL;
 
 in vec3 vFragPos[];
 in vec3 vViewPos[];
@@ -52,6 +53,9 @@ void main() {
   float h2 = area2 / length(v02 - v12);
   dists[2] = vec3(0.0, 0.0, h2);
 
+  vec3 flat_normal = normalize(cross(normalize(vFragPos[1] - vFragPos[0]),
+                                     normalize(vFragPos[2] - vFragPos[0])));
+
   for (int i = 0; i < gl_in.length(); ++i) {
     gl_Position = gl_in[i].gl_Position;
     gl_PrimitiveID = gl_PrimitiveIDIn;
@@ -60,7 +64,7 @@ void main() {
     viewPos = vViewPos[i];
     texCoords = vTexCoords[i];
     normal = vNormal[i];
-    wldNormal = vWldNormal[i];
+    wldNormal = mix(vWldNormal[i], flat_normal, FLAT_NORMAL);
     vertexColor = vVertexColor[i];
     vertexId = vVertexId[i];
     if (i == 0) {

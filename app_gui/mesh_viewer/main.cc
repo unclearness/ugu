@@ -1381,6 +1381,11 @@ void DrawImgui(GLFWwindow *window) {
         view.renderer->SetShowWire(show_wire);
       }
 
+      bool flat_normal = view.renderer->GetFlatNormal();
+      if (ImGui::Checkbox("flat normal", &flat_normal)) {
+        view.renderer->SetFlatNormal(flat_normal);
+      }
+
       Eigen::Vector3f wire_col = view.renderer->GetWireColor();
       if (ImGui::ColorEdit3("wire color", wire_col.data())) {
         view.renderer->SetWireColor(wire_col);

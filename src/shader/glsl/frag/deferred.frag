@@ -69,38 +69,41 @@ void main() {
   // FragColor = vec4(Specular, Specular, Specular, 1.0);
 
   vec3 surface_col = vec3(1.0, 1.0, 1.0);
-  float ratio = 0.7;
+  float min_offset = 0.1;
+  float positive_ratio = 0.7;
+  float ratio = min_offset + positive_ratio;
   float scale = dot(viewDir, Normal);
   if (scale > 0.0) {
-    scale = scale * ratio + (1.0 - ratio);
+    scale = scale * positive_ratio + (1.0 - positive_ratio);
   } else {
-    scale = (scale + 1.0) * (1.0 - ratio);
+    scale = (scale + 1.0) * (1.0 - ratio) + min_offset;
   }
   //(dot(viewDir, Normal) + 1.0) * 0.5, * ratio + (1.0 - ratio);
   Diffuse = Diffuse * surface_col * scale;
 
   FragColor = vec4(Diffuse, 1.0) * (1.0 - wire) + wire * wireCol4;
-  bool is_frg = nearZ < depth && depth < farZ;
+  bool is_frg = (nearZ < depth) && (depth < farZ);
   FragColor = mix(vec4(bkgCol, 1.0), FragColor, vec4(is_frg));
 
-  int geoid = int(round(Id.y - 1));
-  vec3 selectPosColor = selectedPosColors[geoid];
-  const float SELECT_COLOR_RADIUS = 10;
-  for (int i = 0; i < N_POSITIONS; ++i) {
-    // Ignore defualt [0, 0]
-    vec3 selected_pos = selectedPositions[geoid * N_POSITIONS + i];
-    if (selected_pos.x < 1.0 || selected_pos.y < 1.0) {
-      continue;
-    }
-    // Handle occulsion by depth check
-    if (is_frg &&
-        selected_pos.z - depth > selectedPosDepthTh) {
-      continue;
-    }
-    vec2 posInBuf = gl_FragCoord.xy - viewportOffset;
-    float dist = distance(posInBuf, selected_pos.xy);
-    if (dist <= SELECT_COLOR_RADIUS) {
-      FragColor = vec4(selectPosColor, 1.0);
+  if (is_frg) {
+    int geoid = int(round(Id.y - 1));
+    vec3 selectPosColor = selectedPosColors[geoid];
+    const float SELECT_COLOR_RADIUS = 10;
+    for (int i = 0; i < N_POSITIONS; ++i) {
+      // Ignore defualt [0, 0]
+      vec3 selected_pos = selectedPositions[geoid * N_POSITIONS + i];
+      if (selected_pos.x < 1.0 || selected_pos.y < 1.0) {
+        continue;
+      }
+      // Handle occulsion by depth check
+      if (selected_pos.z - depth > selectedPosDepthTh) {
+        continue;
+      }
+      vec2 posInBuf = gl_FragCoord.xy - viewportOffset;
+      float dist = distance(posInBuf, selected_pos.xy);
+      if (dist <= SELECT_COLOR_RADIUS) {
+        FragColor = vec4(selectPosColor, 1.0);
+      }
     }
   }
 }

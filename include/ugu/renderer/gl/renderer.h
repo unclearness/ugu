@@ -86,6 +86,8 @@ class RendererGl {
   bool GetShowWire() const;
   void SetWireColor(const Eigen::Vector3f& wire_col);
   const Eigen::Vector3f& GetWireColor() const;
+  void SetFlatNormal(bool is_flat_normal);
+  bool GetFlatNormal() const;
   void SetBackgroundColor(const Eigen::Vector3f& bkg_col);
   const Eigen::Vector3f& GetBackgroundColor() const;
 
@@ -102,7 +104,8 @@ class RendererGl {
   void SetVisibility(const RenderableMeshPtr& geom, bool is_visible);
   bool GetVisibility(const RenderableMeshPtr& geom) const;
 
-  void GetMergedBoundingBox(Eigen::Vector3f& bb_max, Eigen::Vector3f& bb_min) const;
+  void GetMergedBoundingBox(Eigen::Vector3f& bb_max,
+                            Eigen::Vector3f& bb_min) const;
   float GetDepthThreshold() const;
 
   std::vector<std::vector<IntersectResult>> Intersect(const Ray& ray) const;
@@ -154,6 +157,7 @@ class RendererGl {
   Shader m_deferred_shader;
 
   bool m_show_wire = true;
+  bool m_flat_normal = false;
   Eigen::Vector3f m_wire_col;
   Eigen::Vector3f m_bkg_col;
 

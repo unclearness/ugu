@@ -365,6 +365,8 @@ bool RendererGl::Draw(double tic) {
   Eigen::Matrix4f prj_mat = m_cam->ProjectionMatrixOpenGl(m_near_z, m_far_z);
   m_gbuf_shader.SetMat4("projection", prj_mat);
 
+  m_gbuf_shader.SetFloat("FLAT_NORMAL", m_flat_normal ? 1.f : 0.f);
+
   for (const auto& mesh : m_geoms) {
     int model_loc = m_node_locs[mesh];
     auto trans = m_node_trans[mesh];
@@ -430,7 +432,8 @@ bool RendererGl::Draw(double tic) {
                                    selected_position_colors);
   }
 
-  m_deferred_shader.SetVec3("viewPos", m_cam->c2w().translation().cast<float>());
+  m_deferred_shader.SetVec3("viewPos",
+                            m_cam->c2w().translation().cast<float>());
 
   m_deferred_shader.SetFloat("selectedPosDepthTh", GetDepthThreshold());
 
@@ -694,6 +697,12 @@ void RendererGl::SetWireColor(const Eigen::Vector3f& wire_col) {
 }
 
 const Eigen::Vector3f& RendererGl::GetWireColor() const { return m_wire_col; }
+
+void RendererGl::SetFlatNormal(bool is_flat_normal) {
+  m_flat_normal = is_flat_normal;
+}
+
+bool RendererGl::GetFlatNormal() const { return m_flat_normal; }
 
 void RendererGl::SetBackgroundColor(const Eigen::Vector3f& bkg_col) {
   m_bkg_col = bkg_col;
