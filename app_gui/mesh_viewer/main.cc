@@ -373,6 +373,9 @@ struct SplitViewInfo {
   Eigen::Vector2i offset = {0, 0};
   std::unordered_map<RenderableMeshPtr, int> selected_point_idx;
   uint32_t id = ~0u;
+  double trans_speed = 0.0;
+  double wheel_speed = 0.0;
+  double rotate_speed = 0.0;
 
   void Init(uint32_t vidx) {
     std::lock_guard<std::mutex> lock(views_mtx);
@@ -423,6 +426,15 @@ struct SplitViewInfo {
     }
 
     renderer->Init();
+  }
+
+  void SetDefaultDragSpeed() {
+    Eigen::Vector3f bb_max, bb_min;
+    renderer->GetMergedBoundingBox(bb_max, bb_min);
+
+    rotate_speed = ugu::pi / 180 * 10;
+    wheel_speed = (bb_max - bb_min).maxCoeff() / 20;
+    trans_speed = (bb_max - bb_min).maxCoeff() / g_height;
   }
 
   CastRayResult CastRay() {
@@ -734,7 +746,7 @@ void LoadMesh(const std::string &path) {
     auto mat = mesh->materials();
     if (mat[0].diffuse_tex.empty()) {
       mat[0].diffuse_tex = Image3b(1, 1);
-      auto& col = mat[0].diffuse_tex.at<Vec3b>(0, 0);
+      auto &col = mat[0].diffuse_tex.at<Vec3b>(0, 0);
       col[0] = 125;
       col[1] = 125;
       col[2] = 200;
@@ -767,6 +779,8 @@ void LoadMesh(const std::string &path) {
     Eigen::Affine3d c2w = Eigen::Affine3d::Identity();
     c2w.translation() = Eigen::Vector3d(0, 0, z_trans);
     view.camera->set_c2w(c2w);
+
+    view.SetDefaultDragSpeed();
   }
 }
 
@@ -872,20 +886,14 @@ void ProcessDrags() {
   // std::lock_guard<std::mutex> lock(mouse_mtx);
 
   if (!ImGui::IsAnyItemActive()) {
-    Eigen::Vector3f bb_max, bb_min;
-
     if (g_subwindow_id != ~0u && g_subwindow_id == g_prev_subwindow_id) {
       uint32_t vidx = g_subwindow_id;
       auto &view = g_views[vidx];
-
-      view.renderer->GetMergedBoundingBox(bb_max, bb_min);
 
       if (g_to_process_drag_l) {
         g_to_process_drag_l = false;
         Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
         if (diff.norm() > drag_th) {
-          const double rotate_speed = ugu::pi / 180 * 10;
-
           Eigen::Affine3d cam_pose_cur = view.camera->c2w();
           Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
 
@@ -893,10 +901,12 @@ void ProcessDrags() {
           Eigen::Vector3d up_axis = -R_cur.col(1);
 
           Eigen::Quaterniond R_offset =
-              Eigen::AngleAxisd(2 * ugu::pi * diff[0] / g_height * rotate_speed,
-                                up_axis) *
-              Eigen::AngleAxisd(2 * ugu::pi * diff[1] / g_height * rotate_speed,
-                                right_axis);
+              Eigen::AngleAxisd(
+                  2 * ugu::pi * diff[0] / g_height * view.rotate_speed,
+                  up_axis) *
+              Eigen::AngleAxisd(
+                  2 * ugu::pi * diff[1] / g_height * view.rotate_speed,
+                  right_axis);
 
           Eigen::Affine3d cam_pose_new = R_offset * cam_pose_cur;
 
@@ -910,16 +920,14 @@ void ProcessDrags() {
         g_to_process_drag_m = false;
         Eigen::Vector2d diff = g_cursor_pos - g_prev_cursor_pos;
         if (diff.norm() > drag_th) {
-          const double trans_speed = (bb_max - bb_min).maxCoeff() / g_height;
-
           Eigen::Affine3d cam_pose_cur = view.camera->c2w();
           Eigen::Matrix3d R_cur = cam_pose_cur.rotation();
 
           Eigen::Vector3d right_axis = -R_cur.col(0);
           Eigen::Vector3d up_axis = R_cur.col(1);
 
-          Eigen::Vector3d t_offset = right_axis * diff[0] * trans_speed +
-                                     up_axis * diff[1] * trans_speed;
+          Eigen::Vector3d t_offset = right_axis * diff[0] * view.trans_speed +
+                                     up_axis * diff[1] * view.trans_speed;
 
           Eigen::Affine3d cam_pose_new =
               Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
@@ -955,11 +963,10 @@ void ProcessDrags() {
       }
       if (g_to_process_wheel) {
         g_to_process_wheel = false;
-        const double wheel_speed = (bb_max - bb_min).maxCoeff() / 20;
 
         Eigen::Affine3d cam_pose_cur = view.camera->c2w();
         Eigen::Vector3d t_offset = cam_pose_cur.rotation().col(2) *
-                                   -g_mouse_wheel_yoffset * wheel_speed;
+                                   -g_mouse_wheel_yoffset * view.wheel_speed;
         Eigen::Affine3d cam_pose_new =
             Eigen::Translation3d(t_offset + cam_pose_cur.translation()) *
             cam_pose_cur.rotation();
@@ -1292,6 +1299,14 @@ void DrawImgui(GLFWwindow *window) {
       Eigen::Matrix3f R_cv = R_gl;
       R_cv.col(1) *= -1.f;
       R_cv.col(2) *= -1.f;
+
+
+      if(ImGui::InputDouble("rotate speed", &view.rotate_speed)) {
+      }
+      if (ImGui::InputDouble("trans speed", &view.trans_speed)) {
+      }
+      if (ImGui::InputDouble("wheel speed", &view.wheel_speed)) {
+      }
 
       Eigen::Vector2f nearfar;
       view.renderer->GetNearFar(nearfar[0], nearfar[1]);
