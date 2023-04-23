@@ -437,6 +437,36 @@ struct SplitViewInfo {
     trans_speed = (bb_max - bb_min).maxCoeff() / g_height;
   }
 
+  void SetDefaultDragSpeed(MeshPtr target) {
+    auto stats = target->stats();
+    rotate_speed = ugu::pi / 180 * 10;
+    wheel_speed = (stats.bb_max - stats.bb_min).maxCoeff() / 20;
+    trans_speed = (stats.bb_max - stats.bb_min).maxCoeff() / g_height;
+  }
+
+  void SetProperCameraForTargetMesh(MeshPtr target) {
+    auto stats = target->stats();
+    float z_trans = (stats.bb_max - stats.bb_min).maxCoeff() * 2.0f;
+    float near_z = static_cast<float>(z_trans * 0.5f / 10);
+    float far_z = static_cast<float>(z_trans * 2.f * 10);
+    renderer->SetNearFar(near_z, far_z);
+
+    Eigen::Vector3f view_dir =
+        camera->c2w().matrix().block(0, 2, 3, 1).cast<float>();
+    Eigen::Vector3f up = camera->c2w().matrix().block(0, 1, 3, 1).cast<float>();
+
+    float max_len = (stats.bb_max - stats.bb_min).maxCoeff();
+    Eigen::Vector3f pos = stats.center + max_len * 2.f * view_dir;
+    Eigen::Matrix4f T;
+    c2w(pos, stats.center, up, &T, true);
+
+    Eigen::Affine3d c2w;
+    c2w.matrix() = T.cast<double>();
+    camera->set_c2w(c2w);
+
+    SetDefaultDragSpeed(target);
+  }
+
   CastRayResult CastRay() {
     // Cast ray
     Eigen::Vector3f dir_c_cv;
@@ -1116,6 +1146,10 @@ void DrawImgui(GLFWwindow *window) {
           view.renderer->AddSelectedPositionColor(g_meshes[i], pos_col);
         }
 
+        if (ImGui::Button(("Focus###focus" + std::to_string(i)).c_str())) {
+          view.SetProperCameraForTargetMesh(g_meshes[i]);
+        }
+
         {
           auto &model_mat = g_model_matrices.at(g_meshes[i]);
           Eigen::Vector3f t, s;
@@ -1300,8 +1334,7 @@ void DrawImgui(GLFWwindow *window) {
       R_cv.col(1) *= -1.f;
       R_cv.col(2) *= -1.f;
 
-
-      if(ImGui::InputDouble("rotate speed", &view.rotate_speed)) {
+      if (ImGui::InputDouble("rotate speed", &view.rotate_speed)) {
       }
       if (ImGui::InputDouble("trans speed", &view.trans_speed)) {
       }

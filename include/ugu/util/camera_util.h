@@ -24,14 +24,14 @@ bool LoadTumFormatExtend(
         poses);
 
 void c2w(const Eigen::Vector3f& position, const Eigen::Vector3f& target,
-         const Eigen::Vector3f& up, Eigen::Matrix3f* R);
+         const Eigen::Vector3f& up, Eigen::Matrix3f* R, bool gl_coord = false);
 void c2w(const Eigen::Vector3d& position, const Eigen::Vector3d& target,
-         const Eigen::Vector3d& up, Eigen::Matrix3d* R);
+         const Eigen::Vector3d& up, Eigen::Matrix3d* R, bool gl_coord = false);
 
 void c2w(const Eigen::Vector3f& position, const Eigen::Vector3f& target,
-         const Eigen::Vector3f& up, Eigen::Matrix4f* R);
+         const Eigen::Vector3f& up, Eigen::Matrix4f* R, bool gl_coord = false);
 void c2w(const Eigen::Vector3d& position, const Eigen::Vector3d& target,
-         const Eigen::Vector3d& up, Eigen::Matrix4d* R);
+         const Eigen::Vector3d& up, Eigen::Matrix4d* R, bool gl_coord = false);
 
 Eigen::Affine3d ConvertCvAndGlWldToCam(const Eigen::Affine3d& w2c);
 Eigen::Affine3d ConvertCvAndGlCamToWld(const Eigen::Affine3d& c2w);

@@ -18,25 +18,32 @@ namespace {
 template <typename T>
 void c2wImpl(const Eigen::Matrix<T, 3, 1>& position,
              const Eigen::Matrix<T, 3, 1>& target,
-             const Eigen::Matrix<T, 3, 1>& up, Eigen::Matrix<T, 3, 3>* R) {
+             const Eigen::Matrix<T, 3, 1>& up, Eigen::Matrix<T, 3, 3>* R,
+             bool gl_coord) {
   static_assert(std::numeric_limits<T>::is_iec559);
-
   R->col(2) = (target - position).normalized();
-  R->col(0) = R->col(2).cross(up).normalized();
-  R->col(1) = R->col(2).cross(R->col(0));
+  if (gl_coord) {
+    R->col(2) *= -1.f;
+  }
+  Eigen::Matrix<T, 3, 1> up_ = up;
+  if (gl_coord) {
+    up_ *= -1.f;
+  }
+  R->col(0) = R->col(2).cross(up_).normalized();
+  R->col(1) = R->col(2).cross(R->col(0)).normalized();
 }
 
 template <typename genType>
 void c2wImpl(const Eigen::Matrix<genType, 3, 1>& position,
              const Eigen::Matrix<genType, 3, 1>& target,
              const Eigen::Matrix<genType, 3, 1>& up,
-             Eigen::Matrix<genType, 4, 4>* T) {
+             Eigen::Matrix<genType, 4, 4>* T, bool gl_coord) {
   static_assert(std::numeric_limits<genType>::is_iec559);
 
   *T = Eigen::Matrix<genType, 4, 4>::Identity();
 
   Eigen::Matrix<genType, 3, 3> R;
-  c2wImpl(position, target, up, &R);
+  c2wImpl(position, target, up, &R, gl_coord);
 
   T->topLeftCorner(3, 3) = R;
   T->topRightCorner(3, 1) = position;
@@ -163,22 +170,23 @@ bool LoadTumFormatExtend(
 }
 
 void c2w(const Eigen::Vector3f& position, const Eigen::Vector3f& target,
-         const Eigen::Vector3f& up, Eigen::Matrix3f* R) {
-  c2wImpl(position, target, up, R);
+         const Eigen::Vector3f& up, Eigen::Matrix3f* R, bool gl_coord) {
+  c2wImpl(position, target, up, R, gl_coord);
 }
+
 void c2w(const Eigen::Vector3d& position, const Eigen::Vector3d& target,
-         const Eigen::Vector3d& up, Eigen::Matrix3d* R) {
-  c2wImpl(position, target, up, R);
+         const Eigen::Vector3d& up, Eigen::Matrix3d* R, bool gl_coord) {
+  c2wImpl(position, target, up, R, gl_coord);
 }
 
 void c2w(const Eigen::Vector3f& position, const Eigen::Vector3f& target,
-         const Eigen::Vector3f& up, Eigen::Matrix4f* R) {
-  c2wImpl(position, target, up, R);
+         const Eigen::Vector3f& up, Eigen::Matrix4f* R, bool gl_coord) {
+  c2wImpl(position, target, up, R, gl_coord);
 }
 
 void c2w(const Eigen::Vector3d& position, const Eigen::Vector3d& target,
-         const Eigen::Vector3d& up, Eigen::Matrix4d* R) {
-  c2wImpl(position, target, up, R);
+         const Eigen::Vector3d& up, Eigen::Matrix4d* R, bool gl_coord) {
+  c2wImpl(position, target, up, R, gl_coord);
 }
 
 Eigen::Affine3d ConvertCvAndGlWldToCam(const Eigen::Affine3d& w2c) {
