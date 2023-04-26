@@ -161,8 +161,8 @@ class RendererGl {
   Eigen::Vector3f m_wire_col;
   Eigen::Vector3f m_bkg_col;
 
-  Eigen::Vector3f m_bb_max;
-  Eigen::Vector3f m_bb_min;
+  Eigen::Vector3f m_bb_max_merged;
+  Eigen::Vector3f m_bb_min_merged;
 
   std::unordered_map<RenderableMeshPtr, std::vector<Eigen::Vector3f>>
       m_selected_positions;

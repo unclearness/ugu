@@ -124,6 +124,7 @@ class Mesh {
 
   void CalcFaceNormal();
   void CalcStats();
+  MeshStats GetStatsWithTransform(const Eigen::Affine3f& T) const;
   void Rotate(const Eigen::Matrix3f& R);
   void Translate(const Eigen::Vector3f& t);
   void Transform(const Eigen::Matrix3f& R, const Eigen::Vector3f& t,

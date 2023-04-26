@@ -437,15 +437,18 @@ struct SplitViewInfo {
     trans_speed = (bb_max - bb_min).maxCoeff() / g_height;
   }
 
-  void SetDefaultDragSpeed(MeshPtr target) {
-    auto stats = target->stats();
+  void SetDefaultDragSpeed(RenderableMeshPtr target) {
+    auto stats = target->GetStatsWithTransform(g_model_matrices[target]);
+    Eigen::Vector3f bb_max = stats.bb_max;
+    Eigen::Vector3f bb_min = stats.bb_min;
+
     rotate_speed = ugu::pi / 180 * 10;
-    wheel_speed = (stats.bb_max - stats.bb_min).maxCoeff() / 20;
-    trans_speed = (stats.bb_max - stats.bb_min).maxCoeff() / g_height;
+    wheel_speed = (bb_max - bb_min).maxCoeff() / 20;
+    trans_speed = (bb_max - bb_min).maxCoeff() / g_height;
   }
 
-  void SetProperCameraForTargetMesh(MeshPtr target) {
-    auto stats = target->stats();
+  void SetProperCameraForTargetMesh(RenderableMeshPtr target) {
+    auto stats = target->GetStatsWithTransform(g_model_matrices[target]);
     float z_trans = (stats.bb_max - stats.bb_min).maxCoeff() * 2.0f;
     float near_z = static_cast<float>(z_trans * 0.5f / 10);
     float far_z = static_cast<float>(z_trans * 2.f * 10);

@@ -168,35 +168,43 @@ const std::map<float, AnimKeyframe>& Mesh::keyframes() const {
 const AnimInterp& Mesh::anim_interp() const { return anim_interp_; };
 
 void Mesh::CalcStats() {
-  stats_.bb_min = Eigen::Vector3f(std::numeric_limits<float>::max(),
-                                  std::numeric_limits<float>::max(),
-                                  std::numeric_limits<float>::max());
-  stats_.bb_max = Eigen::Vector3f(std::numeric_limits<float>::lowest(),
-                                  std::numeric_limits<float>::lowest(),
-                                  std::numeric_limits<float>::lowest());
+  stats_ = GetStatsWithTransform(Eigen::Affine3f::Identity());
+}
+
+MeshStats Mesh::GetStatsWithTransform(const Eigen::Affine3f& T) const {
+  MeshStats stats;
+  stats.bb_min = Eigen::Vector3f(std::numeric_limits<float>::max(),
+                                 std::numeric_limits<float>::max(),
+                                 std::numeric_limits<float>::max());
+  stats.bb_max = Eigen::Vector3f(std::numeric_limits<float>::lowest(),
+                                 std::numeric_limits<float>::lowest(),
+                                 std::numeric_limits<float>::lowest());
 
   if (vertices_.empty()) {
-    return;
+    return stats;
   }
 
   double sum[3] = {0.0, 0.0, 0.0};  // use double to avoid overflow
   for (const auto& v : vertices_) {
+    Eigen::Vector3f v_ = T * v;
     for (int i = 0; i < 3; i++) {
-      sum[i] += v[i];
+      sum[i] += v_[i];
 
-      if (v[i] < stats_.bb_min[i]) {
-        stats_.bb_min[i] = v[i];
+      if (v_[i] < stats.bb_min[i]) {
+        stats.bb_min[i] = v_[i];
       }
 
-      if (stats_.bb_max[i] < v[i]) {
-        stats_.bb_max[i] = v[i];
+      if (stats.bb_max[i] < v_[i]) {
+        stats.bb_max[i] = v_[i];
       }
     }
   }
 
   for (int i = 0; i < 3; i++) {
-    stats_.center[i] = static_cast<float>(sum[i] / vertices_.size());
+    stats.center[i] = static_cast<float>(sum[i] / vertices_.size());
   }
+
+  return stats;
 }
 
 void Mesh::Rotate(const Eigen::Matrix3f& R) {

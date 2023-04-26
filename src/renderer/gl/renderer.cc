@@ -641,14 +641,26 @@ void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans,
     m_bvhs[mesh] = bvh;
   }
 
+  bool trans_updated = false;
+
+  if (m_node_trans.find(mesh) == m_node_trans.end() ||
+      std::hash<Eigen::Matrix4f>()(m_node_trans.at(mesh).matrix()) !=
+          std::hash<Eigen::Matrix4f>()(trans.matrix())) {
+    trans_updated = true;
+  }
+
   m_node_trans[mesh] = trans;
 
-  m_bb_max.setConstant(std::numeric_limits<float>::lowest());
-  m_bb_min.setConstant(std::numeric_limits<float>::max());
-  for (const auto& geom : m_geoms) {
-    auto stats = geom->stats();
-    m_bb_max = ComputeMaxBound(std::vector{m_bb_max, trans * stats.bb_max});
-    m_bb_min = ComputeMinBound(std::vector{m_bb_min, trans * stats.bb_min});
+  if (trans_updated) {
+    m_bb_max_merged.setConstant(std::numeric_limits<float>::lowest());
+    m_bb_min_merged.setConstant(std::numeric_limits<float>::max());
+    for (const auto& geom : m_geoms) {
+      auto stats = geom->GetStatsWithTransform(trans);
+      m_bb_max_merged =
+          ComputeMaxBound(std::vector{m_bb_max_merged, stats.bb_max});
+      m_bb_min_merged =
+          ComputeMinBound(std::vector{m_bb_min_merged, stats.bb_min});
+    }
   }
 }
 
@@ -773,12 +785,12 @@ bool RendererGl::GetVisibility(const RenderableMeshPtr& geom) const {
 
 void RendererGl::GetMergedBoundingBox(Eigen::Vector3f& bb_max,
                                       Eigen::Vector3f& bb_min) const {
-  bb_max = m_bb_max;
-  bb_min = m_bb_min;
+  bb_max = m_bb_max_merged;
+  bb_min = m_bb_min_merged;
 }
 
 float RendererGl::GetDepthThreshold() const {
-  return (m_bb_max - m_bb_min).maxCoeff() * 0.01f;
+  return (m_bb_max_merged - m_bb_min_merged).maxCoeff() * 0.01f;
 }
 
 std::vector<std::vector<IntersectResult>> RendererGl::Intersect(
