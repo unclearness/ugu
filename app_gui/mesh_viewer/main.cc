@@ -133,10 +133,12 @@ struct NonrigidIcpData {
   RenderableMeshPtr dst_mesh;
 };
 
+enum class AlgorithmStatus { STARTED, RUNNING, HALTING };
+
 IcpData g_icp_data;
 NonrigidIcpData g_nonrigidicp_data;
-bool g_icp_run = false;
-bool g_nonrigidicp_run = false;
+AlgorithmStatus g_icp_run = AlgorithmStatus::HALTING;
+AlgorithmStatus g_nonrigidicp_run = AlgorithmStatus::HALTING;
 bool g_algorithm_process_finish = false;
 Eigen::Affine3f g_icp_start_trans;
 std::mutex icp_mtx, nonrigidicp_mtx, nonrigidicp_update_mtx;
@@ -171,8 +173,8 @@ void AlgorithmProcess() {
     // continue;
     {
       std::lock_guard<std::mutex> lock(icp_mtx);
-      if (g_icp_run) {
-        g_icp_run = false;
+      if (g_icp_run == AlgorithmStatus::STARTED) {
+        g_icp_run = AlgorithmStatus::RUNNING;
 
         g_icp_start_trans = g_model_matrices[g_icp_data.src_mesh];
 
@@ -197,13 +199,15 @@ void AlgorithmProcess() {
         std::cout << g_callback_message << std::endl;
 
         IcpFinishCallback(g_icp_start_trans);
+
+        g_icp_run = AlgorithmStatus::HALTING;
       }
     }
 
     {
       std::lock_guard<std::mutex> lock(nonrigidicp_mtx);
-      if (g_nonrigidicp_run) {
-        g_nonrigidicp_run = false;
+      if (g_nonrigidicp_run == AlgorithmStatus::STARTED) {
+        g_nonrigidicp_run = AlgorithmStatus::RUNNING;
 
         Timer timer;
         timer.Start();
@@ -311,6 +315,7 @@ void AlgorithmProcess() {
         g_update_bvh[g_nonrigidicp_data.src_mesh] = true;
 
         g_callback_finished = true;
+        g_nonrigidicp_run = AlgorithmStatus::HALTING;
       }
     }
   }
@@ -1631,7 +1636,7 @@ void DrawImgui(GLFWwindow *window) {
         g_icp_data.output.transform_histry.clear();
 
         g_callback_finished = false;
-        g_icp_run = true;
+        g_icp_run = AlgorithmStatus::STARTED;
       }
     }
 
@@ -1643,19 +1648,14 @@ void DrawImgui(GLFWwindow *window) {
         g_nonrigidicp_data.dst_mesh = dst_mesh;
 
         g_callback_finished = false;
-        g_nonrigidicp_run = true;
+        g_nonrigidicp_run = AlgorithmStatus::STARTED;
       }
     }
 
-    if (g_nonrigidicp_run) {
-      if (!nonrigidicp_mtx.try_lock()) {
-        std::lock_guard<std::mutex> lock_update(nonrigidicp_update_mtx);
-        // OpenGL API must be called in the main thread
-        g_nonrigidicp_data.src_mesh->UpdateMesh();
-
-      } else {
-        nonrigidicp_mtx.unlock();
-      }
+    if (g_nonrigidicp_run == AlgorithmStatus::RUNNING) {
+      std::lock_guard<std::mutex> lock_update(nonrigidicp_update_mtx);
+      // OpenGL API must be called in the main thread
+      g_nonrigidicp_data.src_mesh->UpdateMesh();
     }
 
     ImGui::SetNextWindowSize({200.f, 300.f}, ImGuiCond_Once);
