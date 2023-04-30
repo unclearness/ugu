@@ -92,6 +92,9 @@ void FaceId2Color(
     const Image1i& face_id, Image3b* vis_face_id, int min_id = 0,
     int max_id = -1,
     tinycolormap::ColormapType type = tinycolormap::ColormapType::Viridis);
+Image3b VisualizeMatrix(
+    const Eigen::MatrixXd& mat,
+    tinycolormap::ColormapType type = tinycolormap::ColormapType::Viridis);
 #endif
 
 void BoxFilter(const Image1b& src, Image1b* dst, int kernel);

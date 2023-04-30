@@ -12,10 +12,12 @@
 #include <Eigen/IterativeLinearSolvers>
 #include <Eigen/SparseCholesky>
 #include <Eigen/SparseLU>
+#include <Eigen/SparseQR>
 #ifdef _WIN32
 #pragma warning(pop)
 #endif
 
+#include "ugu/image_io.h"
 #include "ugu/timer.h"
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
@@ -259,7 +261,7 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
   X.setZero();
 
   int iter = 0;
-  constexpr int max_iter = 10;  // TODO: better terminate criteria
+  constexpr int max_iter = 2;  // TODO: better terminate criteria
   constexpr double min_frobenius_norm_diff = 2.0;
   Timer<> timer, iter_timer;
   bool verbose = true;
@@ -378,13 +380,30 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
         Eigen::SparseMatrix<double>(A.transpose()) * A;
     Eigen::MatrixX3d AtB = Eigen::SparseMatrix<double>(A.transpose()) * B;
 
+    // ugu::Image3b hoge = ugu::Image3b::zeros(100, 1000);
+    // ugu::imwrite("hoge.png", hoge);
+    // auto vis = VisualizeMatrix(A);
+    // ugu::imwrite("tmp.jpg", vis);
+
     timer.End();
     LOGI("SparseMatrix Preparation: %f ms\n", timer.elapsed_msec());
 
     timer.Start();
     // Eigen::ConjugateGradient< Eigen::SparseMatrix<double> > solver;
-    Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> solver;
+    // Eigen::SparseQR<Eigen::SparseMatrix<double>> solver;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
     // Eigen::CholmodSupernodalLLT<Eigen::SparseMatrix<double> > solver;
+
+    // Eigen::initParallel();
+    // Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<double>> solver;
+    // Eigen::BiCGSTAB<Eigen::SparseMatrix<double>,
+    //                 Eigen::IncompleteLUT<double>>
+    //     solver;
+    // AtA = Eigen::Sparse<double, -1, -1, Eigen::RowMajor>(AtA);
+    // solver.setTolerance(1e-4);  // 許容誤差の設定
+    // solver.setMaxIterations(
+    //     10);  // 最大反復回数の設定. デフォルトでは列数の2倍の数値
+
     solver.compute(AtA);
 
     timer.End();

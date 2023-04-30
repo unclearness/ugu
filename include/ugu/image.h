@@ -11,6 +11,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <typeinfo>
 #include <vector>
 
@@ -886,19 +887,20 @@ class Image : public ImageBase {
     parallel_for(st, ed, f2);
   }
 
-  Image<T>& operator=(const T& rhs);
+  template <typename TT,
+            typename std::enable_if<!std::is_same<TT, double>::value &
+                                        std::is_same<TT, T>::value,
+                                    std::nullptr_t>::type = nullptr>
+  Image<T>& operator=(const TT& rhs) {
+    for (size_t i = 0; i < total(); i++) {
+      *(reinterpret_cast<T*>(data_->data()) + i) = rhs;
+    }
+    return *this;
+  }
+
   Image<T>& operator=(const ImageBase& rhs);
   Image<T>& operator=(const double& rhs);
 };
-
-template <typename T>
-inline Image<T>& Image<T>::operator=(const T& rhs) {
-  for (size_t i = 0; i < total(); i++) {
-    *(reinterpret_cast<T*>(data_->data()) + i) = rhs;
-  }
-
-  return *this;
-}
 
 template <typename T>
 inline Image<T>& Image<T>::operator=(const ImageBase& rhs) {
@@ -918,6 +920,7 @@ using Image1w = Image<uint16_t>;  // For depth image with 16 bit (unsigned
 using Image1i =
     Image<int32_t>;            // For face visibility. face id is within int32_t
 using Image1f = Image<float>;  // For depth image with any scale
+using Image1d = Image<double>;
 using Image2f = Image<Vec2f>;
 using Image3f = Image<Vec3f>;  // For normal or point cloud. XYZ order.
 using Image3d = Image<Vec3d>;

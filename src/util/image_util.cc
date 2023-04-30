@@ -50,6 +50,16 @@
 
 namespace {
 
+void eigen2cv(const Eigen::MatrixXd& mat, ugu::Image1d& img) {
+  Eigen::MatrixXd mat_ = mat;
+  if (mat.IsRowMajor != 0) {
+    mat_ = mat.transpose();
+  }
+
+  img = ugu::Image1d::zeros(mat_.rows(), mat_.cols());
+  std::memcpy(img.data, mat.data(), sizeof(double) * img.cols * img.rows);
+}
+
 template <typename T>
 void BoxFilterCpuIntegral(int width, int height, int channel, int kernel,
                           const T* in_data, double* work_data, T* out_data) {
@@ -926,6 +936,7 @@ void Depth2Color(const Image1f& depth, Image3b* vis_depth, float min_d,
   Init(vis_depth, depth.cols, depth.rows, static_cast<unsigned char>(0));
 
   float inv_denom = 1.0f / (max_d - min_d);
+#pragma omp parallel for
   for (int y = 0; y < vis_depth->rows; y++) {
     for (int x = 0; x < vis_depth->cols; x++) {
       const float& d = depth.at<float>(y, x);
@@ -1002,6 +1013,24 @@ void FaceId2Color(const Image1i& face_id, Image3b* vis_face_id, int min_id,
 #endif
     }
   }
+}
+
+Image3b VisualizeMatrix(const Eigen::MatrixXd& mat,
+                        tinycolormap::ColormapType type) {
+  // Image1f mat_img = Image1f::zeros(mat.rows(), mat.cols());
+
+  Image1d mat_img;
+  eigen2cv(mat, mat_img);
+  Image1f mat_img_f;
+  mat_img.convertTo(mat_img_f, CV_32FC1);
+
+  double min_val, max_val;
+  minMaxLoc(mat_img, &min_val, &max_val);
+
+  Image3b vis;
+  Depth2Color(mat_img_f, &vis, static_cast<float>(min_val),
+              static_cast<float>(max_val), type);
+  return vis;
 }
 
 #endif

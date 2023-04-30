@@ -327,14 +327,14 @@ void TextransProcess() {
     timer.Start();
 
     Image3f src_tex;
-    g_textrans_data.src_mesh->materials()[0].diffuse_tex.convertTo(
+    g_textrans_data.dst_mesh->materials()[0].diffuse_tex.convertTo(
         src_tex, CV_32FC3, 1.0, 0.0);
     TexTransNoCorresp(
         src_tex,
-        *std::static_pointer_cast<Mesh>(g_textrans_data.src_mesh).get(),
-        g_model_matrices[g_textrans_data.src_mesh],
         *std::static_pointer_cast<Mesh>(g_textrans_data.dst_mesh).get(),
-        g_model_matrices[g_textrans_data.dst_mesh], g_textrans_data.dst_size[1],
+        g_model_matrices[g_textrans_data.dst_mesh],
+        *std::static_pointer_cast<Mesh>(g_textrans_data.src_mesh).get(),
+        g_model_matrices[g_textrans_data.src_mesh], g_textrans_data.dst_size[1],
         g_textrans_data.dst_size[0], g_textrans_data.output);
 
     ugu::Image1b inpaint_mask;
@@ -344,11 +344,11 @@ void TextransProcess() {
     ugu::Image3b dst_tex_vis_inpainted = dst_tex_vis.clone();
     ugu::Inpaint(inpaint_mask, dst_tex_vis_inpainted, 3.f);
 
-    auto mats = g_textrans_data.dst_mesh->materials();
+    auto mats = g_textrans_data.src_mesh->materials();
     mats[0].diffuse_tex = dst_tex_vis_inpainted;
     mats[0].diffuse_texname = "transferred.png";
     mats[0].diffuse_texpath = "transferred.png";
-    g_textrans_data.dst_mesh->set_materials(mats);
+    g_textrans_data.src_mesh->set_materials(mats);
 
     timer.End();
     g_callback_message = "Texture transfer took " +
@@ -1756,9 +1756,7 @@ void DrawImgui(GLFWwindow *window) {
       ImGui::Text(g_callback_message.c_str());
 
       if (g_callback_finished) {
-        for (auto &view : g_views) {
-          view.ResetGl();
-        }
+
         if (ImGui::Button("OK")) {
           g_callback_finished = true;
           g_callback_message = "";
@@ -1786,6 +1784,9 @@ void DrawImgui(GLFWwindow *window) {
   }
 
   if (reset_points) {
+    for (auto &view : g_views) {
+      view.ResetGl();
+    }
     for (size_t gidx = 0; gidx < g_meshes.size(); gidx++) {
       for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
         auto &view = g_views[vidx];
