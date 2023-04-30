@@ -99,7 +99,6 @@ void main() {
 
   FragColor = vec4(Diffuse, 1.0) * (1.0 - wire) + wire * wireCol4;
   bool is_frg = (nearZ < depth) && (depth < farZ);
-  FragColor = mix(vec4(bkgCol, 1.0), FragColor, vec4(is_frg));
 
   if (is_frg) {
     int geoid = int(round(Id.y - 1));
@@ -121,6 +120,8 @@ void main() {
         FragColor = vec4(selectPosColor, 1.0);
       }
     }
+  } else {
+    FragColor = vec4(bkgCol, 1.0);
   }
 })";
 static inline std::string frag_gbuf_code =
