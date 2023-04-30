@@ -977,6 +977,12 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
   return ret;
 }
 
+bool Mesh::WriteObj(const std::string& obj_path) {
+  std::string obj_dir = ExtractDir(obj_path);
+  std::string obj_basename = ExtractFilename(obj_path, true);
+  return WriteObj(obj_dir, obj_basename);
+}
+
 int Mesh::RemoveVertices(const std::vector<bool>& valid_vertex_table) {
   if (valid_vertex_table.size() != vertices_.size()) {
     LOGE("valid_vertex_table must be same size to vertices");
@@ -1400,9 +1406,34 @@ int Mesh::RemoveDuplicateFaces() {
   return static_cast<int>(to_remove_faceids.size());
 }
 
+bool Mesh::HasIndepentUv() const {
+  if (!uv_.empty() && (vertices_.size() != uv_.size())) {
+    // UV buffer is bigger than vertex buffer -> has independent UV
+    return true;
+  }
+
+  assert(uv_indices_.size() == vertex_indices_.size());
+
+  // Same number but indices are different case
+  bool index_mismatch = false;
+  for (size_t i = 0; i < vertex_indices_.size(); i++) {
+    for (int j = 0; j < 3; j++) {
+      if (uv_indices_[i][j] != vertex_indices_[i][j]) {
+        index_mismatch = true;
+        break;
+      }
+    }
+    if (index_mismatch) {
+      break;
+    }
+  }
+
+  return index_mismatch;
+}
+
 bool Mesh::SplitMultipleUvVertices() {
-  if (vertices_.size() == uv_.size()) {
-    LOGI("No need to split\n");
+  if (!HasIndepentUv()) {
+    LOGI("Possibly no need to split\n");
     // return false;
   }
   if (vertex_indices_.size() != uv_indices_.size() ||

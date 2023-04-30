@@ -161,4 +161,19 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex, const ugu::Mesh& src_mesh,
                            dst_tex_h, dst_tex_w, output, interp, nn_num);
 }
 
+bool TexTransNoCorresp(const Image3f& src_tex, const Mesh& src_mesh,
+                       const Eigen::Affine3f& src_trans, const Mesh& dst_mesh,
+                       const Eigen::Affine3f& dst_trans, int32_t dst_tex_h,
+                       int32_t dst_tex_w, TexTransNoCorrespOutput& output,
+                       int32_t interp, int32_t nn_num) {
+  MeshPtr src_mesh_ = Mesh::Create(src_mesh);
+  MeshPtr dst_mesh_ = Mesh::Create(dst_mesh);
+
+  src_mesh_->Transform(src_trans);
+  dst_mesh_->Transform(dst_trans);
+
+  return TexTransNoCorresp(src_tex, *src_mesh_.get(), *dst_mesh_.get(),
+                           dst_tex_h, dst_tex_w, output, interp, nn_num);
+}
+
 }  // namespace ugu

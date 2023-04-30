@@ -68,7 +68,7 @@ void RenderableMesh::SetupMesh(int geo_id) {
   std::vector<Eigen::Vector2f> uv_org;
   std::vector<Eigen::Vector3i> indices_org, uv_indices_org, normal_indices_org;
 
-  bool to_split_uv = !uv_.empty() && (vertices_.size() != uv_.size());
+  bool to_split_uv = HasIndepentUv();
   if (to_split_uv) {
     vertices_org = vertices_;
     normals_org = normals_;

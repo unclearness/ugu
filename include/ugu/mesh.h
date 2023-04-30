@@ -174,6 +174,7 @@ class Mesh {
   bool WriteObj(const std::string& obj_dir, const std::string& obj_basename,
                 const std::string& mtl_basename = "", bool write_obj = true,
                 bool write_mtl = true, bool write_texture = true);
+  bool WriteObj(const std::string& obj_path);
   bool WriteGltfSeparate(const std::string& gltf_dir,
                          const std::string& gltf_basename,
                          bool is_unlit = false);
@@ -186,6 +187,7 @@ class Mesh {
   int RemoveFaces(const std::vector<bool>& valid_face_table);
   int RemoveDuplicateFaces();
 
+  bool HasIndepentUv() const;
   bool SplitMultipleUvVertices();
 
   bool FlipFaces();

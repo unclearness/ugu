@@ -40,4 +40,11 @@ bool TexTransNoCorresp(const Image3f& src_tex, const Mesh& src_mesh,
                        int32_t interp = InterpolationFlags::INTER_LINEAR,
                        int32_t nn_num = 10);
 
+bool TexTransNoCorresp(const Image3f& src_tex, const Mesh& src_mesh,
+                       const Eigen::Affine3f& src_trans, const Mesh& dst_mesh,
+                       const Eigen::Affine3f& dst_trans, int32_t dst_tex_h,
+                       int32_t dst_tex_w, TexTransNoCorrespOutput& output,
+                       int32_t interp = InterpolationFlags::INTER_LINEAR,
+                       int32_t nn_num = 10);
+
 }  // namespace ugu
