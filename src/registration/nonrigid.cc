@@ -170,6 +170,12 @@ bool NonRigidIcp::Init(bool check_self_itersection, float angle_rad_th,
   m_src_norm_deformed = Mesh::Create(*m_src_norm);
   m_src_deformed = Mesh::Create(*m_src);
 
+  m_dst_landmark_positions_norm.clear();
+  std::transform(
+      m_dst_landmark_positions.begin(), m_dst_landmark_positions.end(),
+      std::back_inserter(m_dst_landmark_positions_norm),
+      [&](const Eigen::Vector3f& v) { return v.cwiseProduct(m_org2norm_scale); });
+
   // Init correspondences
   m_corresp.resize(m_src_norm->vertices().size());
   m_target.resize(m_corresp.size());
@@ -262,25 +268,19 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
     set_log_level(LogLevel::kWarning);
   }
 
-  while (iter < max_iter) {
-    iter_timer.Start();
-    LOGI("Registrate(): iter %d\n", iter);
+  m_dst_landmark_positions_norm.clear();
+  std::transform(
+      m_dst_landmark_positions.begin(), m_dst_landmark_positions.end(),
+      std::back_inserter(m_dst_landmark_positions_norm),
+      [&](const Eigen::Vector3f& v) { return v.cwiseProduct(m_org2norm_scale); });
 
-    timer.Start();
-    FindCorrespondences();
-    timer.End();
-    LOGI("FindCorrespondences(): %f ms\n", timer.elapsed_msec());
-
-    timer.Start();
-    Eigen::SparseMatrix<double> A(4 * m + n + l, 4 * n);
-
-    Timer<> timer_mat;
-    timer_mat.Start();
-    // 1.alpha_M_G
-    std::vector<Eigen::Triplet<double>> alpha_M_G;
-    for (IndexType i = 0; i < m; ++i) {
-      int a = m_edges[i].first;
-      int b = m_edges[i].second;
+  Timer<> timer_mat;
+  timer_mat.Start();
+  // 1.alpha_M_G
+  std::vector<Eigen::Triplet<double>> alpha_M_G;
+  for (IndexType i = 0; i < m; ++i) {
+    int a = m_edges[i].first;
+    int b = m_edges[i].second;
 
 #if 0
       double edge_len = (m_src_norm_deformed->vertices()[a] -
@@ -295,20 +295,30 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
       }
 #endif
 
-      for (int j = 0; j < 3; j++) {
-        alpha_M_G.push_back(
-            Eigen::Triplet<double>(i * 4 + j, a * 4 + j, alpha));
-        alpha_M_G.push_back(
-            Eigen::Triplet<double>(i * 4 + j, b * 4 + j, -alpha));
-      }
-
-      alpha_M_G.push_back(
-          Eigen::Triplet<double>(i * 4 + 3, a * 4 + 3, alpha * gamma));
-      alpha_M_G.push_back(
-          Eigen::Triplet<double>(i * 4 + 3, b * 4 + 3, -alpha * gamma));
+    for (int j = 0; j < 3; j++) {
+      alpha_M_G.push_back(Eigen::Triplet<double>(i * 4 + j, a * 4 + j, alpha));
+      alpha_M_G.push_back(Eigen::Triplet<double>(i * 4 + j, b * 4 + j, -alpha));
     }
-    timer_mat.End();
-    LOGI("1.alpha_M_G: %f ms\n", timer_mat.elapsed_msec());
+
+    alpha_M_G.push_back(
+        Eigen::Triplet<double>(i * 4 + 3, a * 4 + 3, alpha * gamma));
+    alpha_M_G.push_back(
+        Eigen::Triplet<double>(i * 4 + 3, b * 4 + 3, -alpha * gamma));
+  }
+  timer_mat.End();
+  LOGI("1.alpha_M_G: %f ms\n", timer_mat.elapsed_msec());
+
+  while (iter < max_iter) {
+    iter_timer.Start();
+    LOGI("Registrate(): iter %d\n", iter);
+
+    timer.Start();
+    FindCorrespondences();
+    timer.End();
+    LOGI("FindCorrespondences(): %f ms\n", timer.elapsed_msec());
+
+    timer.Start();
+    Eigen::SparseMatrix<double> A(4 * m + n + l, 4 * n);
 
     // 2.W_D
     timer_mat.Start();
@@ -364,6 +374,7 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
     _A.insert(_A.end(), W_D.begin(), W_D.end());
     _A.insert(_A.end(), beta_D_L.begin(), beta_D_L.end());
     A.setFromTriplets(_A.begin(), _A.end());
+    timer_mat.End();
     LOGI("A.setFromTriplets: %f ms\n", timer_mat.elapsed_msec());
 
     // for the B
@@ -387,16 +398,17 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
     for (int i = 0; i < l; i++) {
       double beta = m_betas[i];
       for (int j = 0; j < 3; j++) {
-        // Eq.(12) in the paper seems wrong. beta should be multiplied to B as well as A
-        B(4 * m + n + i, j) = beta * m_dst_landmark_positions[i](j);
+        // Eq.(12) in the paper seems wrong. beta should be multiplied to B as
+        // well as A
+        B(4 * m + n + i, j) = beta * m_dst_landmark_positions_norm[i](j);
       }
     }
     timer_mat.End();
     LOGI("B: %f ms\n", timer_mat.elapsed_msec());
 
     timer_mat.Start();
-    Eigen::SparseMatrix<double> AtA = A.transpose() * A;
-    Eigen::MatrixX3d AtB = A.transpose() * B;
+    // Eigen::SparseMatrix<double> AtA = A.transpose() * A;
+    // Eigen::MatrixX3d AtB = A.transpose() * B;
     timer_mat.End();
     LOGI("matmul: %f ms\n", timer_mat.elapsed_msec());
 
@@ -416,7 +428,7 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
     solver.setTolerance(1e-4);
     solver.setMaxIterations(10);
 #endif
-    solver.compute(AtA);
+    solver.compute(A.transpose() * A);
 
     timer.End();
     LOGI("solver.compute(): %f ms\n", timer.elapsed_msec());
@@ -424,7 +436,7 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
     timer.Start();
     Eigen::MatrixX3d TmpX(4 * n, 3);
     TmpX = X;
-    X = solver.solve(AtB);
+    X = solver.solve(A.transpose() * B);
     timer.End();
     LOGI("solve(): %f ms\n", timer.elapsed_msec());
 

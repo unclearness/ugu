@@ -64,7 +64,8 @@ class NonRigidIcp {
   int m_num_theads = -1;
 
   std::vector<PointOnFace> m_src_landmarks;
-  std::vector<Eigen::Vector3f> m_dst_landmark_positions;
+  std::vector<Eigen::Vector3f> m_dst_landmark_positions,
+      m_dst_landmark_positions_norm;
   std::vector<double> m_betas;
 
   float m_angle_rad_th = 0.65f;
