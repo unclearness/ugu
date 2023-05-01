@@ -161,6 +161,20 @@ struct IcpData {
 struct NonrigidIcpData {
   RenderableMeshPtr src_mesh;
   RenderableMeshPtr dst_mesh;
+
+  bool check_self_itersection = false;
+  float angle_rad_th = 0.65f;
+  bool dst_check_geometry_border = false;
+  bool src_check_geometry_border = false;
+
+  double max_alpha = 10.0;
+  double min_alpha = 0.1;
+  double beta = 100.0;
+  double gamma = 1.0;
+  int step = 10;
+
+  int max_internal_iter = 10;
+  double min_frobenius_norm_diff = 2.0;
 };
 
 struct TextransData {
@@ -254,13 +268,10 @@ void NonrigidIcpProcess() {
     transed_dst_mesh->Transform(g_model_matrices[g_nonrigidicp_data.dst_mesh]);
     nicp.SetDst(*transed_dst_mesh);
 
-    nicp.Init(false, 0.65f, false, false);
-
-    double max_alpha = 10.0;
-    double min_alpha = 0.1;
-    double beta = 100.0;
-    double gamma = 1.0;
-    int step = 10;
+    nicp.Init(g_nonrigidicp_data.check_self_itersection,
+              g_nonrigidicp_data.angle_rad_th,
+              g_nonrigidicp_data.dst_check_geometry_border,
+              g_nonrigidicp_data.src_check_geometry_border);
 
     std::vector<PointOnFace> src_landmarks;
     for (const auto &res :
@@ -271,7 +282,7 @@ void NonrigidIcpProcess() {
       pof.v = res.intersection.v;
       src_landmarks.push_back(pof);
     }
-    std::vector<double> betas(src_landmarks.size(), beta);
+    std::vector<double> betas(src_landmarks.size(), g_nonrigidicp_data.beta);
     nicp.SetSrcLandmarks(src_landmarks, betas);
     nicp.SetDstLandmarkPositions(
         ExtractPos(g_selected_positions.at(g_nonrigidicp_data.dst_mesh)));
@@ -326,15 +337,20 @@ void NonrigidIcpProcess() {
       }
     };
 
-    for (int i = 1; i <= step; ++i) {
-      double alpha = max_alpha - i * (max_alpha - min_alpha) / step;
+    for (int i = 1; i <= g_nonrigidicp_data.step; ++i) {
+      double alpha =
+          g_nonrigidicp_data.max_alpha -
+          i * (g_nonrigidicp_data.max_alpha - g_nonrigidicp_data.min_alpha) /
+              g_nonrigidicp_data.step;
 
       g_callback_message = "NonRigid-ICP : " + std::to_string(i) + " / " +
-                           std::to_string(step) + "  with alpha " +
-                           std::to_string(alpha);
+                           std::to_string(g_nonrigidicp_data.step) +
+                           "  with alpha " + std::to_string(alpha);
       std::cout << g_callback_message << std::endl;
 
-      nicp.Registrate(alpha, gamma);
+      nicp.Registrate(alpha, g_nonrigidicp_data.gamma,
+                      g_nonrigidicp_data.max_internal_iter,
+                      g_nonrigidicp_data.min_frobenius_norm_diff);
 
       update_mesh();
     }
@@ -1140,619 +1156,662 @@ void ProcessDrags() {
   }
 }
 
+void DrawImguiGeneralWindow(bool &reset_points) {
+  ImGui::SetNextWindowPos({0.f, 0.f}, ImGuiCond_Once);
+  ImGui::SetNextWindowCollapsed(false, ImGuiCond_Once);
+
+  ImGui::Begin("General");
+
+  static char mesh_path[1024] = "../data/spot/spot_triangulated.obj";
+  ImGui::InputText("Mesh path", mesh_path, 1024u);
+  if (ImGui::Button("Load mesh")) {
+    LoadMesh(mesh_path);
+  }
+
+  static int src_id = -1;
+  static int dst_id = -1;
+  if (ImGui::BeginListBox("source", {50, 50})) {
+    if (g_meshes.empty()) {
+      src_id = -1;
+    }
+    for (int n = 0; n < g_meshes.size(); ++n) {
+      const bool is_selected = (src_id == n);
+      if (ImGui::Selectable(std::to_string(n).c_str(), is_selected)) {
+        src_id = n;
+      }
+    }
+    ImGui::EndListBox();
+  }
+
+  if (ImGui::BeginListBox("target", {50, 50})) {
+    if (g_meshes.empty()) {
+      dst_id = -1;
+    }
+    for (int n = 0; n < g_meshes.size(); ++n) {
+      const bool is_selected = (dst_id == n);
+      if (ImGui::Selectable(std::to_string(n).c_str(), is_selected)) {
+        dst_id = n;
+      }
+    }
+    ImGui::EndListBox();
+  }
+
+  auto validate_func = [&]() {
+    if (src_id < 0 || dst_id < 0) {
+      ImGui::OpenPopup("Error");
+      g_error_message = "Select source and target";
+      return false;
+    }
+    if (src_id == dst_id) {
+      ImGui::OpenPopup("Error");
+      g_error_message = "Source and target must be different";
+      return false;
+    }
+    return true;
+  };
+
+  RenderableMeshPtr src_mesh = 0 <= src_id ? g_meshes[src_id] : nullptr;
+  RenderableMeshPtr dst_mesh = 0 <= dst_id ? g_meshes[dst_id] : nullptr;
+
+  static bool with_scale = false;
+  ImGui::Text("Alignment by Selected Points");
+  ImGui::SameLine();
+  if (ImGui::Button("Run####Alignment by Selected Points")) {
+    if (validate_func()) {
+      auto src_points = ExtractPos(g_selected_positions[src_mesh]);
+      auto dst_points = ExtractPos(g_selected_positions[dst_mesh]);
+
+      if (3 <= src_points.size() && src_points.size() == dst_points.size()) {
+        Eigen::Affine3d src2dst;
+
+        if (with_scale) {
+          src2dst = FindSimilarityTransformFrom3dCorrespondences(src_points,
+                                                                 dst_points);
+        } else {
+          src2dst =
+              FindRigidTransformFrom3dCorrespondences(src_points, dst_points);
+        }
+        g_model_matrices[src_mesh] =
+            src2dst.cast<float>() * g_model_matrices[src_mesh];
+        g_update_bvh[src_mesh] = true;
+
+        reset_points = true;
+
+      } else {
+        ImGui::OpenPopup("Error");
+        if (src_points.size() < 3) {
+          g_error_message = "At least 3 correspondences";
+        } else {
+          g_error_message = "Must have the same number of selected points";
+        }
+      }
+    }
+  }
+  if (ImGui::TreeNodeEx("Option####OptionAlignment by Selected Points")) {
+    if (ImGui::Checkbox("With scale", &with_scale)) {
+    }
+    ImGui::TreePop();
+  }
+
+  ImGui::Text("Rigid ICP");
+  ImGui::SameLine();
+  if (ImGui::Button("Run####Rigid ICP")) {
+    if (validate_func()) {
+      auto apply_trans = [&](const std::vector<Eigen::Vector3f> &points,
+                             const Eigen::Affine3f &T) {
+        std::vector<Eigen::Vector3f> transed;
+        for (const auto &p : points) {
+          transed.push_back(T * p);
+        }
+        return transed;
+      };
+
+      auto transed_src_points =
+          apply_trans(src_mesh->vertices(), g_model_matrices[src_mesh]);
+      auto transed_dst_points =
+          apply_trans(dst_mesh->vertices(), g_model_matrices[dst_mesh]);
+
+      ImGui::OpenPopup("Algorithm Callback");
+      std::lock_guard<std::mutex> lock(icp_mtx);
+      g_icp_data.src_mesh = src_mesh;
+      g_icp_data.src_points = std::move(transed_src_points);
+      g_icp_data.dst_points = std::move(transed_dst_points);
+      g_icp_data.dst_faces = dst_mesh->vertex_indices();
+      g_icp_data.callback = IcpProcessCallback;
+      g_icp_data.output.loss_histroty.clear();
+      g_icp_data.output.transform_histry.clear();
+
+      g_callback_finished = false;
+      g_icp_run = AlgorithmStatus::STARTED;
+    }
+  }
+  if (ImGui::TreeNodeEx("Option####OptionRigid ICP")) {
+    if (ImGui::InputInt("max iter###rigid_icp_max_iter",
+                        &g_icp_data.terminate_criteria.iter_max)) {
+    }
+    if (ImGui::InputDouble("min loss###rigid_icp_min_loss",
+                           &g_icp_data.terminate_criteria.loss_min)) {
+    }
+    if (ImGui::InputDouble("min eps###rigid_icp_min_eps",
+                           &g_icp_data.terminate_criteria.loss_eps)) {
+    }
+
+    ImGui::TreePop();
+  }
+
+  ImGui::Text("Nonrigid ICP");
+  ImGui::SameLine();
+  if (ImGui::Button("Run####Nonrigid ICP")) {
+    if (validate_func()) {
+      ImGui::OpenPopup("Algorithm Callback");
+      std::lock_guard<std::mutex> lock(nonrigidicp_mtx);
+      g_nonrigidicp_data.src_mesh = src_mesh;
+      g_nonrigidicp_data.dst_mesh = dst_mesh;
+
+      g_callback_finished = false;
+      g_nonrigidicp_run = AlgorithmStatus::STARTED;
+    }
+  }
+  if (ImGui::TreeNodeEx("Option####OptionNonrigid ICP")) {
+    ImGui::Checkbox("check self intersection",
+                    &g_nonrigidicp_data.check_self_itersection);
+    ImGui::InputFloat("angle threshold (rad)",
+                      &g_nonrigidicp_data.angle_rad_th);
+    ImGui::Checkbox("check dst geometry border",
+                    &g_nonrigidicp_data.dst_check_geometry_border);
+    ImGui::Checkbox("check src geometry border",
+                    &g_nonrigidicp_data.src_check_geometry_border);
+
+    ImGui::InputDouble("max stiffness", &g_nonrigidicp_data.max_alpha);
+    ImGui::InputDouble("min stiffness", &g_nonrigidicp_data.min_alpha);
+    ImGui::InputDouble("stiffness factor", &g_nonrigidicp_data.gamma);
+    ImGui::InputDouble("landmark weight", &g_nonrigidicp_data.beta);
+
+    ImGui::InputInt("steps###nonrigid_icp_step", &g_nonrigidicp_data.step);
+
+    ImGui::InputInt("max iter per stiffness",
+                    &g_nonrigidicp_data.max_internal_iter);
+    ImGui::InputDouble("eps for params per stiffness",
+                       &g_nonrigidicp_data.min_frobenius_norm_diff);
+
+    ImGui::TreePop();
+  }
+
+  ImGui::Text("Texture transfer");
+  ImGui::SameLine();
+  if (ImGui::Button("Run####Texture transfer")) {
+    if (validate_func()) {
+      ImGui::OpenPopup("Algorithm Callback");
+      std::lock_guard<std::mutex> lock(textrans_mtx);
+
+      g_textrans_data.src_mesh = src_mesh;
+      g_textrans_data.dst_mesh = dst_mesh;
+
+      g_callback_finished = false;
+      g_textrans_run = AlgorithmStatus::STARTED;
+    }
+  }
+  if (ImGui::TreeNodeEx("Option####OptionTexture Transfer")) {
+    if (ImGui::InputInt2("Texture size", g_textrans_data.dst_size.data())) {
+      g_textrans_data.dst_size[0] =
+          std::clamp(g_textrans_data.dst_size[0], 1, 16000);
+      g_textrans_data.dst_size[1] =
+          std::clamp(g_textrans_data.dst_size[1], 1, 16000);
+    }
+  }
+
+  if (g_nonrigidicp_run == AlgorithmStatus::RUNNING) {
+    std::lock_guard<std::mutex> lock_update(nonrigidicp_update_mtx);
+    // OpenGL API must be called in the main thread
+    g_nonrigidicp_data.src_mesh->UpdateMesh();
+  }
+
+  ImGui::SetNextWindowSize({200.f, 300.f}, ImGuiCond_Once);
+  if (ImGui::BeginPopupModal("Algorithm Callback")) {
+    // Draw popup contents.
+    ImGui::Text(g_callback_message.c_str());
+
+    if (g_callback_finished) {
+      if (ImGui::Button("OK")) {
+        g_callback_finished = true;
+        g_callback_message = "";
+        reset_points = true;
+        ImGui::CloseCurrentPopup();
+      }
+    }
+
+    ImGui::EndPopup();
+  }
+
+  if (ImGui::BeginPopupModal("Error")) {
+    // Draw popup contents.
+    ImGui::Text(g_error_message.c_str());
+
+    if (ImGui::Button("OK")) {
+      ImGui::CloseCurrentPopup();
+      g_error_message = "";
+    }
+
+    ImGui::EndPopup();
+  }
+
+  ImGui::End();
+}
+
+void DrawImguiMeshes(SplitViewInfo &view, bool &reset_points) {
+  for (size_t i = 0; i < g_meshes.size(); i++) {
+    bool v = view.renderer->GetVisibility(g_meshes[i]);
+    std::string label =
+        std::to_string(i) + " " + g_mesh_names[i] + ": " + g_mesh_paths[i];
+    if (ImGui::Checkbox(label.c_str(), &v)) {
+      view.renderer->SetVisibility(g_meshes[i], v);
+    }
+    Eigen::Vector3f pos_col =
+        view.renderer->GetSelectedPositionColor(g_meshes[i]);
+    if (ImGui::ColorEdit3((label + "select color").c_str(), pos_col.data(),
+                          ImGuiColorEditFlags_NoLabel)) {
+      view.renderer->AddSelectedPositionColor(g_meshes[i], pos_col);
+    }
+
+    if (ImGui::Button(("Focus###focus" + std::to_string(i)).c_str())) {
+      view.SetProperCameraForTargetMesh(g_meshes[i]);
+    }
+
+    {
+      auto &model_mat = g_model_matrices.at(g_meshes[i]);
+      Eigen::Vector3f t, s;
+      Eigen::Matrix3f R;
+      DecomposeRts(model_mat, R, t, s);
+      // bool update_model_mat = false;
+      bool update_rts = false;
+      if (ImGui::InputFloat3(("Translation###t" + std::to_string(i)).c_str(),
+                             t.data())) {
+        update_rts = true;
+      }
+      if (ImGui::InputFloat3(("Rotation###r" + std::to_string(i)).c_str(),
+                             R.data()) ||
+          ImGui::InputFloat3("        ", R.data() + 3) ||
+          ImGui::InputFloat3("        ", R.data() + 6)) {
+        update_rts = true;
+      }
+      if (ImGui::InputFloat3(("Scale###s" + std::to_string(i)).c_str(),
+                             s.data())) {
+        update_rts = true;
+      }
+      Eigen::Matrix4f model_mat_t =
+          model_mat.matrix().transpose();  // To row-major
+      if (ImGui::InputFloat4(("Affine Matrix###m" + std::to_string(i)).c_str(),
+                             model_mat_t.data()) ||
+          ImGui::InputFloat4("        ", model_mat_t.data() + 4) ||
+          ImGui::InputFloat4("        ", model_mat_t.data() + 8) ||
+          ImGui::InputFloat4("        ", model_mat_t.data() + 12)) {
+        // update_model_mat = true;
+      }
+
+      if (update_rts) {
+        model_mat = Eigen::Translation3f(t) * R * Eigen::Scaling(s);
+        g_update_bvh[g_meshes[i]] = true;
+        reset_points = true;
+      }
+    }
+
+    static char mesh_export_path_buf[1024] = "./mesh.obj";
+    ImGui::InputText(
+        (std::string("Mesh Export Path###mesh_export_path") + std::to_string(i))
+            .c_str(),
+        mesh_export_path_buf, 1024);
+    static bool apply_transform = true;
+    if (ImGui::Checkbox("apply transform", &apply_transform)) {
+    }
+    if (ImGui::Button((std::string("Export###mesh_export") + std::to_string(i))
+                          .c_str())) {
+      auto save_mesh = Mesh::Create(*g_meshes[i].get());
+      if (apply_transform) {
+        save_mesh->Transform(g_model_matrices[g_meshes[i]]);
+      }
+      save_mesh->WriteObj(std::string(mesh_export_path_buf));
+    }
+
+    // ImGui::BeginListBox("Points (fid, u, v) (x, y, z)");
+    // ImGui::EndListBox();
+    const auto draw_list_size = ImVec2(360, 240);
+    // const char *items[RendererGl::MAX_SELECTED_POS];
+    if (view.selected_point_idx.find(g_meshes[i]) ==
+        view.selected_point_idx.end()) {
+      view.selected_point_idx[g_meshes[i]] = 0;
+    }
+    auto &points = g_selected_positions[g_meshes[i]];
+
+    if (view.selected_point_idx[g_meshes[i]] >= points.size()) {
+      view.selected_point_idx[g_meshes[i]] = 0;
+    }
+
+    std::vector<std::string> lines;  // For owership of const char*
+
+    int fill_digits = CalcFillDigits(points.size());
+    for (size_t i = 0; i < points.size(); i++) {
+      auto p_wld = GetPos(points[i]);
+      std::string line = ugu::zfill(i, fill_digits) + ": (" +
+                         std::to_string(points[i].intersection.fid) + ", " +
+                         std::to_string(points[i].intersection.u) + ", " +
+                         std::to_string(points[i].intersection.v) + ")" + " (" +
+                         std::to_string(p_wld[0]) + ", " +
+                         std::to_string(p_wld[1]) + ", " +
+                         std::to_string(p_wld[2]) + ")";
+      lines.push_back(line);
+    }
+    if (ImGui::BeginListBox((std::to_string(i) + " : " +
+                             std::string("Points (fid, u, v) (x, y, z)"))
+                                .c_str(),
+                            draw_list_size)) {
+      for (int n = 0; n < points.size(); ++n) {
+        const bool is_selected = (view.selected_point_idx[g_meshes[i]] == n);
+        if (ImGui::Selectable(lines[n].c_str(), is_selected)) {
+          view.selected_point_idx[g_meshes[i]] = n;
+        }
+      }
+      ImGui::EndListBox();
+    }
+
+    if (ImGui::Button((std::string("Remove###remove_point") + std::to_string(i))
+                          .c_str())) {
+      if (points.size() > view.selected_point_idx[g_meshes[i]]) {
+        points.erase(points.begin() + view.selected_point_idx[g_meshes[i]]);
+      }
+      reset_points = true;
+    }
+
+    static PointOnFaceType pof_type = PointOnFaceType::POINT_ON_TRIANGLE;
+    if (ImGui::BeginListBox(
+            (std::string("Point Type###ptype") + std::to_string(i)).c_str(),
+            {200, 70})) {
+      static bool is_selected = false;
+      std::array<std::string, 3> names = {"Named Point on Triangle",
+                                          "Point on Triangle", "3D-Point"};
+      static int type_id = -1;
+      for (int n = 0; n < names.size(); ++n) {
+        const bool is_selected = (type_id == n);
+        if (ImGui::Selectable(names[n].c_str(), is_selected)) {
+          type_id = n;
+        }
+      }
+
+      if (0 <= type_id) {
+        pof_type = static_cast<PointOnFaceType>(type_id);
+      }
+
+      ImGui::EndListBox();
+    }
+
+    static char import_path_buf[1024] = "./points.json";
+    ImGui::InputText(
+        (std::string("Import Path###inport_path") + std::to_string(i)).c_str(),
+        import_path_buf, 1024);
+
+    if (ImGui::Button(
+            (std::string("Import###import") + std::to_string(i)).c_str())) {
+      if (pof_type == PointOnFaceType::THREED_POINT) {
+        ImGui::OpenPopup("Error");
+        g_error_message = "Not supported yet";
+      } else {
+        std::vector<PointOnFace> pofs;
+
+        try {
+          pofs = LoadPoints(std::string(import_path_buf), pof_type);
+        } catch (const std::exception &) {
+          std::cout << "Failed to load" << std::endl;
+        }
+
+        if (!pofs.empty()) {
+          g_selected_positions[g_meshes[i]].clear();
+          for (const auto &pof : pofs) {
+            CastRayResult res;
+            res.min_geoid = i;
+            res.intersection.fid = pof.fid;
+            res.intersection.u = pof.u;
+            res.intersection.v = pof.v;
+            g_selected_positions[g_meshes[i]].push_back(res);
+          }
+
+          reset_points = true;
+        }
+      }
+    }
+
+    static char export_path_buf[1024] = "./points.json";
+    ImGui::InputText(
+        (std::string("Points Export Path###export_path") + std::to_string(i))
+            .c_str(),
+        export_path_buf, 1024);
+
+    if (ImGui::Button(
+            (std::string("Export###export") + std::to_string(i)).c_str())) {
+      int fill_digits = CalcFillDigits(points.size());
+      std::vector<PointOnFace> pofs;
+      for (size_t p_idx = 0; p_idx < points.size(); p_idx++) {
+        const auto &p = points[p_idx];
+        PointOnFace pof;
+        pof.name = zfill(p_idx, fill_digits);
+        pof.fid = p.intersection.fid;
+        pof.u = p.intersection.u;
+        pof.v = p.intersection.v;
+        pof.pos = GetPos(p);
+        pofs.push_back(pof);
+      }
+      WritePoints(std::string(export_path_buf), pofs, pof_type);
+    }
+  }
+}
+
+void DrawImguiCamera(SplitViewInfo &view) {
+  bool update_pose = false;
+  Eigen::Affine3f c2w_gl = view.camera->c2w().cast<float>();
+  Eigen::Vector3f pos = c2w_gl.translation();
+  Eigen::Matrix3f R_gl = c2w_gl.rotation();
+  Eigen::Matrix3f R_cv = R_gl;
+  R_cv.col(1) *= -1.f;
+  R_cv.col(2) *= -1.f;
+
+  if (ImGui::InputDouble("rotate speed", &view.rotate_speed)) {
+  }
+  if (ImGui::InputDouble("trans speed", &view.trans_speed)) {
+  }
+  if (ImGui::InputDouble("wheel speed", &view.wheel_speed)) {
+  }
+
+  Eigen::Vector2f nearfar;
+  view.renderer->GetNearFar(nearfar[0], nearfar[1]);
+  if (ImGui::InputFloat2("near far", nearfar.data())) {
+    view.renderer->SetNearFar(nearfar[0], nearfar[1]);
+  }
+
+  Eigen::Vector2i size(view.camera->width(), view.camera->height());
+  if (ImGui::InputInt2("width height", size.data())) {
+    // view.camera->set_size(size[0], size[1]);
+    // TODO: Window resize
+  }
+
+  Eigen::Vector2f fov(view.camera->fov_x(), view.camera->fov_y());
+  Eigen::Vector2f fov_org = fov;
+  if (ImGui::InputFloat2("FoV-X FoV-Y", fov.data())) {
+    if (std::abs(fov_org[0] - fov[0]) > 0.01f) {
+      view.camera->set_fov_x(fov[0]);
+    } else {
+      view.camera->set_fov_y(fov[1]);
+    }
+  }
+
+  if (ImGui::TreeNodeEx("OpenCV Style", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::InputFloat3("Position", pos.data())) {
+      update_pose = true;
+    }
+
+    if (ImGui::InputFloat3("Rotation", R_cv.data()) ||
+        ImGui::InputFloat3("        ", R_cv.data() + 3) ||
+        ImGui::InputFloat3("        ", R_cv.data() + 6)) {
+      update_pose = true;
+      R_gl = R_cv;
+      R_gl.col(1) *= -1.f;
+      R_gl.col(2) *= -1.f;
+    }
+
+    Eigen::Vector2f fxfy = view.camera->focal_length();
+    if (ImGui::InputFloat2("fx fy", fxfy.data())) {
+      view.camera->set_focal_length(fxfy);
+    }
+
+    Eigen::Vector2f cxcy = view.camera->principal_point();
+    if (ImGui::InputFloat2("cx cy", cxcy.data())) {
+      view.camera->set_principal_point(cxcy);
+    }
+
+    Eigen::Vector4f distortion(0.f, 0.f, 0.f, 0.f);
+    if (ImGui::InputFloat4("k1 k2 p1 p2 (TODO)", distortion.data())) {
+      // TODO
+    }
+
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNodeEx("OpenGL Style", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::InputFloat3("Position", pos.data())) {
+      update_pose = true;
+    }
+
+    if (ImGui::InputFloat3("Rotation", R_gl.data()) ||
+        ImGui::InputFloat3("        ", R_gl.data() + 3) ||
+        ImGui::InputFloat3("        ", R_gl.data() + 6)) {
+      update_pose = true;
+    }
+
+    Eigen::Matrix4f prj_gl_org =
+        view.camera->ProjectionMatrixOpenGl(nearfar[0], nearfar[1]);
+    Eigen::Matrix4f prj_gl = prj_gl_org.transpose();  // To row-major
+    if (ImGui::InputFloat4("Projection", prj_gl.data()) ||
+        ImGui::InputFloat4("        ", prj_gl.data() + 4) ||
+        ImGui::InputFloat4("        ", prj_gl.data() + 8) ||
+        ImGui::InputFloat4("        ", prj_gl.data() + 12)) {
+      ugu::LOGI("No update for GL projection matrix\n");
+    }
+
+    if (update_pose) {
+      c2w_gl = R_gl * Eigen::Translation3f(pos);
+      view.camera->set_c2w(c2w_gl.cast<double>());
+    }
+
+    ImGui::TreePop();
+  }
+
+  bool show_wire = view.renderer->GetShowWire();
+  if (ImGui::Checkbox("show wire", &show_wire)) {
+    view.renderer->SetShowWire(show_wire);
+  }
+
+  bool flat_normal = view.renderer->GetFlatNormal();
+  if (ImGui::Checkbox("flat normal", &flat_normal)) {
+    view.renderer->SetFlatNormal(flat_normal);
+  }
+
+  Eigen::Vector3f wire_col = view.renderer->GetWireColor();
+  if (ImGui::ColorEdit3("wire color", wire_col.data())) {
+    view.renderer->SetWireColor(wire_col);
+  }
+
+  Eigen::Vector3f bkg_col = view.renderer->GetBackgroundColor();
+  if (ImGui::ColorEdit3("background color", bkg_col.data())) {
+    view.renderer->SetBackgroundColor(bkg_col);
+  }
+
+  static int save_counter = 0;
+  static char gbuf_save_path[1024] = "./";
+  ImGui::InputText("GBuffer Save Dir.", gbuf_save_path, 1024u);
+  ImGui::Text("Prefix %d", save_counter);
+  ImGui::SameLine();
+  if (ImGui::Button("Save")) {
+    std::string prefix = std::to_string(save_counter) + "_";
+
+    view.renderer->ReadGbuf();
+    GBuffer gbuf;
+    view.renderer->GetGbuf(gbuf);
+
+    imwrite(prefix + "pos_wld.bin", gbuf.pos_wld);
+    imwrite(prefix + "pos_cam.bin", gbuf.pos_cam);
+    Image3b vis_pos_wld, vis_pos_cam;
+    vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
+    imwrite(prefix + "pos_wld.jpg", vis_pos_wld);
+    vis_pos_cam = ColorizePosMap(gbuf.pos_cam);
+    imwrite(prefix + "pos_cam.jpg", vis_pos_cam);
+
+    imwrite(prefix + "normal_wld.bin", gbuf.normal_wld);
+    imwrite(prefix + "normal_cam.bin", gbuf.normal_cam);
+    Image3b vis_normal_wld, vis_normal_cam;
+    Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
+    imwrite(prefix + "normal_wld.jpg", vis_normal_wld);
+    Normal2Color(gbuf.normal_cam, &vis_normal_cam, true);
+    imwrite(prefix + "normal_cam.jpg", vis_normal_cam);
+
+    imwrite(prefix + "depth01.bin", gbuf.depth_01);
+    Image3b vis_depth;
+    Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
+    imwrite(prefix + "depth01.jpg", vis_depth);
+
+    Image1b geoid_1b;
+    gbuf.geo_id.convertTo(geoid_1b, CV_8UC1);
+    imwrite(prefix + "geoid.png", geoid_1b);
+    Image3b vis_geoid;
+    FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
+    imwrite(prefix + "geoid.jpg", vis_geoid);
+
+    imwrite(prefix + "faceid.bin", gbuf.face_id);
+    Image3b vis_faceid;
+    FaceId2RandomColor(gbuf.face_id, &vis_faceid);
+    imwrite(prefix + "faceid.jpg", vis_faceid);
+
+    imwrite(prefix + "bary.bin", gbuf.bary);
+    Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
+    imwrite(prefix + "bary.jpg", vis_bary);
+
+    imwrite(prefix + "uv.bin", gbuf.uv);
+    Image3b vis_uv = ColorizeBarycentric(gbuf.uv);
+    imwrite(prefix + "uv.jpg", vis_uv);
+
+    imwrite(prefix + "color.png", gbuf.color);
+
+    save_counter++;
+  }
+}
+
 void DrawImgui(GLFWwindow *window) {
   std::lock_guard<std::mutex> lock(views_mtx);
 
   bool reset_points = false;
   auto [w, h] = GetWidthHeightForView();
 
-  // if (ImGui::GetIO().WantCaptureKeyboard) {
-  {
-    for (size_t j = 0; j < g_views.size(); j++) {
-      auto &view = g_views[j];
-      const std::string title = std::string("View ") + std::to_string(j);
+  for (size_t j = 0; j < g_views.size(); j++) {
+    auto &view = g_views[j];
+    const std::string title = std::string("View ") + std::to_string(j);
 
-      // if (g_first_frame) {
-      ImGui::SetNextWindowSize(
-          {static_cast<float>(w / 2), static_cast<float>(h)}, ImGuiCond_Once);
-      ImGui::SetNextWindowPos({static_cast<float>(w * (j + 0.5)), 50.f},
-                              ImGuiCond_Once);
-      ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
-      // }
+    ImGui::SetNextWindowSize({static_cast<float>(w / 2), static_cast<float>(h)},
+                             ImGuiCond_Once);
+    ImGui::SetNextWindowPos({static_cast<float>(w * (j + 0.5)), 50.f},
+                            ImGuiCond_Once);
+    ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
 
-      ImGui::Begin(title.c_str());
-      if (ImGui::TreeNodeEx("Meshes", ImGuiTreeNodeFlags_DefaultOpen)) {
-        for (size_t i = 0; i < g_meshes.size(); i++) {
-          bool v = view.renderer->GetVisibility(g_meshes[i]);
-          std::string label = std::to_string(i) + " " + g_mesh_names[i] + ": " +
-                              g_mesh_paths[i];
-          if (ImGui::Checkbox(label.c_str(), &v)) {
-            view.renderer->SetVisibility(g_meshes[i], v);
-          }
-          Eigen::Vector3f pos_col =
-              view.renderer->GetSelectedPositionColor(g_meshes[i]);
-          if (ImGui::ColorEdit3((label + "select color").c_str(),
-                                pos_col.data(), ImGuiColorEditFlags_NoLabel)) {
-            view.renderer->AddSelectedPositionColor(g_meshes[i], pos_col);
-          }
-
-          if (ImGui::Button(("Focus###focus" + std::to_string(i)).c_str())) {
-            view.SetProperCameraForTargetMesh(g_meshes[i]);
-          }
-
-          {
-            auto &model_mat = g_model_matrices.at(g_meshes[i]);
-            Eigen::Vector3f t, s;
-            Eigen::Matrix3f R;
-            DecomposeRts(model_mat, R, t, s);
-            // bool update_model_mat = false;
-            bool update_rts = false;
-            if (ImGui::InputFloat3(
-                    ("Translation###t" + std::to_string(i)).c_str(),
-                    t.data())) {
-              update_rts = true;
-            }
-            if (ImGui::InputFloat3(("Rotation###r" + std::to_string(i)).c_str(),
-                                   R.data()) ||
-                ImGui::InputFloat3("        ", R.data() + 3) ||
-                ImGui::InputFloat3("        ", R.data() + 6)) {
-              update_rts = true;
-            }
-            if (ImGui::InputFloat3(("Scale###s" + std::to_string(i)).c_str(),
-                                   s.data())) {
-              update_rts = true;
-            }
-            Eigen::Matrix4f model_mat_t =
-                model_mat.matrix().transpose();  // To row-major
-            if (ImGui::InputFloat4(
-                    ("Affine Matrix###m" + std::to_string(i)).c_str(),
-                    model_mat_t.data()) ||
-                ImGui::InputFloat4("        ", model_mat_t.data() + 4) ||
-                ImGui::InputFloat4("        ", model_mat_t.data() + 8) ||
-                ImGui::InputFloat4("        ", model_mat_t.data() + 12)) {
-              // update_model_mat = true;
-            }
-
-            if (update_rts) {
-              model_mat = Eigen::Translation3f(t) * R * Eigen::Scaling(s);
-              g_update_bvh[g_meshes[i]] = true;
-              reset_points = true;
-            }
-          }
-
-          static char mesh_export_path_buf[1024] = "./mesh.obj";
-          ImGui::InputText((std::string("Mesh Export Path###mesh_export_path") +
-                            std::to_string(i))
-                               .c_str(),
-                           mesh_export_path_buf, 1024);
-          static bool apply_transform = true;
-          if (ImGui::Checkbox("apply transform", &apply_transform)) {
-          }
-          if (ImGui::Button(
-                  (std::string("Export###mesh_export") + std::to_string(i))
-                      .c_str())) {
-            auto save_mesh = Mesh::Create(*g_meshes[i].get());
-            if (apply_transform) {
-              save_mesh->Transform(g_model_matrices[g_meshes[i]]);
-            }
-            save_mesh->WriteObj(std::string(mesh_export_path_buf));
-          }
-
-          // ImGui::BeginListBox("Points (fid, u, v) (x, y, z)");
-          // ImGui::EndListBox();
-          const auto draw_list_size = ImVec2(360, 240);
-          // const char *items[RendererGl::MAX_SELECTED_POS];
-          if (view.selected_point_idx.find(g_meshes[i]) ==
-              view.selected_point_idx.end()) {
-            view.selected_point_idx[g_meshes[i]] = 0;
-          }
-          auto &points = g_selected_positions[g_meshes[i]];
-
-          if (view.selected_point_idx[g_meshes[i]] >= points.size()) {
-            view.selected_point_idx[g_meshes[i]] = 0;
-          }
-
-          std::vector<std::string> lines;  // For owership of const char*
-
-          int fill_digits = CalcFillDigits(points.size());
-          for (size_t i = 0; i < points.size(); i++) {
-            auto p_wld = GetPos(points[i]);
-            std::string line = ugu::zfill(i, fill_digits) + ": (" +
-                               std::to_string(points[i].intersection.fid) +
-                               ", " + std::to_string(points[i].intersection.u) +
-                               ", " + std::to_string(points[i].intersection.v) +
-                               ")" + " (" + std::to_string(p_wld[0]) + ", " +
-                               std::to_string(p_wld[1]) + ", " +
-                               std::to_string(p_wld[2]) + ")";
-            lines.push_back(line);
-          }
-          if (ImGui::BeginListBox((std::to_string(i) + " : " +
-                                   std::string("Points (fid, u, v) (x, y, z)"))
-                                      .c_str(),
-                                  draw_list_size)) {
-            for (int n = 0; n < points.size(); ++n) {
-              const bool is_selected =
-                  (view.selected_point_idx[g_meshes[i]] == n);
-              if (ImGui::Selectable(lines[n].c_str(), is_selected)) {
-                view.selected_point_idx[g_meshes[i]] = n;
-              }
-            }
-            ImGui::EndListBox();
-          }
-
-          if (ImGui::Button(
-                  (std::string("Remove###remove_point") + std::to_string(i))
-                      .c_str())) {
-            if (points.size() > view.selected_point_idx[g_meshes[i]]) {
-              points.erase(points.begin() +
-                           view.selected_point_idx[g_meshes[i]]);
-            }
-            reset_points = true;
-          }
-
-          static PointOnFaceType pof_type = PointOnFaceType::POINT_ON_TRIANGLE;
-          if (ImGui::BeginListBox(
-                  (std::string("Point Type###ptype") + std::to_string(i))
-                      .c_str(),
-                  {200, 70})) {
-            static bool is_selected = false;
-            std::array<std::string, 3> names = {
-                "Named Point on Triangle", "Point on Triangle", "3D-Point"};
-            static int type_id = -1;
-            for (int n = 0; n < names.size(); ++n) {
-              const bool is_selected = (type_id == n);
-              if (ImGui::Selectable(names[n].c_str(), is_selected)) {
-                type_id = n;
-              }
-            }
-
-            if (0 <= type_id) {
-              pof_type = static_cast<PointOnFaceType>(type_id);
-            }
-
-            ImGui::EndListBox();
-          }
-
-          static char import_path_buf[1024] = "./points.json";
-          ImGui::InputText(
-              (std::string("Import Path###inport_path") + std::to_string(i))
-                  .c_str(),
-              import_path_buf, 1024);
-
-          if (ImGui::Button((std::string("Import###import") + std::to_string(i))
-                                .c_str())) {
-            if (pof_type == PointOnFaceType::THREED_POINT) {
-              ImGui::OpenPopup("Error");
-              g_error_message = "Not supported yet";
-            } else {
-              std::vector<PointOnFace> pofs;
-
-              try {
-                pofs = LoadPoints(std::string(import_path_buf), pof_type);
-              } catch (const std::exception &) {
-                std::cout << "Failed to load" << std::endl;
-              }
-
-              if (!pofs.empty()) {
-                g_selected_positions[g_meshes[i]].clear();
-                for (const auto &pof : pofs) {
-                  CastRayResult res;
-                  res.min_geoid = i;
-                  res.intersection.fid = pof.fid;
-                  res.intersection.u = pof.u;
-                  res.intersection.v = pof.v;
-                  g_selected_positions[g_meshes[i]].push_back(res);
-                }
-
-                reset_points = true;
-              }
-            }
-          }
-
-          static char export_path_buf[1024] = "./points.json";
-          ImGui::InputText((std::string("Points Export Path###export_path") +
-                            std::to_string(i))
-                               .c_str(),
-                           export_path_buf, 1024);
-
-          if (ImGui::Button((std::string("Export###export") + std::to_string(i))
-                                .c_str())) {
-            int fill_digits = CalcFillDigits(points.size());
-            std::vector<PointOnFace> pofs;
-            for (size_t p_idx = 0; p_idx < points.size(); p_idx++) {
-              const auto &p = points[p_idx];
-              PointOnFace pof;
-              pof.name = zfill(p_idx, fill_digits);
-              pof.fid = p.intersection.fid;
-              pof.u = p.intersection.u;
-              pof.v = p.intersection.v;
-              pof.pos = GetPos(p);
-              pofs.push_back(pof);
-            }
-            WritePoints(std::string(export_path_buf), pofs, pof_type);
-          }
-        }
-        ImGui::TreePop();
-      }
-
-      if (ImGui::TreeNodeEx("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
-        bool update_pose = false;
-        Eigen::Affine3f c2w_gl = view.camera->c2w().cast<float>();
-        Eigen::Vector3f pos = c2w_gl.translation();
-        Eigen::Matrix3f R_gl = c2w_gl.rotation();
-        Eigen::Matrix3f R_cv = R_gl;
-        R_cv.col(1) *= -1.f;
-        R_cv.col(2) *= -1.f;
-
-        if (ImGui::InputDouble("rotate speed", &view.rotate_speed)) {
-        }
-        if (ImGui::InputDouble("trans speed", &view.trans_speed)) {
-        }
-        if (ImGui::InputDouble("wheel speed", &view.wheel_speed)) {
-        }
-
-        Eigen::Vector2f nearfar;
-        view.renderer->GetNearFar(nearfar[0], nearfar[1]);
-        if (ImGui::InputFloat2("near far", nearfar.data())) {
-          view.renderer->SetNearFar(nearfar[0], nearfar[1]);
-        }
-
-        Eigen::Vector2i size(view.camera->width(), view.camera->height());
-        if (ImGui::InputInt2("width height", size.data())) {
-          // view.camera->set_size(size[0], size[1]);
-          // TODO: Window resize
-        }
-
-        Eigen::Vector2f fov(view.camera->fov_x(), view.camera->fov_y());
-        Eigen::Vector2f fov_org = fov;
-        if (ImGui::InputFloat2("FoV-X FoV-Y", fov.data())) {
-          if (std::abs(fov_org[0] - fov[0]) > 0.01f) {
-            view.camera->set_fov_x(fov[0]);
-          } else {
-            view.camera->set_fov_y(fov[1]);
-          }
-        }
-
-        if (ImGui::TreeNodeEx("OpenCV Style", ImGuiTreeNodeFlags_DefaultOpen)) {
-          if (ImGui::InputFloat3("Position", pos.data())) {
-            update_pose = true;
-          }
-
-          if (ImGui::InputFloat3("Rotation", R_cv.data()) ||
-              ImGui::InputFloat3("        ", R_cv.data() + 3) ||
-              ImGui::InputFloat3("        ", R_cv.data() + 6)) {
-            update_pose = true;
-            R_gl = R_cv;
-            R_gl.col(1) *= -1.f;
-            R_gl.col(2) *= -1.f;
-          }
-
-          Eigen::Vector2f fxfy = view.camera->focal_length();
-          if (ImGui::InputFloat2("fx fy", fxfy.data())) {
-            view.camera->set_focal_length(fxfy);
-          }
-
-          Eigen::Vector2f cxcy = view.camera->principal_point();
-          if (ImGui::InputFloat2("cx cy", cxcy.data())) {
-            view.camera->set_principal_point(cxcy);
-          }
-
-          Eigen::Vector4f distortion(0.f, 0.f, 0.f, 0.f);
-          if (ImGui::InputFloat4("k1 k2 p1 p2 (TODO)", distortion.data())) {
-            // TODO
-          }
-
-          ImGui::TreePop();
-        }
-
-        if (ImGui::TreeNodeEx("OpenGL Style", ImGuiTreeNodeFlags_DefaultOpen)) {
-          if (ImGui::InputFloat3("Position", pos.data())) {
-            update_pose = true;
-          }
-
-          if (ImGui::InputFloat3("Rotation", R_gl.data()) ||
-              ImGui::InputFloat3("        ", R_gl.data() + 3) ||
-              ImGui::InputFloat3("        ", R_gl.data() + 6)) {
-            update_pose = true;
-          }
-
-          Eigen::Matrix4f prj_gl_org =
-              view.camera->ProjectionMatrixOpenGl(nearfar[0], nearfar[1]);
-          Eigen::Matrix4f prj_gl = prj_gl_org.transpose();  // To row-major
-          if (ImGui::InputFloat4("Projection", prj_gl.data()) ||
-              ImGui::InputFloat4("        ", prj_gl.data() + 4) ||
-              ImGui::InputFloat4("        ", prj_gl.data() + 8) ||
-              ImGui::InputFloat4("        ", prj_gl.data() + 12)) {
-            ugu::LOGI("No update for GL projection matrix\n");
-          }
-
-          if (update_pose) {
-            c2w_gl = R_gl * Eigen::Translation3f(pos);
-            view.camera->set_c2w(c2w_gl.cast<double>());
-          }
-
-          ImGui::TreePop();
-        }
-
-        bool show_wire = view.renderer->GetShowWire();
-        if (ImGui::Checkbox("show wire", &show_wire)) {
-          view.renderer->SetShowWire(show_wire);
-        }
-
-        bool flat_normal = view.renderer->GetFlatNormal();
-        if (ImGui::Checkbox("flat normal", &flat_normal)) {
-          view.renderer->SetFlatNormal(flat_normal);
-        }
-
-        Eigen::Vector3f wire_col = view.renderer->GetWireColor();
-        if (ImGui::ColorEdit3("wire color", wire_col.data())) {
-          view.renderer->SetWireColor(wire_col);
-        }
-
-        Eigen::Vector3f bkg_col = view.renderer->GetBackgroundColor();
-        if (ImGui::ColorEdit3("background color", bkg_col.data())) {
-          view.renderer->SetBackgroundColor(bkg_col);
-        }
-
-        static int save_counter = 0;
-        static char gbuf_save_path[1024] = "./";
-        ImGui::InputText("GBuffer Save Dir.", gbuf_save_path, 1024u);
-        ImGui::Text("Prefix %d", save_counter);
-        ImGui::SameLine();
-        if (ImGui::Button("Save")) {
-          std::string prefix = std::to_string(save_counter) + "_";
-
-          view.renderer->ReadGbuf();
-          GBuffer gbuf;
-          view.renderer->GetGbuf(gbuf);
-
-          imwrite(prefix + "pos_wld.bin", gbuf.pos_wld);
-          imwrite(prefix + "pos_cam.bin", gbuf.pos_cam);
-          Image3b vis_pos_wld, vis_pos_cam;
-          vis_pos_wld = ColorizePosMap(gbuf.pos_wld);
-          imwrite(prefix + "pos_wld.jpg", vis_pos_wld);
-          vis_pos_cam = ColorizePosMap(gbuf.pos_cam);
-          imwrite(prefix + "pos_cam.jpg", vis_pos_cam);
-
-          imwrite(prefix + "normal_wld.bin", gbuf.normal_wld);
-          imwrite(prefix + "normal_cam.bin", gbuf.normal_cam);
-          Image3b vis_normal_wld, vis_normal_cam;
-          Normal2Color(gbuf.normal_wld, &vis_normal_wld, true);
-          imwrite(prefix + "normal_wld.jpg", vis_normal_wld);
-          Normal2Color(gbuf.normal_cam, &vis_normal_cam, true);
-          imwrite(prefix + "normal_cam.jpg", vis_normal_cam);
-
-          imwrite(prefix + "depth01.bin", gbuf.depth_01);
-          Image3b vis_depth;
-          Depth2Color(gbuf.depth_01, &vis_depth, 0.f, 1.f);
-          imwrite(prefix + "depth01.jpg", vis_depth);
-
-          Image1b geoid_1b;
-          gbuf.geo_id.convertTo(geoid_1b, CV_8UC1);
-          imwrite(prefix + "geoid.png", geoid_1b);
-          Image3b vis_geoid;
-          FaceId2RandomColor(gbuf.geo_id, &vis_geoid);
-          imwrite(prefix + "geoid.jpg", vis_geoid);
-
-          imwrite(prefix + "faceid.bin", gbuf.face_id);
-          Image3b vis_faceid;
-          FaceId2RandomColor(gbuf.face_id, &vis_faceid);
-          imwrite(prefix + "faceid.jpg", vis_faceid);
-
-          imwrite(prefix + "bary.bin", gbuf.bary);
-          Image3b vis_bary = ColorizeBarycentric(gbuf.bary);
-          imwrite(prefix + "bary.jpg", vis_bary);
-
-          imwrite(prefix + "uv.bin", gbuf.uv);
-          Image3b vis_uv = ColorizeBarycentric(gbuf.uv);
-          imwrite(prefix + "uv.jpg", vis_uv);
-
-          imwrite(prefix + "color.png", gbuf.color);
-
-          save_counter++;
-        }
-
-        ImGui::TreePop();
-      }
-
-      ImGui::End();
+    ImGui::Begin(title.c_str());
+    if (ImGui::TreeNodeEx("Meshes", ImGuiTreeNodeFlags_DefaultOpen)) {
+      DrawImguiMeshes(view, reset_points);
+      ImGui::TreePop();
     }
 
-    {
-      ImGui::SetNextWindowPos({0.f, 0.f}, ImGuiCond_Once);
-      ImGui::SetNextWindowCollapsed(false, ImGuiCond_Once);
-
-      ImGui::Begin("General");
-
-      static char mesh_path[1024] = "../data/spot/spot_triangulated.obj";
-      ImGui::InputText("Mesh path", mesh_path, 1024u);
-      if (ImGui::Button("Load mesh")) {
-        LoadMesh(mesh_path);
-      }
-
-      static int src_id = -1;
-      static int dst_id = -1;
-      if (ImGui::BeginListBox("source", {50, 50})) {
-        if (g_meshes.empty()) {
-          src_id = -1;
-        }
-        for (int n = 0; n < g_meshes.size(); ++n) {
-          const bool is_selected = (src_id == n);
-          if (ImGui::Selectable(std::to_string(n).c_str(), is_selected)) {
-            src_id = n;
-          }
-        }
-        ImGui::EndListBox();
-      }
-
-      if (ImGui::BeginListBox("target", {50, 50})) {
-        if (g_meshes.empty()) {
-          dst_id = -1;
-        }
-        for (int n = 0; n < g_meshes.size(); ++n) {
-          const bool is_selected = (dst_id == n);
-          if (ImGui::Selectable(std::to_string(n).c_str(), is_selected)) {
-            dst_id = n;
-          }
-        }
-        ImGui::EndListBox();
-      }
-
-      auto validate_func = [&]() {
-        if (src_id < 0 || dst_id < 0) {
-          ImGui::OpenPopup("Error");
-          g_error_message = "Select source and target";
-          return false;
-        }
-        if (src_id == dst_id) {
-          ImGui::OpenPopup("Error");
-          g_error_message = "Source and target must be different";
-          return false;
-        }
-        return true;
-      };
-
-      RenderableMeshPtr src_mesh = 0 <= src_id ? g_meshes[src_id] : nullptr;
-      RenderableMeshPtr dst_mesh = 0 <= dst_id ? g_meshes[dst_id] : nullptr;
-
-      static bool with_scale = false;
-      if (ImGui::Checkbox("With scale", &with_scale)) {
-      }
-
-      if (ImGui::Button("Alignment by Selected Points")) {
-        if (validate_func()) {
-          auto src_points = ExtractPos(g_selected_positions[src_mesh]);
-          auto dst_points = ExtractPos(g_selected_positions[dst_mesh]);
-
-          if (3 <= src_points.size() &&
-              src_points.size() == dst_points.size()) {
-            Eigen::Affine3d src2dst;
-
-            if (with_scale) {
-              src2dst = FindSimilarityTransformFrom3dCorrespondences(
-                  src_points, dst_points);
-            } else {
-              src2dst = FindRigidTransformFrom3dCorrespondences(src_points,
-                                                                dst_points);
-            }
-            g_model_matrices[src_mesh] =
-                src2dst.cast<float>() * g_model_matrices[src_mesh];
-            g_update_bvh[src_mesh] = true;
-
-            reset_points = true;
-
-          } else {
-            ImGui::OpenPopup("Error");
-            if (src_points.size() < 3) {
-              g_error_message = "At least 3 correspondences";
-            } else {
-              g_error_message = "Must have the same number of selected points";
-            }
-          }
-        }
-      }
-
-      if (ImGui::Button("Rigid ICP")) {
-        if (validate_func()) {
-          auto apply_trans = [&](const std::vector<Eigen::Vector3f> &points,
-                                 const Eigen::Affine3f &T) {
-            std::vector<Eigen::Vector3f> transed;
-            for (const auto &p : points) {
-              transed.push_back(T * p);
-            }
-            return transed;
-          };
-
-          auto transed_src_points =
-              apply_trans(src_mesh->vertices(), g_model_matrices[src_mesh]);
-          auto transed_dst_points =
-              apply_trans(dst_mesh->vertices(), g_model_matrices[dst_mesh]);
-
-          ImGui::OpenPopup("Algorithm Callback");
-          std::lock_guard<std::mutex> lock(icp_mtx);
-          g_icp_data.src_mesh = src_mesh;
-          g_icp_data.src_points = std::move(transed_src_points);
-          g_icp_data.dst_points = std::move(transed_dst_points);
-          g_icp_data.dst_faces = dst_mesh->vertex_indices();
-          g_icp_data.callback = IcpProcessCallback;
-          g_icp_data.output.loss_histroty.clear();
-          g_icp_data.output.transform_histry.clear();
-
-          g_callback_finished = false;
-          g_icp_run = AlgorithmStatus::STARTED;
-        }
-      }
-
-      if (ImGui::Button("Non-Rigid ICP")) {
-        if (validate_func()) {
-          ImGui::OpenPopup("Algorithm Callback");
-          std::lock_guard<std::mutex> lock(nonrigidicp_mtx);
-          g_nonrigidicp_data.src_mesh = src_mesh;
-          g_nonrigidicp_data.dst_mesh = dst_mesh;
-
-          g_callback_finished = false;
-          g_nonrigidicp_run = AlgorithmStatus::STARTED;
-        }
-      }
-
-      if (ImGui::Button("Texture transfer")) {
-        if (validate_func()) {
-          ImGui::OpenPopup("Algorithm Callback");
-          std::lock_guard<std::mutex> lock(textrans_mtx);
-
-          g_textrans_data.src_mesh = src_mesh;
-          g_textrans_data.dst_mesh = dst_mesh;
-
-          g_callback_finished = false;
-          g_textrans_run = AlgorithmStatus::STARTED;
-        }
-      }
-
-      if (ImGui::InputInt2("Texture size", g_textrans_data.dst_size.data())) {
-        g_textrans_data.dst_size[0] =
-            std::clamp(g_textrans_data.dst_size[0], 1, 16000);
-        g_textrans_data.dst_size[1] =
-            std::clamp(g_textrans_data.dst_size[1], 1, 16000);
-      }
-
-      if (g_nonrigidicp_run == AlgorithmStatus::RUNNING) {
-        std::lock_guard<std::mutex> lock_update(nonrigidicp_update_mtx);
-        // OpenGL API must be called in the main thread
-        g_nonrigidicp_data.src_mesh->UpdateMesh();
-      }
-
-      ImGui::SetNextWindowSize({200.f, 300.f}, ImGuiCond_Once);
-      if (ImGui::BeginPopupModal("Algorithm Callback")) {
-        // Draw popup contents.
-        ImGui::Text(g_callback_message.c_str());
-
-        if (g_callback_finished) {
-          if (ImGui::Button("OK")) {
-            g_callback_finished = true;
-            g_callback_message = "";
-            reset_points = true;
-            ImGui::CloseCurrentPopup();
-          }
-        }
-
-        ImGui::EndPopup();
-      }
-
-      if (ImGui::BeginPopupModal("Error")) {
-        // Draw popup contents.
-        ImGui::Text(g_error_message.c_str());
-
-        if (ImGui::Button("OK")) {
-          ImGui::CloseCurrentPopup();
-          g_error_message = "";
-        }
-
-        ImGui::EndPopup();
-      }
-
-      ImGui::End();
+    if (ImGui::TreeNodeEx("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
+      DrawImguiCamera(view);
+      ImGui::TreePop();
     }
+
+    ImGui::End();
   }
+
+  DrawImguiGeneralWindow(reset_points);
 
   if (reset_points) {
     for (auto &view : g_views) {

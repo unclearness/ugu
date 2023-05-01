@@ -8,7 +8,16 @@
 #ifdef _WIN32
 #pragma warning(push, UGU_EIGEN_WARNING_LEVEL)
 #endif
-// #include <Eigen/CholmodSupport>
+
+// Tried Eigen::CholmodSimplicialLDLT with SuiteSparse but slower than
+// Eigen::SimplicialLDLT
+#if 0
+#if __has_include(<cholmod.h>)
+#include <Eigen/CholmodSupport>
+#define UGU_CHOLMOD_SUPPORT
+#endif
+#endif
+
 #include <Eigen/IterativeLinearSolvers>
 #include <Eigen/SparseCholesky>
 #include <Eigen/SparseLU>
@@ -243,7 +252,8 @@ bool NonRigidIcp::FindCorrespondences() {
   return true;
 }
 
-bool NonRigidIcp::Registrate(double alpha, double gamma) {
+bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
+                             double min_frobenius_norm_diff) {
   using IndexType = Eigen::SparseMatrix<double>::StorageIndex;
   IndexType n = static_cast<IndexType>(m_src->vertices().size());
   IndexType m = static_cast<IndexType>(m_edges.size());
@@ -261,8 +271,6 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
   X.setZero();
 
   int iter = 0;
-  constexpr int max_iter = 10;  // TODO: better terminate criteria
-  constexpr double min_frobenius_norm_diff = 2.0;
   Timer<> timer, iter_timer;
   bool verbose = true;
   LogLevel org_loglevel = get_log_level();
@@ -422,7 +430,12 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
 
 #if 1
     // Closed-form
+#ifdef UGU_CHOLMOD_SUPPORT
+    Eigen::CholmodSimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+#else
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+#endif
+
 #else
     // Iterative
     Eigen::initParallel();

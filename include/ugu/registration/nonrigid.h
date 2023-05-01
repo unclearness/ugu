@@ -35,7 +35,8 @@ class NonRigidIcp {
             bool src_check_geometry_border = false);  // Initialize KDTree etc.
 
   bool FindCorrespondences();
-  bool Registrate(double alpha = 1000.0, double gamma = 1.0);
+  bool Registrate(double alpha = 1000.0, double gamma = 1.0, int max_iter = 10,
+                  double min_frobenius_norm_diff = 2.0);
 
   MeshPtr GetDeformedSrc() const;
 
