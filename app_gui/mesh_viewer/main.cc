@@ -258,7 +258,7 @@ void NonrigidIcpProcess() {
 
     double max_alpha = 10.0;
     double min_alpha = 0.1;
-    double beta = 0.1;
+    double beta = 100.0;
     double gamma = 1.0;
     int step = 10;
 

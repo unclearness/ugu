@@ -158,7 +158,7 @@ void TestFace() {
   ugu::NonRigidIcp nicp;
 
   nicp.SetSrc(src_mesh, transform.cast<float>());
-  double beta = 0.1;
+  double beta = 100.0;
   std::vector<double> betas(src_landmarks.size(), beta);
   nicp.SetSrcLandmarks(src_landmarks, betas);
   nicp.SetDst(dst_mesh);
@@ -213,7 +213,7 @@ int main() {
   ugu::EnsureDirExists("../out/");
   ugu::EnsureDirExists("../out/ex24");
 
-  //TestObject();
+  TestObject();
 
   TestFace();
 

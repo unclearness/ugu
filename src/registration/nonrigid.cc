@@ -171,10 +171,12 @@ bool NonRigidIcp::Init(bool check_self_itersection, float angle_rad_th,
   m_src_deformed = Mesh::Create(*m_src);
 
   m_dst_landmark_positions_norm.clear();
-  std::transform(
-      m_dst_landmark_positions.begin(), m_dst_landmark_positions.end(),
-      std::back_inserter(m_dst_landmark_positions_norm),
-      [&](const Eigen::Vector3f& v) { return v.cwiseProduct(m_org2norm_scale); });
+  std::transform(m_dst_landmark_positions.begin(),
+                 m_dst_landmark_positions.end(),
+                 std::back_inserter(m_dst_landmark_positions_norm),
+                 [&](const Eigen::Vector3f& v) {
+                   return v.cwiseProduct(m_org2norm_scale);
+                 });
 
   // Init correspondences
   m_corresp.resize(m_src_norm->vertices().size());
@@ -269,10 +271,12 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
   }
 
   m_dst_landmark_positions_norm.clear();
-  std::transform(
-      m_dst_landmark_positions.begin(), m_dst_landmark_positions.end(),
-      std::back_inserter(m_dst_landmark_positions_norm),
-      [&](const Eigen::Vector3f& v) { return v.cwiseProduct(m_org2norm_scale); });
+  std::transform(m_dst_landmark_positions.begin(),
+                 m_dst_landmark_positions.end(),
+                 std::back_inserter(m_dst_landmark_positions_norm),
+                 [&](const Eigen::Vector3f& v) {
+                   return v.cwiseProduct(m_org2norm_scale);
+                 });
 
   Timer<> timer_mat;
   timer_mat.Start();
@@ -361,7 +365,7 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
               4 * m + n + i, index * 4 + j,
               beta * bary[k] * m_src_norm_deformed->vertices()[index](j)));
         }
-        // Homogenious w
+        // Homogeneous w
         beta_D_L.push_back(
             Eigen::Triplet<double>(4 * m + n + i, index * 4 + 3, beta));
       }
@@ -394,7 +398,6 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
         B(4 * m + i, j) = weight * target_pos[j];
       }
     }
-
     for (int i = 0; i < l; i++) {
       double beta = m_betas[i];
       for (int j = 0; j < 3; j++) {
@@ -459,6 +462,21 @@ bool NonRigidIcp::Registrate(double alpha, double gamma) {
 
     timer.End();
     LOGI("Update data: %f ms\n", timer.elapsed_msec());
+
+    timer.Start();
+    auto diff = (A * X - B);
+    auto l2 = diff.cwiseProduct(diff);
+    auto stiffness_block = l2.block(0, 0, 4 * m, 3);
+    double stiffness_reg = stiffness_block.sum();
+    auto point2surface_block = l2.block(4 * m, 0, n, 3);
+    double point2surface_loss = point2surface_block.sum();
+    auto landmark_block = l2.block(4 * m + n, 0, l, 3);
+    double landmark_loss = landmark_block.sum();
+    LOGI("Src verts to dst mesh: %lf\n", point2surface_loss);
+    LOGI("Landmark loss        : %lf\n", landmark_loss);
+    LOGI("Stiffness reg.       : %lf\n", stiffness_reg);
+    timer.End();
+    LOGI("Calc loss: %f ms\n", timer.elapsed_msec());
 
     double frobenius_norm_diff = (X - TmpX).norm();
     LOGI("frobenius_norm_diff %f \n", frobenius_norm_diff);
