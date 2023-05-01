@@ -81,7 +81,6 @@ void TestObject() {
 
   double max_alpha = 10.0;
   double min_alpha = 0.1;
-  double beta = 10.0;
   double gamma = 1.0;
   int step = 100;
   // double decay_rate = 0.95;
@@ -92,7 +91,7 @@ void TestObject() {
 
     ugu::LOGI("Iteration %d with alpha %f\n", i, alpha);
 
-    nicp.Registrate(alpha, beta, gamma);
+    nicp.Registrate(alpha, gamma);
 
     if (i % 10 == 0) {
       ugu::MeshPtr deformed = nicp.GetDeformedSrc();
@@ -106,22 +105,32 @@ void TestFace() {
   std::string src_obj_path = src_dir + "mediapipe_face.obj";
   ugu::Mesh src_mesh;
   src_mesh.LoadObj(src_obj_path, src_dir);
-  std::vector<int> src_landmark_vids =
-      ugu::LoadTxtAsVector<int>(src_dir + "mediapipe_face_landmarks_8.txt");
+  std::vector<ugu::PointOnFace> src_landmarks =
+      ugu::LoadPoints(src_dir + "mediapipe_face_landmarks.json",
+                      ugu::PointOnFaceType::NAMED_POINT_ON_TRIANGLE);
   std::vector<Eigen::Vector3f> src_landmark_positions;
-  for (const auto& idx : src_landmark_vids) {
-    src_landmark_positions.push_back(src_mesh.vertices()[idx]);
+  for (const auto& pof : src_landmarks) {
+    const auto& face = src_mesh.vertex_indices()[pof.fid];
+    auto pos = pof.u * src_mesh.vertices()[face[0]] +
+               pof.v * src_mesh.vertices()[face[1]] +
+               (1.f - pof.u - pof.v) * src_mesh.vertices()[face[2]];
+    src_landmark_positions.push_back(pos);
   }
 
   std::string dst_dir = "../data/face/lpshead/";
   std::string dst_obj_path = dst_dir + "head_triangulated.obj";
   ugu::Mesh dst_mesh;
   dst_mesh.LoadObj(dst_obj_path, dst_dir);
-  std::vector<int> dst_landmark_vids =
-      ugu::LoadTxtAsVector<int>(dst_dir + "head_triangulated_landmarks_8.txt");
+  std::vector<ugu::PointOnFace> dst_landmarks =
+      ugu::LoadPoints(dst_dir + "head_triangulated_landmarks.json",
+                      ugu::PointOnFaceType::NAMED_POINT_ON_TRIANGLE);
   std::vector<Eigen::Vector3f> dst_landmark_positions;
-  for (const auto& idx : dst_landmark_vids) {
-    dst_landmark_positions.push_back(dst_mesh.vertices()[idx]);
+  for (const auto& pof : dst_landmarks) {
+    const auto& face = dst_mesh.vertex_indices()[pof.fid];
+    auto pos = pof.u * dst_mesh.vertices()[face[0]] +
+               pof.v * dst_mesh.vertices()[face[1]] +
+               (1.f - pof.u - pof.v) * dst_mesh.vertices()[face[2]];
+    dst_landmark_positions.push_back(pos);
   }
 
   // Rigid alignment by landmarks
@@ -134,7 +143,7 @@ void TestFace() {
   src_mesh.WriteObj(out_dir, "0_init_src");
   dst_mesh.WriteObj(out_dir, "0_init_dst");
 
-  ugu::Mesh src_similarity = src_mesh;
+  ugu::Mesh src_similarity = ugu::Mesh(src_mesh);
   src_similarity.Transform(transform.cast<float>());
   src_similarity.WriteObj(out_dir, "1_similarity");
 
@@ -149,25 +158,26 @@ void TestFace() {
   ugu::NonRigidIcp nicp;
 
   nicp.SetSrc(src_mesh, transform.cast<float>());
-  nicp.SetSrcLandmakrVertexIds(src_landmark_vids);
+  double beta = 0.1;
+  std::vector<double> betas(src_landmarks.size(), beta);
+  nicp.SetSrcLandmarks(src_landmarks, betas);
   nicp.SetDst(dst_mesh);
-  nicp.SetDstLandmakrVertexIds(dst_landmark_vids);
+  nicp.SetDstLandmarkPositions(dst_landmark_positions);
 
   bool keep_src_boundary_as_possible = true;
   nicp.Init(false, 0.65f, false, keep_src_boundary_as_possible);
 
-  double max_alpha = 50.0;
-  double min_alpha = 1.0;
-  double beta = 1.0;
+  double max_alpha = 10.0;
+  double min_alpha = 0.1;
   double gamma = 1.0;
-  int step = 100;
+  int step = 10;
   ugu::MeshPtr deformed;
   for (int i = 1; i <= step; ++i) {
     double alpha = max_alpha - i * (max_alpha - min_alpha) / step;
 
     ugu::LOGI("Iteration %d with alpha %f\n", i, alpha);
 
-    nicp.Registrate(alpha, beta, gamma);
+    nicp.Registrate(alpha, gamma);
 
     if (i % 1 == 0) {
       deformed = nicp.GetDeformedSrc();
@@ -203,7 +213,7 @@ int main() {
   ugu::EnsureDirExists("../out/");
   ugu::EnsureDirExists("../out/ex24");
 
-  TestObject();
+  //TestObject();
 
   TestFace();
 

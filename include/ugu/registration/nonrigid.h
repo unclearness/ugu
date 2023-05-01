@@ -6,6 +6,7 @@
 #pragma once
 
 #include "ugu/accel/bvh.h"
+#include "ugu/point.h"
 #include "ugu/registration/rigid.h"
 
 namespace ugu {
@@ -24,16 +25,17 @@ class NonRigidIcp {
               const Eigen::Affine3f& transform = Eigen::Affine3f::Identity());
   void SetDst(const Mesh& dst);
 
-  void SetSrcLandmakrVertexIds(const std::vector<int>& src_landmark_indices);
-  void SetDstLandmakrVertexIds(const std::vector<int>& dst_landmark_indices);
+  void SetSrcLandmarks(const std::vector<PointOnFace>& src_landmarks,
+                       const std::vector<double>& betas = {});
+  void SetDstLandmarkPositions(
+      const std::vector<Eigen::Vector3f>& dst_landmark_positions);
 
   bool Init(bool check_self_itersection = false, float angle_rad_th = 0.65f,
             bool dst_check_geometry_border = false,
             bool src_check_geometry_border = false);  // Initialize KDTree etc.
 
   bool FindCorrespondences();
-  bool Registrate(double alpha = 1000.0, double beta = 10.0,
-                  double gamma = 1.0);
+  bool Registrate(double alpha = 1000.0, double gamma = 1.0);
 
   MeshPtr GetDeformedSrc() const;
 
@@ -61,10 +63,9 @@ class NonRigidIcp {
 
   int m_num_theads = -1;
 
-  std::vector<int> m_src_landmark_indices;
-  std::vector<Eigen::Vector3f> m_src_landmark_positions;
-  std::vector<int> m_dst_landmark_indices;
+  std::vector<PointOnFace> m_src_landmarks;
   std::vector<Eigen::Vector3f> m_dst_landmark_positions;
+  std::vector<double> m_betas;
 
   float m_angle_rad_th = 0.65f;
 

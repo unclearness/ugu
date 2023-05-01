@@ -58,14 +58,19 @@ void NonRigidIcp::SetDst(const Mesh& dst) {
   m_dst_norm = Mesh::Create(dst);
 }
 
-void NonRigidIcp::SetSrcLandmakrVertexIds(
-    const std::vector<int>& src_landmark_indices) {
-  m_src_landmark_indices = src_landmark_indices;
+void NonRigidIcp::SetSrcLandmarks(const std::vector<PointOnFace>& src_landmarks,
+                                  const std::vector<double>& betas) {
+  m_src_landmarks = src_landmarks;
+  if (betas.size() == src_landmarks.size()) {
+    m_betas = betas;
+  } else {
+    m_betas.resize(src_landmarks.size(), 1.0);
+  }
 }
 
-void NonRigidIcp::SetDstLandmakrVertexIds(
-    const std::vector<int>& dst_landmark_indices) {
-  m_dst_landmark_indices = dst_landmark_indices;
+void NonRigidIcp::SetDstLandmarkPositions(
+    const std::vector<Eigen::Vector3f>& dst_landmark_positions) {
+  m_dst_landmark_positions = dst_landmark_positions;
 }
 
 bool NonRigidIcp::Init(bool check_self_itersection, float angle_rad_th,
@@ -170,20 +175,6 @@ bool NonRigidIcp::Init(bool check_self_itersection, float angle_rad_th,
   m_target.resize(m_corresp.size());
   m_weights_per_node.resize(m_corresp.size(), 1.0);
 
-  // Set landmark positions
-  if (!m_src_landmark_indices.empty()) {
-    m_src_landmark_positions.resize(m_src_landmark_indices.size());
-    for (size_t i = 0; i < m_src_landmark_indices.size(); i++) {
-      int idx = m_src_landmark_indices[i];
-      m_src_landmark_positions[i] = m_src_norm_deformed->vertices()[idx];
-    }
-    m_dst_landmark_positions.resize(m_dst_landmark_indices.size());
-    for (size_t i = 0; i < m_dst_landmark_indices.size(); i++) {
-      int idx = m_dst_landmark_indices[i];
-      m_dst_landmark_positions[i] = m_dst_norm->vertices()[idx];
-    }
-  }
-
   // Init KD Tree
   bool ret = m_corresp_finder->Init(m_dst_norm->vertices(),
                                     m_dst_norm->vertex_indices());
@@ -244,14 +235,15 @@ bool NonRigidIcp::FindCorrespondences() {
   return true;
 }
 
-bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
+bool NonRigidIcp::Registrate(double alpha, double gamma) {
   using IndexType = Eigen::SparseMatrix<double>::StorageIndex;
   IndexType n = static_cast<IndexType>(m_src->vertices().size());
   IndexType m = static_cast<IndexType>(m_edges.size());
   IndexType l = 0;
-  if (m_src_landmark_positions.size() > 0) {
-    if (m_src_landmark_positions.size() == m_dst_landmark_positions.size()) {
-      l = static_cast<IndexType>(m_src_landmark_positions.size());
+  if (m_src_landmarks.size() > 0) {
+    if (m_src_landmarks.size() == m_betas.size() &&
+        m_src_landmarks.size() == m_dst_landmark_positions.size()) {
+      l = static_cast<IndexType>(m_src_landmarks.size());
     } else {
       LOGW("Landmark size mismatch. Will not be used...\n");
     }
@@ -261,7 +253,7 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
   X.setZero();
 
   int iter = 0;
-  constexpr int max_iter = 2;  // TODO: better terminate criteria
+  constexpr int max_iter = 10;  // TODO: better terminate criteria
   constexpr double min_frobenius_norm_diff = 2.0;
   Timer<> timer, iter_timer;
   bool verbose = true;
@@ -282,6 +274,8 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     timer.Start();
     Eigen::SparseMatrix<double> A(4 * m + n + l, 4 * n);
 
+    Timer<> timer_mat;
+    timer_mat.Start();
     // 1.alpha_M_G
     std::vector<Eigen::Triplet<double>> alpha_M_G;
     for (IndexType i = 0; i < m; ++i) {
@@ -313,8 +307,11 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
       alpha_M_G.push_back(
           Eigen::Triplet<double>(i * 4 + 3, b * 4 + 3, -alpha * gamma));
     }
+    timer_mat.End();
+    LOGI("1.alpha_M_G: %f ms\n", timer_mat.elapsed_msec());
 
     // 2.W_D
+    timer_mat.Start();
     std::vector<Eigen::Triplet<double>> W_D;
     for (IndexType i = 0; i < n; ++i) {
       const Eigen::Vector3f& vtx = m_src_norm_deformed->vertices()[i];
@@ -334,26 +331,43 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
 
       W_D.push_back(Eigen::Triplet<double>(4 * m + i, i * 4 + 3, weight));
     }
+    timer_mat.End();
+    LOGI("2.W_D: %f ms\n", timer_mat.elapsed_msec());
 
     // 3.beta_D_L
+    timer_mat.Start();
     std::vector<Eigen::Triplet<double>> beta_D_L;
     for (IndexType i = 0; i < l; i++) {
-      for (int j = 0; j < 3; j++) {
-        beta_D_L.push_back(Eigen::Triplet<double>(
-            4 * m + n + i, m_src_landmark_indices[i] * 4 + j,
-            beta * m_src_landmark_positions[i](j)));
+      const PointOnFace& pof = m_src_landmarks[i];
+      const Eigen::Vector3f bary(pof.u, pof.v, 1.f - pof.u - pof.v);
+      const Eigen::Vector3i& indices =
+          m_src_norm_deformed->vertex_indices()[pof.fid];
+      double beta = m_betas[i];
+      for (int k = 0; k < 3; k++) {
+        const int& index = indices[k];
+        // Barycentric interpolation
+        for (int j = 0; j < 3; j++) {
+          beta_D_L.push_back(Eigen::Triplet<double>(
+              4 * m + n + i, index * 4 + j,
+              beta * bary[k] * m_src_norm_deformed->vertices()[index](j)));
+        }
+        // Homogenious w
+        beta_D_L.push_back(
+            Eigen::Triplet<double>(4 * m + n + i, index * 4 + 3, beta));
       }
-
-      beta_D_L.push_back(Eigen::Triplet<double>(
-          4 * m + n + i, m_src_landmark_indices[i] * 4 + 3, beta));
     }
+    timer_mat.End();
+    LOGI("3.beta_D_L: %f ms\n", timer_mat.elapsed_msec());
 
+    timer_mat.Start();
     std::vector<Eigen::Triplet<double>> _A = alpha_M_G;
     _A.insert(_A.end(), W_D.begin(), W_D.end());
     _A.insert(_A.end(), beta_D_L.begin(), beta_D_L.end());
     A.setFromTriplets(_A.begin(), _A.end());
+    LOGI("A.setFromTriplets: %f ms\n", timer_mat.elapsed_msec());
 
     // for the B
+    timer_mat.Start();
     Eigen::MatrixX3d B = Eigen::MatrixX3d::Zero(4 * m + n + l, 3);
     for (IndexType i = 0; i < n; ++i) {
       double weight = m_weights_per_node[i];
@@ -371,39 +385,37 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     }
 
     for (int i = 0; i < l; i++) {
+      double beta = m_betas[i];
       for (int j = 0; j < 3; j++) {
+        // Eq.(12) in the paper seems wrong. beta should be multiplied to B as well as A
         B(4 * m + n + i, j) = beta * m_dst_landmark_positions[i](j);
       }
     }
+    timer_mat.End();
+    LOGI("B: %f ms\n", timer_mat.elapsed_msec());
 
-    Eigen::SparseMatrix<double> AtA =
-        Eigen::SparseMatrix<double>(A.transpose()) * A;
-    Eigen::MatrixX3d AtB = Eigen::SparseMatrix<double>(A.transpose()) * B;
-
-    // ugu::Image3b hoge = ugu::Image3b::zeros(100, 1000);
-    // ugu::imwrite("hoge.png", hoge);
-    // auto vis = VisualizeMatrix(A);
-    // ugu::imwrite("tmp.jpg", vis);
+    timer_mat.Start();
+    Eigen::SparseMatrix<double> AtA = A.transpose() * A;
+    Eigen::MatrixX3d AtB = A.transpose() * B;
+    timer_mat.End();
+    LOGI("matmul: %f ms\n", timer_mat.elapsed_msec());
 
     timer.End();
     LOGI("SparseMatrix Preparation: %f ms\n", timer.elapsed_msec());
 
     timer.Start();
-    // Eigen::ConjugateGradient< Eigen::SparseMatrix<double> > solver;
-    // Eigen::SparseQR<Eigen::SparseMatrix<double>> solver;
+
+#if 1
+    // Closed-form
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-    // Eigen::CholmodSupernodalLLT<Eigen::SparseMatrix<double> > solver;
-
-    // Eigen::initParallel();
-    // Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<double>> solver;
-    // Eigen::BiCGSTAB<Eigen::SparseMatrix<double>,
-    //                 Eigen::IncompleteLUT<double>>
-    //     solver;
-    // AtA = Eigen::Sparse<double, -1, -1, Eigen::RowMajor>(AtA);
-    // solver.setTolerance(1e-4);  // 許容誤差の設定
-    // solver.setMaxIterations(
-    //     10);  // 最大反復回数の設定. デフォルトでは列数の2倍の数値
-
+#else
+    // Iterative
+    Eigen::initParallel();
+    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>, Eigen::IncompleteLUT<double>>
+        solver;
+    solver.setTolerance(1e-4);
+    solver.setMaxIterations(10);
+#endif
     solver.compute(AtA);
 
     timer.End();
@@ -432,12 +444,6 @@ bool NonRigidIcp::Registrate(double alpha, double beta, double gamma) {
     m_src_deformed->set_vertices(updated_vertices);
     m_src_deformed->Scale(m_norm2org_scale);
     m_src_deformed->CalcNormal();
-
-    m_src_landmark_positions.resize(m_src_landmark_indices.size());
-    for (size_t i = 0; i < m_src_landmark_indices.size(); i++) {
-      int idx = m_src_landmark_indices[i];
-      m_src_landmark_positions[i] = m_src_norm_deformed->vertices()[idx];
-    }
 
     timer.End();
     LOGI("Update data: %f ms\n", timer.elapsed_msec());
