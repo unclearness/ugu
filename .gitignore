@@ -44,3 +44,4 @@ imgui
 # Output of examples
 out
 /checks.json
+/.vscode/c_cpp_properties.json

@@ -81,13 +81,11 @@ bool g_mouse_m_pressed = false;
 bool g_mouse_r_pressed = false;
 const double drag_th = 0.0;
 const double g_drag_point_pix_dist_th = 20.0;
-uint32_t g_selecting_point_id = ~0u;
 
 double g_mouse_wheel_yoffset = 0.0;
 bool g_to_process_wheel = false;
 
 const uint32_t MAX_N_SPLIT_WIDTH = 2;
-// uint32_t g_n_split_views = 2;
 
 int g_width = 1280;
 int g_height = 720;
@@ -310,7 +308,6 @@ void NonrigidIcpProcess() {
           g_nonrigidicp_data.src_mesh->vertex_indices().size());
       {
         std::lock_guard<std::mutex> lock_update(nonrigidicp_update_mtx);
-        // std::cout << "start update" << std::endl;
 
         bool to_split_uv = g_nonrigidicp_data.src_mesh->HasIndepentUv();
         if (to_split_uv) {
@@ -337,7 +334,6 @@ void NonrigidIcpProcess() {
             }
           }
         }
-        // std::cout << "end update" << std::endl;
       }
 
       // OpenGL APIs MUST NOT BE CALLED IN SUB THREADS
@@ -608,9 +604,6 @@ struct SplitViewInfo {
       }
       const std::vector<IntersectResult> &results = results_all[geoid];
       if (!results.empty()) {
-        // std::cout << geoid << ": " << results[0].t << " " << results[0].fid
-        //           << " " << results[0].u << ", " << results[0].v <<
-        //           std::endl;
         if (results[0].t < min_intersect.t) {
           min_geoid = geoid;
           min_intersect = results[0];
@@ -676,14 +669,11 @@ struct SplitViewInfo {
         p_gl_frag += offset.cast<double>();
 
         double dist = (p_gl_frag - cursor_pos).norm();
-        // std::cout << i << " " << dist << std::endl;
         if (dist < g_drag_point_pix_dist_th && dist < min_dist) {
           not_close = false;
           min_dist = dist;
           closest_selected_id = i;
           min_geoid = static_cast<uint32_t>(k);
-          // closest_mesh = mesh;
-          //  break;
         }
       }
     }
@@ -696,25 +686,6 @@ struct SplitViewInfo {
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
-#if 0
-static void mouse_callback(GLFWwindow *window, int button, int action,
-                           int mods) {
-  bool lbutton_down = false;
-  if (button == GLFW_MOUSE_BUTTON_LEFT) {
-    if (GLFW_PRESS == action)
-      lbutton_down = true;
-    else if (GLFW_RELEASE == action)
-      lbutton_down = false;
-  }
-
-  if (lbutton_down) {
-    // do your drag here
-    std::cout << "press" << std::endl;
-  } else {
-    std::cout << "release" << std::endl;
-  }
-}
-#endif
 
 void Clear() {
   g_meshes.clear();
@@ -730,22 +701,22 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
                   int mods) {
   (void)pwin, (void)scancode, (void)mods;
   if (key == GLFW_KEY_UP && action == GLFW_PRESS) {
-    printf("key up\n");
+    // printf("key up\n");
   }
   if (key == GLFW_KEY_DOWN && action == GLFW_PRESS) {
-    printf("key down\n");
+    // printf("key down\n");
   }
   if (key == GLFW_KEY_LEFT && action == GLFW_PRESS) {
-    printf("key left\n");
+    // printf("key left\n");
   }
   if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS) {
-    printf("key right\n");
+    // printf("key right\n");
   }
 
   if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z) {
     if (action == GLFW_PRESS) {
-      const char *key_name = glfwGetKeyName(key, 0);
-      printf("key - %s\n", key_name);
+      // const char *key_name = glfwGetKeyName(key, 0);
+      // printf("key - %s\n", key_name);
     }
   }
   if (key == GLFW_KEY_R) {
@@ -783,8 +754,8 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
     if (g_mouse_r_pressed) {
       bool not_close = false;
       CastRayResult result;
-      uint32_t min_geoid;
-      double min_dist = std::numeric_limits<double>::max();
+      // uint32_t min_geoid;
+      // double min_dist = std::numeric_limits<double>::max();
       auto &this_view = g_views[g_subwindow_id];
       result = this_view.CastRay();
       if (result.min_geoid != ~0u &&
@@ -793,8 +764,8 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
             this_view.FindClosestSelectedPoint(g_mouse_r_pressed_pos);
         not_close = !is_close;
 
-        min_dist = min_dist_;
-        min_geoid = min_geoid_;
+        // min_dist = min_dist_;
+        // min_geoid = min_geoid_;
       }
 
       if (not_close) {
@@ -806,9 +777,9 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
               ExtractPos(g_selected_positions[g_meshes[result.min_geoid]]));
         }
 
-        std::cout << "added " << min_dist << std::endl;
+        // std::cout << "added " << min_dist << std::endl;
       } else {
-        std::cout << "ignored " << min_dist << std::endl;
+        // std::cout << "ignored " << min_dist << std::endl;
       }
     }
   }
@@ -1067,7 +1038,7 @@ void ProcessDrags() {
                   ExtractPos(g_selected_positions[g_meshes[min_geoid]]));
             }
           } else {
-            std::cout << "Failed " << min_dist << std::endl;
+            // std::cout << "Failed " << min_dist << std::endl;
           }
         }
       }
@@ -1159,7 +1130,7 @@ void DrawImguiGeneralWindow(bool &reset_points) {
     if (g_meshes.empty()) {
       src_id = -1;
     }
-    for (int n = 0; n < g_meshes.size(); ++n) {
+    for (int n = 0; n < static_cast<int>(g_meshes.size()); ++n) {
       const bool is_selected = (src_id == n);
       if (ImGui::Selectable(std::to_string(n).c_str(), is_selected)) {
         src_id = n;
@@ -1172,7 +1143,7 @@ void DrawImguiGeneralWindow(bool &reset_points) {
     if (g_meshes.empty()) {
       dst_id = -1;
     }
-    for (int n = 0; n < g_meshes.size(); ++n) {
+    for (int n = 0; n < static_cast<int>(g_meshes.size()); ++n) {
       const bool is_selected = (dst_id == n);
       if (ImGui::Selectable(std::to_string(n).c_str(), is_selected)) {
         dst_id = n;
@@ -1248,9 +1219,7 @@ void DrawImguiGeneralWindow(bool &reset_points) {
         Eigen::Affine3f T_ = T;
         if (is_normal) {
           // Remove translation
-          std::cout << T_.matrix() << std::endl;
           T_.matrix().block(0, 3, 3, 1).setConstant(0.f);
-          std::cout << T_.matrix() << std::endl;
         }
         for (const auto &p : points) {
           Eigen::Vector3f t = T_ * p;
@@ -1511,7 +1480,8 @@ void DrawImguiMeshes(SplitViewInfo &view, bool &reset_points) {
     }
     auto &points = g_selected_positions[g_meshes[i]];
 
-    if (view.selected_point_idx[g_meshes[i]] >= points.size()) {
+    if (view.selected_point_idx[g_meshes[i]] >=
+        static_cast<int>(points.size())) {
       view.selected_point_idx[g_meshes[i]] = 0;
     }
 
@@ -1533,7 +1503,7 @@ void DrawImguiMeshes(SplitViewInfo &view, bool &reset_points) {
                              std::string("Points (fid, u, v) (x, y, z)"))
                                 .c_str(),
                             draw_list_size)) {
-      for (int n = 0; n < points.size(); ++n) {
+      for (int n = 0; n < static_cast<int>(points.size()); ++n) {
         const bool is_selected = (view.selected_point_idx[g_meshes[i]] == n);
         if (ImGui::Selectable(lines[n].c_str(), is_selected)) {
           view.selected_point_idx[g_meshes[i]] = n;
@@ -1544,7 +1514,8 @@ void DrawImguiMeshes(SplitViewInfo &view, bool &reset_points) {
 
     if (ImGui::Button((std::string("Remove###remove_point") + std::to_string(i))
                           .c_str())) {
-      if (points.size() > view.selected_point_idx[g_meshes[i]]) {
+      if (static_cast<int>(points.size()) >
+          view.selected_point_idx[g_meshes[i]]) {
         points.erase(points.begin() + view.selected_point_idx[g_meshes[i]]);
       }
       reset_points = true;
@@ -1554,11 +1525,10 @@ void DrawImguiMeshes(SplitViewInfo &view, bool &reset_points) {
     if (ImGui::BeginListBox(
             (std::string("Point Type###ptype") + std::to_string(i)).c_str(),
             {200, 70})) {
-      static bool is_selected_point_type = false;
       std::array<std::string, 3> names = {"Named Point on Triangle",
                                           "Point on Triangle", "3D-Point"};
       static int type_id = -1;
-      for (int n = 0; n < names.size(); ++n) {
+      for (int n = 0; n < static_cast<int>(names.size()); ++n) {
         const bool this_is_selected = (type_id == n);
         if (ImGui::Selectable(names[n].c_str(), this_is_selected)) {
           type_id = n;

@@ -55,6 +55,7 @@ class TextRendererGl {
  private:
   // render state
   uint32_t VAO = ~0u, VBO = ~0u;
+  Eigen::Matrix4f m_prj_mat;
 };
 
 class RendererGl {

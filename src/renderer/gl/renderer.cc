@@ -38,18 +38,17 @@ namespace ugu {
 
 TextRendererGl::TextRendererGl(unsigned int width, unsigned int height) {
   // load and configure shader
-  this->TextShader.SetFragType(FragShaderType::TEXT);
-  this->TextShader.SetVertType(VertShaderType::TEXT);
+  TextShader.SetFragType(FragShaderType::TEXT);
+  TextShader.SetVertType(VertShaderType::TEXT);
 
-  this->TextShader.Prepare();
+  TextShader.Prepare();
 
-  this->TextShader.Use();
+  TextShader.Use();
 
-  this->TextShader.SetMat4("projection",
-                           GetProjectionMatrixOpenGlForOrtho(
-                               0.f, static_cast<float>(width),
-                               static_cast<float>(height), 0.f, -1.f, 1.f));
-  this->TextShader.SetInt("text", 0);
+  m_prj_mat = GetProjectionMatrixOpenGlForOrtho(0.f, static_cast<float>(width),
+                                    static_cast<float>(height), 0.f, -1.f, 1.f);
+  TextShader.SetMat4("projection", m_prj_mat);
+  TextShader.SetInt("text", 0);
   // configure VAO/VBO for texture quads
   glGenVertexArrays(1, &this->VAO);
   glGenBuffers(1, &this->VBO);
@@ -64,7 +63,7 @@ TextRendererGl::TextRendererGl(unsigned int width, unsigned int height) {
 
 void TextRendererGl::Load(std::string font, unsigned int fontSize) {
   // first clear the previously loaded Characters
-  this->Characters.clear();
+  Characters.clear();
   // then initialize and load the FreeType library
   FT_Library ft;
   if (FT_Init_FreeType(&ft))  // all functions return a value different than 0
@@ -125,20 +124,22 @@ void TextRendererGl::Load(std::string font, unsigned int fontSize) {
 void TextRendererGl::RenderText(const std::string& text, float x, float y,
                                 float scale, const Eigen::Vector3f& color) {
   // activate corresponding render state
-  this->TextShader.Use();
-  this->TextShader.SetVec3("textColor", color);
+  TextShader.Use();
+  TextShader.SetVec3("textColor", color);
+  TextShader.SetMat4("projection", m_prj_mat);
+
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   glActiveTexture(GL_TEXTURE0);
-  glBindVertexArray(this->VAO);
+  glBindVertexArray(VAO);
 
   // iterate through all characters
   std::string::const_iterator c;
   for (c = text.begin(); c != text.end(); c++) {
     RendererCharacter ch = Characters.at(*c);
 
-    // this->TextShader.SetInt("text", ch.TextureID);
+    //this->TextShader.SetInt("text", ch.TextureID);
 
     float xpos = x + ch.Bearing.x() * scale;
     float ypos =
@@ -156,7 +157,7 @@ void TextRendererGl::RenderText(const std::string& text, float x, float y,
     // render glyph texture over quad
     glBindTexture(GL_TEXTURE_2D, ch.TextureID);
     // update content of VBO memory
-    glBindBuffer(GL_ARRAY_BUFFER, this->VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferSubData(
         GL_ARRAY_BUFFER, 0, sizeof(vertices),
         vertices);  // be sure to use glBufferSubData and not glBufferData
