@@ -46,7 +46,8 @@ TextRendererGl::TextRendererGl(unsigned int width, unsigned int height) {
   TextShader.Use();
 
   m_prj_mat = GetProjectionMatrixOpenGlForOrtho(0.f, static_cast<float>(width),
-                                    static_cast<float>(height), 0.f, -1.f, 1.f);
+                                                static_cast<float>(height), 0.f,
+                                                -1.f, 1.f);
   TextShader.SetMat4("projection", m_prj_mat);
   TextShader.SetInt("text", 0);
   // configure VAO/VBO for texture quads
@@ -139,7 +140,7 @@ void TextRendererGl::RenderText(const std::string& text, float x, float y,
   for (c = text.begin(); c != text.end(); c++) {
     RendererCharacter ch = Characters.at(*c);
 
-    //this->TextShader.SetInt("text", ch.TextureID);
+    // this->TextShader.SetInt("text", ch.TextureID);
 
     float xpos = x + ch.Bearing.x() * scale;
     float ypos =
@@ -655,13 +656,21 @@ void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans,
   if (trans_updated) {
     m_bb_max_merged.setConstant(std::numeric_limits<float>::lowest());
     m_bb_min_merged.setConstant(std::numeric_limits<float>::max());
+    auto min_stats = m_geoms[0]->GetStatsWithTransform(trans);
     for (const auto& geom : m_geoms) {
       auto stats = geom->GetStatsWithTransform(trans);
       m_bb_max_merged =
           ComputeMaxBound(std::vector{m_bb_max_merged, stats.bb_max});
       m_bb_min_merged =
           ComputeMinBound(std::vector{m_bb_min_merged, stats.bb_min});
+
+      if ((stats.bb_max - stats.bb_min).norm() <
+          (min_stats.bb_max - min_stats.bb_min).norm()) {
+        min_stats = stats;
+      }
     }
+
+    m_depth_threshold = (min_stats.bb_max - min_stats.bb_min).norm() * 0.01f;
   }
 }
 
@@ -790,9 +799,7 @@ void RendererGl::GetMergedBoundingBox(Eigen::Vector3f& bb_max,
   bb_min = m_bb_min_merged;
 }
 
-float RendererGl::GetDepthThreshold() const {
-  return (m_bb_max_merged - m_bb_min_merged).maxCoeff() * 0.01f;
-}
+float RendererGl::GetDepthThreshold() const { return m_depth_threshold; }
 
 std::vector<std::vector<IntersectResult>> RendererGl::Intersect(
     const Ray& ray) const {

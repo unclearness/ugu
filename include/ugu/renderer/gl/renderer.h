@@ -164,6 +164,7 @@ class RendererGl {
 
   Eigen::Vector3f m_bb_max_merged;
   Eigen::Vector3f m_bb_min_merged;
+  float m_depth_threshold;
 
   std::unordered_map<RenderableMeshPtr, std::vector<Eigen::Vector3f>>
       m_selected_positions;
