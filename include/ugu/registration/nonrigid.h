@@ -40,6 +40,14 @@ class NonRigidIcp {
 
   MeshPtr GetDeformedSrc() const;
 
+  void SetCorrespNnNum(uint32_t nn_num);
+  void SetCorrespNormalTh(float rad_th);
+  void SetCorrespDistTh(float dist_th);
+
+  uint32_t GetCorrespNnNum() const;
+  float GetCorrespNormalTh() const;
+  float GetCorrespDistTh() const;
+
  private:
   bool ValidateCorrespondence(size_t src_idx, const Corresp& corresp) const;
 
@@ -70,8 +78,8 @@ class NonRigidIcp {
   std::vector<double> m_betas;
 
   uint32_t m_corresp_nn_num = 10u;
-
   float m_angle_rad_th = 0.65f;
+  float m_dist_th = -1.f;
 
   bool m_dst_check_geometry_border = false;
   std::unordered_set<int> m_dst_border_fids;

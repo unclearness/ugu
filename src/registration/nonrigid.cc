@@ -31,7 +31,7 @@
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
 
-// #define UGU_NCIP_IGNORE_WEIGHT_ZERO
+#define UGU_NICP_ADD_EQ_FOR_WEIGHT_ZERO
 
 namespace {
 using namespace ugu;
@@ -213,22 +213,28 @@ bool NonRigidIcp::FindCorrespondences() {
     auto corresps = m_corresp_finder->FindKnn(current[idx], m_corresp_nn_num);
 
     Corresp c = corresps[0];
+    bool ok = false;
     for (const auto& corresp : corresps) {
+      if (m_dist_th > 0.f && m_dist_th < c.abs_dist) {
+        continue;
+      }
       float vangle =
           std::acos(std::clamp(corresp.n.dot(current_n[idx]), -1.f, 1.f));
-      if (vangle > m_angle_rad_th) {
+      if (m_angle_rad_th > 0.f && vangle > m_angle_rad_th) {
         continue;
       }
       c = corresp;
+      ok = true;
       break;
     }
+
     m_target[idx] = c.p;
     m_corresp[idx].resize(1);
     m_corresp[idx][0].dist = c.abs_dist;
     m_corresp[idx][0].index = size_t(~0);
 
     // Validate correspondence
-    if (!ValidateCorrespondence(idx, c)) {
+    if (!ok || !ValidateCorrespondence(idx, c)) {
       // Set 0 weight to invalid correspondences
       m_weights_per_node[idx] = 0.0;
     }
@@ -330,7 +336,7 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
       const Eigen::Vector3f& vtx = m_src_norm_deformed->vertices()[i];
 
       double weight = m_weights_per_node[i];
-#ifdef UGU_NCIP_IGNORE_WEIGHT_ZERO
+#ifdef UGU_NICP_ADD_EQ_FOR_WEIGHT_ZERO
       // If weight is 0, set the same position to target and reset weight to 1
       if (weight == 0.0) {
         weight = 1.0;
@@ -386,7 +392,7 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
     for (IndexType i = 0; i < n; ++i) {
       double weight = m_weights_per_node[i];
       auto& target_pos = m_target[i];
-#ifdef UGU_NCIP_IGNORE_WEIGHT_ZERO
+#ifdef UGU_NICP_ADD_EQ_FOR_WEIGHT_ZERO
       // If weight is 0, set the same position to target
       if (weight == 0.0) {
         weight = 1.0;
@@ -501,6 +507,14 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
 }
 
 MeshPtr NonRigidIcp::GetDeformedSrc() const { return m_src_deformed; }
+
+void NonRigidIcp::SetCorrespNnNum(uint32_t num) { m_corresp_nn_num = num; }
+void NonRigidIcp::SetCorrespNormalTh(float rad_th) { m_angle_rad_th = rad_th; }
+void NonRigidIcp::SetCorrespDistTh(float dist_th) { m_dist_th = dist_th; }
+
+uint32_t NonRigidIcp::GetCorrespNnNum() const { return m_corresp_nn_num; }
+float NonRigidIcp::GetCorrespNormalTh() const { return m_angle_rad_th; }
+float NonRigidIcp::GetCorrespDistTh() const { return m_dist_th; }
 
 bool NonRigidIcp::ValidateCorrespondence(size_t src_idx,
                                          const Corresp& corresp) const {

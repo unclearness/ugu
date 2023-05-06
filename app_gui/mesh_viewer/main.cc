@@ -133,7 +133,7 @@ Eigen::Vector3f GetPos(const IntersectResult &intersection, uint32_t geoid) {
 }
 
 Eigen::Vector3f GetPos(const CastRayResult &res) {
-  return GetPos(res.intersection, res.min_geoid);
+  return GetPos(res.intersection, static_cast<uint32_t>(res.min_geoid));
 }
 
 std::vector<Eigen::Vector3f> ExtractPos(
@@ -168,6 +168,8 @@ struct NonrigidIcpData {
 
   bool check_self_itersection = false;
   float angle_rad_th = 0.65f;
+  float dist_th = -1.f;
+  int nn_num = 10;
   bool dst_check_geometry_border = false;
   bool src_check_geometry_border = false;
 
@@ -280,6 +282,9 @@ void NonrigidIcpProcess() {
               g_nonrigidicp_data.angle_rad_th,
               g_nonrigidicp_data.dst_check_geometry_border,
               g_nonrigidicp_data.src_check_geometry_border);
+
+    nicp.SetCorrespDistTh(g_nonrigidicp_data.dist_th);
+    nicp.SetCorrespNnNum(g_nonrigidicp_data.nn_num);
 
     std::vector<PointOnFace> src_landmarks;
     for (const auto &res :
@@ -442,12 +447,13 @@ void AlgorithmProcess() {
 void Draw(GLFWwindow *window);
 
 auto GetWidthHeightForView() {
-  return std::make_pair(g_width / g_views.size(), g_height);
+  return std::make_pair(static_cast<uint32_t>(g_width / g_views.size()),
+                        static_cast<uint32_t>(g_height));
 }
 
 bool IsCursorOnView(uint32_t vidx) {
   uint32_t x = static_cast<uint32_t>(g_cursor_pos.x());
-  uint32_t unit_w = g_width / g_views.size();
+  uint32_t unit_w = g_width / static_cast<uint32_t>(g_views.size());
 
   if (unit_w * vidx <= x && x < unit_w * (vidx + 1)) {
     return true;
@@ -484,7 +490,7 @@ struct SplitViewInfo {
 
     camera = std::make_shared<PinholeCamera>(w, h, 45.f);
     renderer = std::make_shared<RendererGl>();
-    renderer->SetSize(w, h);
+    renderer->SetSize(static_cast<uint32_t>(w), static_cast<uint32_t>(h));
     renderer->SetCamera(camera);
     renderer->Init();
 
@@ -576,11 +582,11 @@ struct SplitViewInfo {
     camera->ray_c(static_cast<float>(g_cursor_pos[0] - offset.x()),
                   static_cast<float>(g_cursor_pos[1] - offset.y()), &dir_c_cv);
 
-    const Eigen::Affine3d offset =
+    const Eigen::Affine3d ray_offset =
         Eigen::Affine3d(Eigen::AngleAxisd(pi, Eigen::Vector3d::UnitX()))
             .inverse();
     Eigen::Vector3f dir_c_gl =
-        (dir_c_cv.transpose() * offset.rotation().cast<float>());
+        (dir_c_cv.transpose() * ray_offset.rotation().cast<float>());
     Eigen::Vector3f dir_w_gl =
         camera->c2w().rotation().cast<float>() * dir_c_gl;
 
@@ -675,7 +681,7 @@ struct SplitViewInfo {
           not_close = false;
           min_dist = dist;
           closest_selected_id = i;
-          min_geoid = k;
+          min_geoid = static_cast<uint32_t>(k);
           // closest_mesh = mesh;
           //  break;
         }
@@ -722,6 +728,7 @@ void Clear() {
 
 void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
                   int mods) {
+  (void)pwin, (void)scancode, (void)mods;
   if (key == GLFW_KEY_UP && action == GLFW_PRESS) {
     printf("key up\n");
   }
@@ -751,11 +758,9 @@ void key_callback(GLFWwindow *pwin, int key, int scancode, int action,
 }
 
 void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
-  // std::lock_guard<std::mutex> lock(mouse_mtx);
+  (void)pwin, (void)mods;
 
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
-    // printf("L - down\n");
-    // g_prev_mouse_l_pressed = g_mouse_l_pressed;
     g_mouse_l_pressed = action == GLFW_PRESS;
     if (g_mouse_l_pressed) {
       g_mouse_l_pressed_pos = g_cursor_pos;
@@ -763,8 +768,6 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
       g_mouse_l_released_pos = g_cursor_pos;
 
       if ((g_mouse_l_pressed_pos - g_mouse_l_released_pos).norm() > drag_th) {
-        // std::cout << "drag finish " << g_mouse_l_pressed_pos << " -> "
-        //           << g_mouse_l_released_pos << std::endl;
       }
     }
   }
@@ -782,16 +785,14 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
       CastRayResult result;
       uint32_t min_geoid;
       double min_dist = std::numeric_limits<double>::max();
-      // for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
-      auto &view = g_views[g_subwindow_id];
-      result = view.CastRay();
+      auto &this_view = g_views[g_subwindow_id];
+      result = this_view.CastRay();
       if (result.min_geoid != ~0u &&
-          view.renderer->GetVisibility(g_meshes[result.min_geoid])) {
+          this_view.renderer->GetVisibility(g_meshes[result.min_geoid])) {
         auto [is_close, min_geoid_, id, min_dist_] =
-            view.FindClosestSelectedPoint(g_mouse_r_pressed_pos);
+            this_view.FindClosestSelectedPoint(g_mouse_r_pressed_pos);
         not_close = !is_close;
-        // break;
-        //}
+
         min_dist = min_dist_;
         min_geoid = min_geoid_;
       }
@@ -813,7 +814,6 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
   }
 
   if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
-    // g_prev_mouse_m_pressed = g_mouse_m_pressed;
     g_mouse_m_pressed = action == GLFW_PRESS;
     if (g_mouse_m_pressed) {
       g_mouse_m_pressed_pos = g_cursor_pos;
@@ -821,27 +821,20 @@ void mouse_button_callback(GLFWwindow *pwin, int button, int action, int mods) {
       g_mouse_m_released_pos = g_cursor_pos;
 
       if ((g_mouse_m_pressed_pos - g_mouse_m_released_pos).norm() > drag_th) {
-        // std::cout << "drag finish " << g_mouse_m_pressed_pos << " -> "
-        //           << g_mouse_m_released_pos << std::endl;
       }
     }
   }
 }
 
 void mouse_wheel_callback(GLFWwindow *window, double xoffset, double yoffset) {
-  if (yoffset < 0) {
-    // printf("wheel down \n");
-  }
-  if (yoffset > 0) {
-    // printf("wheel up \n");
-  }
+  (void)window, (void)xoffset;
 
   g_mouse_wheel_yoffset = yoffset;
   g_to_process_wheel = true;
 }
 
 void cursor_pos_callback(GLFWwindow *window, double xoffset, double yoffset) {
-  // std::cout << "pos: " << xoffset << ", " << yoffset << std::endl;
+  (void)window;
   g_prev_cursor_pos = g_cursor_pos;
 
   g_cursor_pos[0] = xoffset;
@@ -918,6 +911,7 @@ void LoadMesh(const std::string &path) {
 }
 
 void drop_callback(GLFWwindow *window, int count, const char **paths) {
+  (void)window;
   for (int i = 0; i < count; i++) {
     std::cout << "Dropped: " << i << "/" << count << " " << paths[i]
               << std::endl;
@@ -926,7 +920,7 @@ void drop_callback(GLFWwindow *window, int count, const char **paths) {
 }
 
 void window_size_callback(GLFWwindow *window, int width, int height) {
-  // std::cout << width << " " << height << std::endl;
+  (void)window;
 
   if (width < 1 && height < 1) {
     return;
@@ -938,35 +932,17 @@ void window_size_callback(GLFWwindow *window, int width, int height) {
   for (auto &view : g_views) {
     view.Reset();
   }
-
-  // Draw(window);
-
-  // glViewport(0, 0, width, height);
-  // std::cout << "window size " << width << " " << height << std::endl;
 }
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
-// glViewport(0, 0, width, height)
-#if 0
-  g_width = width;
-  g_height = height;
-
-  g_camera->set_size(g_width, g_height);
-  g_camera->set_fov_y(45.0f);
-  g_camera->set_principal_point({g_width / 2.f, g_height / 2.f});
-
-  g_renderer->SetSize(g_width, g_height);
-#endif
-  // ResetGl();
-
-  // glViewport(0, 0, width/2, height);
+  (void)width, (void)height;
 
   Draw(window);
-
-  // std::cout << "frame buffer size " << width << " " << height << std::endl;
 }
 
 void cursor_enter_callback(GLFWwindow *window, int entered) {
+  (void)window, (void)entered;
+
   g_to_process_drag_l = false;
   g_to_process_drag_r = false;
   g_to_process_drag_m = false;
@@ -1005,8 +981,9 @@ void DrawViews() {
       view.renderer->SetMesh(mesh, g_model_matrices.at(mesh),
                              g_update_bvh.at(mesh));
     }
-    const auto offset_w = g_width / g_views.size();
-    view.renderer->SetViewport(offset_w * i, 0, offset_w, g_height);
+    const uint32_t offset_w = g_width / static_cast<uint32_t>(g_views.size());
+    view.renderer->SetViewport(static_cast<uint32_t>(offset_w * i), 0, offset_w,
+                               g_height);
     view.renderer->Draw();
   }
 
@@ -1083,9 +1060,9 @@ void ProcessDrags() {
 
           if (result.min_geoid == min_geoid && is_close) {
             g_selected_positions[g_meshes[min_geoid]][id] = result;
-            for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
-              auto &view = g_views[vidx];
-              view.renderer->AddSelectedPositions(
+            for (size_t vidx_ = 0; vidx_ < g_views.size(); vidx_++) {
+              auto &view_ = g_views[vidx_];
+              view_.renderer->AddSelectedPositions(
                   g_meshes[min_geoid],
                   ExtractPos(g_selected_positions[g_meshes[min_geoid]]));
             }
@@ -1361,6 +1338,14 @@ void DrawImguiGeneralWindow(bool &reset_points) {
                     &g_nonrigidicp_data.check_self_itersection);
     ImGui::InputFloat("angle threshold (rad)",
                       &g_nonrigidicp_data.angle_rad_th);
+    ImGui::InputFloat("distance threshold", &g_nonrigidicp_data.dist_th);
+    if (ImGui::InputInt("#NearestNeighbors for correspondence",
+                        &g_nonrigidicp_data.nn_num)) {
+      if (g_nonrigidicp_data.nn_num < 1) {
+        g_nonrigidicp_data.nn_num = 1;
+      }
+    }
+
     ImGui::Checkbox("check dst geometry border",
                     &g_nonrigidicp_data.dst_check_geometry_border);
     ImGui::Checkbox("check src geometry border",
@@ -1533,13 +1518,13 @@ void DrawImguiMeshes(SplitViewInfo &view, bool &reset_points) {
     std::vector<std::string> lines;  // For owership of const char*
 
     int fill_digits = CalcFillDigits(points.size());
-    for (size_t i = 0; i < points.size(); i++) {
-      auto p_wld = GetPos(points[i]);
-      std::string line = ugu::zfill(i, fill_digits) + ": (" +
-                         std::to_string(points[i].intersection.fid) + ", " +
-                         std::to_string(points[i].intersection.u) + ", " +
-                         std::to_string(points[i].intersection.v) + ")" + " (" +
-                         std::to_string(p_wld[0]) + ", " +
+    for (size_t pidx = 0; pidx < points.size(); pidx++) {
+      auto p_wld = GetPos(points[pidx]);
+      std::string line = ugu::zfill(pidx, fill_digits) + ": (" +
+                         std::to_string(points[pidx].intersection.fid) + ", " +
+                         std::to_string(points[pidx].intersection.u) + ", " +
+                         std::to_string(points[pidx].intersection.v) + ")" +
+                         " (" + std::to_string(p_wld[0]) + ", " +
                          std::to_string(p_wld[1]) + ", " +
                          std::to_string(p_wld[2]) + ")";
       lines.push_back(line);
@@ -1569,13 +1554,13 @@ void DrawImguiMeshes(SplitViewInfo &view, bool &reset_points) {
     if (ImGui::BeginListBox(
             (std::string("Point Type###ptype") + std::to_string(i)).c_str(),
             {200, 70})) {
-      static bool is_selected = false;
+      static bool is_selected_point_type = false;
       std::array<std::string, 3> names = {"Named Point on Triangle",
                                           "Point on Triangle", "3D-Point"};
       static int type_id = -1;
       for (int n = 0; n < names.size(); ++n) {
-        const bool is_selected = (type_id == n);
-        if (ImGui::Selectable(names[n].c_str(), is_selected)) {
+        const bool this_is_selected = (type_id == n);
+        if (ImGui::Selectable(names[n].c_str(), this_is_selected)) {
           type_id = n;
         }
       }
@@ -1630,12 +1615,12 @@ void DrawImguiMeshes(SplitViewInfo &view, bool &reset_points) {
 
     if (ImGui::Button(
             (std::string("Export###export") + std::to_string(i)).c_str())) {
-      int fill_digits = CalcFillDigits(points.size());
+      int fill_digits_export = CalcFillDigits(points.size());
       std::vector<PointOnFace> pofs;
       for (size_t p_idx = 0; p_idx < points.size(); p_idx++) {
         const auto &p = points[p_idx];
         PointOnFace pof;
-        pof.name = zfill(p_idx, fill_digits);
+        pof.name = zfill(p_idx, fill_digits_export);
         pof.fid = p.intersection.fid;
         pof.u = p.intersection.u;
         pof.v = p.intersection.v;
@@ -2019,7 +2004,7 @@ int main(int, char **) {
 
   for (size_t vidx = 0; vidx < g_views.size(); vidx++) {
     auto &view = g_views[vidx];
-    view.Init(vidx);
+    view.Init(static_cast<uint32_t>(vidx));
   }
 
   std::thread algorithm_thread(AlgorithmProcess);

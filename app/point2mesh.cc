@@ -123,7 +123,7 @@ int main(int argc, char* argv[]) {
   std::vector<ugu::Corresp> correspondences(src_mesh.vertices().size());
   auto func = [&](size_t i) {
     correspondences[i] =
-        corresp_finder->FindAll(src_mesh.vertices()[i], nn_num)[0];
+        corresp_finder->FindKnn(src_mesh.vertices()[i], nn_num)[0];
   };
   ugu::parallel_for(size_t(0), src_mesh.vertices().size(), func, num_threads);
   timer.End();
