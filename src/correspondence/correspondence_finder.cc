@@ -24,8 +24,8 @@ auto ComputeFaceInfo(const std::vector<Eigen::Vector3f>& verts,
     const auto centroid = (v0 + v1 + v2) / 3.0;
     face_centroids[idx] = centroid;
 
-    Eigen::Vector3f vec10 = v1 - v0;
-    Eigen::Vector3f vec20 = v2 - v0;
+    Eigen::Vector3f vec10 = (v1 - v0).normalized();
+    Eigen::Vector3f vec20 = (v2 - v0).normalized();
     Eigen::Vector3f n = vec10.cross(vec20).normalized();
     float d = -1.f * n.dot(v0);
     face_planes[idx] = {n[0], n[1], n[2], d};
@@ -58,7 +58,7 @@ bool KDTreeCorrespFinder::Init(
 
     std::vector<int> add_count(m_verts.size(), 0);
 
-    for (size_t i = 0; i < m_verts.size(); i++) {
+    for (size_t i = 0; i < m_verts_faces.size(); i++) {
       const auto& face = m_verts_faces[i];
       for (int j = 0; j < 3; j++) {
         int idx = face[j];
@@ -75,6 +75,7 @@ bool KDTreeCorrespFinder::Init(
       } else {
         // for unreferenced vertices, set (0, 0, 0)
         m_vert_normals[i].setZero();
+        LOGW("vertex %d has invalid normal\n", i);
       }
     }
   }
