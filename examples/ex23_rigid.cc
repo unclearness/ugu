@@ -153,9 +153,10 @@ void TestAlignmentWithoutCorresp() {
   {
     noised_mesh = org_noised_mesh;
     ugu::IcpTerminateCriteria tmc;
+    ugu::IcpCorrespCriteria crc;
     ugu::IcpOutput output;
     timer.Start();
-    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpLossType::kPointToPoint, tmc,
+    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpLossType::kPointToPoint, tmc, crc,
                   output, false);
     timer.End();
     ugu::LOGI("Point-To-Point ICP: %fms\n", timer.elapsed_msec());
@@ -171,9 +172,10 @@ void TestAlignmentWithoutCorresp() {
   {
     noised_mesh = org_noised_mesh;
     ugu::IcpTerminateCriteria tmc;
+    ugu::IcpCorrespCriteria crc;
     ugu::IcpOutput output;
     timer.Start();
-    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpLossType::kPointToPlane, tmc,
+    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpLossType::kPointToPlane, tmc, crc,
                   output, false);
     timer.End();
 
@@ -191,7 +193,7 @@ void TestAlignmentWithoutCorresp() {
 }  // namespace
 
 int main() {
-  TestAlignmentWithCorresp();
+ // TestAlignmentWithCorresp();
 
   TestAlignmentWithoutCorresp();
 

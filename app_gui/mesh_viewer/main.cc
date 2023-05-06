@@ -150,12 +150,16 @@ struct IcpData {
   RenderableMeshPtr src_mesh;
   std::vector<Eigen::Vector3f> src_points;
   std::vector<Eigen::Vector3f> dst_points;
+  std::vector<Eigen::Vector3f> src_normals;
+  std::vector<Eigen::Vector3f> dst_normals;
   std::vector<Eigen::Vector3i> dst_faces;
   IcpTerminateCriteria terminate_criteria;
+  IcpCorrespCriteria corresp_criteria;
   IcpOutput output;
   bool with_scale = false;
   CorrespFinderPtr corresp_finder = nullptr;
   IcpCallbackFunc callback = nullptr;
+  bool point2plane = true;
 };
 
 struct NonrigidIcpData {
@@ -229,17 +233,21 @@ void IcpProcess() {
 
     Timer timer;
     timer.Start();
-#if 0
+
+    if (g_icp_data.point2plane) {
+      RigidIcpPointToPlane(g_icp_data.src_points, g_icp_data.dst_points,
+                           g_icp_data.src_normals, g_icp_data.dst_normals,
+                           g_icp_data.dst_faces, g_icp_data.terminate_criteria,
+                           g_icp_data.corresp_criteria, g_icp_data.output,
+                           g_icp_data.with_scale, g_icp_data.corresp_finder,
+                           g_icp_data.callback);
+    } else {
       RigidIcpPointToPoint(g_icp_data.src_points, g_icp_data.dst_points,
+                           g_icp_data.src_normals, g_icp_data.dst_normals,
                            g_icp_data.terminate_criteria,
-                           g_icp_data.output, g_icp_data.with_scale,
-                           nullptr, g_icp_data.callback);
-#else
-    RigidIcpPointToPlane(g_icp_data.src_points, g_icp_data.dst_points,
-                         g_icp_data.dst_faces, g_icp_data.terminate_criteria,
-                         g_icp_data.output, g_icp_data.with_scale,
-                         g_icp_data.corresp_finder, g_icp_data.callback);
-#endif
+                           g_icp_data.corresp_criteria, g_icp_data.output,
+                           g_icp_data.with_scale, nullptr, g_icp_data.callback);
+    }
     timer.End();
     g_callback_message =
         "ICP took " + std::to_string(timer.elapsed_msec() / 1000) + " sec.";
@@ -1258,10 +1266,21 @@ void DrawImguiGeneralWindow(bool &reset_points) {
   if (ImGui::Button("Run####Rigid ICP")) {
     if (validate_func()) {
       auto apply_trans = [&](const std::vector<Eigen::Vector3f> &points,
-                             const Eigen::Affine3f &T) {
+                             const Eigen::Affine3f &T, bool is_normal = false) {
         std::vector<Eigen::Vector3f> transed;
+        Eigen::Affine3f T_ = T;
+        if (is_normal) {
+          // Remove translation
+          std::cout << T_.matrix() << std::endl;
+          T_.matrix().block(0, 3, 3, 1).setConstant(0.f);
+          std::cout << T_.matrix() << std::endl;
+        }
         for (const auto &p : points) {
-          transed.push_back(T * p);
+          Eigen::Vector3f t = T_ * p;
+          if (is_normal) {
+            t.normalize();
+          }
+          transed.push_back(t);
         }
         return transed;
       };
@@ -1271,11 +1290,20 @@ void DrawImguiGeneralWindow(bool &reset_points) {
       auto transed_dst_points =
           apply_trans(dst_mesh->vertices(), g_model_matrices[dst_mesh]);
 
+      auto transed_src_normals =
+          apply_trans(src_mesh->normals(), g_model_matrices[src_mesh], true);
+      auto transed_dst_normals =
+          apply_trans(dst_mesh->normals(), g_model_matrices[dst_mesh], true);
+
       ImGui::OpenPopup("Algorithm Callback");
       std::lock_guard<std::mutex> lock(icp_mtx);
       g_icp_data.src_mesh = src_mesh;
       g_icp_data.src_points = std::move(transed_src_points);
       g_icp_data.dst_points = std::move(transed_dst_points);
+
+      g_icp_data.src_normals = std::move(transed_src_normals);
+      g_icp_data.dst_normals = std::move(transed_dst_normals);
+
       g_icp_data.dst_faces = dst_mesh->vertex_indices();
       g_icp_data.callback = IcpProcessCallback;
       g_icp_data.output.loss_histroty.clear();
@@ -1286,6 +1314,11 @@ void DrawImguiGeneralWindow(bool &reset_points) {
     }
   }
   if (ImGui::TreeNodeEx("Option####OptionRigid ICP")) {
+    if (ImGui::Checkbox("Check: point-to-plane. "
+                        "Uncheck:point-to-point###rigid_icp_point2plane",
+                        &g_icp_data.point2plane)) {
+    }
+
     if (ImGui::InputInt("max iter###rigid_icp_max_iter",
                         &g_icp_data.terminate_criteria.iter_max)) {
     }
@@ -1294,6 +1327,17 @@ void DrawImguiGeneralWindow(bool &reset_points) {
     }
     if (ImGui::InputDouble("min eps###rigid_icp_min_eps",
                            &g_icp_data.terminate_criteria.loss_eps)) {
+    }
+
+    if (ImGui::InputFloat("normal threshold (rad) ###rigid_icp_normal_th",
+                          &g_icp_data.corresp_criteria.normal_th)) {
+    }
+    if (ImGui::InputFloat("distance threshold ###rigid_icp_dist_th",
+                          &g_icp_data.corresp_criteria.dist_th)) {
+    }
+    if (ImGui::Checkbox(
+            "Always try to use the nearest point###rigid_icp_test_nearest",
+            &g_icp_data.corresp_criteria.test_nearest)) {
     }
 
     ImGui::TreePop();

@@ -88,15 +88,24 @@ void my_umeyama(const Eigen::MatrixBase<Derived>& src,
   T_rigid.col(m).head(m).noalias() -= Rt.topLeftCorner(m, m) * src_mean;
 }
 
+struct IcpCorresp {
+  double dist = -1.0;
+  bool valid = false;
+};
+
 template <typename T>
 bool RigidIcpImpl(const std::vector<Eigen::Vector3<T>>& src_points,
                   const std::vector<Eigen::Vector3<T>>& dst_points,
+                  const std::vector<Eigen::Vector3<T>>& src_normals,
+                  const std::vector<Eigen::Vector3<T>>& dst_normals,
                   const std::vector<Eigen::Vector3i>& dst_faces,
                   const IcpTerminateCriteria& terminate_criteria,
+                  const IcpCorrespCriteria& corresp_criateria,
                   IcpOutput& output, bool with_scale, IcpLossType loss_type,
                   KdTreePtr<T, 3> kdtree = nullptr,
                   CorrespFinderPtr corresp_finder = nullptr,
-                  int num_theads = -1, IcpCallbackFunc callback = nullptr) {
+                  int num_theads = -1, IcpCallbackFunc callback = nullptr,
+                  uint32_t nn_num = 10) {
   if (loss_type == IcpLossType::kPointToPoint &&
       (kdtree == nullptr || !kdtree->IsInitialized())) {
     kdtree = GetDefaultKdTree<T, 3>();
@@ -138,18 +147,71 @@ bool RigidIcpImpl(const std::vector<Eigen::Vector3<T>>& src_points,
 
   std::vector<Eigen::Vector3<T>> current = src_points;
   std::vector<Eigen::Vector3<T>> target(current.size());
-  std::vector<KdTreeSearchResults> corresp(current.size());
-  auto point2point_corresp_func = [&](size_t idx) {
-    corresp[idx] = kdtree->SearchNn(current[idx]);
-    target[idx] = dst_points[corresp[idx][0].index];
+  std::vector<IcpCorresp> corresp(current.size());
+
+  std::vector<Eigen::Vector3<T>> current_(current.size());
+  std::vector<Eigen::Vector3<T>> target_(target.size());
+
+  // Normal and distance threshold
+  auto is_valid = [&](const Eigen::Vector3<T>& src_n,
+                      const Eigen::Vector3<T>& dst_n, const double& dist) {
+    if (0.f < corresp_criateria.normal_th) {
+      double dot =
+          static_cast<double>(std::clamp(src_n.dot(dst_n), T(-1), T(1)));
+      if (corresp_criateria.normal_th < std::acos(dot)) {
+        return false;
+      }
+    }
+    if (0.f < corresp_criateria.dist_th) {
+      if (corresp_criateria.dist_th < dist) {
+        return false;
+      }
+    }
+    return true;
   };
+
+  auto point2point_corresp_func = [&](size_t idx) {
+    if (corresp_criateria.test_nearest) {
+      ugu::KdTreeSearchResults res = kdtree->SearchNn(current[idx]);
+      corresp[idx].valid =
+          is_valid(src_normals[idx], dst_normals[res[0].index], res[0].dist);
+      corresp[idx].dist = res[0].dist;
+      target[idx] = dst_points[res[0].index];
+    } else {
+      ugu::KdTreeSearchResults res = kdtree->SearchKnn(current[idx], nn_num);
+      for (const auto& r : res) {
+        corresp[idx].valid =
+            is_valid(src_normals[idx], dst_normals[r.index], r.dist);
+        corresp[idx].dist = r.dist;
+        target[idx] = dst_points[r.index];
+        if (corresp[idx].valid) {
+          break;
+        }
+      }
+    }
+  };
+
   auto point2plane_corresp_func = [&](size_t idx) {
-    Corresp c = corresp_finder->Find(current[idx].template cast<float>(),
-                                     Eigen::Vector3f::Zero());
-    target[idx] = c.p.template cast<T>();
-    corresp[idx].resize(1);
-    corresp[idx][0].dist = c.abs_dist;
-    corresp[idx][0].index = size_t(~0);
+    if (corresp_criateria.test_nearest) {
+      Corresp c = corresp_finder->Find(current[idx].template cast<float>());
+      corresp[idx].valid =
+          is_valid(src_normals[idx], c.n.cast<T>(), c.abs_dist);
+      corresp[idx].dist = c.abs_dist;
+      target[idx] = c.p.cast<T>();
+    } else {
+      uint32_t nn_num_ = nn_num;
+      std::vector<Corresp> cs =
+          corresp_finder->FindKnn(current[idx].template cast<float>(), nn_num_);
+      for (const auto& c : cs) {
+        corresp[idx].valid =
+            is_valid(src_normals[idx], c.n.cast<T>(), c.abs_dist);
+        corresp[idx].dist = c.abs_dist;
+        target[idx] = c.p.cast<T>();
+        if (corresp[idx].valid) {
+          break;
+        }
+      }
+    }
   };
 
   std::function<void(size_t)> corresp_func = nullptr;
@@ -166,14 +228,34 @@ bool RigidIcpImpl(const std::vector<Eigen::Vector3<T>>& src_points,
     Eigen::Transform<T, 3, Eigen::Affine> cur_transform =
         Eigen::Transform<T, 3, Eigen::Affine>::Identity();
     if (iter > 0) {
+      current_.clear();
+      target_.clear();
+      for (size_t idx = 0; idx < current.size(); idx++) {
+        const auto& c = corresp[idx];
+        if (c.valid) {
+          current_.push_back(current[idx]);
+          target_.push_back(target[idx]);
+        }
+      }
+      float inlier_ratio = static_cast<float>(current_.size()) /
+                           static_cast<float>(current.size());
+      LOGD("Inliers : %d / %d, %f\n", current_.size(), current.size(),
+           inlier_ratio);
+
+      if (current_.size() < 3) {
+        LOGW("The number of valid correspondences is less than 3. Stop...\n");
+        break;
+      }
+
       // Solve rotation, translation and scale by Umeyama closed-form method
       if (with_scale) {
         cur_transform =
-            FindSimilarityTransformFrom3dCorrespondences(current, target)
+            FindSimilarityTransformFrom3dCorrespondences(current_, target_)
                 .template cast<T>();
       } else {
-        cur_transform = FindRigidTransformFrom3dCorrespondences(current, target)
-                            .template cast<T>();
+        cur_transform =
+            FindRigidTransformFrom3dCorrespondences(current_, target_)
+                .template cast<T>();
       }
 
       accum_transform = cur_transform * accum_transform;
@@ -189,7 +271,7 @@ bool RigidIcpImpl(const std::vector<Eigen::Vector3<T>>& src_points,
     prev_loss_ave = loss_ave;
     loss_ave = 0;
     for (const auto& r : corresp) {
-      loss_ave += r[0].dist;
+      loss_ave += r.dist;
     }
     loss_ave /= static_cast<double>(corresp.size());
 
@@ -225,11 +307,15 @@ bool RigidIcpImpl(const std::vector<Eigen::Vector3<T>>& src_points,
 template <typename T>
 bool RigidIcpPointToPointImpl(const std::vector<Eigen::Vector3<T>>& src,
                               const std::vector<Eigen::Vector3<T>>& dst,
+                              const std::vector<Eigen::Vector3<T>>& src_normals,
+                              const std::vector<Eigen::Vector3<T>>& dst_normals,
                               const IcpTerminateCriteria& terminate_criteria,
+                              const IcpCorrespCriteria& corresp_criteria,
                               IcpOutput& output, bool with_scale,
                               KdTreePtr<T, 3> kdtree = nullptr,
                               IcpCallbackFunc callback = nullptr) {
-  return RigidIcpImpl(src, dst, {}, terminate_criteria, output, with_scale,
+  return RigidIcpImpl(src, dst, src_normals, dst_normals, {},
+                      terminate_criteria, corresp_criteria, output, with_scale,
                       IcpLossType::kPointToPoint, kdtree, nullptr, -1,
                       callback);
 }
@@ -237,13 +323,17 @@ bool RigidIcpPointToPointImpl(const std::vector<Eigen::Vector3<T>>& src,
 template <typename T>
 bool RigidIcpPointToPlaneImpl(const std::vector<Eigen::Vector3<T>>& src_points,
                               const std::vector<Eigen::Vector3<T>>& dst_points,
+                              const std::vector<Eigen::Vector3<T>>& src_normals,
+                              const std::vector<Eigen::Vector3<T>>& dst_normals,
                               const std::vector<Eigen::Vector3i>& dst_faces,
                               const IcpTerminateCriteria& terminate_criteria,
+                              const IcpCorrespCriteria& corresp_criteria,
                               IcpOutput& output, bool with_scale,
                               CorrespFinderPtr corresp_finder = nullptr,
                               IcpCallbackFunc callback = nullptr) {
-  return RigidIcpImpl(src_points, dst_points, dst_faces, terminate_criteria,
-                      output, with_scale, IcpLossType::kPointToPlane,
+  return RigidIcpImpl(src_points, dst_points, src_normals, dst_normals,
+                      dst_faces, terminate_criteria, corresp_criteria, output,
+                      with_scale, IcpLossType::kPointToPlane,
                       KdTreePtr<T, 3>(nullptr), corresp_finder, -1, callback);
 }
 
@@ -330,8 +420,7 @@ Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
   Eigen::Matrix3d R = svd.matrixV() * svd.matrixU().transpose();
   double det = R.determinant();
 
-  constexpr double assert_eps = 0.001;
-  assert(std::abs(std::abs(det) - 1.0) < assert_eps);
+  assert(std::abs(std::abs(det) - 1.0) < 0.001);
 
   // https://github.com/nghiaho12/rigid_transform_3D/blob/32c95173966488926ccabc67c5ea70c03f63df7a/rigid_transform_3D.py#L44
   if (det < 0) {
@@ -343,7 +432,7 @@ Eigen::Affine3d FindRigidTransformFrom3dCorrespondences(
     det = R.determinant();
   }
 
-  assert(std::abs(det - 1.0) < assert_eps);
+  assert(std::abs(det - 1.0) < 0.001);
 
   Eigen::Vector3d t = dst_centroid - R * src_centroid;
 
@@ -454,60 +543,79 @@ void DecomposeRts(const Eigen::Affine3d& T, Eigen::Matrix3d& R,
 
 bool RigidIcpPointToPoint(const std::vector<Eigen::Vector3f>& src,
                           const std::vector<Eigen::Vector3f>& dst,
+                          const std::vector<Eigen::Vector3f>& src_normals,
+                          const std::vector<Eigen::Vector3f>& dst_normals,
                           const IcpTerminateCriteria& terminate_criteria,
+                          const IcpCorrespCriteria& corresp_criteria,
                           IcpOutput& output, bool with_scale,
                           KdTreePtr<float, 3> kdtree,
                           IcpCallbackFunc callback) {
-  return RigidIcpPointToPointImpl(src, dst, terminate_criteria, output,
+  return RigidIcpPointToPointImpl(src, dst, src_normals, dst_normals,
+                                  terminate_criteria, corresp_criteria, output,
                                   with_scale, kdtree, callback);
 }
 
 bool RigidIcpPointToPoint(const std::vector<Eigen::Vector3d>& src,
                           const std::vector<Eigen::Vector3d>& dst,
+                          const std::vector<Eigen::Vector3d>& src_normals,
+                          const std::vector<Eigen::Vector3d>& dst_normals,
                           const IcpTerminateCriteria& terminate_criteria,
+                          const IcpCorrespCriteria& corresp_criteria,
                           IcpOutput& output, bool with_scale,
                           KdTreePtr<double, 3> kdtree,
                           IcpCallbackFunc callback) {
-  return RigidIcpPointToPointImpl(src, dst, terminate_criteria, output,
+  return RigidIcpPointToPointImpl(src, dst, src_normals, dst_normals,
+                                  terminate_criteria, corresp_criteria, output,
                                   with_scale, kdtree, callback);
 }
 
 bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3f>& src_points,
                           const std::vector<Eigen::Vector3f>& dst_points,
+                          const std::vector<Eigen::Vector3f>& src_normals,
+                          const std::vector<Eigen::Vector3f>& dst_normals,
                           const std::vector<Eigen::Vector3i>& dst_faces,
                           const IcpTerminateCriteria& terminate_criteria,
+                          const IcpCorrespCriteria& corresp_criteria,
                           IcpOutput& output, bool with_scale,
                           CorrespFinderPtr corresp_finder,
                           IcpCallbackFunc callback) {
-  return RigidIcpPointToPlaneImpl(src_points, dst_points, dst_faces,
-                                  terminate_criteria, output, with_scale,
+  return RigidIcpPointToPlaneImpl(src_points, dst_points, src_normals,
+                                  dst_normals, dst_faces, terminate_criteria,
+                                  corresp_criteria, output, with_scale,
                                   corresp_finder, callback);
 }
 
 bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3d>& src_points,
                           const std::vector<Eigen::Vector3d>& dst_points,
+                          const std::vector<Eigen::Vector3d>& src_normals,
+                          const std::vector<Eigen::Vector3d>& dst_normals,
                           const std::vector<Eigen::Vector3i>& dst_faces,
                           const IcpTerminateCriteria& terminate_criteria,
+                          const IcpCorrespCriteria& corresp_criteria,
                           IcpOutput& output, bool with_scale,
                           CorrespFinderPtr corresp_finder,
                           IcpCallbackFunc callback) {
-  return RigidIcpPointToPlaneImpl(src_points, dst_points, dst_faces,
-                                  terminate_criteria, output, with_scale,
+  return RigidIcpPointToPlaneImpl(src_points, dst_points, src_normals,
+                                  dst_normals, dst_faces, terminate_criteria,
+                                  corresp_criteria, output, with_scale,
                                   corresp_finder, callback);
 }
 
 bool RigidIcp(const Mesh& src, const Mesh& dst, const IcpLossType& loss_type,
-              const IcpTerminateCriteria& terminate_criteria, IcpOutput& output,
+              const IcpTerminateCriteria& terminate_criteria,
+              const IcpCorrespCriteria& corresp_criteria, IcpOutput& output,
               bool with_scale, KdTreePtr<float, 3> kdtree,
               CorrespFinderPtr corresp_finder, IcpCallbackFunc callback) {
   if (loss_type == IcpLossType::kPointToPoint) {
-    return RigidIcpPointToPoint(src.vertices(), dst.vertices(),
-                                terminate_criteria, output, with_scale, kdtree,
+    return RigidIcpPointToPoint(src.vertices(), dst.vertices(), src.normals(),
+                                dst.normals(), terminate_criteria,
+                                corresp_criteria, output, with_scale, kdtree,
                                 callback);
   } else if (loss_type == IcpLossType::kPointToPlane) {
-    return RigidIcpPointToPlane(src.vertices(), dst.vertices(),
-                                dst.vertex_indices(), terminate_criteria,
-                                output, with_scale, corresp_finder, callback);
+    return RigidIcpPointToPlane(src.vertices(), dst.vertices(), src.normals(),
+                                dst.normals(), dst.vertex_indices(),
+                                terminate_criteria, corresp_criteria, output,
+                                with_scale, corresp_finder, callback);
   }
   throw std::runtime_error("Not implemented");
 }

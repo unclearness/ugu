@@ -69,6 +69,8 @@ class NonRigidIcp {
       m_dst_landmark_positions_norm;
   std::vector<double> m_betas;
 
+  uint32_t m_corresp_nn_num = 10u;
+
   float m_angle_rad_th = 0.65f;
 
   bool m_dst_check_geometry_border = false;

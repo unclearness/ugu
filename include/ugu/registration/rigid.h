@@ -58,6 +58,12 @@ struct IcpTerminateCriteria {
   double loss_eps = 0.0001;
 };
 
+struct IcpCorrespCriteria {
+  bool test_nearest = false;
+  float normal_th = -1.f;
+  float dist_th = -1.f;
+};
+
 struct IcpOutput {
   std::vector<Eigen::Affine3d> transform_histry;
   std::vector<double> loss_histroty;
@@ -71,36 +77,49 @@ using IcpCallbackFunc =
 // translation, which corresponds to a certain target point.
 bool RigidIcpPointToPoint(const std::vector<Eigen::Vector3f>& src,
                           const std::vector<Eigen::Vector3f>& dst,
+                          const std::vector<Eigen::Vector3f>& src_normals,
+                          const std::vector<Eigen::Vector3f>& dst_normals,
                           const IcpTerminateCriteria& terminate_criteria,
+                          const IcpCorrespCriteria& corresp_criteria,
                           IcpOutput& output, bool with_scale = false,
                           KdTreePtr<float, 3> kdtree = nullptr,
                           IcpCallbackFunc callback = nullptr);
 
 bool RigidIcpPointToPoint(const std::vector<Eigen::Vector3d>& src,
                           const std::vector<Eigen::Vector3d>& dst,
+                          const std::vector<Eigen::Vector3d>& src_normals,
+                          const std::vector<Eigen::Vector3d>& dst_normals,
                           const IcpTerminateCriteria& terminate_criteria,
+                          const IcpCorrespCriteria& corresp_criteria,
                           IcpOutput& output, bool with_scale = false,
                           KdTreePtr<double, 3> kdtree = nullptr,
                           IcpCallbackFunc callback = nullptr);
 
 bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3f>& src_points,
                           const std::vector<Eigen::Vector3f>& dst_points,
+                          const std::vector<Eigen::Vector3f>& src_normals,
+                          const std::vector<Eigen::Vector3f>& dst_normals,
                           const std::vector<Eigen::Vector3i>& dst_faces,
                           const IcpTerminateCriteria& terminate_criteria,
+                          const IcpCorrespCriteria& corresp_criteria,
                           IcpOutput& output, bool with_scale = false,
                           CorrespFinderPtr corresp_finder = nullptr,
                           IcpCallbackFunc callback = nullptr);
 
 bool RigidIcpPointToPlane(const std::vector<Eigen::Vector3d>& src_points,
                           const std::vector<Eigen::Vector3d>& dst_points,
+                          const std::vector<Eigen::Vector3d>& src_normals,
+                          const std::vector<Eigen::Vector3d>& dst_normals,
                           const std::vector<Eigen::Vector3i>& dst_faces,
                           const IcpTerminateCriteria& terminate_criteria,
+                          const IcpCorrespCriteria& corresp_criteria,
                           IcpOutput& output, bool with_scale = false,
                           CorrespFinderPtr corresp_finder = nullptr,
                           IcpCallbackFunc callback = nullptr);
 
 bool RigidIcp(const Mesh& src, const Mesh& dst, const IcpLossType& loss_type,
-              const IcpTerminateCriteria& terminate_criteria, IcpOutput& output,
+              const IcpTerminateCriteria& terminate_criteria,
+              const IcpCorrespCriteria& corresp_criteria, IcpOutput& output,
               bool with_scale = false, KdTreePtr<float, 3> kdtree = nullptr,
               CorrespFinderPtr corresp_finder = nullptr,
               IcpCallbackFunc callback = nullptr);

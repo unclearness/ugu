@@ -41,7 +41,6 @@ namespace ugu {
 
 NonRigidIcp::NonRigidIcp() {
   m_corresp_finder = KDTreeCorrespFinder::Create();
-  m_corresp_finder->SetNnNum(100);
 
   m_bvh = GetDefaultBvh<Eigen::Vector3f, Eigen::Vector3i>();
 };
@@ -211,36 +210,28 @@ bool NonRigidIcp::FindCorrespondences() {
   const std::vector<Eigen::Vector3f>& current_n =
       m_src_norm_deformed->normals();
   auto point2plane_corresp_func = [&](size_t idx) {
-#if 0
-    Corresp c = m_corresp_finder->Find(
-        current[idx], current_n[idx],  // Eigen::Vector3f::Zero(),
-        CorrespFinderMode::kMinAngleCosDist);
-#else
-    auto corresps = m_corresp_finder->FindAll(
-        current[idx], current_n[idx],  // Eigen::Vector3f::Zero(),
-        CorrespFinderMode::kMinDist);
+    auto corresps = m_corresp_finder->FindKnn(current[idx], m_corresp_nn_num);
 
     Corresp c = corresps[0];
     for (const auto& corresp : corresps) {
-      if (corresp.vangle > m_angle_rad_th) {
+      float vangle =
+          std::acos(std::clamp(corresp.n.dot(current_n[idx]), -1.f, 1.f));
+      if (vangle > m_angle_rad_th) {
         continue;
       }
       c = corresp;
       break;
     }
-#endif
     m_target[idx] = c.p;
     m_corresp[idx].resize(1);
     m_corresp[idx][0].dist = c.abs_dist;
     m_corresp[idx][0].index = size_t(~0);
 
-#if 1
     // Validate correspondence
     if (!ValidateCorrespondence(idx, c)) {
       // Set 0 weight to invalid correspondences
       m_weights_per_node[idx] = 0.0;
     }
-#endif
   };
 
   // Init weight as 1
@@ -545,7 +536,7 @@ bool NonRigidIcp::ValidateCorrespondence(size_t src_idx,
   // 2) the angle between the normals of the meshes at Xivi and ui is
   // larger than a fixed threshold, or
   const Eigen::Vector3f& src_n = m_src_norm_deformed->normals()[src_idx];
-  const Eigen::Vector3f& dst_n = corresp.vnormal;
+  const Eigen::Vector3f& dst_n = corresp.n;
   float dot = std::clamp(src_n.dot(dst_n), -1.f, 1.f);
   if (std::acos(dot) > m_angle_rad_th) {
     return false;

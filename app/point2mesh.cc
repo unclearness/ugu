@@ -109,8 +109,7 @@ int main(int argc, char* argv[]) {
   }
 
   timer.Start();
-  ugu::CorrespFinderPtr corresp_finder =
-      ugu::KDTreeCorrespFinder::Create(nn_num);
+  ugu::CorrespFinderPtr corresp_finder = ugu::KDTreeCorrespFinder::Create();
 
   if (!corresp_finder->Init(dst_mesh.vertices(), dst_mesh.vertex_indices())) {
     exit(0);
@@ -122,10 +121,9 @@ int main(int argc, char* argv[]) {
 
   timer.Start();
   std::vector<ugu::Corresp> correspondences(src_mesh.vertices().size());
-  const Eigen::Vector3f stub_normal(0.f, 0.f, 1.f);
   auto func = [&](size_t i) {
     correspondences[i] =
-        corresp_finder->Find(src_mesh.vertices()[i], stub_normal);
+        corresp_finder->FindAll(src_mesh.vertices()[i], nn_num)[0];
   };
   ugu::parallel_for(size_t(0), src_mesh.vertices().size(), func, num_threads);
   timer.End();
