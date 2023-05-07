@@ -194,6 +194,7 @@ bool RendererGl::ClearGlState() {
     auto mesh = m_geoms[i];
     mesh->ClearGlState();
   }
+
   ClearMesh();
 
   ClearSelectedPositions();
@@ -268,8 +269,7 @@ bool RendererGl::Init() {
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D,
                          gAlbedoSpec, 0);
 
-// Face id & geometry id
-#if 1
+  // Face id & geometry id
   glGenTextures(1, &gId);
   glBindTexture(GL_TEXTURE_2D, gId);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, m_width, m_height, 0, GL_RGBA,
@@ -278,7 +278,6 @@ bool RendererGl::Init() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D,
                          gId, 0);
-#endif
 
   // bary centric & uv
   glGenTextures(1, &gFace);
@@ -643,9 +642,9 @@ void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans,
     m_bvhs[mesh] = bvh;
   }
 
-  bool trans_updated = false;
+  bool trans_updated = first_set || update_bvh;
 
-  if (m_node_trans.find(mesh) == m_node_trans.end() ||
+  if (!first_set &&
       std::hash<Eigen::Matrix4f>()(m_node_trans.at(mesh).matrix()) !=
           std::hash<Eigen::Matrix4f>()(trans.matrix())) {
     trans_updated = true;
@@ -656,9 +655,14 @@ void RendererGl::SetMesh(RenderableMeshPtr mesh, const Eigen::Affine3f& trans,
   if (trans_updated) {
     m_bb_max_merged.setConstant(std::numeric_limits<float>::lowest());
     m_bb_min_merged.setConstant(std::numeric_limits<float>::max());
-    auto min_stats = m_geoms[0]->GetStatsWithTransform(trans);
+    MeshStats min_stats;
+    min_stats.bb_max.setConstant(std::numeric_limits<float>::max());
+    min_stats.bb_min.setConstant(0.f);
     for (const auto& geom : m_geoms) {
-      auto stats = geom->GetStatsWithTransform(trans);
+      auto stats = geom->GetStatsWithTransform(m_node_trans.at(geom));
+
+      m_transed_stats[geom] = stats;
+
       m_bb_max_merged =
           ComputeMaxBound(std::vector{m_bb_max_merged, stats.bb_max});
       m_bb_min_merged =
@@ -680,6 +684,9 @@ void RendererGl::ClearMesh() {
   m_node_locs.clear();
   m_bvhs.clear();
   m_visibility.clear();
+  m_transed_stats.clear();
+  m_bb_max_merged.setConstant(std::numeric_limits<float>::lowest());
+  m_bb_min_merged.setConstant(std::numeric_limits<float>::max());
 }
 
 void RendererGl::SetFragType(const FragShaderType& frag_type) {
@@ -848,6 +855,11 @@ uint32_t RendererGl::GetMeshId(const RenderableMeshPtr& mesh) const {
   }
 
   return static_cast<uint32_t>(std::distance(m_geoms.begin(), pos));
+}
+
+const std::unordered_map<RenderableMeshPtr, MeshStats>&
+RendererGl::GetTransedStats() const {
+  return m_transed_stats;
 }
 
 void RendererGl::SetText(const TextRendererGl::Text& text) {
