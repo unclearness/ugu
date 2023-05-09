@@ -4,7 +4,7 @@
 
 # Design concept
 
-## Minimal dependency but scalable
+## Minimal dependency yet scalable functionality
 
 Mandatory dependency is only [Eigen](https://gitlab.com/libeigen/eigen).
 

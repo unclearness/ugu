@@ -18,10 +18,10 @@
 #endif
 #endif
 
-#include <Eigen/IterativeLinearSolvers>
+// #include <Eigen/IterativeLinearSolvers>
 #include <Eigen/SparseCholesky>
-#include <Eigen/SparseLU>
-#include <Eigen/SparseQR>
+// #include <Eigen/SparseLU>
+// #include <Eigen/SparseQR>
 #ifdef _WIN32
 #pragma warning(pop)
 #endif

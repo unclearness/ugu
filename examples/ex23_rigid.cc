@@ -52,7 +52,7 @@ auto AddNoise(ugu::Mesh& mesh) {
   }
   noised_mesh.set_vertices(noised_vertices);
 
-  Eigen::Vector3f noise_t{bb_mean / 10, bb_mean * 2 / 10, bb_mean * -3 / 10};
+  Eigen::Vector3f noise_t{bb_mean / 5, bb_mean * 2 / 5, bb_mean * -3 / 5};
   Eigen::Vector3f axis(5, 2, 1);
   axis.normalize();
   Eigen::AngleAxisf noise_R(ugu::radians(10.f), axis);
@@ -71,6 +71,8 @@ void TestAlignmentWithCorresp() {
   std::string data1_dir = "../data/bunny/";
   std::string in_obj_path1 = data1_dir + "bunny.obj";
   ugu::Mesh bunny;
+  std::string out_dir = "../out/ex23/corresp/";
+  ugu::EnsureDirExists(out_dir);
   bunny.LoadObj(in_obj_path1, data1_dir);
 
   // Add noise
@@ -98,7 +100,7 @@ void TestAlignmentWithCorresp() {
   Eigen::Affine3f T_Rt_gt = Eigen::Translation3f(noise_t) * noise_R.matrix();
   ugu::Mesh noised_bunny_Rt = ugu::Mesh(noised_bunny);
   noised_bunny_Rt.Transform(T_Rt_gt.rotation(), T_Rt_gt.translation());
-  noised_bunny_Rt.WriteObj(data1_dir, "noised_Rt_gt");
+  noised_bunny_Rt.WriteObj(out_dir, "noised_Rt_gt");
   std::cout << "GT Rt" << std::endl;
   std::cout << T_Rt_gt.matrix() << std::endl;
 
@@ -108,7 +110,7 @@ void TestAlignmentWithCorresp() {
   std::cout << "Estimated Rt" << std::endl;
   std::cout << T_Rt_estimated.matrix() << std::endl;
   bunny.Transform(T_Rt_estimated.rotation(), T_Rt_estimated.translation());
-  bunny.WriteObj(data1_dir, "noised_Rt_estimated");
+  bunny.WriteObj(out_dir, "noised_Rt_estimated");
   bunny.Transform(T_Rt_estimated.inverse().rotation(),
                   T_Rt_estimated.inverse().translation());
 
@@ -117,7 +119,7 @@ void TestAlignmentWithCorresp() {
                              Eigen::Scaling(noise_s);
   noised_bunny_Rts.Scale(noise_s);
   noised_bunny_Rts.Transform(T_Rts_gt.rotation(), T_Rts_gt.translation());
-  noised_bunny_Rts.WriteObj(data1_dir, "noised_Rts_gt");
+  noised_bunny_Rts.WriteObj(out_dir, "noised_Rts_gt");
   std::cout << "GT Rts" << std::endl;
   std::cout << T_Rts_gt.matrix() << std::endl;
 
@@ -135,18 +137,21 @@ void TestAlignmentWithCorresp() {
       T_Rts_estimated.matrix().block(0, 0, 3, 3).row(2).norm();
   bunny.Scale(estimated_s_x, estimated_s_y, estimated_s_z);
   bunny.Transform(T_Rts_estimated.rotation(), T_Rts_estimated.translation());
-  bunny.WriteObj(data1_dir, "noised_Rts_estimated");
+  bunny.WriteObj(out_dir, "noised_Rts_estimated");
 }
 
 void TestAlignmentWithoutCorresp() {
   std::string data1_dir = "../data/bunny/";
+
+  std::string out_dir = "../out/ex23/icp/";
+  ugu::EnsureDirExists(out_dir);
   std::string in_obj_path1 = data1_dir + "bunny.obj";
   ugu::Mesh bunny;
   bunny.LoadObj(in_obj_path1, data1_dir);
 
   auto [T_Rts_gt, noised_mesh] = AddNoise(bunny);
 
-  noised_mesh.WriteObj(data1_dir, "noised_init");
+  noised_mesh.WriteObj(out_dir, "noised_init");
 
   ugu::Mesh org_noised_mesh = noised_mesh;
   ugu::Timer<double> timer;
@@ -156,16 +161,18 @@ void TestAlignmentWithoutCorresp() {
     ugu::IcpCorrespCriteria crc;
     ugu::IcpOutput output;
     timer.Start();
-    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpLossType::kPointToPoint, tmc, crc,
-                  output, false);
+    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpCorrespType::kPointToPoint,
+                  ugu::IcpLossType::kPointToPoint, tmc, crc, output, false);
     timer.End();
-    ugu::LOGI("Point-To-Point ICP: %fms\n", timer.elapsed_msec());
+    ugu::LOGI(
+        "Correspondence: Point-to-Point, Loss: Point-to-Point ICP: %fms\n",
+        timer.elapsed_msec());
     for (size_t i = 0; i < output.transform_histry.size(); i++) {
       ugu::LOGI("iter %d: %f\n", i, output.loss_histroty[i]);
       noised_mesh = org_noised_mesh;
       noised_mesh.Transform(output.transform_histry[i].cast<float>());
-      noised_mesh.WriteObj(data1_dir,
-                           "noised_rigidicp_point_" + std::to_string(i));
+      noised_mesh.WriteObj(out_dir,
+                           "noised_icp_point_point_" + std::to_string(i));
     }
   }
 
@@ -175,17 +182,62 @@ void TestAlignmentWithoutCorresp() {
     ugu::IcpCorrespCriteria crc;
     ugu::IcpOutput output;
     timer.Start();
-    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpLossType::kPointToPlane, tmc, crc,
-                  output, false);
+    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpCorrespType::kPointToPlane,
+                  ugu::IcpLossType::kPointToPoint, tmc, crc, output, false);
     timer.End();
-
-    ugu::LOGI("Point-To-Plane ICP: %f ms\n", timer.elapsed_msec());
+    ugu::LOGI(
+        "Correspondence: Point-to-Plane, Loss: Point-to-Point ICP: %fms\n",
+        timer.elapsed_msec());
     for (size_t i = 0; i < output.transform_histry.size(); i++) {
       ugu::LOGI("iter %d: %f\n", i, output.loss_histroty[i]);
       noised_mesh = org_noised_mesh;
       noised_mesh.Transform(output.transform_histry[i].cast<float>());
-      noised_mesh.WriteObj(data1_dir,
-                           "noised_rigidicp_plane_" + std::to_string(i));
+      noised_mesh.WriteObj(out_dir,
+                           "noised_icp_plane_point_" + std::to_string(i));
+    }
+  }
+
+  {
+    noised_mesh = org_noised_mesh;
+    ugu::IcpTerminateCriteria tmc;
+    ugu::IcpCorrespCriteria crc;
+    ugu::IcpOutput output;
+    timer.Start();
+    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpCorrespType::kPointToPoint,
+                  ugu::IcpLossType::kPointToPlane, tmc, crc, output, false);
+    timer.End();
+
+    ugu::LOGI(
+        "Correspondence: Point-to-Point, Loss: Point-to-Plane ICP: %f ms\n",
+        timer.elapsed_msec());
+    for (size_t i = 0; i < output.transform_histry.size(); i++) {
+      ugu::LOGI("iter %d: %f\n", i, output.loss_histroty[i]);
+      noised_mesh = org_noised_mesh;
+      noised_mesh.Transform(output.transform_histry[i].cast<float>());
+      noised_mesh.WriteObj(out_dir,
+                           "noised_icp_point_plane_" + std::to_string(i));
+    }
+  }
+
+  {
+    noised_mesh = org_noised_mesh;
+    ugu::IcpTerminateCriteria tmc;
+    ugu::IcpCorrespCriteria crc;
+    ugu::IcpOutput output;
+    timer.Start();
+    ugu::RigidIcp(noised_mesh, bunny, ugu::IcpCorrespType::kPointToPlane,
+                  ugu::IcpLossType::kPointToPlane, tmc, crc, output, false);
+    timer.End();
+
+    ugu::LOGI(
+        "Correspondence: Point-to-Plane, Loss: Point-to-Plane ICP: %f ms\n",
+        timer.elapsed_msec());
+    for (size_t i = 0; i < output.transform_histry.size(); i++) {
+      ugu::LOGI("iter %d: %f\n", i, output.loss_histroty[i]);
+      noised_mesh = org_noised_mesh;
+      noised_mesh.Transform(output.transform_histry[i].cast<float>());
+      noised_mesh.WriteObj(out_dir,
+                           "noised_icp_plane_plane_" + std::to_string(i));
     }
   }
 }
@@ -193,7 +245,10 @@ void TestAlignmentWithoutCorresp() {
 }  // namespace
 
 int main() {
- // TestAlignmentWithCorresp();
+  ugu::EnsureDirExists("../out/");
+  ugu::EnsureDirExists("../out/ex23/");
+
+  TestAlignmentWithCorresp();
 
   TestAlignmentWithoutCorresp();
 

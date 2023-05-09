@@ -235,18 +235,21 @@ void IcpProcess() {
     timer.Start();
 
     if (g_icp_data.point2plane) {
-      RigidIcpPointToPlane(g_icp_data.src_points, g_icp_data.dst_points,
-                           g_icp_data.src_normals, g_icp_data.dst_normals,
-                           g_icp_data.dst_faces, g_icp_data.terminate_criteria,
-                           g_icp_data.corresp_criteria, g_icp_data.output,
-                           g_icp_data.with_scale, g_icp_data.corresp_finder,
-                           g_icp_data.callback);
+      RigidIcp(g_icp_data.src_points, g_icp_data.dst_points,
+               g_icp_data.src_normals, g_icp_data.dst_normals,
+               g_icp_data.dst_faces, IcpCorrespType::kPointToPlane,
+               IcpLossType::kPointToPlane, g_icp_data.terminate_criteria,
+               g_icp_data.corresp_criteria, g_icp_data.output,
+               g_icp_data.with_scale, nullptr, g_icp_data.corresp_finder, -1,
+               g_icp_data.callback);
     } else {
-      RigidIcpPointToPoint(g_icp_data.src_points, g_icp_data.dst_points,
-                           g_icp_data.src_normals, g_icp_data.dst_normals,
-                           g_icp_data.terminate_criteria,
-                           g_icp_data.corresp_criteria, g_icp_data.output,
-                           g_icp_data.with_scale, nullptr, g_icp_data.callback);
+      RigidIcp(g_icp_data.src_points, g_icp_data.dst_points,
+               g_icp_data.src_normals, g_icp_data.dst_normals,
+               g_icp_data.dst_faces, IcpCorrespType::kPointToPoint,
+               IcpLossType::kPointToPoint, g_icp_data.terminate_criteria,
+               g_icp_data.corresp_criteria, g_icp_data.output,
+               g_icp_data.with_scale, nullptr, g_icp_data.corresp_finder, -1,
+               g_icp_data.callback);
     }
     timer.End();
     g_callback_message =
