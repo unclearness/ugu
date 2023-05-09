@@ -18,13 +18,13 @@ void my_umeyama(const Eigen::MatrixBase<Derived>& src,
   using namespace Eigen;
   typedef typename internal::umeyama_transform_matrix_type<
       Derived, OtherDerived>::type TransformationMatrixType;
-  typedef typename internal::traits<TransformationMatrixType>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef typename internal::traits<TransformationMatrixType>::Scalar Scalar_;
+  typedef typename NumTraits<Scalar_>::Real RealScalar_;
 
-  EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::IsComplex, NUMERIC_TYPE_MUST_BE_REAL)
+  EIGEN_STATIC_ASSERT(!NumTraits<Scalar_>::IsComplex, NUMERIC_TYPE_MUST_BE_REAL)
   EIGEN_STATIC_ASSERT(
       (internal::is_same<
-          Scalar, typename internal::traits<OtherDerived>::Scalar>::value),
+          Scalar_, typename internal::traits<OtherDerived>::Scalar>::value),
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
 
   enum {
@@ -32,8 +32,8 @@ void my_umeyama(const Eigen::MatrixBase<Derived>& src,
                                               OtherDerived::RowsAtCompileTime)
   };
 
-  typedef Matrix<Scalar, Dimension, 1> VectorType;
-  typedef Matrix<Scalar, Dimension, Dimension> MatrixType;
+  typedef Matrix<Scalar_, Dimension, 1> VectorType;
+  typedef Matrix<Scalar_, Dimension, Dimension> MatrixType;
   typedef typename internal::plain_matrix_type_row_major<Derived>::type
       RowMajorMatrixType;
 
@@ -41,7 +41,7 @@ void my_umeyama(const Eigen::MatrixBase<Derived>& src,
   const Index n = src.cols();  // number of measurements
 
   // required for demeaning ...
-  const RealScalar one_over_n = RealScalar(1) / static_cast<RealScalar>(n);
+  const RealScalar_ one_over_n = RealScalar_(1) / static_cast<RealScalar_>(n);
 
   // computation of mean
   const VectorType src_mean = src.rowwise().sum() * one_over_n;
@@ -52,7 +52,7 @@ void my_umeyama(const Eigen::MatrixBase<Derived>& src,
   const RowMajorMatrixType dst_demean = dst.colwise() - dst_mean;
 
   // Eq. (36)-(37)
-  const Scalar src_var = src_demean.rowwise().squaredNorm().sum() * one_over_n;
+  const Scalar_ src_var = src_demean.rowwise().squaredNorm().sum() * one_over_n;
 
   // Eq. (38)
   const MatrixType sigma = one_over_n * dst_demean * src_demean.transpose();
@@ -75,7 +75,7 @@ void my_umeyama(const Eigen::MatrixBase<Derived>& src,
 
   T_similarity = Rt;
   // Eq. (42)
-  const Scalar c = Scalar(1) / src_var * svd.singularValues().dot(S);
+  const Scalar_ c = Scalar_(1) / src_var * svd.singularValues().dot(S);
 
   // Eq. (41)
   T_similarity.col(m).head(m) = dst_mean;
