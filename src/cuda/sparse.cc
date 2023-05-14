@@ -579,7 +579,6 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   /* solve B*z = Q*b */
   for (int col = 0; col < out_col; col++) {
     int offset = rowsA * col;
-
     if (0 == strcmp(opts.testFunc, "chol")) {
       checkCudaErrors(cusolverSpDcsrlsvchol(
           handle, rowsA, nnzA, descrA, d_csrValB, d_csrRowPtrB, d_csrColIndB,
@@ -596,6 +595,9 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
       return 1;
     }
   }
+  timer.End();
+  LOGI("solve without waiting %f ms\n", timer.elapsed_msec());
+  timer.Start();
   checkCudaErrors(cudaDeviceSynchronize());
   if (0 <= singularity) {
     printf("WARNING: the matrix is singular at row %d under tol (%E)\n",
