@@ -477,7 +477,7 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
         Eigen::MatrixXd x_;
         x_.resizeLike(AtB.col(i));
         // SolveSparse(AtA.rows(), AtA.cols(), triplets, AtB.col(i), x_);
-        SolveSparse(AtA, AtB.col(i), x_, -1);
+        SolveSparse(AtA, AtB.col(i), x_,  -1);
         X.col(i) = x_;
       }
 #endif

@@ -125,7 +125,7 @@ bool SolveSparse(const Eigen::SparseMatrix<double> &mat,
 
   x.resizeLike(b);
   return SolveSparse(mat.rows(), mat.cols(), mat.nonZeros(), val.data(),
-                     row.data(), col.data(), b.data(), x.data(), devID);
+                     row.data(), col.data(), b.data(), x.data(), b.cols(), devID);
 }
 
 bool SolveSparse(int rowsA, int colsA,
@@ -267,7 +267,7 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
 
   int *d_Q = NULL;     /* device copy of h_Q */
   double *d_z = NULL;  /* z = B \ Q*b */
-  double *d_x = NULL;  /* x = A \ b */
+  //double *d_x = NULL;  /* x = A \ b */
   double *d_b = NULL;  /* a copy of h_b */
   double *d_Qb = NULL; /* a copy of h_Qb */
   double *d_r = NULL;  /* r = b - A*x */
@@ -348,10 +348,10 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
     checkCudaErrors(cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ZERO));
   }
 
-  h_z = (double *)malloc(sizeof(double) * colsA);
+  h_z = (double *)malloc(sizeof(double) * colsA * out_col);
   // h_x = (double *)malloc(sizeof(double) * colsA);
   // h_b = (double *)malloc(sizeof(double) * rowsA);
-  h_Qb = (double *)malloc(sizeof(double) * rowsA);
+  h_Qb = (double *)malloc(sizeof(double) * rowsA * out_col);
   h_r = (double *)malloc(sizeof(double) * rowsA);
 
   h_Q = (int *)malloc(sizeof(int) * colsA);
@@ -380,10 +380,10 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   checkCudaErrors(cudaMalloc((void **)&d_csrColIndB, sizeof(int) * nnzA));
   checkCudaErrors(cudaMalloc((void **)&d_csrValB, sizeof(double) * nnzA));
   checkCudaErrors(cudaMalloc((void **)&d_Q, sizeof(int) * colsA));
-  checkCudaErrors(cudaMalloc((void **)&d_z, sizeof(double) * colsA));
-  checkCudaErrors(cudaMalloc((void **)&d_x, sizeof(double) * colsA));
-  checkCudaErrors(cudaMalloc((void **)&d_b, sizeof(double) * rowsA));
-  checkCudaErrors(cudaMalloc((void **)&d_Qb, sizeof(double) * rowsA));
+  checkCudaErrors(cudaMalloc((void **)&d_z, sizeof(double) * colsA * out_col));
+  //checkCudaErrors(cudaMalloc((void **)&d_x, sizeof(double) * colsA ));
+  checkCudaErrors(cudaMalloc((void **)&d_b, sizeof(double) * rowsA * out_col));
+  checkCudaErrors(cudaMalloc((void **)&d_Qb, sizeof(double) * rowsA * out_col));
   checkCudaErrors(cudaMalloc((void **)&d_r, sizeof(double) * rowsA));
 
   /* verify if A has symmetric pattern or not */
@@ -551,6 +551,7 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
                                       CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F));
   }
 
+  #if 0
   cusparseDnVecDescr_t vecx = NULL;
   checkCudaErrors(cusparseCreateDnVec(&vecx, colsA, d_x, CUDA_R_64F));
   cusparseDnVecDescr_t vecAx = NULL;
@@ -567,11 +568,12 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   checkCudaErrors(cusparseSpMV(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE,
                                &minus_one, matA, vecx, &one, vecAx, CUDA_R_64F,
                                CUSPARSE_SPMV_ALG_DEFAULT, buffer));
-
+ 
   checkCudaErrors(cudaMemcpyAsync(h_r, d_r, sizeof(double) * rowsA,
                                   cudaMemcpyDeviceToHost, stream));
   /* wait until h_r is ready */
   checkCudaErrors(cudaDeviceSynchronize());
+#endif
 
 #if 0
   b_inf = vec_norminf(rowsA, h_b);
@@ -613,6 +615,7 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
     printf("WARNING: the matrix is singular at row %d under tol (%E)\n",
            singularity, tol);
   }
+  #if 0
   /* Q*x = z */
   cusparseSpVecDescr_t vecz = NULL;
   checkCudaErrors(cusparseCreateSpVec(&vecz, colsA, rowsA, d_Q, d_z,
@@ -620,7 +623,7 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
                                       CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F));
   checkCudaErrors(cusparseScatter(cusparseHandle, vecz, vecx));
   checkCudaErrors(cusparseDestroySpVec(vecz));
-
+  #endif
   cudaMemcpyAsync(h_z, d_z, sizeof(double) * colsA, cudaMemcpyDeviceToHost,
                   stream);
 
@@ -690,12 +693,12 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   if (matA) {
     checkCudaErrors(cusparseDestroySpMat(matA));
   }
-  if (vecx) {
-    checkCudaErrors(cusparseDestroyDnVec(vecx));
-  }
-  if (vecAx) {
-    checkCudaErrors(cusparseDestroyDnVec(vecAx));
-  }
+  //if (vecx) {
+  //  checkCudaErrors(cusparseDestroyDnVec(vecx));
+  //}
+  //if (vecAx) {
+  //  checkCudaErrors(cusparseDestroyDnVec(vecAx));
+  //}
 
   // if (h_csrValA) {
   //   free(h_csrValA);
@@ -743,9 +746,9 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
     free(buffer_cpu);
   }
 
-  if (buffer) {
-    checkCudaErrors(cudaFree(buffer));
-  }
+  //if (buffer) {
+  //  checkCudaErrors(cudaFree(buffer));
+  //}
   if (d_csrValA) {
     checkCudaErrors(cudaFree(d_csrValA));
   }
@@ -770,9 +773,9 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   if (d_z) {
     checkCudaErrors(cudaFree(d_z));
   }
-  if (d_x) {
-    checkCudaErrors(cudaFree(d_x));
-  }
+  //if (d_x) {
+  //  checkCudaErrors(cudaFree(d_x));
+  //}
   if (d_b) {
     checkCudaErrors(cudaFree(d_b));
   }
