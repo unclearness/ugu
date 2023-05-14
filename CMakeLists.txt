@@ -218,7 +218,7 @@ endif()
 
 ########################### Include only ###############################
 set(OPTIONAL_EXTERNAL_NO_COMPILE tinycolormap nanort json nanoflann FAST_QUADRIC_MESH_SIMPLIFICATION cxxopts libigl poisson_reconstruction)
-set(OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ON ON ON ON OFF ON OFF ON)
+set(OPTIONAL_EXTERNAL_NO_COMPILE_OPTION ON ON ON ON OFF ON OFF OFF)
 function(ugu_set_default_option LIB_NAME DEFAULT_OPTION)
   string(TOUPPER ${LIB_NAME} LIB_NAME)
   set(OPTION_NAME "UGU_USE_${LIB_NAME}")
@@ -263,6 +263,13 @@ if(UGU_USE_OPENMP)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
   endif()
+endif()
+
+option(UGU_USE_CUDA "Use CUDA" ON)
+message("UGU_USE_CUDA: ${UGU_USE_CUDA}")
+if(UGU_USE_CUDA)
+  enable_language(CUDA)
+  find_package(CUDAToolkit REQUIRED)
 endif()
 ########################################################################
 
@@ -438,6 +445,17 @@ add_library(${Ugu_LIB}
 )
 set(Ugu_LIBS ${Ugu_LIBS} ${Ugu_LIB} ${MvsTexturing_LIBS} ${Freetype_LIBS}) # This order is important in Ubuntu...
 set(SOURCE_LIST ${SOURCE_LIST} ${UGU_SOURCE})
+
+if(CUDAToolkit_FOUND)
+  set(CMAKE_CUDA_ARCHITECTURES 75;86)
+  add_library(ugu_cuda STATIC
+    src/cuda/sparse.cc
+    include/ugu/cuda/sparse.h
+  )
+  target_include_directories(ugu_cuda PUBLIC ${Ugu_INCLUDE_DIRS})
+  set(Ugu_LIBS ${Ugu_LIBS} ugu_cuda CUDA::cudart CUDA::cusparse CUDA::cusolver)
+  set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_CUDA)
+endif()
 
 target_compile_definitions(ugu PUBLIC ${Ugu_DEFINES})
 

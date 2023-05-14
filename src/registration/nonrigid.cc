@@ -31,6 +31,10 @@
 #include "ugu/util/geom_util.h"
 #include "ugu/util/math_util.h"
 
+#ifdef UGU_USE_CUDA
+#include "ugu/cuda/sparse.h"
+#endif
+
 #define UGU_NICP_ADD_EQ_FOR_WEIGHT_ZERO
 
 namespace {
@@ -377,7 +381,6 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
     }
     timer_mat.End();
     LOGI("3.beta_D_L: %f ms\n", timer_mat.elapsed_msec());
-
     timer_mat.Start();
     std::vector<Eigen::Triplet<double>> _A = alpha_M_G;
     _A.insert(_A.end(), W_D.begin(), W_D.end());
@@ -425,6 +428,62 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
 
     timer.Start();
 
+    Eigen::MatrixX3d TmpX(4 * n, 3);
+#ifdef UGU_USE_CUDA
+    {
+      Eigen::SparseMatrix<double> AtA = A.transpose() * A;
+      Eigen::MatrixX3d AtB = A.transpose() * B;
+
+      auto to_triplets = [&](Eigen::SparseMatrix<double>& M) {
+        std::vector<Eigen::Triplet<double>> v;
+        // for (int i = 0; i < M.rows(); i++) {
+        //   for (int j = 0; j < M.cols(); j++) {
+        //     if (M[i, j] != 0.0) {
+        //         M.
+        //     }
+        //   }
+        // }
+
+        for (int i = 0; i < M.cols(); i++) {
+          int k_start = M.outerIndexPtr()[i];
+          int k_end = M.outerIndexPtr()[i + 1];
+
+          for (int k = k_start; k < k_end; k++) {
+            int j = M.innerIndexPtr()[k];
+            double val = M.valuePtr()[k];
+            // v is value of the element at position (j,i)
+            v.emplace_back(j, i, val);
+          }
+        }
+
+        return v;
+      };
+      auto triplets = to_triplets(AtA);
+#if 0
+      {
+        Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+        Eigen::SparseMatrix<double> tmp(AtA.rows(), AtA.cols());
+        tmp.setFromTriplets(triplets.begin(), triplets.end());
+        solver.compute(tmp);
+        //X = solver.solve(A.transpose() * B);
+        for (int i = 0; i < 3; i++) {
+          Eigen::VectorXd x_ = solver.solve(AtB.col(i));
+          X.col(i) = x_;
+        }
+      }
+#else
+      TmpX = X;
+      for (int i = 0; i < 3; i++) {
+        Eigen::MatrixXd x_;
+        x_.resizeLike(AtB.col(i));
+        // SolveSparse(AtA.rows(), AtA.cols(), triplets, AtB.col(i), x_);
+        SolveSparse(AtA, AtB.col(i), x_, -1);
+        X.col(i) = x_;
+      }
+#endif
+    }
+#else
+
 #if 1
     // Closed-form
 #ifdef UGU_CHOLMOD_SUPPORT
@@ -447,11 +506,13 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
     LOGI("solver.compute(): %f ms\n", timer.elapsed_msec());
 
     timer.Start();
-    Eigen::MatrixX3d TmpX(4 * n, 3);
+
     TmpX = X;
     X = solver.solve(A.transpose() * B);
     timer.End();
     LOGI("solve(): %f ms\n", timer.elapsed_msec());
+
+#endif
 
     timer.Start();
     Eigen::Matrix3Xd Xt = X.transpose();
