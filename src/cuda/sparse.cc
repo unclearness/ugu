@@ -63,60 +63,6 @@ namespace ugu {
 
 bool SolveSparse(const Eigen::SparseMatrix<double> &mat,
                  const Eigen::MatrixXd &b, Eigen::MatrixXd &x, int devID) {
-#if 0
-  int *row = NULL;
-  int *col = NULL;
-  double *val = NULL;
-  EigenSparseToCuSparseTranspose(mat, row, col, val);
-
-  std::string type = "chol";
-
-  cusolverSpHandle_t handle = NULL;
-  cusparseHandle_t cusparseHandle = NULL; /* used in residual evaluation */
-  cudaStream_t stream = NULL;
-  cusparseMatDescr_t descrA = NULL;
-  checkCudaErrors(cusolverSpCreate(&handle));
-  checkCudaErrors(cusparseCreate(&cusparseHandle));
-
-  checkCudaErrors(cudaStreamCreate(&stream));
-  /* bind stream to cusparse and cusolver*/
-  checkCudaErrors(cusolverSpSetStream(handle, stream));
-  checkCudaErrors(cusparseSetStream(cusparseHandle, stream));
-
-  /* configure matrix descriptor*/
-  checkCudaErrors(cusparseCreateMatDescr(&descrA));
-  checkCudaErrors(cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL));
-  checkCudaErrors(cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ZERO));
-
-  double *d_b = NULL;
-  checkCudaErrors(cudaMalloc((void **)&d_b, sizeof(double) * mat.rows()));
-  checkCudaErrors(cudaMemcpyAsync(d_b, b.data(), sizeof(double) * mat.rows(),
-                                  cudaMemcpyHostToDevice, stream));
-
-  /* verify if A has symmetric pattern or not */
-  int issym = 0;
-  //checkCudaErrors(cusolverSpXcsrissymHost(
-  //    handle, mat.rows(), mat.nonZeros(), descrA, row, row + mat.cols() + 1,
-  //                                        col, &issym));
-  std::cout << issym << std::endl;
-
-  /* solve B*z = Q*b */
-  double tol = 1.e-12;
-  const int reorder = 0; /* no reordering */
-  double *d_z = NULL;
-  checkCudaErrors(cudaMalloc((void **)&d_z, sizeof(double) * mat.rows()));
-  int singularity = -1;
-  int nnz = mat.nonZeros();
-  checkCudaErrors(cudaDeviceSynchronize());
-  checkCudaErrors(cusolverSpDcsrlsvqr(handle, mat.rows(), mat.nonZeros(),
-                                        descrA, val, row, col, d_b, tol,
-                                        reorder, d_z, &singularity));
-
-  x.resizeLike(b);
-  checkCudaErrors(cudaDeviceSynchronize());
-  checkCudaErrors(cudaMemcpyAsync(x.data(), d_z, sizeof(double) * x.size(),
-                                  cudaMemcpyDeviceToHost, stream));
-#endif
   std::vector<int> row;
   std::vector<int> col;
   std::vector<double> val;
@@ -124,8 +70,12 @@ bool SolveSparse(const Eigen::SparseMatrix<double> &mat,
   EigenSparseToCsr(mat, row, col, val);
 
   x.resizeLike(b);
-  return SolveSparse(mat.rows(), mat.cols(), mat.nonZeros(), val.data(),
-                     row.data(), col.data(), b.data(), x.data(), b.cols(), devID);
+
+  bool ret =
+      SolveSparse(mat.rows(), mat.cols(), mat.nonZeros(), val.data(),
+                  row.data(), col.data(), b.data(), x.data(), b.cols(), devID);
+
+  return ret;
 }
 
 bool SolveSparse(int rowsA, int colsA,
@@ -265,9 +215,9 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   int *d_csrColIndB = NULL;
   double *d_csrValB = NULL;
 
-  int *d_Q = NULL;     /* device copy of h_Q */
-  double *d_z = NULL;  /* z = B \ Q*b */
-  //double *d_x = NULL;  /* x = A \ b */
+  int *d_Q = NULL;    /* device copy of h_Q */
+  double *d_z = NULL; /* z = B \ Q*b */
+  // double *d_x = NULL;  /* x = A \ b */
   double *d_b = NULL;  /* a copy of h_b */
   double *d_Qb = NULL; /* a copy of h_Qb */
   double *d_r = NULL;  /* r = b - A*x */
@@ -381,7 +331,7 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   checkCudaErrors(cudaMalloc((void **)&d_csrValB, sizeof(double) * nnzA));
   checkCudaErrors(cudaMalloc((void **)&d_Q, sizeof(int) * colsA));
   checkCudaErrors(cudaMalloc((void **)&d_z, sizeof(double) * colsA * out_col));
-  //checkCudaErrors(cudaMalloc((void **)&d_x, sizeof(double) * colsA ));
+  // checkCudaErrors(cudaMalloc((void **)&d_x, sizeof(double) * colsA ));
   checkCudaErrors(cudaMalloc((void **)&d_b, sizeof(double) * rowsA * out_col));
   checkCudaErrors(cudaMalloc((void **)&d_Qb, sizeof(double) * rowsA * out_col));
   checkCudaErrors(cudaMalloc((void **)&d_r, sizeof(double) * rowsA));
@@ -466,8 +416,12 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   // }
 
   /* h_Qb = b(Q) */
-  for (int row = 0; row < rowsA; row++) {
-    h_Qb[row] = h_b[h_Q[row]];
+  for (int col = 0; col < out_col; col++) {
+    for (int row = 0; row < rowsA; row++) {
+      int index0 = rowsA * col + row;
+      int index1 = rowsA * col + h_Q[row];
+      h_Qb[index0] = h_b[index1];
+    }
   }
 #endif
 
@@ -488,9 +442,9 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
                                   stream));
   checkCudaErrors(cudaMemcpyAsync(d_csrValB, h_csrValB, sizeof(double) * nnzA,
                                   cudaMemcpyHostToDevice, stream));
-  checkCudaErrors(cudaMemcpyAsync(d_b, h_b, sizeof(double) * rowsA,
+  checkCudaErrors(cudaMemcpyAsync(d_b, h_b, sizeof(double) * rowsA * out_col,
                                   cudaMemcpyHostToDevice, stream));
-  checkCudaErrors(cudaMemcpyAsync(d_Qb, h_Qb, sizeof(double) * rowsA,
+  checkCudaErrors(cudaMemcpyAsync(d_Qb, h_Qb, sizeof(double) * rowsA * out_col,
                                   cudaMemcpyHostToDevice, stream));
   checkCudaErrors(cudaMemcpyAsync(d_Q, h_Q, sizeof(int) * rowsA,
                                   cudaMemcpyHostToDevice, stream));
@@ -551,7 +505,7 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
                                       CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F));
   }
 
-  #if 0
+#if 0
   cusparseDnVecDescr_t vecx = NULL;
   checkCudaErrors(cusparseCreateDnVec(&vecx, colsA, d_x, CUDA_R_64F));
   cusparseDnVecDescr_t vecAx = NULL;
@@ -595,27 +549,31 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   start = second();
 
   /* solve B*z = Q*b */
-  if (0 == strcmp(opts.testFunc, "chol")) {
-    checkCudaErrors(cusolverSpDcsrlsvchol(
-        handle, rowsA, nnzA, descrA, d_csrValB, d_csrRowPtrB, d_csrColIndB,
-        d_Qb, tol, reorder, d_z, &singularity));
+  for (int col = 0; col < out_col; col++) {
+    int offset = rowsA * col;
 
-  } else if (0 == strcmp(opts.testFunc, "lu")) {
-    printf("WARNING: no LU available on GPU \n");
-  } else if (0 == strcmp(opts.testFunc, "qr")) {
-    checkCudaErrors(cusolverSpDcsrlsvqr(handle, rowsA, nnzA, descrA, d_csrValB,
-                                        d_csrRowPtrB, d_csrColIndB, d_Qb, tol,
-                                        reorder, d_z, &singularity));
-  } else {
-    fprintf(stderr, "Error: %s is unknow function\n", opts.testFunc);
-    return 1;
+    if (0 == strcmp(opts.testFunc, "chol")) {
+      checkCudaErrors(cusolverSpDcsrlsvchol(
+          handle, rowsA, nnzA, descrA, d_csrValB, d_csrRowPtrB, d_csrColIndB,
+          d_Qb + offset, tol, reorder, d_z + offset, &singularity));
+
+    } else if (0 == strcmp(opts.testFunc, "lu")) {
+      printf("WARNING: no LU available on GPU \n");
+    } else if (0 == strcmp(opts.testFunc, "qr")) {
+      checkCudaErrors(cusolverSpDcsrlsvqr(
+          handle, rowsA, nnzA, descrA, d_csrValB, d_csrRowPtrB, d_csrColIndB,
+          d_Qb + offset, tol, reorder, d_z + offset, &singularity));
+    } else {
+      fprintf(stderr, "Error: %s is unknow function\n", opts.testFunc);
+      return 1;
+    }
   }
   checkCudaErrors(cudaDeviceSynchronize());
   if (0 <= singularity) {
     printf("WARNING: the matrix is singular at row %d under tol (%E)\n",
            singularity, tol);
   }
-  #if 0
+#if 0
   /* Q*x = z */
   cusparseSpVecDescr_t vecz = NULL;
   checkCudaErrors(cusparseCreateSpVec(&vecz, colsA, rowsA, d_Q, d_z,
@@ -623,9 +581,9 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
                                       CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F));
   checkCudaErrors(cusparseScatter(cusparseHandle, vecz, vecx));
   checkCudaErrors(cusparseDestroySpVec(vecz));
-  #endif
-  cudaMemcpyAsync(h_z, d_z, sizeof(double) * colsA, cudaMemcpyDeviceToHost,
-                  stream);
+#endif
+  cudaMemcpyAsync(h_z, d_z, sizeof(double) * colsA * out_col,
+                  cudaMemcpyDeviceToHost, stream);
 
   checkCudaErrors(cudaDeviceSynchronize());
 
@@ -674,8 +632,13 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
 #endif
 
   /* Q*x = z */
-  for (int row = 0; row < rowsA; row++) {
-    h_x[h_Q[row]] = h_z[row];
+
+  for (int col = 0; col < out_col; col++) {
+    for (int row = 0; row < rowsA; row++) {
+      int index0 = rowsA * col + row;
+      int index1 = rowsA * col + h_Q[row];
+      h_x[index1] = h_z[index0];
+    }
   }
 
   if (handle) {
@@ -693,12 +656,12 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   if (matA) {
     checkCudaErrors(cusparseDestroySpMat(matA));
   }
-  //if (vecx) {
-  //  checkCudaErrors(cusparseDestroyDnVec(vecx));
-  //}
-  //if (vecAx) {
-  //  checkCudaErrors(cusparseDestroyDnVec(vecAx));
-  //}
+  // if (vecx) {
+  //   checkCudaErrors(cusparseDestroyDnVec(vecx));
+  // }
+  // if (vecAx) {
+  //   checkCudaErrors(cusparseDestroyDnVec(vecAx));
+  // }
 
   // if (h_csrValA) {
   //   free(h_csrValA);
@@ -746,9 +709,9 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
     free(buffer_cpu);
   }
 
-  //if (buffer) {
-  //  checkCudaErrors(cudaFree(buffer));
-  //}
+  // if (buffer) {
+  //   checkCudaErrors(cudaFree(buffer));
+  // }
   if (d_csrValA) {
     checkCudaErrors(cudaFree(d_csrValA));
   }
@@ -773,9 +736,9 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   if (d_z) {
     checkCudaErrors(cudaFree(d_z));
   }
-  //if (d_x) {
-  //  checkCudaErrors(cudaFree(d_x));
-  //}
+  // if (d_x) {
+  //   checkCudaErrors(cudaFree(d_x));
+  // }
   if (d_b) {
     checkCudaErrors(cudaFree(d_b));
   }

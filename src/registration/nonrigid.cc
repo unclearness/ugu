@@ -431,53 +431,19 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
     Eigen::MatrixX3d TmpX(4 * n, 3);
 #ifdef UGU_USE_CUDA
     {
-      Eigen::SparseMatrix<double> AtA = A.transpose() * A;
-      Eigen::MatrixX3d AtB = A.transpose() * B;
-
-      auto to_triplets = [&](Eigen::SparseMatrix<double>& M) {
-        std::vector<Eigen::Triplet<double>> v;
-        // for (int i = 0; i < M.rows(); i++) {
-        //   for (int j = 0; j < M.cols(); j++) {
-        //     if (M[i, j] != 0.0) {
-        //         M.
-        //     }
-        //   }
-        // }
-
-        for (int i = 0; i < M.cols(); i++) {
-          int k_start = M.outerIndexPtr()[i];
-          int k_end = M.outerIndexPtr()[i + 1];
-
-          for (int k = k_start; k < k_end; k++) {
-            int j = M.innerIndexPtr()[k];
-            double val = M.valuePtr()[k];
-            // v is value of the element at position (j,i)
-            v.emplace_back(j, i, val);
-          }
-        }
-
-        return v;
-      };
-      auto triplets = to_triplets(AtA);
-#if 0
-      {
-        Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-        Eigen::SparseMatrix<double> tmp(AtA.rows(), AtA.cols());
-        tmp.setFromTriplets(triplets.begin(), triplets.end());
-        solver.compute(tmp);
-        //X = solver.solve(A.transpose() * B);
-        for (int i = 0; i < 3; i++) {
-          Eigen::VectorXd x_ = solver.solve(AtB.col(i));
-          X.col(i) = x_;
-        }
-      }
-#else
       TmpX = X;
+#if 1
+      Eigen::MatrixXd X_;
+      SolveSparse(A.transpose() * A, A.transpose() * B, X_, -1);
+      timer.End();
+      LOGI("cuSPARSE.solve(): %f ms\n", timer.elapsed_msec());
+      X = X_;
+#else
       for (int i = 0; i < 3; i++) {
         Eigen::MatrixXd x_;
         x_.resizeLike(AtB.col(i));
         // SolveSparse(AtA.rows(), AtA.cols(), triplets, AtB.col(i), x_);
-        SolveSparse(AtA, AtB.col(i), x_,  -1);
+        SolveSparse(AtA, AtB.col(i), x_, -1);
         X.col(i) = x_;
       }
 #endif
