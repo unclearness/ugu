@@ -16,6 +16,8 @@
 #include "cusparse.h"
 #include "helper_cuda.h"
 #include "helper_cusolver.h"
+#include "ugu/log.h"
+#include "ugu/timer.h"
 
 namespace {
 // https://stackoverflow.com/questions/57334742/convert-eigensparsematrix-to-cusparse-and-vice-versa
@@ -63,6 +65,8 @@ namespace ugu {
 
 bool SolveSparse(const Eigen::SparseMatrix<double> &mat,
                  const Eigen::MatrixXd &b, Eigen::MatrixXd &x, int devID) {
+  Timer<> timer;
+  timer.Start();
   std::vector<int> row;
   std::vector<int> col;
   std::vector<double> val;
@@ -70,6 +74,9 @@ bool SolveSparse(const Eigen::SparseMatrix<double> &mat,
   EigenSparseToCsr(mat, row, col, val);
 
   x.resizeLike(b);
+  timer.End();
+
+  LOGI("SolveSparse preparation %fms\n", timer.elapsed_msec());
 
   bool ret =
       SolveSparse(mat.rows(), mat.cols(), mat.nonZeros(), val.data(),
@@ -171,6 +178,8 @@ bool SolveSparse(int rowsA, int colsA,
 bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
                  const int *h_csrRowPtrA, const int *h_csrColIndA,
                  const double *h_b, double *h_x, int out_col, int devID) {
+  Timer<> timer;
+  timer.Start();
   struct testOpts opts;
   cusolverSpHandle_t handle = NULL;
   cusparseHandle_t cusparseHandle = NULL; /* used in residual evaluation */
@@ -336,13 +345,16 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   checkCudaErrors(cudaMalloc((void **)&d_Qb, sizeof(double) * rowsA * out_col));
   checkCudaErrors(cudaMalloc((void **)&d_r, sizeof(double) * rowsA));
 
+  timer.End();
+  LOGI("malloc %f ms\n", timer.elapsed_msec());
+  timer.Start();
+
   /* verify if A has symmetric pattern or not */
   checkCudaErrors(cusolverSpXcsrissymHost(handle, rowsA, nnzA, descrA,
                                           h_csrRowPtrA, h_csrRowPtrA + 1,
                                           h_csrColIndA, &issym));
-
   opts.testFunc = "chol";
-  opts.reorder = "symrcm";
+  opts.reorder = "metis";
 
   if (0 == strcmp(opts.testFunc, "chol")) {
     if (!issym) {
@@ -350,6 +362,10 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
       exit(EXIT_FAILURE);
     }
   }
+
+  timer.End();
+  LOGI("symmetric test %f ms\n", timer.elapsed_msec());
+  timer.Start();
 
   // printf("step 2: reorder the matrix A to minimize zero fill-in\n");
   // printf(
@@ -425,6 +441,10 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   }
 #endif
 
+  timer.End();
+  LOGI("host reorder %f ms\n", timer.elapsed_msec());
+  timer.Start();
+
   // printf("step 4: prepare data on device\n");
   checkCudaErrors(cudaMemcpyAsync(d_csrRowPtrA, h_csrRowPtrA,
                                   sizeof(int) * (rowsA + 1),
@@ -448,6 +468,11 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
                                   cudaMemcpyHostToDevice, stream));
   checkCudaErrors(cudaMemcpyAsync(d_Q, h_Q, sizeof(int) * rowsA,
                                   cudaMemcpyHostToDevice, stream));
+
+  timer.End();
+  LOGI("cuda memcpy %f ms\n", timer.elapsed_msec());
+  timer.Start();
+
 #if 0
   printf("step 5: solve A*x = b on CPU \n");
   start = second();
@@ -504,6 +529,9 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
                                       CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
                                       CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F));
   }
+  timer.End();
+  LOGI("cuspase prepare %f ms\n", timer.elapsed_msec());
+  timer.Start();
 
 #if 0
   cusparseDnVecDescr_t vecx = NULL;
@@ -573,6 +601,10 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
     printf("WARNING: the matrix is singular at row %d under tol (%E)\n",
            singularity, tol);
   }
+  timer.End();
+  LOGI("solve %f ms\n", timer.elapsed_msec());
+  timer.Start();
+
 #if 0
   /* Q*x = z */
   cusparseSpVecDescr_t vecz = NULL;
@@ -640,6 +672,10 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
       h_x[index1] = h_z[index0];
     }
   }
+
+  timer.End();
+  LOGI("copy to host %f ms\n", timer.elapsed_msec());
+  timer.Start();
 
   if (handle) {
     checkCudaErrors(cusolverSpDestroy(handle));
@@ -748,6 +784,10 @@ bool SolveSparse(int rowsA, int colsA, int nnzA, const double *h_csrValA,
   if (d_r) {
     checkCudaErrors(cudaFree(d_r));
   }
+
+  timer.End();
+  LOGI("free %f ms\n", timer.elapsed_msec());
+  timer.Start();
 
   return true;
 }
