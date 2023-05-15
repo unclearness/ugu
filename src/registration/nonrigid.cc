@@ -418,8 +418,8 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
     LOGI("B: %f ms\n", timer_mat.elapsed_msec());
 
     timer_mat.Start();
-    // Eigen::SparseMatrix<double> AtA = A.transpose() * A;
-    // Eigen::MatrixX3d AtB = A.transpose() * B;
+    Eigen::SparseMatrix<double> AtA = A.transpose() * A;
+    Eigen::MatrixX3d AtB = A.transpose() * B;
     timer_mat.End();
     LOGI("matmul: %f ms\n", timer_mat.elapsed_msec());
 
@@ -432,9 +432,9 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
 #ifdef UGU_USE_CUDA
     {
       TmpX = X;
-#if 1
+#if 0
       Eigen::MatrixXd X_;
-      SolveSparse(A.transpose() * A, A.transpose() * B, X_, -1);
+      SolveSparse(A.transpose() * A, A.transpose() * B, X_, 0);
       timer.End();
       LOGI("cuSPARSE.solve(): %f ms\n", timer.elapsed_msec());
       X = X_;
@@ -443,9 +443,11 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
         Eigen::MatrixXd x_;
         x_.resizeLike(AtB.col(i));
         // SolveSparse(AtA.rows(), AtA.cols(), triplets, AtB.col(i), x_);
-        SolveSparse(AtA, AtB.col(i), x_, -1);
+        SolveSparse(AtA, AtB.col(i), x_, 0);
         X.col(i) = x_;
       }
+      timer.End();
+      LOGI("cuSPARSE.solve() per xyz: %f ms\n", timer.elapsed_msec());
 #endif
     }
 #else
