@@ -23,13 +23,17 @@ const uint8_t* DEFAULT_FONT_DATA = ugu::static_OpenSans_OpenSans_Regular_ttf;
 uint32_t DEFAULT_FONT_DATA_LEN = ugu::static_OpenSans_OpenSans_Regular_ttf_len;
 
 Eigen::Vector3f GetDefaultSelectedPositionColor(uint32_t geomid) {
-  Eigen::Vector3f table[3] = {
-      {1.f, 0.f, 0.f}, {0.f, 1.f, 0.f}, {0.f, 0.f, 1.f}};
-  if (geomid < 3) {
-    return table[geomid];
+  static Eigen::Vector3f table[256] = {
+      {1.f, 0.f, 0.f}, {0.f, 1.f, 0.f}, {0.f, 0.f, 1.f}, {1.f, 1.f, 0.f}};
+  static bool is_first = true;
+  if (is_first) {
+    for (int i = 4; i < 256; i++) {
+      table[i] = (Eigen::Vector3f::Random() + Eigen::Vector3f::Ones()) * 0.5f;
+    }
+    is_first = false;
   }
 
-  return (Eigen::Vector3f::Random() + Eigen::Vector3f::Ones()) * 0.5f;
+  return table[geomid % 256];
 }
 
 }  // namespace
