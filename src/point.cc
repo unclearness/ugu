@@ -27,7 +27,7 @@ std::vector<PointOnFace> LoadPointsPointOnTriangle(
     const std::string& json_path) {
   nlohmann::json j;
   std::ifstream ifs(json_path);
-  j << ifs;
+  ifs >> j;
   std::vector<PointOnFace> pofs;
   for (const auto& fid_uv : j) {
     int fid = fid_uv[0].get<int>();
@@ -45,7 +45,7 @@ std::vector<PointOnFace> LoadPointsNamedPointOnTriangle(
     const std::string& json_path) {
   nlohmann::json j;
   std::ifstream ifs(json_path);
-  j << ifs;
+  ifs >> j;
   std::vector<PointOnFace> pofs;
 
   for (const auto& kv : j.items()) {
@@ -68,7 +68,7 @@ std::vector<PointOnFace> LoadPointsNamedPointOnTriangle(
 std::vector<PointOnFace> LoadPointsTheedPoint(const std::string& json_path) {
   nlohmann::json j;
   std::ifstream ifs(json_path);
-  j << ifs;
+  ifs >> j;
   std::vector<PointOnFace> pofs;
   for (const auto& xyz : j) {
     PointOnFace pof;
