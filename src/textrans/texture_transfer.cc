@@ -237,7 +237,7 @@ bool TexTransFromColoredPoints(
         std::min(static_cast<float>(dst_tex_h - 1), V2Y(bb_min_v, dst_tex_h));
     // pixel-wise loop for the bb in dst tex
     float area = ugu::EdgeFunction(duv0, duv1, duv2);
-    float inv_area = 1.f / area;
+    float inv_area = 1.f / (area + std::numeric_limits<float>::epsilon());
 
     for (int32_t bb_y = static_cast<int32_t>(bb_min_y);
          bb_y <= static_cast<int32_t>(std::ceil(bb_max_y)); bb_y++) {

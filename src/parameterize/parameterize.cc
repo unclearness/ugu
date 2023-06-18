@@ -134,11 +134,9 @@ bool ParameterizeSmartUv(const std::vector<Eigen::Vector3f>& vertices,
   }
 
   // Step 3: Pack segments
-  ugu::PackUvIslands(res.cluster_areas, res.clusters, cluster_uvs,
-                     cluster_sub_faces, res.cluster_fids, faces.size(), tex_w,
-                     tex_h, uvs, uv_faces, true);
-
-  return true;
+  return ugu::PackUvIslands(res.cluster_areas, res.clusters, cluster_uvs,
+                            cluster_sub_faces, res.cluster_fids, faces.size(),
+                            tex_w, tex_h, uvs, uv_faces, true);
 }
 
 }  // namespace
@@ -354,6 +352,12 @@ bool PackUvIslands(
 
     // Rescale rects
     rescale_rects();
+
+    // It fails...
+    if (bin_packing_try_num > 100) {
+      LOGE("BinPacking failed...\n");
+      return false;
+    }
   }
 
   bool debug = false;
