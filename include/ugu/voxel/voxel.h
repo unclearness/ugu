@@ -69,6 +69,7 @@ struct Voxel {
   Eigen::Vector3i index{-1, -1, -1};  // voxel index
   int id{-1};
   Eigen::Vector3f pos{0.0f, 0.0f, 0.0f};  // center of voxel
+  Eigen::Vector3f col{0.0f, 0.0f, 0.0f};
   float sdf{0.0f};  // Signed Distance Function (SDF) value
   int update_num{0};
   bool outside{false};
@@ -109,6 +110,12 @@ VoxelUpdateOption GenFuseDepthDefaultOption(float resolution);
 bool FuseDepth(const Camera& camera, const Image1f& depth,
                const VoxelUpdateOption& option, VoxelGrid& voxel_grid);
 
+bool FusePoints(const std::vector<Eigen::Vector3f>& points,
+                const std::vector<Eigen::Vector3f>& normals,
+                const VoxelUpdateOption& option, VoxelGrid& voxel_grid,
+                const std::vector<Eigen::Vector3f>& colors = {},
+                int sample_num = 1);
+
 float SdfInterpolationNn(const Eigen::Vector2f& image_p,
                          const ugu::Image1f& sdf,
                          const Eigen::Vector2i& roi_min,
@@ -120,10 +127,12 @@ float SdfInterpolationBiliner(const Eigen::Vector2f& image_p,
                               const Eigen::Vector2i& roi_max);
 
 void UpdateVoxelMax(ugu::Voxel* voxel, const ugu::VoxelUpdateOption& option,
-                    float sdf);
+                    float sdf, bool with_color = false,
+                    const Eigen::Vector3f& col = Eigen::Vector3f::Zero());
 
-void UpdateVoxelWeightedAverage(ugu::Voxel* voxel,
-                                const ugu::VoxelUpdateOption& option,
-                                float sdf);
+void UpdateVoxelWeightedAverage(
+    ugu::Voxel* voxel, const ugu::VoxelUpdateOption& option, float sdf,
+    bool with_color = false,
+    const Eigen::Vector3f& col = Eigen::Vector3f::Zero());
 
 }  // namespace ugu

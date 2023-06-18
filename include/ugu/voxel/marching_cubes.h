@@ -14,6 +14,6 @@
 namespace ugu {
 
 void MarchingCubes(const VoxelGrid& voxel_grid, Mesh* mesh,
-                   double iso_level = 0.0);
+                   double iso_level = 0.0, bool with_color = false);
 
 }  // namespace ugu

@@ -272,6 +272,69 @@ bool FuseDepth(const Camera& camera, const Image1f& depth,
   return true;
 }
 
+bool FusePoints(const std::vector<Eigen::Vector3f>& points,
+                const std::vector<Eigen::Vector3f>& normals,
+                const VoxelUpdateOption& option, VoxelGrid& voxel_grid,
+                const std::vector<Eigen::Vector3f>& colors, int sample_num) {
+  bool with_color = points.size() == colors.size();
+
+  if (!voxel_grid.initialized()) {
+    return false;
+  }
+
+  float step = voxel_grid.resolution();
+  for (size_t i = 0; i < points.size(); i++) {
+    const auto& p = points[i];
+    const auto& n = normals[i];
+    Eigen::Vector3f c = Eigen::Vector3f::Zero();
+    if (with_color) {
+      c = colors[i];
+    }
+    const auto& voxel_idx = voxel_grid.get_index(p);
+    if (voxel_idx[0] < 0 || voxel_idx[1] < 0 || voxel_idx[2] < 0) {
+      continue;
+    }
+
+    for (int k = -sample_num; k < sample_num + 1; k++) {
+      Eigen::Vector3f offset = n * k * step;
+      const auto& voxel_idx_ = voxel_grid.get_index(p + offset);
+      if (voxel_idx_[0] < 0 || voxel_idx_[1] < 0 || voxel_idx_[2] < 0) {
+        continue;
+      }
+      auto voxel =
+          voxel_grid.get_ptr(voxel_idx_[0], voxel_idx_[1], voxel_idx_[2]);
+      const auto diff = voxel->pos - p;
+      float sign = std::signbit(diff.dot(n)) ? -1.f : 1.f;
+      float abs_dist = diff.norm();
+      float dist = diff.norm() * sign;
+
+      // skip if dist is truncated
+      if (option.use_truncation) {
+        if (dist >= -option.truncation_band) {
+          dist = std::min(1.0f, dist / option.truncation_band);
+        } else {
+          continue;
+        }
+      }
+
+      if (voxel->update_num < 1) {
+        voxel->sdf = dist;
+        voxel->col = c;
+        voxel->update_num++;
+        continue;
+      }
+
+      if (option.voxel_update == VoxelUpdate::kMax) {
+        UpdateVoxelMax(voxel, option, dist, with_color, c);
+      } else if (option.voxel_update == VoxelUpdate::kWeightedAverage) {
+        UpdateVoxelWeightedAverage(voxel, option, dist, with_color, c);
+      }
+    }
+  }
+
+  return true;
+}
+
 float SdfInterpolationNn(const Eigen::Vector2f& image_p,
                          const ugu::Image1f& sdf,
                          const Eigen::Vector2i& roi_min,
@@ -336,20 +399,28 @@ float SdfInterpolationBiliner(const Eigen::Vector2f& image_p,
 }
 
 void UpdateVoxelMax(ugu::Voxel* voxel, const ugu::VoxelUpdateOption& option,
-                    float sdf) {
+                    float sdf, bool with_color, const Eigen::Vector3f& col) {
   (void)option;
   if (sdf > voxel->sdf) {
     voxel->sdf = sdf;
+    if (with_color) {
+      voxel->col = col;
+    }
     voxel->update_num++;
   }
 }
 
 void UpdateVoxelWeightedAverage(ugu::Voxel* voxel,
-                                const ugu::VoxelUpdateOption& option,
-                                float sdf) {
+                                const ugu::VoxelUpdateOption& option, float sdf,
+                                bool with_color, const Eigen::Vector3f& col) {
   const float& w = option.voxel_update_weight;
   const float inv_denom = 1.0f / (w * (voxel->update_num + 1));
   voxel->sdf = (w * voxel->update_num * voxel->sdf + w * sdf) * inv_denom;
+
+  if (with_color) {
+    voxel->col = (w * voxel->update_num * voxel->col + w * col) * inv_denom;
+  }
+
   voxel->update_num++;
 }
 

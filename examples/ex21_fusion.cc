@@ -6,7 +6,6 @@
 #include <random>
 
 #include "ugu/clustering/clustering.h"
-#include "ugu/external/external.h"
 #include "ugu/image_io.h"
 #include "ugu/image_proc.h"
 #include "ugu/plane.h"
@@ -50,6 +49,7 @@ int main(int argc, char* argv[]) {
 
   std::string data_dir = "../data/";
 
+  ugu::Timer timer;
   auto object = ugu::Mesh::Create();
   object->LoadObj(data_dir + "/bunny/bunny.obj", data_dir + "bunny/");
 
@@ -175,7 +175,7 @@ int main(int argc, char* argv[]) {
   param.candidates_num = 10;
   // param.use_normal_hint = true;
   // param.normal_hint = Eigen::Vector3f(0.f, 1.f, 0.f);
-  ugu::Timer timer;
+
   timer.Start();
   ugu::EstimateGroundPlaneRansac(depth_fused->vertices(),
                                  depth_fused->normals(), param, candidates);

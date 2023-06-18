@@ -69,7 +69,9 @@ bool VoxelCarver::Carve(const Camera& camera, const Image1b& silhouette,
     interpolate_sdf = SdfInterpolationBiliner;
   }
 
-  std::function<void(Voxel*, const VoxelUpdateOption&, float)> update_voxel;
+  std::function<void(Voxel*, const VoxelUpdateOption&, float, bool,
+                     Eigen::Vector3f)>
+      update_voxel;
   if (option_.update_option.voxel_update == VoxelUpdate::kMax) {
     update_voxel = UpdateVoxelMax;
   } else if (option_.update_option.voxel_update ==
@@ -132,7 +134,8 @@ bool VoxelCarver::Carve(const Camera& camera, const Image1b& silhouette,
           continue;
         }
 
-        update_voxel(voxel, option_.update_option, dist);
+        update_voxel(voxel, option_.update_option, dist, false,
+                     Eigen::Vector3f::Zero());
       }
     }
   }
