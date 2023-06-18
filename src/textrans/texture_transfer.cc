@@ -48,7 +48,9 @@ bool TexTransNoCorresp(const ugu::Image3f& src_tex,
   corresp_finder->Init(src_verts, src_verts_faces);
 
   assert(dst_uv_faces.size() == dst_vert_faces.size());
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
 #pragma omp parallel for
+#endif
   for (int64_t df_idx = 0; df_idx < static_cast<int64_t>(dst_uv_faces.size());
        df_idx++) {
     const auto& duvface = dst_uv_faces[df_idx];
@@ -173,6 +175,122 @@ bool TexTransNoCorresp(const Image3f& src_tex, const Mesh& src_mesh,
 
   return TexTransNoCorresp(src_tex, *src_mesh_.get(), *dst_mesh_.get(),
                            dst_tex_h, dst_tex_w, output, interp, nn_num);
+}
+
+bool TexTransFromColoredPoints(
+    const std::vector<Eigen::Vector3f>& src_verts,
+    const std::vector<Eigen::Vector3f>& src_cols,
+    const std::vector<Eigen::Vector2f>& dst_uvs,
+    const std::vector<Eigen::Vector3i>& dst_uv_faces,
+    const std::vector<Eigen::Vector3f>& dst_verts,
+    const std::vector<Eigen::Vector3i>& dst_vert_faces, int32_t dst_tex_h,
+    int32_t dst_tex_w, Image3f& dst_tex, Image1b& dst_mask, int32_t interp,
+    int32_t nn_num) {
+  if (interp != InterpolationFlags::INTER_LINEAR &&
+      interp != InterpolationFlags::INTER_NEAREST) {
+    ugu::LOGE("interp is not supported\n");
+    return false;
+  }
+
+  if (nn_num < 1) {
+    ugu::LOGE("nn_num must be larger than 1\n");
+    return false;
+  }
+
+  if (interp == InterpolationFlags::INTER_NEAREST) {
+    nn_num = 1;
+  }
+
+  dst_tex = ugu::Image3f::zeros(dst_tex_h, dst_tex_w);
+  dst_mask = ugu::Image1b::zeros(dst_tex_h, dst_tex_w);
+
+  auto kdtree = GetDefaultKdTree<float, 3>();
+  kdtree->SetData(src_verts);
+  kdtree->Build();
+
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
+#pragma omp parallel for
+#endif
+  for (int64_t df_idx = 0; df_idx < static_cast<int64_t>(dst_uv_faces.size());
+       df_idx++) {
+    const auto& duvface = dst_uv_faces[df_idx];
+    const auto& dvface = dst_vert_faces[df_idx];
+
+    // Get bounding box in dst tex
+    const auto& duv0 = dst_uvs[duvface[0]];
+    const auto& duv1 = dst_uvs[duvface[1]];
+    const auto& duv2 = dst_uvs[duvface[2]];
+    const auto& dv0 = dst_verts[dvface[0]];
+    const auto& dv1 = dst_verts[dvface[1]];
+    const auto& dv2 = dst_verts[dvface[2]];
+    const auto bb_min_x =
+        U2X(std::max({0.f, std::min({duv0[0], duv1[0], duv2[0]})}), dst_tex_w);
+    const auto bb_max_x = U2X(std::min({static_cast<float>(dst_tex_w - 1),
+                                        std::max({duv0[0], duv1[0], duv2[0]})}),
+                              dst_tex_w);
+
+    // Be careful how to get min/max of y. It is an inversion of v
+    const auto bb_min_v = std::min({duv0[1], duv1[1], duv2[1]});
+    const auto bb_max_v = std::max({duv0[1], duv1[1], duv2[1]});
+    const auto bb_min_y = std::max(0.f, V2Y(bb_max_v, dst_tex_h));
+    const auto bb_max_y =
+        std::min(static_cast<float>(dst_tex_h - 1), V2Y(bb_min_v, dst_tex_h));
+    // pixel-wise loop for the bb in dst tex
+    float area = ugu::EdgeFunction(duv0, duv1, duv2);
+    float inv_area = 1.f / area;
+
+    for (int32_t bb_y = static_cast<int32_t>(bb_min_y);
+         bb_y <= static_cast<int32_t>(std::ceil(bb_max_y)); bb_y++) {
+      for (int32_t bb_x = static_cast<int32_t>(bb_min_x);
+           bb_x <= static_cast<int32_t>(std::ceil(bb_max_x)); bb_x++) {
+        Eigen::Vector2f pix_uv(X2U(static_cast<float>(bb_x), dst_tex_w),
+                               Y2V(static_cast<float>(bb_y), dst_tex_h));
+
+        float w0 = ugu::EdgeFunction(duv1, duv2, pix_uv) * inv_area;
+        float w1 = ugu::EdgeFunction(duv2, duv0, pix_uv) * inv_area;
+        float w2 = ugu::EdgeFunction(duv0, duv1, pix_uv) * inv_area;
+        // Check if this pixel is on the dst triangle
+        if (w0 < 0 || w1 < 0 || w2 < 0) {
+          continue;
+        }
+
+        // Get corresponding position on the dst face
+        Eigen::Vector3f dpos = w0 * dv0 + w1 * dv1 + w2 * dv2;
+        auto knns = kdtree->SearchKnn(dpos, nn_num);
+
+        // Fetch and copy to dst tex
+        Eigen::Vector3f src_color = src_cols[knns[0].index];
+        if (interp == InterpolationFlags::INTER_LINEAR) {
+          for (size_t i = 1; i < knns.size(); i++) {
+            src_color += src_cols[knns[i].index];
+          }
+          src_color /= static_cast<float>(knns.size());
+        } else if (interp == InterpolationFlags::INTER_NEAREST) {
+          // DO NOTHING
+        } else {
+          ugu::LOGE("interp is not supported\n");
+        }
+
+        auto& dst_color = dst_tex.at<ugu::Vec3f>(bb_y, bb_x);
+        dst_color[0] = src_color[0];
+        dst_color[1] = src_color[1];
+        dst_color[2] = src_color[2];
+
+        dst_mask.at<uint8_t>(bb_y, bb_x) = 255;
+      }
+    }
+  }
+  return true;
+}
+
+bool TexTransFromColoredPoints(const Mesh& src_mesh, const Mesh& dst_mesh,
+                               int32_t dst_tex_h, int32_t dst_tex_w,
+                               Image3f& dst_tex, Image1b& dst_mask,
+                               int32_t interp, int32_t nn_num) {
+  return TexTransFromColoredPoints(
+      src_mesh.vertices(), src_mesh.vertex_colors(), dst_mesh.uv(),
+      dst_mesh.uv_indices(), dst_mesh.vertices(), dst_mesh.vertex_indices(),
+      dst_tex_h, dst_tex_w, dst_tex, dst_mask, interp, nn_num);
 }
 
 }  // namespace ugu

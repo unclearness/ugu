@@ -204,7 +204,6 @@ bool FuseDepth(const Camera& camera, const Image1f& depth,
 #if defined(_OPENMP) && defined(UGU_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
-
   for (int z = 0; z < voxel_grid.voxel_num().z(); z++) {
     for (int y = 0; y < voxel_grid.voxel_num().y(); y++) {
       for (int x = 0; x < voxel_grid.voxel_num().x(); x++) {
@@ -305,7 +304,6 @@ bool FusePoints(const std::vector<Eigen::Vector3f>& points,
           voxel_grid.get_ptr(voxel_idx_[0], voxel_idx_[1], voxel_idx_[2]);
       const auto diff = voxel->pos - p;
       float sign = std::signbit(diff.dot(n)) ? -1.f : 1.f;
-      float abs_dist = diff.norm();
       float dist = diff.norm() * sign;
 
       // skip if dist is truncated

@@ -47,4 +47,19 @@ bool TexTransNoCorresp(const Image3f& src_tex, const Mesh& src_mesh,
                        int32_t interp = InterpolationFlags::INTER_LINEAR,
                        int32_t nn_num = 10);
 
+bool TexTransFromColoredPoints(
+    const std::vector<Eigen::Vector3f>& src_verts,
+    const std::vector<Eigen::Vector3f>& src_cols,
+    const std::vector<Eigen::Vector2f>& dst_uvs,
+    const std::vector<Eigen::Vector3i>& dst_uv_faces,
+    const std::vector<Eigen::Vector3f>& dst_verts,
+    const std::vector<Eigen::Vector3i>& dst_vert_faces, int32_t dst_tex_h,
+    int32_t dst_tex_w, Image3f& dst_tex, Image1b& dst_mask,
+    int32_t interp = InterpolationFlags::INTER_LINEAR, int32_t nn_num = 10);
+
+bool TexTransFromColoredPoints(
+    const Mesh& src_mesh, const Mesh& dst_mesh, int32_t dst_tex_h,
+    int32_t dst_tex_w, Image3f& dst_tex, Image1b& dst_mask,
+    int32_t interp = InterpolationFlags::INTER_LINEAR, int32_t nn_num = 10);
+
 }  // namespace ugu
