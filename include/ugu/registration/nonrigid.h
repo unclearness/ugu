@@ -43,10 +43,13 @@ class NonRigidIcp {
   void SetCorrespNnNum(uint32_t nn_num);
   void SetCorrespNormalTh(float rad_th);
   void SetCorrespDistTh(float dist_th);
+  void SetIgnoreVids(const std::set<uint32_t>& ignore_vids);
+  void SetIgnoreFaceIds(const std::set<uint32_t>& ignore_face_ids);
 
   uint32_t GetCorrespNnNum() const;
   float GetCorrespNormalTh() const;
   float GetCorrespDistTh() const;
+  const std::set<uint32_t>& GetIgnoreVids() const;
 
  private:
   bool ValidateCorrespondence(size_t src_idx, const Corresp& corresp) const;
@@ -93,6 +96,8 @@ class NonRigidIcp {
   BvhPtr<Eigen::Vector3f, Eigen::Vector3i> m_bvh = nullptr;
 
   bool m_rescale = true;
+
+  std::set<uint32_t> m_ignore_vids;
 };
 
 }  // namespace ugu

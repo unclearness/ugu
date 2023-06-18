@@ -283,6 +283,11 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
                    return v.cwiseProduct(m_org2norm_scale);
                  });
 
+  // Set weight = 0 for ignore vertices
+  for (const auto& vid : m_ignore_vids) {
+    m_weights_per_node[vid] = 0.0;
+  }
+
   Timer<> timer_mat;
   timer_mat.Start();
   // 1.alpha_M_G
@@ -455,15 +460,25 @@ bool NonRigidIcp::Registrate(double alpha, double gamma, int max_iter,
 
     timer.Start();
     Eigen::Matrix3Xd Xt = X.transpose();
+    const Eigen::Matrix3Xd identity = Eigen::Matrix3Xd::Identity(3, 4);
     std::vector<Eigen::Vector3f> updated_vertices;
     for (Eigen::Index i = 0; i < n; ++i) {
       const Eigen::Vector3f& vtx = m_src_norm_deformed->vertices()[i];
+
+      // TODO: Add "soft" option. Increase stiffness?
+      // For ignore_vids, set identity -> keep original vertex position
+      if (m_ignore_vids.find(static_cast<uint32_t>(i)) != m_ignore_vids.end()) {
+        Xt.block<3, 4>(0, 4 * i) = identity;
+      }
 
       Eigen::Vector4d point(vtx[0], vtx[1], vtx[2], 1.0);
       Eigen::Vector3d result = Xt.block<3, 4>(0, 4 * i) * point;
 
       updated_vertices.push_back(result.cast<float>());
     }
+    // Reflect identity
+    X = Xt.transpose();
+
     m_src_norm_deformed->set_vertices(updated_vertices);
     m_src_norm_deformed->CalcNormal();
     m_src_deformed->set_vertices(updated_vertices);
@@ -511,10 +526,25 @@ MeshPtr NonRigidIcp::GetDeformedSrc() const { return m_src_deformed; }
 void NonRigidIcp::SetCorrespNnNum(uint32_t num) { m_corresp_nn_num = num; }
 void NonRigidIcp::SetCorrespNormalTh(float rad_th) { m_angle_rad_th = rad_th; }
 void NonRigidIcp::SetCorrespDistTh(float dist_th) { m_dist_th = dist_th; }
+void NonRigidIcp::SetIgnoreFaceIds(const std::set<uint32_t>& ignore_face_ids) {
+  m_ignore_vids.clear();
+  for (const auto& fid : ignore_face_ids) {
+    for (int i = 0; i < 3; i++) {
+      m_ignore_vids.insert(m_src->vertex_indices()[fid][i]);
+    }
+  }
+}
+
+void NonRigidIcp::SetIgnoreVids(const std::set<uint32_t>& ignore_vids) {
+  m_ignore_vids = ignore_vids;
+}
 
 uint32_t NonRigidIcp::GetCorrespNnNum() const { return m_corresp_nn_num; }
 float NonRigidIcp::GetCorrespNormalTh() const { return m_angle_rad_th; }
 float NonRigidIcp::GetCorrespDistTh() const { return m_dist_th; }
+const std::set<uint32_t>& NonRigidIcp::GetIgnoreVids() const {
+  return m_ignore_vids;
+}
 
 bool NonRigidIcp::ValidateCorrespondence(size_t src_idx,
                                          const Corresp& corresp) const {
