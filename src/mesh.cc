@@ -529,70 +529,114 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   uv_.resize(attrib.texcoords.size() / 2);
   vertex_colors_.resize(attrib.colors.size() / 3);
 
-  size_t face_offset = 0;
-  // Loop over shapes
-  for (size_t s = 0; s < shapes.size(); s++) {
-    // Loop over faces(polygon)
-    size_t index_offset = 0;
+  if (shapes.empty()) {
+    // No face
+    for (size_t idx = 0; idx < attrib.vertices.size() / 3; idx++) {
+      // access to vertex
+      tinyobj::real_t vx = attrib.vertices[3 * idx + 0];
+      tinyobj::real_t vy = attrib.vertices[3 * idx + 1];
+      tinyobj::real_t vz = attrib.vertices[3 * idx + 2];
 
-    for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-      int fv = shapes[s].mesh.num_face_vertices[f];
+      vertices_[idx][0] = vx;
+      vertices_[idx][1] = vy;
+      vertices_[idx][2] = vz;
 
-      if (fv != 3) {
-        LOGE("Doesn't support face num %d. Must be 3\n", fv);
-        return false;
+      if (!attrib.normals.empty()) {
+        tinyobj::real_t nx = attrib.normals[3 * idx + 0];
+        tinyobj::real_t ny = attrib.normals[3 * idx + 1];
+        tinyobj::real_t nz = attrib.normals[3 * idx + 2];
+
+        normals_[idx][0] = nx;
+        normals_[idx][1] = ny;
+        normals_[idx][2] = nz;
+        normals_[idx].normalize();  // Fail safe
       }
 
-      // per-face material
-      material_ids_[face_offset] = shapes[s].mesh.material_ids[f];
+      if (!attrib.texcoords.empty()) {
+        tinyobj::real_t tx = attrib.texcoords[2 * idx + 0];
+        tinyobj::real_t ty = attrib.texcoords[2 * idx + 1];
 
-      // Loop over vertices in the face.
-      for (int v = 0; v < fv; v++) {
-        // access to vertex
-        tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-        tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
-        tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
-        tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
-
-        vertex_indices_[face_offset][v] = idx.vertex_index;
-
-        vertices_[idx.vertex_index][0] = vx;
-        vertices_[idx.vertex_index][1] = vy;
-        vertices_[idx.vertex_index][2] = vz;
-
-        if (!attrib.normals.empty()) {
-          tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
-          tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
-          tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
-
-          normal_indices_[face_offset][v] = idx.normal_index;
-          normals_[idx.normal_index][0] = nx;
-          normals_[idx.normal_index][1] = ny;
-          normals_[idx.normal_index][2] = nz;
-          normals_[idx.normal_index].normalize();  // Fail safe
-        }
-
-        if (!attrib.texcoords.empty()) {
-          tinyobj::real_t tx = attrib.texcoords[2 * idx.texcoord_index + 0];
-          tinyobj::real_t ty = attrib.texcoords[2 * idx.texcoord_index + 1];
-
-          uv_indices_[face_offset][v] = idx.texcoord_index;
-          uv_[idx.texcoord_index][0] = tx;
-          uv_[idx.texcoord_index][1] = ty;
-        }
-        // Optional: vertex colors
-        if (!attrib.colors.empty()) {
-          tinyobj::real_t red = attrib.colors[3 * idx.vertex_index + 0];
-          tinyobj::real_t green = attrib.colors[3 * idx.vertex_index + 1];
-          tinyobj::real_t blue = attrib.colors[3 * idx.vertex_index + 2];
-
-          vertex_colors_[idx.vertex_index][0] = red;
-          vertex_colors_[idx.vertex_index][1] = green;
-          vertex_colors_[idx.vertex_index][2] = blue;
-        }
+        uv_[idx][0] = tx;
+        uv_[idx][1] = ty;
       }
-      index_offset += fv;
-      face_offset++;
+      // Optional: vertex colors
+      if (!attrib.colors.empty()) {
+        tinyobj::real_t red = attrib.colors[3 * idx + 0];
+        tinyobj::real_t green = attrib.colors[3 * idx + 1];
+        tinyobj::real_t blue = attrib.colors[3 * idx + 2];
+
+        vertex_colors_[idx][0] = red * 255.f;
+        vertex_colors_[idx][1] = green * 255.f;
+        vertex_colors_[idx][2] = blue * 255.f;
+      }
+    }
+
+  } else {
+    size_t face_offset = 0;
+    // Loop over shapes
+    for (size_t s = 0; s < shapes.size(); s++) {
+      // Loop over faces(polygon)
+      size_t index_offset = 0;
+
+      for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+        int fv = shapes[s].mesh.num_face_vertices[f];
+
+        if (fv != 3) {
+          LOGE("Doesn't support face num %d. Must be 3\n", fv);
+          return false;
+        }
+
+        // per-face material
+        material_ids_[face_offset] = shapes[s].mesh.material_ids[f];
+
+        // Loop over vertices in the face.
+        for (int v = 0; v < fv; v++) {
+          // access to vertex
+          tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+          tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
+          tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
+          tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
+
+          vertex_indices_[face_offset][v] = idx.vertex_index;
+
+          vertices_[idx.vertex_index][0] = vx;
+          vertices_[idx.vertex_index][1] = vy;
+          vertices_[idx.vertex_index][2] = vz;
+
+          if (!attrib.normals.empty()) {
+            tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
+            tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
+            tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
+
+            normal_indices_[face_offset][v] = idx.normal_index;
+            normals_[idx.normal_index][0] = nx;
+            normals_[idx.normal_index][1] = ny;
+            normals_[idx.normal_index][2] = nz;
+            normals_[idx.normal_index].normalize();  // Fail safe
+          }
+
+          if (!attrib.texcoords.empty()) {
+            tinyobj::real_t tx = attrib.texcoords[2 * idx.texcoord_index + 0];
+            tinyobj::real_t ty = attrib.texcoords[2 * idx.texcoord_index + 1];
+
+            uv_indices_[face_offset][v] = idx.texcoord_index;
+            uv_[idx.texcoord_index][0] = tx;
+            uv_[idx.texcoord_index][1] = ty;
+          }
+          // Optional: vertex colors
+          if (!attrib.colors.empty()) {
+            tinyobj::real_t red = attrib.colors[3 * idx.vertex_index + 0];
+            tinyobj::real_t green = attrib.colors[3 * idx.vertex_index + 1];
+            tinyobj::real_t blue = attrib.colors[3 * idx.vertex_index + 2];
+
+            vertex_colors_[idx.vertex_index][0] = red * 255.f;
+            vertex_colors_[idx.vertex_index][1] = green * 255.f;
+            vertex_colors_[idx.vertex_index][2] = blue * 255.f;
+          }
+        }
+        index_offset += fv;
+        face_offset++;
+      }
     }
   }
 
