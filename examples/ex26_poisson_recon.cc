@@ -5,6 +5,7 @@
 
 #include "ugu/external/external.h"
 #include "ugu/timer.h"
+#include "ugu/util/geom_util.h"
 #include "ugu/util/raster_util.h"
 #include "ugu/voxel/marching_cubes.h"
 #include "ugu/voxel/voxel.h"
@@ -38,8 +39,13 @@ int main() {
     voxel_grid.Init(src->stats().bb_max + offset, src->stats().bb_min - offset,
                     resolution);
     ugu::VoxelUpdateOption option = ugu::GenFuseDepthDefaultOption(resolution);
-    // option.voxel_update = ugu::VoxelUpdate::kMax;
-    // option.use_truncation = false;
+    // src->set_normals({});
+    timer.Start();
+    EstimateNormalsFromPoints(src.get());
+    timer.End();
+    ugu::LOGI("Normal estimation %f ms\n", timer.elapsed_msec());
+    // src->WriteObj("../data/bunny/bunny_tmp.obj");
+
     timer.Start();
     ugu::FusePoints(src->vertices(), src->normals(), option, voxel_grid,
                     src->vertex_colors());

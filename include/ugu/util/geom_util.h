@@ -171,4 +171,10 @@ T ComputeMaxBound(const std::vector<T>& points) {
       [](const T& a, const T& b) { return a.array().max(b.array()).matrix(); });
 }
 
+bool EstimateNormalsFromPoints(const std::vector<Eigen::Vector3f>& points,
+                               std::vector<Eigen::Vector3f>& normals,
+                               uint32_t nn_num = 10);
+
+bool EstimateNormalsFromPoints(Mesh* mesh, uint32_t nn_num = 10);
+
 }  // namespace ugu

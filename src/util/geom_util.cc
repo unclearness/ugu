@@ -10,6 +10,7 @@
 #include <mutex>
 #include <random>
 
+#include "ugu/accel/kdtree.h"
 #include "ugu/util/math_util.h"
 #include "ugu/util/thread_util.h"
 
@@ -1633,6 +1634,67 @@ bool RemoveSmallConnectedComponents(Mesh& mesh, size_t small_th,
   CleanGeom(mesh);
   mesh.RemoveUnreferencedVertices();
 
+  return true;
+}
+
+bool EstimateNormalsFromPoints(const std::vector<Eigen::Vector3f>& points,
+                               std::vector<Eigen::Vector3f>& normals,
+                               uint32_t nn_num) {
+  if (points.size() < nn_num) {
+    return false;
+  }
+
+  auto kdtree = GetDefaultKdTree<float, 3>();
+
+  kdtree->SetData(points);
+  kdtree->Build();
+
+  // TODO:
+  Eigen::Vector3f centroid = std::accumulate(
+      points.begin(), points.end(), Eigen::Vector3f::Zero().eval(),
+      [&](const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
+        return a + b;
+      });
+  centroid = centroid / static_cast<float>(points.size());
+
+  const auto org_normals = normals;
+  bool with_org_normals = org_normals.size() == points.size();
+  normals.resize(points.size());
+  auto compute = [&](size_t idx) {
+    const auto& p = points[idx];
+    auto results = kdtree->SearchKnn(p, nn_num);
+    std::vector<Eigen::Vector3f> nn_points;
+    std::transform(
+        results.begin(), results.end(), std::back_inserter(nn_points),
+        [&](const KdTreeSearchResult& res) { return points[res.index]; });
+    std::array<Eigen::Vector3f, 3> axes;
+    std::array<float, 3> weights;
+    Eigen::Vector3f means;
+    ComputeAxisForPoints(nn_points, axes, weights, means);
+    Eigen::Vector3f& n = normals[idx];
+    n = axes[2].normalized();
+
+    // Flip if contradict against vector from centroid
+    Eigen::Vector3f direc = p - centroid;
+
+    if (with_org_normals) {
+      direc = org_normals[idx];
+    }
+
+    if (direc.dot(n) < 0.f) {
+      n *= -1.f;
+    }
+  };
+
+  parallel_for(0u, points.size(), compute);
+
+  return true;
+}
+
+bool EstimateNormalsFromPoints(Mesh* mesh, uint32_t nn_num) {
+  std::vector<Eigen::Vector3f> normals = mesh->normals();
+  EstimateNormalsFromPoints(mesh->vertices(), normals, nn_num);
+  mesh->set_normals(normals);
   return true;
 }
 
