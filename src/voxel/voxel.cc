@@ -11,7 +11,46 @@
 #include "ugu/util/image_util.h"
 #include "ugu/util/rgbd_util.h"
 
-namespace {}  // namespace
+namespace {
+using namespace ugu;
+void UpdateVoxel(const Eigen::Vector3i& voxel_idx,
+                 const VoxelUpdateOption& option, const Eigen::Vector3f& p,
+                 const Eigen::Vector3f& n, const Eigen::Vector3f& c,
+                 bool with_color, VoxelGrid& voxel_grid) {
+  if (voxel_idx[0] < 0 || voxel_grid.voxel_num()[0] <= voxel_idx[0] ||
+      voxel_idx[1] < 0 || voxel_grid.voxel_num()[1] <= voxel_idx[1] ||
+      voxel_idx[2] < 0 || voxel_grid.voxel_num()[2] <= voxel_idx[2]) {
+    return;
+  }
+  auto voxel = voxel_grid.get_ptr(voxel_idx[0], voxel_idx[1], voxel_idx[2]);
+  const auto diff = voxel->pos - p;
+  float sign = std::signbit(diff.dot(n)) ? -1.f : 1.f;
+  float dist = diff.norm() * sign;
+
+  // skip if dist is truncated
+  if (option.use_truncation) {
+    if (dist >= -option.truncation_band) {
+      dist = std::min(1.0f, dist / option.truncation_band);
+    } else {
+      return;
+    }
+  }
+
+  if (voxel->update_num < 1) {
+    voxel->sdf = dist;
+    voxel->col = c;
+    voxel->update_num++;
+    return;
+  }
+
+  if (option.voxel_update == VoxelUpdate::kMax) {
+    UpdateVoxelMax(voxel, option, dist, with_color, c);
+  } else if (option.voxel_update == VoxelUpdate::kWeightedAverage) {
+    UpdateVoxelWeightedAverage(voxel, option, dist, with_color, c);
+  }
+}
+
+}  // namespace
 
 namespace ugu {
 
@@ -290,42 +329,57 @@ bool FusePoints(const std::vector<Eigen::Vector3f>& points,
       c = colors[i];
     }
     const auto& voxel_idx = voxel_grid.get_index(p);
-    if (voxel_idx[0] < 0 || voxel_idx[1] < 0 || voxel_idx[2] < 0) {
+    if (voxel_idx[0] < 0 || voxel_grid.voxel_num()[0] <= voxel_idx[0] ||
+        voxel_idx[1] < 0 || voxel_grid.voxel_num()[1] <= voxel_idx[1] ||
+        voxel_idx[2] < 0 || voxel_grid.voxel_num()[2] <= voxel_idx[2]) {
       continue;
     }
 
-    for (int k = -sample_num; k < sample_num + 1; k++) {
-      Eigen::Vector3f offset = n * k * step;
-      const auto& voxel_idx_ = voxel_grid.get_index(p + offset);
-      if (voxel_idx_[0] < 0 || voxel_idx_[1] < 0 || voxel_idx_[2] < 0) {
-        continue;
-      }
-      auto voxel =
-          voxel_grid.get_ptr(voxel_idx_[0], voxel_idx_[1], voxel_idx_[2]);
-      const auto diff = voxel->pos - p;
-      float sign = std::signbit(diff.dot(n)) ? -1.f : 1.f;
-      float dist = diff.norm() * sign;
-
-      // skip if dist is truncated
-      if (option.use_truncation) {
-        if (dist >= -option.truncation_band) {
-          dist = std::min(1.0f, dist / option.truncation_band);
-        } else {
-          continue;
+    if (sample_num < 1) {
+      // Splat to 26 -neighbors
+      for (int z = -1; z <= 1; z++) {
+        for (int y = -1; y <= 1; y++) {
+          for (int x = -1; x <= 1; x++) {
+            UpdateVoxel(voxel_idx + Eigen::Vector3i(x, y, z), option, p, n, c,
+                        with_color, voxel_grid);
+          }
         }
       }
+    } else {
+      // Sample along with normal direction
+      for (int k = -sample_num; k < sample_num + 1; k++) {
+        Eigen::Vector3f offset = n * k * step;
+        const auto& voxel_idx_ = voxel_grid.get_index(p + offset);
+        if (voxel_idx_[0] < 0 || voxel_idx_[1] < 0 || voxel_idx_[2] < 0) {
+          continue;
+        }
+        auto voxel =
+            voxel_grid.get_ptr(voxel_idx_[0], voxel_idx_[1], voxel_idx_[2]);
+        const auto diff = voxel->pos - p;
+        float sign = std::signbit(diff.dot(n)) ? -1.f : 1.f;
+        float dist = diff.norm() * sign;
 
-      if (voxel->update_num < 1) {
-        voxel->sdf = dist;
-        voxel->col = c;
-        voxel->update_num++;
-        continue;
-      }
+        // skip if dist is truncated
+        if (option.use_truncation) {
+          if (dist >= -option.truncation_band) {
+            dist = std::min(1.0f, dist / option.truncation_band);
+          } else {
+            continue;
+          }
+        }
 
-      if (option.voxel_update == VoxelUpdate::kMax) {
-        UpdateVoxelMax(voxel, option, dist, with_color, c);
-      } else if (option.voxel_update == VoxelUpdate::kWeightedAverage) {
-        UpdateVoxelWeightedAverage(voxel, option, dist, with_color, c);
+        if (voxel->update_num < 1) {
+          voxel->sdf = dist;
+          voxel->col = c;
+          voxel->update_num++;
+          continue;
+        }
+
+        if (option.voxel_update == VoxelUpdate::kMax) {
+          UpdateVoxelMax(voxel, option, dist, with_color, c);
+        } else if (option.voxel_update == VoxelUpdate::kWeightedAverage) {
+          UpdateVoxelWeightedAverage(voxel, option, dist, with_color, c);
+        }
       }
     }
   }
