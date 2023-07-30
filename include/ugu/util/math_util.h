@@ -372,4 +372,19 @@ void ComputeAxisForPoints(const std::vector<Eigen::Vector2f>& points,
                           std::array<float, 2>& weights,
                           Eigen::Vector2f& means);
 
+struct OrientedBoundingBox {
+  std::array<Eigen::Vector3f, 3> axes;
+  Eigen::Vector3f min_bb, max_bb;
+  Eigen::Vector3f len;
+  Eigen::Vector3f center_wld;
+  Eigen::Matrix3f bb2wld;
+  Eigen::Matrix3f wld2bb;
+  float offset;
+  OrientedBoundingBox();
+  OrientedBoundingBox(const std::vector<Eigen::Vector3f>& points);
+  ~OrientedBoundingBox();
+  void Init(const std::vector<Eigen::Vector3f>& points);
+  bool IsInside(const Eigen::Vector3f& p_wld);
+};
+
 }  // namespace ugu

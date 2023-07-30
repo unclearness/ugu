@@ -350,7 +350,7 @@ bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged,
   tmp0 = *src_meshes[0];
   for (size_t i = 1; i < src_meshes.size(); i++) {
     const auto& src = src_meshes[i];
-    ugu::MergeMeshes(tmp0, *src, &tmp2, overwrite_material,
+    MergeMeshes(tmp0, *src, &tmp2, overwrite_material,
                      merge_same_name_material);
     tmp0 = Mesh(tmp2);
   }

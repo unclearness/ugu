@@ -5,6 +5,8 @@
 
 #include "ugu/util/math_util.h"
 
+#include "ugu/util/geom_util.h"
+
 namespace {
 
 template <typename T, int N>
@@ -65,6 +67,41 @@ void ComputeAxisForPoints(const std::vector<Eigen::Vector2f>& points,
                           std::array<float, 2>& weights,
                           Eigen::Vector2f& means) {
   ComputeAxisForPointsImpl<float, 2>(points, axes, weights, means);
+}
+
+OrientedBoundingBox::OrientedBoundingBox(){};
+OrientedBoundingBox::OrientedBoundingBox(
+    const std::vector<Eigen::Vector3f>& points) {
+  Init(points);
+}
+OrientedBoundingBox::~OrientedBoundingBox(){};
+void OrientedBoundingBox::Init(const std::vector<Eigen::Vector3f>& points) {
+  std::array<float, 3> weights;
+  Eigen::Vector3f means;
+  ComputeAxisForPoints(points, axes, weights, means);
+  bb2wld.col(0) = axes[0];
+  bb2wld.col(1) = axes[1];
+  bb2wld.col(2) = axes[2];
+  wld2bb = bb2wld.inverse();
+  std::vector<Eigen::Vector3f> points_bb;
+  std::transform(points.begin(), points.end(), std::back_inserter(points_bb),
+                 [&](const Eigen::Vector3f& p) { return wld2bb * p; });
+  max_bb = ComputeMaxBound(points_bb);
+  min_bb = ComputeMinBound(points_bb);
+
+  center_wld = bb2wld * (0.5f * (max_bb + min_bb));
+  len = max_bb - min_bb;
+  offset = len.minCoeff() * 0.001f;
+}
+
+bool OrientedBoundingBox::IsInside(const Eigen::Vector3f& p_wld) {
+  auto p_bb = wld2bb * p_wld;
+  for (int i = 0; i < 3; i++) {
+    if (p_bb[i] < min_bb[i] - offset|| max_bb[i] + offset < p_bb[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace ugu

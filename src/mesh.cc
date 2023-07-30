@@ -529,7 +529,9 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   uv_.resize(attrib.texcoords.size() / 2);
   vertex_colors_.resize(attrib.colors.size() / 3);
 
-  if (shapes.empty()) {
+  std::vector<bool> valid_vertices(vertices_.size(), false);
+  bool no_face = shapes.empty();
+  if (no_face) {
     // No face
     for (size_t idx = 0; idx < attrib.vertices.size() / 3; idx++) {
       // access to vertex
@@ -602,6 +604,7 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
           vertices_[idx.vertex_index][0] = vx;
           vertices_[idx.vertex_index][1] = vy;
           vertices_[idx.vertex_index][2] = vz;
+          valid_vertices[idx.vertex_index] = true;
 
           if (!attrib.normals.empty()) {
             tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
@@ -694,6 +697,15 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
   face_indices_per_material_.resize(materials_.size());
   for (int i = 0; i < static_cast<int>(material_ids_.size()); i++) {
     face_indices_per_material_[material_ids_[i]].push_back(i);
+  }
+
+  if (!no_face) {
+    // Remove unreferenced vertices
+    size_t valid_count = static_cast<size_t>(
+        std::count(valid_vertices.begin(), valid_vertices.end(), true));
+    if (valid_count != valid_vertices.size()) {
+      RemoveVertices(valid_vertices);
+    }
   }
 
   return ret;
