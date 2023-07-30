@@ -97,7 +97,7 @@ void OrientedBoundingBox::Init(const std::vector<Eigen::Vector3f>& points) {
 bool OrientedBoundingBox::IsInside(const Eigen::Vector3f& p_wld) {
   auto p_bb = wld2bb * p_wld;
   for (int i = 0; i < 3; i++) {
-    if (p_bb[i] < min_bb[i] - offset|| max_bb[i] + offset < p_bb[i]) {
+    if (p_bb[i] < min_bb[i] - offset || max_bb[i] + offset < p_bb[i]) {
       return false;
     }
   }

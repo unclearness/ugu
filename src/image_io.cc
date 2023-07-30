@@ -16,11 +16,15 @@ using namespace ugu;
 #ifdef UGU_USE_STB
 bool LoadByStb(ImageBase& img, const std::string& path) {
   int bit_depth = 0;
-  // https://stackoverflow.com/questions/6278159/find-out-if-png-is-8-or-24
-  {
+
+  auto ext = ExtractExt(path);
+  if (ext == "png" || ext == "PNG") {
+    // https://stackoverflow.com/questions/6278159/find-out-if-png-is-8-or-24
     std::ifstream fin(path, std::ios::in | std::ios::binary);
     fin.seekg(24);
     bit_depth = fin.get();
+  } else {
+    bit_depth = 8;
   }
 
   uint8_t* in_pixels_tmp = NULL;

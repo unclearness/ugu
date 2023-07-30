@@ -58,7 +58,8 @@ T Imread(const std::string& filename, int flags = ImreadModes::IMREAD_COLOR) {
 
   if (loaded.channels() != T().channels() ||
       loaded.elemSize1() != T().elemSize1()) {
-    LOGE("desired channel %d, actual %d\n", T().channels(), loaded.channels());
+    LOGE("desired channel %d/%d, actual %d/%d\n", T().channels(),
+         T().elemSize1(), loaded.channels(), loaded.elemSize1());
     return T();
   }
 
