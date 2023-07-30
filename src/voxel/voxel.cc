@@ -321,7 +321,8 @@ bool FusePoints(const std::vector<Eigen::Vector3f>& points,
   }
 
   float step = voxel_grid.resolution();
-  for (size_t i = 0; i < points.size(); i++) {
+  // #pragma omp parallel for schedule(dynamic, 1)
+  for (int64_t i = 0; i < static_cast<int64_t>(points.size()); i++) {
     const auto& p = points[i];
     const auto& n = normals[i];
     Eigen::Vector3f c = Eigen::Vector3f::Zero();
@@ -336,7 +337,7 @@ bool FusePoints(const std::vector<Eigen::Vector3f>& points,
     }
 
     if (sample_num < 1) {
-      // Splat to 26 -neighbors
+      // Splat to 26-neighbors
       for (int z = -1; z <= 1; z++) {
         for (int y = -1; y <= 1; y++) {
           for (int x = -1; x <= 1; x++) {

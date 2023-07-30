@@ -189,9 +189,6 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
       }
 
       if (with_texture) {
-        // +0.5f comes from mapping 0~1 to -0.5~width(or height)+0.5
-        // since uv 0 and 1 is pixel boundary at ends while pixel position is
-        // the center of pixel
         uv.y() = 1.0f - uv.y();
         uvs.emplace_back(uv);
       }
@@ -211,6 +208,187 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
       const int& left_index =
           added_table[static_cast<size_t>(y) *
                           static_cast<size_t>(camera.width()) +
+                      (static_cast<size_t>(x) - static_cast<size_t>(x_step))];
+
+      const float upper_left_diff =
+          std::abs(depth.at<float>(y - y_step, x - x_step) - d);
+      const float upper_diff = std::abs(depth.at<float>(y - y_step, x) - d);
+      const float left_diff = std::abs(depth.at<float>(y, x - x_step) - d);
+
+      if (upper_left_index > 0 && upper_index > 0 &&
+          upper_left_diff < max_connect_z_diff &&
+          upper_diff < max_connect_z_diff) {
+        vertex_indices.push_back(
+            Eigen::Vector3i(upper_left_index, current_index, upper_index));
+      }
+
+      if (upper_left_index > 0 && left_index > 0 &&
+          upper_left_diff < max_connect_z_diff &&
+          left_diff < max_connect_z_diff) {
+        vertex_indices.push_back(
+            Eigen::Vector3i(upper_left_index, left_index, current_index));
+      }
+
+      vertex_id++;
+    }
+  }
+
+  mesh->set_vertices(vertices);
+  mesh->set_vertex_indices(vertex_indices);
+  mesh->CalcNormal();
+
+  if (with_texture) {
+    mesh->set_uv(uvs);
+    mesh->set_uv_indices(vertex_indices);
+
+    ugu::ObjMaterial material;
+    color.copyTo(material.diffuse_tex);
+    material.name = material_name;
+    std::vector<ugu::ObjMaterial> materials;
+    materials.push_back(material);
+    mesh->set_materials(materials);
+    std::vector<int> material_ids(vertex_indices.size(), 0);
+    mesh->set_material_ids(material_ids);
+  }
+
+  if (with_vertex_color) {
+    mesh->set_vertex_colors(vertex_colors);
+  }
+
+  if (point_cloud != nullptr) {
+    ugu::Init(point_cloud, depth.cols, depth.rows, 0.0f);
+    for (int i = 0; i < static_cast<int>(vid2xy.size()); i++) {
+      const auto& xy = vid2xy[i];
+      auto& p = point_cloud->at<ugu::Vec3f>(xy.second, xy.first);
+      p[0] = mesh->vertices()[i][0];
+      p[1] = mesh->vertices()[i][1];
+      p[2] = mesh->vertices()[i][2];
+    }
+  }
+
+  if (normal != nullptr) {
+    ugu::Init(normal, depth.cols, depth.rows, 0.0f);
+    for (int i = 0; i < static_cast<int>(vid2xy.size()); i++) {
+      const auto& xy = vid2xy[i];
+      auto& n = normal->at<ugu::Vec3f>(xy.second, xy.first);
+      n[0] = mesh->normals()[i][0];
+      n[1] = mesh->normals()[i][1];
+      n[2] = mesh->normals()[i][2];
+    }
+  }
+
+  return true;
+}
+
+bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
+                    const ugu::Camera& depth_camera,
+                    const ugu::Camera& color_camera,
+                    const Eigen::Affine3f& depth2color, ugu::Mesh* mesh,
+                    bool with_texture, bool with_vertex_color,
+                    float max_connect_z_diff, int x_step, int y_step,
+                    bool gl_coord, const std::string& material_name,
+                    ugu::Image3f* point_cloud, ugu::Image3f* normal) {
+  if (max_connect_z_diff < 0) {
+    ugu::LOGE("Depth2Mesh max_connect_z_diff must be positive %f\n",
+              max_connect_z_diff);
+    return false;
+  }
+  if (x_step < 1) {
+    ugu::LOGE("Depth2Mesh x_step must be positive %d\n", x_step);
+    return false;
+  }
+  if (y_step < 1) {
+    ugu::LOGE("Depth2Mesh y_step must be positive %d\n", y_step);
+    return false;
+  }
+  if (depth.cols != depth_camera.width() ||
+      depth.rows != depth_camera.height()) {
+    ugu::LOGE(
+        "Depth2Mesh depth size (%d, %d) and camera size (%d, %d) are "
+        "different\n",
+        depth.cols, depth.rows, depth_camera.width(), depth_camera.height());
+    return false;
+  }
+
+  mesh->Clear();
+
+  std::vector<Eigen::Vector2f> uvs;
+  std::vector<Eigen::Vector3f> vertices;
+  std::vector<Eigen::Vector3i> vertex_indices;
+  std::vector<Eigen::Vector3f> vertex_colors;
+
+  std::vector<std::pair<int, int>> vid2xy;
+
+  std::vector<int> added_table(static_cast<size_t>(depth.cols * depth.rows),
+                               -1);
+  int vertex_id{0};
+  for (int y = y_step; y < depth_camera.height(); y += y_step) {
+    for (int x = x_step; x < depth_camera.width(); x += x_step) {
+      const float& d = depth.at<float>(y, x);
+      if (d < std::numeric_limits<float>::min()) {
+        continue;
+      }
+
+      Eigen::Vector3f depth_image_p(static_cast<float>(x),
+                                    static_cast<float>(y), d);
+      Eigen::Vector3f depth_camera_p;
+      depth_camera.Unproject(depth_image_p, &depth_camera_p);
+
+      if (gl_coord) {
+        // flip y and z to align with OpenGL coordinate
+        depth_camera_p.y() = -depth_camera_p.y();
+        depth_camera_p.z() = -depth_camera_p.z();
+      }
+
+      vertices.push_back(depth_camera_p);
+
+      vid2xy.push_back(std::make_pair(x, y));
+
+      Eigen::Vector3f color_camera_p = depth2color * depth_camera_p;
+      Eigen::Vector3f color_image_p;
+      color_camera.Project(color_camera_p, &color_image_p);
+
+      Eigen::Vector2f uv(ugu::X2U(color_image_p.x(), color.cols),
+                         ugu::Y2V(color_image_p.y(), color.rows, false));
+
+      if (with_vertex_color) {
+        // nearest neighbor
+        // todo: bilinear
+        Eigen::Vector2i pixel_pos(
+            static_cast<int>(std::round(ugu::U2X(uv.x(), color.cols))),
+            static_cast<int>(std::round(ugu::V2Y(uv.y(), color.rows, false))));
+
+        Eigen::Vector3f pixel_color;
+        const ugu::Vec3b& tmp_color =
+            color.at<ugu::Vec3b>(pixel_pos.y(), pixel_pos.x());
+        pixel_color.x() = tmp_color[0];
+        pixel_color.y() = tmp_color[1];
+        pixel_color.z() = tmp_color[2];
+
+        vertex_colors.push_back(pixel_color);
+      }
+
+      if (with_texture) {
+        uv.y() = 1.0f - uv.y();
+        uvs.emplace_back(uv);
+      }
+
+      added_table[static_cast<size_t>(y) *
+                      static_cast<size_t>(depth_camera.width()) +
+                  static_cast<size_t>(x)] = vertex_id;
+
+      const int& current_index = vertex_id;
+      const int& upper_left_index =
+          added_table[(static_cast<size_t>(y) - static_cast<size_t>(y_step)) *
+                          static_cast<size_t>(depth_camera.width()) +
+                      (static_cast<size_t>(x) - static_cast<size_t>(x_step))];
+      const int& upper_index =
+          added_table[(static_cast<size_t>(y) - static_cast<size_t>(y_step)) *
+                          static_cast<size_t>(depth_camera.width()) +
+                      static_cast<size_t>(x)];
+      const int& left_index =
+          added_table[static_cast<size_t>(y) *
+                          static_cast<size_t>(depth_camera.width()) +
                       (static_cast<size_t>(x) - static_cast<size_t>(x_step))];
 
       const float upper_left_diff =
@@ -343,7 +521,7 @@ bool Depth2PointCloud(const Image1f& depth, const Image3b& color,
 
 bool Depth2Mesh(const Image1f& depth, const Camera& camera, Mesh* mesh,
                 float max_connect_z_diff, int x_step, int y_step, bool gl_coord,
-                ugu::Image3f* point_cloud, ugu::Image3f* normal) {
+                Image3f* point_cloud, Image3f* normal) {
   Image3b stub_color;
   return Depth2MeshImpl(depth, stub_color, camera, mesh, false, false,
                         max_connect_z_diff, x_step, y_step, gl_coord,
@@ -354,10 +532,22 @@ bool Depth2Mesh(const Image1f& depth, const Image3b& color,
                 const Camera& camera, Mesh* mesh, float max_connect_z_diff,
                 int x_step, int y_step, bool gl_coord,
                 const std::string& material_name, bool with_vertex_color,
-                ugu::Image3f* point_cloud, ugu::Image3f* normal) {
+                Image3f* point_cloud, Image3f* normal) {
   return Depth2MeshImpl(depth, color, camera, mesh, true, with_vertex_color,
                         max_connect_z_diff, x_step, y_step, gl_coord,
                         material_name, point_cloud, normal);
+}
+
+bool Depth2Mesh(const Image1f& depth, const Image3b& color,
+                const Camera& depth_camera, const Camera& color_camera,
+                const Eigen::Affine3f depth2color, Mesh* mesh,
+                float max_connect_z_diff, int x_step, int y_step, bool gl_coord,
+                const std::string& material_name, bool with_vertex_color,
+                Image3f* point_cloud, Image3f* normal) {
+  return Depth2MeshImpl(depth, color, depth_camera, color_camera, depth2color,
+                        mesh, true, with_vertex_color, max_connect_z_diff,
+                        x_step, y_step, gl_coord, material_name, point_cloud,
+                        normal);
 }
 
 }  // namespace ugu

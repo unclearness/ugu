@@ -15,6 +15,14 @@ using namespace ugu;
 
 #ifdef UGU_USE_STB
 bool LoadByStb(ImageBase& img, const std::string& path) {
+  int bit_depth = 0;
+  // https://stackoverflow.com/questions/6278159/find-out-if-png-is-8-or-24
+  {
+    std::ifstream fin(path, std::ios::in | std::ios::binary);
+    fin.seekg(24);
+    bit_depth = fin.get();
+  }
+
   uint8_t* in_pixels_tmp = NULL;
   int width = -1;
   int height = -1;
@@ -22,15 +30,17 @@ bool LoadByStb(ImageBase& img, const std::string& path) {
 
   const int desired_ch = 0;  // Not desire
   int cv_type = -1;
-  in_pixels_tmp = stbi_load(path.c_str(), &width, &height, &bpp, desired_ch);
-  cv_type = MakeCvType(&typeid(uint8_t), bpp);
 
-  // TODO
-  // Really work for 16bit png?
-  if (in_pixels_tmp == NULL) {
+  if (bit_depth == 8) {
+    in_pixels_tmp = stbi_load(path.c_str(), &width, &height, &bpp, desired_ch);
+    cv_type = MakeCvType(&typeid(uint8_t), bpp);
+  } else if (bit_depth == 16 || in_pixels_tmp == NULL) {
     in_pixels_tmp = reinterpret_cast<uint8_t*>(
         stbi_load_16(path.c_str(), &width, &height, &bpp, desired_ch));
     cv_type = MakeCvType(&typeid(uint16_t), bpp);
+  } else {
+    LOGE("Load failed. bit depth is %d\n", bit_depth);
+    return false;
   }
 
   if (in_pixels_tmp == NULL) {
