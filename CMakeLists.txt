@@ -510,6 +510,7 @@ if (UGU_BUILD_EXAMPLES)
   setup_exe(ex24_nonrigid examples/ex24_nonrigid.cc)
   setup_exe(ex25_superpixel examples/ex25_superpixel.cc)
   setup_exe(ex26_poisson_recon examples/ex26_poisson_recon.cc)
+  setup_exe(ex27_math examples/ex27_math.cc)
 endif()
 
 if (UGU_BUILD_APP)

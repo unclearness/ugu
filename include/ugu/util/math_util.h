@@ -337,9 +337,15 @@ struct Pca {
 
   //     [row][col]
   // data[dim][num_data]
-  void Compute(const InputMatrixType& data, bool descending_order = true) {
+  void Compute(const InputMatrixType& data, bool descending_order = true,
+               bool unbiased_variance = true, bool use_svd = true) {
     // auto r = data.rows();
     auto c = data.cols();
+
+    if (c < 2) {
+      LOGE("#data must be more than 2");
+      return;
+    }
 
     // means_ is vector and has vector operation
     // https://stackoverflow.com/questions/54021457/how-could-i-subtract-a-1xn-eigen-matrix-from-a-mxn-matrix-like-numpy-does
@@ -349,15 +355,52 @@ struct Pca {
     means = means_;
     standarized = data.colwise() - means_;  // [dim, num_data]
 
-    cov = standarized * standarized.adjoint();  // [dim, dim]
-    cov = cov / c;
-    Eigen::SelfAdjointEigenSolver<InputMatrixType> eig(cov);
-    vecs = eig.eigenvectors();   // [dim, dim] vecs.col(i)
-    coeffs = eig.eigenvalues();  // [dim, 1] coeffs(i, 0)
+    if (use_svd) {
+      // SVD, usually better than Eigendecompostion in terms of computational
+      // cost
 
-    if (descending_order) {
-      vecs.rowwise().reverseInPlace();
-      coeffs.colwise().reverseInPlace();
+      Eigen::BDCSVD<InputMatrixType> svd(
+          standarized, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+      coeffs = svd.singularValues().cwiseProduct(svd.singularValues());
+
+      if (unbiased_variance) {
+        // unbiased variance
+        coeffs /= (c - 1);
+      } else {
+        // sample variance
+        coeffs /= c;
+      }
+
+      vecs = svd.matrixU();
+
+      if (!descending_order) {
+        // default is descending order
+        // reverse if ascending is specified
+        vecs.rowwise().reverseInPlace();
+        coeffs.colwise().reverseInPlace();
+      }
+
+    } else {
+      // Eigendecomposition, less computationally efficient than SVD
+      cov = standarized * standarized.adjoint();  // [dim, dim]
+      if (unbiased_variance) {
+        // unbiased variance
+        cov = cov / (c - 1);
+      } else {
+        // sample variance
+        cov = cov / c;
+      }
+      Eigen::SelfAdjointEigenSolver<InputMatrixType> eig(cov);
+      vecs = eig.eigenvectors();   // [dim, dim] vecs.col(i)
+      coeffs = eig.eigenvalues();  // [dim, 1] coeffs(i, 0)
+
+      if (descending_order) {
+        // default is ascending order
+        // reverse if descending is specified
+        vecs.rowwise().reverseInPlace();
+        coeffs.colwise().reverseInPlace();
+      }
     }
   }
 };
