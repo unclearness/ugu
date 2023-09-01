@@ -22,7 +22,8 @@ bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
             std::vector<Eigen::VectorXf>& centroids, std::vector<float>& dists,
             std::vector<std::vector<Eigen::VectorXf>>& clustered_points,
             int term_max_iter = 100, float term_unchanged_ratio = 1.f,
-            bool init_plus_plus = true, int random_seed = -1);
+            bool init_plus_plus = true, int random_seed = -1,
+            int n_threads = 1);
 
 enum class MeanShiftKernel { GAUSSIAN };
 

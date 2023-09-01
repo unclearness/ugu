@@ -36,7 +36,7 @@ void AssignLabelForInvalidClusters(const std::vector<Eigen::VectorXf>& points,
 
 void InitKMeansPlusPlus(const std::vector<Eigen::VectorXf>& points,
                         std::vector<Eigen::VectorXf>& centroids,
-                        std::default_random_engine& engine) {
+                        std::default_random_engine& engine, int n_threads) {
   std::uniform_int_distribution<int> point_dstr(
       0, static_cast<int>(points.size()) - 1);
   std::uniform_real_distribution<double> sample_dstr(0.0, 1.0);
@@ -48,15 +48,16 @@ void InitKMeansPlusPlus(const std::vector<Eigen::VectorXf>& points,
   double init_dists_sum = 0.0;
   std::unordered_set<size_t> selected;
   selected.insert(new_index);
+
   for (size_t i = 1; i < centroids.size(); i++) {
-    init_dists_sum = 0.0;
     std::fill(init_dists.begin(), init_dists.end(), 0.0);
     std::fill(dists_dstr.begin(), dists_dstr.end(), 0.0);
     // Calculate distances
-    for (size_t j = 0; j < points.size(); j++) {
+
+    auto calc_init_dists = [&](const size_t& j) {
       // Skip if already selected
       if (selected.find(j) != selected.end()) {
-        continue;
+        return;
       }
       float min_dist = (centroids[0] - points[j]).norm();
       for (size_t ii = 1; ii < i; ii++) {
@@ -65,11 +66,14 @@ void InitKMeansPlusPlus(const std::vector<Eigen::VectorXf>& points,
           min_dist = dist;
         }
       }
+
       double min_dist_d = static_cast<double>(min_dist);
       double squared_min_dist = min_dist_d * min_dist_d;
       init_dists[j] = squared_min_dist;
-      init_dists_sum += squared_min_dist;
-    }
+    };
+
+    ugu::parallel_for(0u, points.size(), calc_init_dists, n_threads);
+    init_dists_sum = std::accumulate(init_dists.begin(), init_dists.end(), 0.0);
 
     // Make distribution
     dists_dstr[0] = init_dists[0] / init_dists_sum;
@@ -178,7 +182,7 @@ bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
             std::vector<Eigen::VectorXf>& centroids, std::vector<float>& dists,
             std::vector<std::vector<Eigen::VectorXf>>& clustered_points,
             int term_max_iter, float term_unchanged_ratio, bool init_plus_plus,
-            int random_seed) {
+            int random_seed, int n_threads) {
   if (num_clusters <= 1 || points.size() < 2 ||
       points.size() < static_cast<size_t>(num_clusters)) {
     return false;
@@ -199,7 +203,7 @@ bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
   dists.resize(points.size());
   clustered_points.resize(nc);
   if (init_plus_plus) {
-    InitKMeansPlusPlus(points, centroids, engine);
+    InitKMeansPlusPlus(points, centroids, engine, n_threads);
   } else {
     // At least one sample for each cluster
     for (size_t i = 0; i < nc; i++) {
@@ -241,33 +245,38 @@ bool KMeans(const std::vector<Eigen::VectorXf>& points, int num_clusters,
     return false;
   };
 
+  std::vector<uint32_t> unchanged_flags(points.size(), 0);
+  auto dist_calc = [&](const size_t& i) {
+    float min_dist = (centroids[0] - points[i]).norm();
+    size_t min_c = 0;
+    for (size_t c = 1; c < nc; c++) {
+      float dist = (centroids[c] - points[i]).norm();
+      if (dist < min_dist) {
+        min_dist = dist;
+        min_c = c;
+      }
+    }
+    dists[i] = min_dist;
+    if (labels[i] == min_c) {
+      unchanged_flags[i] = 1;
+    }
+    labels[i] = min_c;
+  };
+
   while (!terminated()) {
-    size_t unchanged_num = 0;
+    std::fill(unchanged_flags.begin(), unchanged_flags.end(), 0);
 
     // https://en.wikipedia.org/wiki/K-means_clustering
 
     // Assignment step
-    for (size_t i = 0; i < points.size(); i++) {
-      float min_dist = (centroids[0] - points[i]).norm();
-      size_t min_c = 0;
-      for (size_t c = 1; c < nc; c++) {
-        float dist = (centroids[c] - points[i]).norm();
-        if (dist < min_dist) {
-          min_dist = dist;
-          min_c = c;
-        }
-      }
-      dists[i] = min_dist;
-      if (labels[i] == min_c) {
-        unchanged_num++;
-      }
-      labels[i] = min_c;
-    }
+    parallel_for(0u, points.size(), dist_calc, n_threads);
 
     // Update step
     CalcCentroids(points, labels, centroids, nc);
     AssignLabelForInvalidClusters(points, labels, centroids);
     iter++;
+    size_t unchanged_num =
+        std::accumulate(unchanged_flags.begin(), unchanged_flags.end(), 0u);
     unchanged_ratio =
         static_cast<float>(unchanged_num) / static_cast<float>(points.size());
     // ugu::LOGI("%d %f \n", iter, unchanged_ratio);

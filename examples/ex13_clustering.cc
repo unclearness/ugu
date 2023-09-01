@@ -58,7 +58,7 @@ void KMeansTest() {
   std::normal_distribution<float> dstr(0.f, r);
 
 #if 1
-  size_t pc = 3000;
+  size_t pc = 300000;
   size_t gt_clusters = 10;
   for (size_t i = 0; i < pc; i++) {
     auto gt_cluster = i % gt_clusters;
@@ -98,16 +98,17 @@ void KMeansTest() {
   int num_clusters = 10;
   timer.Start();
   ugu::KMeans(points, num_clusters, labels, centroids, dists, clustered_points,
-              100, 1.f, false, 0);
+              100, 1.f, false, 0, -1);
   timer.End();
   ugu::LOGI("KMeans naive %f ms\n", timer.elapsed_msec());
   SavePoints("kmeans_naive.ply", points, num_clusters, labels, centroids);
 
   timer.Start();
   ugu::KMeans(points, num_clusters, labels, centroids, dists, clustered_points,
-              100, 1.f, true, 0);
-  ugu::LOGI("KMeans++ %f ms\n", timer.elapsed_msec());
+              100, 1.f, true, 0, -1);
   timer.End();
+  ugu::LOGI("KMeans++ %f ms\n", timer.elapsed_msec());
+
   SavePoints("kmeans_plusplus.ply", points, num_clusters, labels, centroids);
 }
 
