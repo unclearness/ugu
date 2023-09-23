@@ -11,8 +11,10 @@
 #include "glad/gl.h"
 #endif
 
+#ifdef UGU_USE_FREETYPE
 #include "ft2build.h"
 #include FT_FREETYPE_H
+#endif
 
 #include "font/Open_Sans/static_OpenSans_OpenSans_Regular_ttf.h"
 
@@ -39,6 +41,7 @@ Eigen::Vector3f GetDefaultSelectedPositionColor(uint32_t geomid) {
 }  // namespace
 
 namespace ugu {
+#ifdef UGU_USE_FREETYPE
 
 TextRendererGl::TextRendererGl(unsigned int width, unsigned int height) {
   // load and configure shader
@@ -183,10 +186,34 @@ void TextRendererGl::RenderText(const std::string& text, float x, float y,
 void TextRendererGl::RenderText(const Text& text) {
   RenderText(text.body, text.x, text.y, text.scale, text.color);
 }
+#else
+TextRendererGl::TextRendererGl(unsigned int width, unsigned int height) {
+  (void)width, height;
+  LOGE("Not supported with this configuration\n");
+}
+
+void TextRendererGl::Load(std::string font, unsigned int fontSize) {
+  (void)font, fontSize;
+  LOGE("Not supported with this configuration\n");
+}
+
+void TextRendererGl::RenderText(const std::string& text, float x, float y,
+                                float scale, const Eigen::Vector3f& color) {
+  (void)text, x, y, scale, color;
+  LOGE("Not supported with this configuration\n");
+}
+
+void TextRendererGl::RenderText(const Text& text) {
+  (void)text;
+  LOGE("Not supported with this configuration\n");
+}
+#endif
 
 RendererGl::RendererGl() {}
 
 RendererGl::~RendererGl() {}
+
+#ifdef UGU_USE_GLFW
 
 bool RendererGl::ClearGlState() {
   if (!m_initialized) {
@@ -621,6 +648,30 @@ bool RendererGl::ReadGbuf() {
 
   return true;
 }
+#else
+
+bool RendererGl::ClearGlState() {
+  LOGE("Not supported with this configuration\n");
+  return false;
+}
+
+bool RendererGl::Init() {
+  LOGE("Not supported with this configuration\n");
+  return false;
+}
+
+bool RendererGl::Draw(double tic) {
+  (void)tic;
+  LOGE("Not supported with this configuration\n");
+  return false;
+}
+
+bool RendererGl::ReadGbuf() {
+  LOGE("Not supported with this configuration\n");
+  return false;
+}
+
+#endif
 
 void RendererGl::SetCamera(const CameraPtr cam) { m_cam = cam; }
 CameraPtr RendererGl::GetCamera() const { return m_cam; }

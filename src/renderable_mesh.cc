@@ -264,16 +264,23 @@ void RenderableMesh::Draw(const Shader &shader) const {
 }
 }  // namespace ugu
 #else
+namespace ugu {
 void RenderableMesh::BindTextures() {
   LOGE("Not supported with this configuration\n");
 }
-
-void RenderableMesh::SetupMesh() {
+void RenderableMesh::UpdateMesh() {
+  LOGE("Not supported with this configuration\n");
+}
+void RenderableMesh::ClearGlState() const {
+  LOGE("Not supported with this configuration\n");
+}
+void RenderableMesh::SetupMesh(int geo_id) {
+  (void)geo_id;
   LOGE("Not supported with this configuration\n");
 }
 
 void RenderableMesh::Draw(const Shader &shader) const {
   LOGE("Not supported with this configuration\n");
 }
-
+}  // namespace ugu
 #endif
