@@ -574,7 +574,7 @@ Image<T> ResizeNearest(const Image<T>& src, int out_w, int out_h) {
   dst.forEach([&](T& val, const int* yx) {
     int src_x = static_cast<int>(ratio_w * yx[1]);
     int src_y = static_cast<int>(ratio_h * yx[0]);
-    val = src.at<T>(src_y, src_x);
+    val = src.template at<T>(src_y, src_x);
   });
 
   return dst;
