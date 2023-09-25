@@ -565,6 +565,22 @@ void minMaxLoc(const Image<T>& src, double* minVal, double* maxVal = nullptr,
 }
 
 template <typename T>
+Image<T> ResizeNearest(const Image<T>& src, int out_w, int out_h) {
+  Image<T> dst = Image<T>::zeros(out_h, out_w);
+
+  float ratio_h = static_cast<float>(src.rows) / static_cast<float>(out_h);
+  float ratio_w = static_cast<float>(src.cols) / static_cast<float>(out_w);
+
+  dst.forEach([&](T& val, const int* yx) {
+    int src_x = static_cast<int>(ratio_w * yx[1]);
+    int src_y = static_cast<int>(ratio_h * yx[0]);
+    val = src.at<T>(src_y, src_x);
+  });
+
+  return dst;
+}
+
+template <typename T>
 void resize(const Image<T>& src, Image<T>& dst, Size dsize, double fx = 0.0,
             double fy = 0.0,
             int interpolation = InterpolationFlags::INTER_LINEAR) {
@@ -589,9 +605,22 @@ void resize(const Image<T>& src, Image<T>& dst, Size dsize, double fx = 0.0,
     return;
   }
 
+  if (interpolation == InterpolationFlags::INTER_NEAREST) {
+    dst = ResizeNearest(src, out_w, out_h);
+    return;
+  }
+
   dst = Image<T>::zeros(out_h, out_w);
 
-  stbir_resize_uint8(src.data, w, h, 0, dst.data, out_w, out_h, 0, n);
+  const std::type_info* cpp_type_src = &GetTypeidFromCvType(src.type());
+  assert(*cpp_type_src == typeid(float) || *cpp_type_src == typeid(uint8_t));
+
+  if (*cpp_type_src == typeid(float)) {
+    stbir_resize_float(reinterpret_cast<float*>(src.data), w, h, 0,
+                       reinterpret_cast<float*>(dst.data), out_w, out_h, 0, n);
+  } else {
+    stbir_resize_uint8(src.data, w, h, 0, dst.data, out_w, out_h, 0, n);
+  }
 
   return;
 #else
