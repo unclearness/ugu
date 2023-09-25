@@ -437,7 +437,9 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
   }
 
   if (point_cloud != nullptr) {
-    ugu::Init(point_cloud, depth.cols, depth.rows, 0.0f);
+    if (point_cloud->cols != depth.cols || point_cloud->rows != depth.rows) {
+      ugu::Init(point_cloud, depth.cols, depth.rows, 0.0f);
+    }
     for (int i = 0; i < static_cast<int>(vid2xy.size()); i++) {
       const auto& xy = vid2xy[i];
       auto& p = point_cloud->at<ugu::Vec3f>(xy.second, xy.first);
@@ -448,7 +450,9 @@ bool Depth2MeshImpl(const ugu::Image1f& depth, const ugu::Image3b& color,
   }
 
   if (normal != nullptr) {
-    ugu::Init(normal, depth.cols, depth.rows, 0.0f);
+    if (normal->cols != depth.cols || normal->rows != depth.rows) {
+      ugu::Init(normal, depth.cols, depth.rows, 0.0f);
+    }
     for (int i = 0; i < static_cast<int>(vid2xy.size()); i++) {
       const auto& xy = vid2xy[i];
       auto& n = normal->at<ugu::Vec3f>(xy.second, xy.first);
@@ -548,6 +552,190 @@ bool Depth2Mesh(const Image1f& depth, const Image3b& color,
                         mesh, true, with_vertex_color, max_connect_z_diff,
                         x_step, y_step, gl_coord, material_name, point_cloud,
                         normal);
+}
+
+bool ComputeNormal(const Image1f& depth, const Camera& camera, Image3f* normal,
+                   float max_connect_z_diff, int x_step, int y_step,
+                   bool gl_coord, bool to_world, Image3f* organized_pc,
+                   Image1b* valid_mask, uint32_t num_threads) {
+  if (organized_pc == nullptr) {
+    ugu::Init(organized_pc, depth.cols, depth.rows, 0.0f);
+  }
+
+  if (valid_mask == nullptr) {
+    ugu::Init(valid_mask, depth.cols, depth.rows, uint8_t(0));
+  }
+
+  Eigen::Affine3f c2w = camera.c2w().cast<float>();
+
+  auto process_body = [&](int x, int y, float d) {
+    Eigen::Vector3f image_p(static_cast<float>(x), static_cast<float>(y), d);
+    Eigen::Vector3f camera_p;
+    camera.Unproject(image_p, &camera_p);
+    if (gl_coord) {
+      // flip y and z to align with OpenGL coordinate
+      camera_p.y() = -camera_p.y();
+      camera_p.z() = -camera_p.z();
+    }
+
+    if (to_world) {
+      camera_p = c2w * camera_p;
+    }
+
+    auto& pc = organized_pc->at<Vec3f>(y, x);
+    pc[0] = camera_p[0];
+    pc[1] = camera_p[1];
+    pc[2] = camera_p[2];
+
+    valid_mask->at<uint8_t>(y, x) = 255;
+  };
+
+  if (num_threads == 1u) {
+    for (int y = 0; y < camera.height(); y++) {
+      for (int x = 0; x < camera.width(); x++) {
+        const float& d = depth.at<float>(y, x);
+        if (d < std::numeric_limits<float>::min()) {
+          continue;
+        }
+        process_body(x, y, d);
+      }
+    }
+  } else {
+    auto pix_func = [&](int index) {
+      int y = index / camera.width();
+      int x = index % camera.width();
+      const float& d = depth.at<float>(y, x);
+      if (d < std::numeric_limits<float>::min()) {
+        return;
+      }
+      process_body(x, y, d);
+    };
+    parallel_for(0, camera.height() * camera.width(), pix_func, num_threads);
+  }
+
+  return ComputeNormal(*organized_pc, normal, max_connect_z_diff, x_step,
+                       y_step, valid_mask, num_threads);
+}
+
+bool ComputeNormal(const Image3f& organized_pc, Image3f* normal,
+                   float max_connect_z_diff, int x_step, int y_step,
+                   Image1b* valid_mask, uint32_t num_threads) {
+  if (normal == nullptr) {
+    ugu::Init(normal, organized_pc.cols, organized_pc.rows, 0.0f);
+  }
+
+  if (valid_mask == nullptr) {
+    ugu::Init(valid_mask, organized_pc.cols, organized_pc.rows, uint8_t(255));
+  }
+
+  if (num_threads == 1u) {
+    for (int y = 0; y < organized_pc.rows; y++) {
+      for (int x = 0; x < organized_pc.cols; x++) {
+        if (x < x_step || organized_pc.cols - x_step <= x || y < y_step ||
+            organized_pc.rows - y_step <= y) {
+          continue;
+        }
+
+        if (valid_mask->at<uint8_t>(y, x) < 255 ||
+            valid_mask->at<uint8_t>(y, x - x_step) < 255 ||
+            valid_mask->at<uint8_t>(y, x + x_step) < 255 ||
+            valid_mask->at<uint8_t>(y - y_step, x) < 255 ||
+            valid_mask->at<uint8_t>(y + y_step, x) < 255) {
+          continue;
+        }
+
+        const Vec3f& pos = organized_pc.at<Vec3f>(y, x);
+        const Vec3f& left_pos = organized_pc.at<Vec3f>(y, x - x_step);
+        const Vec3f& right_pos = organized_pc.at<Vec3f>(y, x + x_step);
+
+        if (max_connect_z_diff > 0.f &&
+            (max_connect_z_diff < std::abs(pos[2] - left_pos[2]) ||
+             max_connect_z_diff < std::abs(pos[2] - right_pos[2]))) {
+          continue;
+        }
+
+        const Vec3f& up_pos = organized_pc.at<Vec3f>(y - y_step, x);
+        const Vec3f& down_pos = organized_pc.at<Vec3f>(y + y_step, x);
+
+        if (max_connect_z_diff > 0.f &&
+            (max_connect_z_diff < std::abs(pos[2] - up_pos[2]) ||
+             max_connect_z_diff < std::abs(pos[2] - down_pos[2]))) {
+          continue;
+        }
+
+        Eigen::Vector3f left2right(right_pos[0] - left_pos[0],
+                                   right_pos[1] - left_pos[1],
+                                   right_pos[2] - left_pos[2]);
+        Eigen::Vector3f up2down(down_pos[0] - up_pos[0],
+                                down_pos[1] - up_pos[1],
+                                down_pos[2] - up_pos[2]);
+
+        Eigen::Vector3f n_ =
+            up2down.normalized().cross(left2right.normalized()).normalized();
+
+        auto& n = normal->at<Vec3f>(y, x);
+        n[0] = n_[0];
+        n[1] = n_[1];
+        n[2] = n_[2];
+      }
+    }
+  } else {
+    auto pix_func = [&](int index) {
+      int y = index / organized_pc.cols;
+      int x = index % organized_pc.cols;
+
+      if (x < x_step || organized_pc.cols - x_step <= x || y < y_step ||
+          organized_pc.rows - y_step <= y) {
+        return;
+      }
+
+      if (valid_mask->at<uint8_t>(y, x) < 255 ||
+          valid_mask->at<uint8_t>(y, x - x_step) < 255 ||
+          valid_mask->at<uint8_t>(y, x + x_step) < 255 ||
+          valid_mask->at<uint8_t>(y - y_step, x) < 255 ||
+          valid_mask->at<uint8_t>(y + y_step, x) < 255) {
+        return;
+      }
+
+      const Vec3f& pos = organized_pc.at<Vec3f>(y, x);
+      const Vec3f& left_pos = organized_pc.at<Vec3f>(y, x - x_step);
+      const Vec3f& right_pos = organized_pc.at<Vec3f>(y, x + x_step);
+
+      if (max_connect_z_diff > 0.f &&
+          (max_connect_z_diff < std::abs(pos[2] - left_pos[2]) ||
+           max_connect_z_diff < std::abs(pos[2] - right_pos[2]))) {
+        return;
+      }
+
+      const Vec3f& up_pos = organized_pc.at<Vec3f>(y - y_step, x);
+      const Vec3f& down_pos = organized_pc.at<Vec3f>(y + y_step, x);
+
+      if (max_connect_z_diff > 0.f &&
+          (max_connect_z_diff < std::abs(pos[2] - up_pos[2]) ||
+           max_connect_z_diff < std::abs(pos[2] - down_pos[2]))) {
+        return;
+      }
+
+      Eigen::Vector3f left2right(right_pos[0] - left_pos[0],
+                                 right_pos[1] - left_pos[1],
+                                 right_pos[2] - left_pos[2]);
+      Eigen::Vector3f up2down(down_pos[0] - up_pos[0], down_pos[1] - up_pos[1],
+                              down_pos[2] - up_pos[2]);
+
+      Eigen::Vector3f n_ =
+          up2down.normalized().cross(left2right.normalized()).normalized();
+
+      auto& n = normal->at<Vec3f>(y, x);
+      n[0] = n_[0];
+      n[1] = n_[1];
+      n[2] = n_[2];
+    };
+
+    parallel_for(0, organized_pc.cols * organized_pc.rows, pix_func,
+                 num_threads);
+  }
+
+  return true;
 }
 
 }  // namespace ugu

@@ -45,4 +45,14 @@ bool Depth2Mesh(const Image1f& depth, const Image3b& color,
                 bool with_vertex_color = false, Image3f* point_cloud = nullptr,
                 Image3f* normal = nullptr);
 
+bool ComputeNormal(const Image1f& depth, const Camera& depth_camera,
+                   Image3f* normal, float max_connect_z_diff, int x_step = 1,
+                   int y_step = 1, bool gl_coord = false, bool to_world = true,
+                   Image3f* organized_pc = nullptr,
+                   Image1b* valid_mask = nullptr, uint32_t num_threads = 1);
+
+bool ComputeNormal(const Image3f& organized_pc, Image3f* normal,
+                   float max_connect_z_diff, int x_step = 1, int y_step = 1,
+                   Image1b* valid_mask = nullptr, uint32_t num_threads = 1);
+
 }  // namespace ugu
