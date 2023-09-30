@@ -281,6 +281,8 @@ std::string VisibilityInfo::SerializeAsJson() const {
 Keyframe::Keyframe() {}
 Keyframe::~Keyframe() {}
 
+KeyframePtr Keyframe::Create() { return std::make_shared<Keyframe>(); }
+
 void VisibilityTester::Init() {
 #ifdef UGU_USE_NANORT
   bvh_ = std::make_unique<BvhNanort<Eigen::Vector3f, Eigen::Vector3i>>();

@@ -76,7 +76,7 @@ bool GenerateSimpleTileTextureAndUv(
   int x_tile_num = keyframes.size() < default_x_tile_num
                        ? static_cast<int>(keyframes.size())
                        : default_x_tile_num;
-  int y_tile_num = static_cast<int>((keyframes.size() + 1) / x_tile_num);
+  int y_tile_num = static_cast<int>(keyframes.size() / x_tile_num) + 1;
 
   MakeTiledImage(keyframes, &texture, x_tile_num, y_tile_num);
 

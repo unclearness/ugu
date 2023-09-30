@@ -5,6 +5,7 @@
 
 #include "ugu/image_io.h"
 
+#include "ugu/util/image_util.h"
 #include "ugu/util/io_util.h"
 
 #ifdef UGU_USE_OPENCV
@@ -210,9 +211,18 @@ bool imwrite(const std::string& filename, const ImageBase& img,
 }
 
 ImageBase imread(const std::string& filename, int flags) {
-  (void)flags;
   ImageBase loaded;
   LoadByStb(loaded, filename);
+
+  if (flags == ImreadModes::IMREAD_COLOR) {
+    // TODO: other cases...
+    if (loaded.channels() == 4) {
+      ugu::Image3b tmp_3b;
+      ugu::Image4b tmp_4b = loaded;
+      AlignChannels(tmp_4b, tmp_3b);
+      loaded = tmp_3b;
+    }
+  }
   return loaded;
 }
 

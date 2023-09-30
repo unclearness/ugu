@@ -391,7 +391,7 @@ class ImageBase {
 
   int type() const { return cv_type; };
   bool empty() const {
-    if (rows < 1 || cols < 1 || data_->empty()) {
+    if (rows < 1 || cols < 1) {
       return true;
     }
     return false;
@@ -498,7 +498,11 @@ class ImageBase {
 
   static ImageBase zeros(int height, int width, int type) {
     ImageBase zero(height, width, type);
+#if 0
     zero = 0;
+#else
+    std::memset(zero.data_->data(), 0, SizeInBytes(zero));
+#endif
     return zero;
   }
 
@@ -850,7 +854,11 @@ class Image : public ImageBase {
 
   static Image<T> zeros(int height, int width) {
     Image<T> zero(height, width);
-    zero = 0.0;
+#if 0
+    zero = 0.0
+#else
+    std::memset(zero.data_->data(), 0, SizeInBytes(zero));
+#endif
     return zero;
   }
 
@@ -892,7 +900,8 @@ class Image : public ImageBase {
                                         std::is_same<TT, T>::value,
                                     std::nullptr_t>::type = nullptr>
   Image<T>& operator=(const TT& rhs) {
-    for (size_t i = 0; i < total(); i++) {
+#pragma omp parallel for
+    for (int64_t i = 0; i < static_cast<int64_t>(total()); i++) {
       *(reinterpret_cast<T*>(data_->data()) + i) = rhs;
     }
     return *this;

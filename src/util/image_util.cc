@@ -1043,11 +1043,8 @@ bool AlignChannels(const Image4b& src, Image3b& dst) {
     val[1] = src_val[1];
     val[2] = src_val[2];
   };
-#if UGU_USE_OPENCV
+
   dst.forEach(f);
-#else
-  dst.forEach(f);
-#endif
 
   return true;
 }

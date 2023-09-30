@@ -192,6 +192,9 @@ struct VisibilityInfo {
   std::string SerializeAsJson() const;
 };
 
+struct Keyframe;
+using KeyframePtr = std::shared_ptr<Keyframe>;
+
 struct Keyframe {
   int id = -1;
 
@@ -206,6 +209,8 @@ struct Keyframe {
 
   Keyframe();
   ~Keyframe();
+
+  static KeyframePtr Create();
 };
 
 class VisibilityTester {
