@@ -128,8 +128,9 @@ class Mesh {
   void Rotate(const Eigen::Matrix3f& R);
   void Translate(const Eigen::Vector3f& t);
   void Transform(const Eigen::Matrix3f& R, const Eigen::Vector3f& t,
-                 const Eigen::Vector3f& s = Eigen::Vector3f::Ones());
-  void Transform(const Eigen::Affine3f& T);
+                 const Eigen::Vector3f& s = Eigen::Vector3f::Ones(),
+                 bool update_stats = true);
+  void Transform(const Eigen::Affine3f& T, bool update_stats = true);
   void Scale(float scale);
   void Scale(float x_scale, float y_scale, float z_scale);
   void Scale(const Eigen::Vector3f& scale);

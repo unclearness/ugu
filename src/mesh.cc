@@ -228,18 +228,34 @@ void Mesh::Translate(const Eigen::Vector3f& t) {
 }
 
 void Mesh::Transform(const Eigen::Matrix3f& R, const Eigen::Vector3f& t,
-                     const Eigen::Vector3f& s) {
+                     const Eigen::Vector3f& s, bool update_stats) {
+#if 0
   Scale(s);
   Rotate(R);
   Translate(t);
+#else
+  Eigen::Affine3f T = Eigen::Translation3f(t) * R * Eigen::Scaling(s);
+
+#pragma omp parallel for
+  for (int64_t i = 0; i < static_cast<int64_t>(vertices_.size()); i++) {
+    vertices_[i] = T * vertices_[i];
+    normals_[i] = R * normals_[i];
+    if (face_normals_.size() == normals_.size()) {
+      face_normals_[i] = R * face_normals_[i];
+    }
+  }
+#endif
+  if (update_stats) {
+    CalcStats();
+  }
 }
 
-void Mesh::Transform(const Eigen::Affine3f& T) {
+void Mesh::Transform(const Eigen::Affine3f& T, bool update_stats) {
   float sx = T.matrix().block<3, 1>(0, 0).norm();
   float sy = T.matrix().block<3, 1>(0, 1).norm();
   float sz = T.matrix().block<3, 1>(0, 2).norm();
   Eigen::Vector3f scale(sx, sy, sz);
-  Transform(T.rotation(), T.translation(), scale);
+  Transform(T.rotation(), T.translation(), scale, update_stats);
 }
 
 void Mesh::Scale(float scale) { Scale(scale, scale, scale); }

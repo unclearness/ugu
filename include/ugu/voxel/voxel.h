@@ -110,6 +110,11 @@ VoxelUpdateOption GenFuseDepthDefaultOption(float resolution);
 bool FuseDepth(const Camera& camera, const Image1f& depth,
                const VoxelUpdateOption& option, VoxelGrid& voxel_grid);
 
+bool FuseDepth(const Camera& camera, const Image1f& depth,
+               const Image1f& normal, const VoxelUpdateOption& option,
+               VoxelGrid& voxel_grid, int sample_num = 1,
+               const Image3b& color = Image3b());
+
 bool FusePoints(const std::vector<Eigen::Vector3f>& points,
                 const std::vector<Eigen::Vector3f>& normals,
                 const VoxelUpdateOption& option, VoxelGrid& voxel_grid,

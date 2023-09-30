@@ -13,10 +13,11 @@
 
 namespace {
 using namespace ugu;
-void UpdateVoxel(const Eigen::Vector3i& voxel_idx,
-                 const VoxelUpdateOption& option, const Eigen::Vector3f& p,
-                 const Eigen::Vector3f& n, const Eigen::Vector3f& c,
-                 bool with_color, VoxelGrid& voxel_grid) {
+inline void UpdateVoxel(const Eigen::Vector3i& voxel_idx,
+                        const VoxelUpdateOption& option,
+                        const Eigen::Vector3f& p, const Eigen::Vector3f& n,
+                        const Eigen::Vector3f& c, bool with_color,
+                        VoxelGrid& voxel_grid) {
   if (voxel_idx[0] < 0 || voxel_grid.voxel_num()[0] <= voxel_idx[0] ||
       voxel_idx[1] < 0 || voxel_grid.voxel_num()[1] <= voxel_idx[1] ||
       voxel_idx[2] < 0 || voxel_grid.voxel_num()[2] <= voxel_idx[2]) {
@@ -47,6 +48,67 @@ void UpdateVoxel(const Eigen::Vector3i& voxel_idx,
     UpdateVoxelMax(voxel, option, dist, with_color, c);
   } else if (option.voxel_update == VoxelUpdate::kWeightedAverage) {
     UpdateVoxelWeightedAverage(voxel, option, dist, with_color, c);
+  }
+}
+
+inline void FusePointBase(const Eigen::Vector3f& p, const Eigen::Vector3f& n,
+                          bool with_color, const Eigen::Vector3f& c,
+                          const VoxelUpdateOption& option,
+                          VoxelGrid& voxel_grid, int sample_num) {
+  const auto& voxel_idx = voxel_grid.get_index(p);
+  if (voxel_idx[0] < 0 || voxel_grid.voxel_num()[0] <= voxel_idx[0] ||
+      voxel_idx[1] < 0 || voxel_grid.voxel_num()[1] <= voxel_idx[1] ||
+      voxel_idx[2] < 0 || voxel_grid.voxel_num()[2] <= voxel_idx[2]) {
+    return;
+  }
+
+  if (sample_num < 1) {
+    // Splat to 26-neighbors
+    for (int z = -1; z <= 1; z++) {
+      for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+          UpdateVoxel(voxel_idx + Eigen::Vector3i(x, y, z), option, p, n, c,
+                      with_color, voxel_grid);
+        }
+      }
+    }
+  } else {
+    float step = voxel_grid.resolution();
+    // Sample along with normal direction
+    for (int k = -sample_num; k < sample_num + 1; k++) {
+      Eigen::Vector3f offset = n * k * step;
+      const auto& voxel_idx_ = voxel_grid.get_index(p + offset);
+      if (voxel_idx_[0] < 0 || voxel_idx_[1] < 0 || voxel_idx_[2] < 0) {
+        return;
+      }
+      auto voxel =
+          voxel_grid.get_ptr(voxel_idx_[0], voxel_idx_[1], voxel_idx_[2]);
+      const auto diff = voxel->pos - p;
+      float sign = std::signbit(diff.dot(n)) ? -1.f : 1.f;
+      float dist = diff.norm() * sign;
+
+      // skip if dist is truncated
+      if (option.use_truncation) {
+        if (dist >= -option.truncation_band) {
+          dist = std::min(1.0f, dist / option.truncation_band);
+        } else {
+          return;
+        }
+      }
+
+      if (voxel->update_num < 1) {
+        voxel->sdf = dist;
+        voxel->col = c;
+        voxel->update_num++;
+        return;
+      }
+
+      if (option.voxel_update == VoxelUpdate::kMax) {
+        UpdateVoxelMax(voxel, option, dist, with_color, c);
+      } else if (option.voxel_update == VoxelUpdate::kWeightedAverage) {
+        UpdateVoxelWeightedAverage(voxel, option, dist, with_color, c);
+      }
+    }
   }
 }
 
@@ -310,6 +372,45 @@ bool FuseDepth(const Camera& camera, const Image1f& depth,
   return true;
 }
 
+bool FuseDepth(const Camera& camera, const Image1f& depth,
+               const Image1f& normal, const VoxelUpdateOption& option,
+               VoxelGrid& voxel_grid, int sample_num, const Image3b& color) {
+  if (!voxel_grid.initialized()) {
+    return false;
+  }
+
+  bool with_color = depth.cols == color.cols && depth.rows == color.rows;
+
+  Eigen::Affine3f c2w = camera.c2w().cast<float>();
+  Eigen::Matrix3f c2w_R = c2w.rotation();
+
+  for (int y = 0; y < camera.height(); y++) {
+    for (int x = 0; x < camera.width(); x++) {
+      const float& d = depth.at<float>(y, x);
+      if (d < std::numeric_limits<float>::min()) {
+        continue;
+      }
+      const auto& n = normal.at<Vec3f>(y, x);
+      if (std::abs(1.f - (n[0] * n[0] + n[1] * n[1] + n[2] * n[2])) > 0.01f) {
+        continue;
+      }
+
+      Eigen::Vector2f img_p{static_cast<float>(x), static_cast<float>(y)};
+      Eigen::Vector3f camera_p;
+      camera.Unproject(img_p, d, &camera_p);
+      Eigen::Vector3f wld_p = c2w * camera_p;
+
+      Eigen::Vector3f camera_n{n[0], n[1], n[2]};
+      Eigen::Vector3f wld_n = c2w_R * camera_n;
+
+      Eigen::Vector3f c = Eigen::Vector3f::Zero();
+      FusePointBase(wld_p, wld_n, with_color, c, option, voxel_grid,
+                    sample_num);
+    }
+  }
+  return true;
+}
+
 bool FusePoints(const std::vector<Eigen::Vector3f>& points,
                 const std::vector<Eigen::Vector3f>& normals,
                 const VoxelUpdateOption& option, VoxelGrid& voxel_grid,
@@ -320,7 +421,6 @@ bool FusePoints(const std::vector<Eigen::Vector3f>& points,
     return false;
   }
 
-  float step = voxel_grid.resolution();
   // #pragma omp parallel for schedule(dynamic, 1)
   for (int64_t i = 0; i < static_cast<int64_t>(points.size()); i++) {
     const auto& p = points[i];
@@ -329,60 +429,7 @@ bool FusePoints(const std::vector<Eigen::Vector3f>& points,
     if (with_color) {
       c = colors[i];
     }
-    const auto& voxel_idx = voxel_grid.get_index(p);
-    if (voxel_idx[0] < 0 || voxel_grid.voxel_num()[0] <= voxel_idx[0] ||
-        voxel_idx[1] < 0 || voxel_grid.voxel_num()[1] <= voxel_idx[1] ||
-        voxel_idx[2] < 0 || voxel_grid.voxel_num()[2] <= voxel_idx[2]) {
-      continue;
-    }
-
-    if (sample_num < 1) {
-      // Splat to 26-neighbors
-      for (int z = -1; z <= 1; z++) {
-        for (int y = -1; y <= 1; y++) {
-          for (int x = -1; x <= 1; x++) {
-            UpdateVoxel(voxel_idx + Eigen::Vector3i(x, y, z), option, p, n, c,
-                        with_color, voxel_grid);
-          }
-        }
-      }
-    } else {
-      // Sample along with normal direction
-      for (int k = -sample_num; k < sample_num + 1; k++) {
-        Eigen::Vector3f offset = n * k * step;
-        const auto& voxel_idx_ = voxel_grid.get_index(p + offset);
-        if (voxel_idx_[0] < 0 || voxel_idx_[1] < 0 || voxel_idx_[2] < 0) {
-          continue;
-        }
-        auto voxel =
-            voxel_grid.get_ptr(voxel_idx_[0], voxel_idx_[1], voxel_idx_[2]);
-        const auto diff = voxel->pos - p;
-        float sign = std::signbit(diff.dot(n)) ? -1.f : 1.f;
-        float dist = diff.norm() * sign;
-
-        // skip if dist is truncated
-        if (option.use_truncation) {
-          if (dist >= -option.truncation_band) {
-            dist = std::min(1.0f, dist / option.truncation_band);
-          } else {
-            continue;
-          }
-        }
-
-        if (voxel->update_num < 1) {
-          voxel->sdf = dist;
-          voxel->col = c;
-          voxel->update_num++;
-          continue;
-        }
-
-        if (option.voxel_update == VoxelUpdate::kMax) {
-          UpdateVoxelMax(voxel, option, dist, with_color, c);
-        } else if (option.voxel_update == VoxelUpdate::kWeightedAverage) {
-          UpdateVoxelWeightedAverage(voxel, option, dist, with_color, c);
-        }
-      }
-    }
+    FusePointBase(p, n, with_color, c, option, voxel_grid, sample_num);
   }
 
   return true;
