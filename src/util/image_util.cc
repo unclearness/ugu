@@ -1166,4 +1166,16 @@ Image3b DrawUv(const std::vector<Eigen::Vector2f>& uvs,
   return res;
 }
 
+ImageBase Crop(const ImageBase& img, int min_x, int max_x, int min_y,
+               int max_y) {
+  ImageBase cropped = ImageBase(max_y - min_y, max_x - min_x, img.type());
+#pragma omp parallel for
+  for (int y = 0; y < cropped.rows; y++) {
+    std::memcpy(cropped.data + cropped.step[0] * y,
+                img.data + (((min_y + y) * img.cols) + min_x) * img.channels(),
+                cropped.step[0]);
+  }
+  return cropped;
+}
+
 }  // namespace ugu

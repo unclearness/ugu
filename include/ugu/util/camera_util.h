@@ -59,4 +59,6 @@ void UndistortPixelOpencv(float* u, float* v, float fx, float fy, float cx,
                           float k3 = 0.0f, float k4 = 0.0f, float k5 = 0.0f,
                           float k6 = 0.0f);
 
+void RescaleIntrinsicByCropping(int min_x, int min_y, float& cx, float& cy);
+
 }  // namespace ugu

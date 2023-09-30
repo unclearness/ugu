@@ -325,4 +325,9 @@ void UndistortPixelOpencv(float* u, float* v, float fx, float fy, float cx,
   *v = static_cast<float>(y * fy + cy);
 }
 
+void RescaleIntrinsicByCropping(int min_x, int min_y, float& cx, float& cy) {
+  cx -= static_cast<float>(min_x);
+  cy -= static_cast<float>(min_y);
+}
+
 }  // namespace ugu

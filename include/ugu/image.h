@@ -913,7 +913,7 @@ class Image : public ImageBase {
 
 template <typename T>
 inline Image<T>& Image<T>::operator=(const ImageBase& rhs) {
-  *this = rhs;
+  ImageBase::operator=(rhs);
   return *this;
 }
 
