@@ -21,6 +21,11 @@
 #include <unistd.h>
 #endif
 
+// TODO: For Android, replace with https://github.com/gulrak/filesystem
+#include <filesystem>
+
+#include "ugu/log.h"
+
 namespace ugu {
 
 bool Exists(const std::string& path) {
@@ -176,6 +181,19 @@ bool CpFile(const std::string& src, const std::string& dst) {
   };
 
   return true;
+}
+
+std::vector<std::string> ListDir(const std::string& path) {
+  std::vector<std::string> out;
+#ifdef __ANDROID__
+  LOGE("Not supported on Android\n");
+#else
+  for (const std::filesystem::directory_entry& i :
+       std::filesystem::directory_iterator(path)) {
+    out.push_back(i.path().filename().string());
+  }
+#endif
+  return out;
 }
 
 }  // namespace ugu

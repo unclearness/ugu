@@ -6,6 +6,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace ugu {
 
@@ -26,5 +27,7 @@ bool RmFile(const std::string& path, bool check_exists = true);
 bool Rename(const std::string& from, const std::string& to);
 
 bool CpFile(const std::string& src, const std::string& dst);
+
+std::vector<std::string> ListDir(const std::string& path);
 
 }  // namespace ugu
