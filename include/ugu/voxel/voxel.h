@@ -103,6 +103,7 @@ class VoxelGrid {
   void ResetOnSurface();
   bool initialized() const;
   Eigen::Vector3i get_index(const Eigen::Vector3f& p) const;
+  void Clear();
 };
 
 VoxelUpdateOption GenFuseDepthDefaultOption(float resolution);

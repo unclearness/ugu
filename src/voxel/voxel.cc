@@ -277,6 +277,14 @@ Eigen::Vector3i VoxelGrid::get_index(const Eigen::Vector3f& p) const {
   return index;
 }
 
+void VoxelGrid::Clear() {
+#pragma omp parallel for
+  for (int64_t i = 0; i < static_cast<int64_t>(voxels_.size()); i++) {
+    voxels_[i].sdf = 0.f;
+    voxels_[i].update_num = 0;
+  }
+}
+
 VoxelUpdateOption GenFuseDepthDefaultOption(float resolution) {
   VoxelUpdateOption option;
 
