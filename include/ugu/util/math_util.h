@@ -366,10 +366,10 @@ struct Pca {
 
       if (unbiased_variance) {
         // unbiased variance
-        coeffs /= static_cast<InputMatrixType::Scalar>(c - 1);
+        coeffs /= static_cast<typename InputMatrixType::Scalar>(c - 1);
       } else {
         // sample variance
-        coeffs /= static_cast<InputMatrixType::Scalar>(c);
+        coeffs /= static_cast<typename InputMatrixType::Scalar>(c);
       }
 
       vecs = svd.matrixU();
