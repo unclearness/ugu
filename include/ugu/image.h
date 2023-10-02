@@ -649,6 +649,10 @@ class ImageBase {
   }
 
   ImageBase& operator=(const double& rhs) {
+    if (rhs == 0.0) {
+      std::memset(data_->data(), 0, SizeInBytes(*this));
+      return *this;
+    }
 
 #if 0
 #define UGU_FILL_CAST(type)                                                 \

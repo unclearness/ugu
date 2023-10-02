@@ -267,6 +267,7 @@ Shader::~Shader() {}
 bool Shader::LoadFile(const std::string &vertex_path,
                       const std::string &fragment_path,
                       const std::string &geometry_path) {
+  (void)vertex_path, fragment_path, geometry_path;
   LOGE("Not supported with this configuration\n");
   return false;
 }
@@ -274,6 +275,7 @@ bool Shader::LoadFile(const std::string &vertex_path,
 bool Shader::LoadStr(const std::string &vertex_code,
                      const std::string &fragment_code,
                      const std::string &geometry_code) {
+  (void)vertex_code, fragment_code, geometry_code;
   LOGE("Not supported with this configuration\n");
   return false;
 }
@@ -281,51 +283,63 @@ bool Shader::LoadStr(const std::string &vertex_code,
 void Shader::Use() { LOGE("Not supported with this configuration\n"); }
 
 void Shader::SetBool(const std::string &name, bool value) const {
+  (void)name, value;
   LOGE("Not supported with this configuration\n");
 }
 
 void Shader::SetInt(const std::string &name, int value) const {
+  (void)name, value;
   LOGE("Not supported with this configuration\n");
 }
 void Shader::SetFloat(const std::string &name, float value) const {
+  (void)name, value;
   LOGE("Not supported with this configuration\n");
 }
 void Shader::SetVec2(const std::string &name,
                      const Eigen::Vector2f &value) const {
+  (void)name, value;
   LOGE("Not supported with this configuration\n");
 }
 void Shader::SetVec2(const std::string &name, float x, float y) const {
+  (void)name, x, y;
   LOGE("Not supported with this configuration\n");
 }
 void Shader::SetVec3(const std::string &name,
                      const Eigen::Vector3f &value) const {
+  (void)name, value;
   LOGE("Not supported with this configuration\n");
 }
 void Shader::SetVec3(const std::string &name, float x, float y, float z) const {
+  (void)name, x, y, z;
   LOGE("Not supported with this configuration\n");
 }
 void Shader::SetVec4(const std::string &name,
                      const Eigen::Vector4f &value) const {
+  (void)name, value;
   LOGE("Not supported with this configuration\n");
 }
 
 void Shader::SetVec4(const std::string &name, float x, float y, float z,
                      float w) const {
+  (void)name, x, y, z, w;
   LOGE("Not supported with this configuration\n");
 }
 
 void Shader::SetMat2(const std::string &name,
                      const Eigen::Matrix2f &mat) const {
+  (void)name, mat;
   LOGE("Not supported with this configuration\n");
 }
 
 void Shader::SetMat3(const std::string &name,
                      const Eigen::Matrix3f &mat) const {
+  (void)name, mat;
   LOGE("Not supported with this configuration\n");
 }
 
 void Shader::SetMat4(const std::string &name,
                      const Eigen::Matrix4f &mat) const {
+  (void)name, mat;
   LOGE("Not supported with this configuration\n");
 }
 }  // namespace ugu

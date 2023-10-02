@@ -164,13 +164,13 @@ bool LoadByStb(ImageBase& img, const std::string& path) {
   return false;
 }
 
-bool WritePng(const ImageBase& img, const std::string& path) const {
+bool WritePng(const ImageBase& img, const std::string& path) {
   (void)path;
   LOGE("can't write image with this configuration\n");
   return false;
 }
 
-bool WriteJpg(const ImageBase& img, const std::string& path) const {
+bool WriteJpg(const ImageBase& img, const std::string& path) {
   (void)path;
   LOGE("can't write image with this configuration\n");
   return false;
