@@ -239,11 +239,17 @@ void Mesh::Transform(const Eigen::Matrix3f& R, const Eigen::Vector3f& t,
 #pragma omp parallel for
   for (int64_t i = 0; i < static_cast<int64_t>(vertices_.size()); i++) {
     vertices_[i] = T * vertices_[i];
-    normals_[i] = R * normals_[i];
-    if (face_normals_.size() == normals_.size()) {
+    if (normals_.size() == vertices_.size()) {
+      normals_[i] = R * normals_[i];
+    }
+  }
+#pragma omp parallel for
+  for (int64_t i = 0; i < static_cast<int64_t>(vertex_indices_.size()); i++) {
+    if (face_normals_.size() == vertex_indices_.size()) {
       face_normals_[i] = R * face_normals_[i];
     }
   }
+
 #endif
   if (update_stats) {
     CalcStats();
@@ -1238,7 +1244,7 @@ bool Mesh::WriteGltfSeparate(const std::string& gltf_dir,
 
   return true;
 #else
-
+  (void)gltf_dir, gltf_basename, is_unlit;
   return false;
 #endif
 }
@@ -1354,6 +1360,8 @@ bool Mesh::WriteGlb(const std::string& glb_dir, const std::string& glb_name,
 
   return true;
 #else
+  (void)glb_dir, glb_name, is_unlit;
+  ugu::LOGE("Not supported with this configuration\n");
   return false;
 #endif
 }
@@ -1832,7 +1840,8 @@ bool WriteGltfSeparate(Scene& scene, const std::string& gltf_dir,
 
   return true;
 #else
-
+  (void)scene, gltf_dir, gltf_basename, is_unlit;
+  ugu::LOGE("Not supported with this configuration\n");
   return false;
 #endif
 }
@@ -2102,7 +2111,8 @@ bool WriteGlb(Scene& scene, const std::string& glb_dir,
 
   return true;
 #else
-
+  (void)scene, glb_dir, glb_name, is_unlit;
+  ugu::LOGE("Not supported with this configuration\n");
   return false;
 #endif
 }

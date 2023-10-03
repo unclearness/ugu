@@ -381,7 +381,7 @@ bool FuseDepth(const Camera& camera, const Image1f& depth,
 }
 
 bool FuseDepth(const Camera& camera, const Image1f& depth,
-               const Image1f& normal, const VoxelUpdateOption& option,
+               const Image3f& normal, const VoxelUpdateOption& option,
                VoxelGrid& voxel_grid, int sample_num, const Image3b& color) {
   if (!voxel_grid.initialized()) {
     return false;
@@ -406,6 +406,41 @@ bool FuseDepth(const Camera& camera, const Image1f& depth,
       Eigen::Vector2f img_p{static_cast<float>(x), static_cast<float>(y)};
       Eigen::Vector3f camera_p;
       camera.Unproject(img_p, d, &camera_p);
+      Eigen::Vector3f wld_p = c2w * camera_p;
+
+      Eigen::Vector3f camera_n{n[0], n[1], n[2]};
+      Eigen::Vector3f wld_n = c2w_R * camera_n;
+
+      Eigen::Vector3f c = Eigen::Vector3f::Zero();
+      FusePointBase(wld_p, wld_n, with_color, c, option, voxel_grid,
+                    sample_num);
+    }
+  }
+  return true;
+}
+
+bool FusePointCloudImage(const Eigen::Affine3f c2w, const Image3f& point_cloud,
+                         const Image3f& normal, const VoxelUpdateOption& option,
+                         VoxelGrid& voxel_grid, int sample_num,
+                         const Image3b& color) {
+  if (!voxel_grid.initialized()) {
+    return false;
+  }
+
+  bool with_color =
+      point_cloud.cols == color.cols && point_cloud.rows == color.rows;
+
+  Eigen::Matrix3f c2w_R = c2w.rotation();
+
+  for (int y = 0; y < point_cloud.rows; y++) {
+    for (int x = 0; x < point_cloud.cols; x++) {
+      const auto& n = normal.at<Vec3f>(y, x);
+      if (std::abs(1.f - (n[0] * n[0] + n[1] * n[1] + n[2] * n[2])) > 0.01f) {
+        continue;
+      }
+
+      const auto& cam_p = point_cloud.at<Vec3f>(y, x);
+      Eigen::Vector3f camera_p{cam_p[0], cam_p[1], cam_p[2]};
       Eigen::Vector3f wld_p = c2w * camera_p;
 
       Eigen::Vector3f camera_n{n[0], n[1], n[2]};

@@ -479,7 +479,9 @@ bool Depth2PointCloud(const Image1f& depth, const Camera& camera,
     return false;
   }
 
-  Init(point_cloud, depth.cols, depth.rows, 0.0f);
+  if (point_cloud->cols != depth.cols || point_cloud->rows != depth.rows) {
+    Init(point_cloud, depth.cols, depth.rows, 0.0f);
+  }
 
 #if defined(_OPENMP) && defined(UGU_USE_OPENMP)
 #pragma omp parallel for schedule(dynamic, 1)

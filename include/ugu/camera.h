@@ -161,6 +161,8 @@ class OpenCvCamera : public PinholeCamera {
   float k1_, k2_, p1_, p2_, k3_, k4_, k5_, k6_;
 
  public:
+  using PinholeCamera::PinholeCamera;
+
   void distortion_coeffs(float* k1, float* k2, float* p1, float* p2,
                          float* k3 = nullptr, float* k4 = nullptr,
                          float* k5 = nullptr, float* k6 = nullptr) const;
@@ -183,6 +185,8 @@ class OpenCvCamera : public PinholeCamera {
   void Unproject(const Eigen::Vector2f& image_p, float d,
                  Eigen::Vector3f* camera_p) const override;
 };
+
+using OpenCvCameraPtr = std::shared_ptr<OpenCvCamera>;
 
 // Orthographic/orthogonal projection camera with no perspective
 // Image coordinate is translated camera coordinate
@@ -247,6 +251,8 @@ class OrthoCamera : public Camera {
   Eigen::Matrix4f ProjectionMatrixOpenGl(float z_near,
                                          float z_far) const override;
 };
+
+using OrthoCameraPtr = std::shared_ptr<OrthoCamera>;
 
 inline PinholeCamera::PinholeCamera()
     : principal_point_(-1, -1), focal_length_(-1, -1) {
