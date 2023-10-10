@@ -215,6 +215,8 @@ Voxel* VoxelGrid::get_ptr(int x, int y, int z) {
   return &voxels_[z * xy_slice_num_ + (y * voxel_num_.x() + x)];
 }
 
+std::vector<Voxel>& VoxelGrid::get_all() { return voxels_; }
+
 float VoxelGrid::resolution() const { return resolution_; }
 
 void VoxelGrid::ResetOnSurface() {
