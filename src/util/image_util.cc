@@ -56,7 +56,8 @@ void eigen2cv(const Eigen::MatrixXd& mat, ugu::Image1d& img) {
     mat_ = mat.transpose();
   }
 
-  img = ugu::Image1d::zeros(mat_.rows(), mat_.cols());
+  img = ugu::Image1d::zeros(static_cast<int>(mat_.rows()),
+                            static_cast<int>(mat_.cols()));
   std::memcpy(img.data, mat.data(), sizeof(double) * img.cols * img.rows);
 }
 
@@ -1126,6 +1127,9 @@ std::pair<std::vector<Image4b>, std::vector<int>> LoadGif(
     std::memcpy(images[i].data, data.data() + i * bytes_per_image,
                 bytes_per_image);
   }
+#else
+  (void)path;
+  LOGE("can't load image with this configuration\n");
 #endif
   return {images, delays};
 }

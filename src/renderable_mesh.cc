@@ -280,6 +280,7 @@ void RenderableMesh::SetupMesh(int geo_id) {
 }
 
 void RenderableMesh::Draw(const Shader &shader) const {
+  (void)shader;
   LOGE("Not supported with this configuration\n");
 }
 }  // namespace ugu

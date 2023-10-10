@@ -225,6 +225,8 @@ using Scalar_ = Vec_<TT, 4>;
 
 using Scalar = Scalar_<double>;
 
+#ifndef OPENCV_CORE_HAL_INTERFACE_H
+
 #define CV_CN_MAX 512
 #define CV_CN_SHIFT 3
 #define CV_DEPTH_MAX (1 << CV_CN_SHIFT)
@@ -291,6 +293,8 @@ using Scalar = Scalar_<double>;
 #define CV_16FC3 CV_MAKETYPE(CV_16F, 3)
 #define CV_16FC4 CV_MAKETYPE(CV_16F, 4)
 #define CV_16FC(n) CV_MAKETYPE(CV_16F, (n))
+
+#endif
 
 #define CV_GETCN(type) ((type >> CV_CN_SHIFT) + 1)
 

@@ -7,6 +7,12 @@
 
 #include <array>
 
+// #define ENSURE_UPDATE
+
+#ifdef ENSURE_UPDATE
+#include <unordered_set>
+#endif
+
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
 #include "ugu/util/rgbd_util.h"
@@ -75,9 +81,25 @@ inline void FusePointBase(const Eigen::Vector3f& p, const Eigen::Vector3f& n,
   } else {
     float step = voxel_grid.resolution();
     // Sample along with normal direction
+
+#ifdef ENSURE_UPDATE
+    std::unordered_set<Eigen::Vector3i> updated_idxs;
+    const float step_scale = std::sqrt(2.f);
+#endif
     for (int k = -sample_num; k < sample_num + 1; k++) {
+#ifdef ENSURE_UPDATE
       Eigen::Vector3f offset = n * k * step;
+      auto voxel_idx_ = voxel_grid.get_index(p + offset);
+      if (updated_idxs.find(voxel_idx_) != updated_idxs.end()) {
+        offset = n * k * step * step_scale;
+        voxel_idx_ = voxel_grid.get_index(p + offset);
+        // std::cout << "try again..." << std::endl;
+      }
+      updated_idxs.insert(voxel_idx_);
+#else
+      const Eigen::Vector3f offset = n * k * step;
       const auto& voxel_idx_ = voxel_grid.get_index(p + offset);
+#endif
       if (voxel_idx_[0] < 0 || voxel_idx_[1] < 0 || voxel_idx_[2] < 0) {
         return;
       }
@@ -280,9 +302,11 @@ Eigen::Vector3i VoxelGrid::get_index(const Eigen::Vector3f& p) const {
 }
 
 void VoxelGrid::Clear() {
-#pragma omp parallel for
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
   for (int64_t i = 0; i < static_cast<int64_t>(voxels_.size()); i++) {
-    voxels_[i].sdf = 0.f;
+    voxels_[i].sdf = InvalidSdf::kVal;
     voxels_[i].update_num = 0;
   }
 }
@@ -394,6 +418,9 @@ bool FuseDepth(const Camera& camera, const Image1f& depth,
   Eigen::Affine3f c2w = camera.c2w().cast<float>();
   Eigen::Matrix3f c2w_R = c2w.rotation();
 
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
+#pragma omp parallel for schedule(dynamic, 1)
+#endif
   for (int y = 0; y < camera.height(); y++) {
     for (int x = 0; x < camera.width(); x++) {
       const float& d = depth.at<float>(y, x);
