@@ -132,18 +132,19 @@ class FaceAdjacency {
 
 #endif
 
-  void GetAdjacentFaces(int face_id, std::vector<int>* adjacent_face_ids) {
+  void GetAdjacentFaces(int face_id,
+                        std::vector<int>* adjacent_face_ids) const {
     const Eigen::Vector3i& face = vertex_indices_[face_id];
     adjacent_face_ids->clear();
-    const int& m0 = mat_.coeffRef(face[1], face[0]);
+    const int m0 = mat_.coeff(face[1], face[0]);
     if (0 < m0) {
       adjacent_face_ids->push_back(m0 - 1);
     }
-    const int& m1 = mat_.coeffRef(face[2], face[1]);
+    const int m1 = mat_.coeff(face[2], face[1]);
     if (0 < m1) {
       adjacent_face_ids->push_back(m1 - 1);
     }
-    const int& m2 = mat_.coeffRef(face[0], face[2]);
+    const int m2 = mat_.coeff(face[0], face[2]);
     if (0 < m2) {
       adjacent_face_ids->push_back(m2 - 1);
     }
