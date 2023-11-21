@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
     std::string num = ugu::zfill(i);
 
     ugu::Image1b silhouette =
-        ugu::Imread<ugu::Image1b>(data_dir + "/mask_" + num + ".png");
+        ugu::Imread<ugu::Image1b>(data_dir + "/mask_" + num + ".png", 0);
 
     ugu::Image1f sdf;
     // Carve() is the main process to update voxels. Corresponds to the fusion
