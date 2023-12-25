@@ -397,6 +397,9 @@ set(
   include/ugu/accel/bvh_naive.h
   include/ugu/accel/bvh_nanort.h
 
+  include/ugu/curvature/curvature.h
+  src/curvature/curvature.cc
+
   include/ugu/discrete/bin_packer_2d.h
   src/discrete/bin_packer_2d.cc
 
@@ -511,6 +514,7 @@ if (UGU_BUILD_EXAMPLES)
   setup_exe(ex25_superpixel examples/ex25_superpixel.cc)
   setup_exe(ex26_poisson_recon examples/ex26_poisson_recon.cc)
   setup_exe(ex27_math examples/ex27_math.cc)
+  setup_exe(ex28_curvature examples/ex28_curvature.cc)
 endif()
 
 if (UGU_BUILD_APP)

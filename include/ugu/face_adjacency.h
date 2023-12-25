@@ -384,4 +384,24 @@ GenerateVertex2UvMap(const std::vector<Eigen::Vector3i>& vertex_indices,
   return {vid2uvid, uvid2vid};
 }
 
+inline Adjacency GenerateVertexAdjacency(
+    const std::vector<Eigen::Vector3i>& vertex_indices, size_t vertex_num) {
+  Adjacency vertex_adjacency(vertex_num);
+
+  for (size_t face_id = 0; face_id < vertex_indices.size(); face_id++) {
+    const Eigen::Vector3i& face = vertex_indices[face_id];
+
+    vertex_adjacency[face[0]].insert(face[1]);
+    vertex_adjacency[face[1]].insert(face[0]);
+
+    vertex_adjacency[face[2]].insert(face[1]);
+    vertex_adjacency[face[1]].insert(face[2]);
+
+    vertex_adjacency[face[0]].insert(face[2]);
+    vertex_adjacency[face[2]].insert(face[0]);
+  }
+
+  return vertex_adjacency;
+}
+
 }  // namespace ugu

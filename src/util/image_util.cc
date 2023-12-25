@@ -52,7 +52,7 @@ namespace {
 
 void eigen2cv(const Eigen::MatrixXd& mat, ugu::Image1d& img) {
   Eigen::MatrixXd mat_ = mat;
-  if (mat.IsRowMajor != 0) {
+  if constexpr (mat.IsRowMajor != 0) {
     mat_ = mat.transpose();
   }
 
@@ -1032,6 +1032,22 @@ Image3b VisualizeMatrix(const Eigen::MatrixXd& mat,
   Depth2Color(mat_img_f, &vis, static_cast<float>(min_val),
               static_cast<float>(max_val), type);
   return vis;
+}
+
+std::vector<Eigen::Vector3f> Colorize(const std::vector<float> vals,
+                                      float scale,
+                                      tinycolormap::ColormapType type) {
+  std::vector<Eigen::Vector3f> colors(vals.size());
+
+  for (size_t i = 0; i < vals.size(); i++) {
+    const tinycolormap::Color& color =
+        tinycolormap::GetColor(std::clamp(vals[i], 0.f, 1.f), type);
+    colors[i][0] = static_cast<float>(color.r() * scale);
+    colors[i][1] = static_cast<float>(color.g() * scale);
+    colors[i][2] = static_cast<float>(color.b() * scale);
+  }
+
+  return colors;
 }
 
 #endif
