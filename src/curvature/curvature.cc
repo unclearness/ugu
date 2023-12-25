@@ -17,8 +17,7 @@ bool CurvatureGaussianImpl(const std::vector<DerivedV>& vertices,
 
   typedef typename DerivedV::Scalar Scalar;
 
-  auto corner = [](const typename DerivedV& x, const typename DerivedV& y,
-                   const typename DerivedV& z) {
+  auto corner = [](const DerivedV& x, const DerivedV& y, const DerivedV& z) {
     auto v1 = x - y;
     auto v2 = z - y;
     return Scalar(2) * std::atan((v1 / v1.norm() - v2 / v2.norm()).norm() /
