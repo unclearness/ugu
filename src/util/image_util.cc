@@ -52,7 +52,7 @@ namespace {
 
 void eigen2cv(const Eigen::MatrixXd& mat, ugu::Image1d& img) {
   Eigen::MatrixXd mat_ = mat;
-  if constexpr (mat.IsRowMajor != 0) {
+  if (mat.IsRowMajor != 0) {
     mat_ = mat.transpose();
   }
 
