@@ -26,7 +26,7 @@ int main() {
   float max_c = std::numeric_limits<float>::lowest();
   float min_c = std::numeric_limits<float>::max();
   for (size_t i = 0; i < curvature.size(); i++) {
-    normalized_curvature[i] = curvature[i] * area[i];
+    normalized_curvature[i] = curvature[i] / (std::max(area[i], 1e-10f));
     if (normalized_curvature[i] < min_c) {
       min_c = normalized_curvature[i];
     }
@@ -34,11 +34,16 @@ int main() {
       max_c = normalized_curvature[i];
     }
   }
-  if (std::abs(min_c) < max_c) {
-    max_c = std::abs(min_c);
-  }
-  min_c = -3.f;
-  max_c = 3.f;
+  std::cout << "max/min: " << max_c << "/" << min_c << std::endl;
+  std::vector<float> sorted_normalized_curvature = normalized_curvature;
+  float r = 0.1f;
+  std::sort(sorted_normalized_curvature.begin(),
+            sorted_normalized_curvature.end());
+  max_c = sorted_normalized_curvature[static_cast<size_t>(
+      (1.f - r) * sorted_normalized_curvature.size())];
+  min_c = sorted_normalized_curvature[static_cast<size_t>(
+      r * sorted_normalized_curvature.size())];
+  std::cout << "90%/10%: " << max_c << " " << min_c << std::endl;
   for (auto& c : normalized_curvature) {
     c = std::clamp((c - min_c) / (max_c - min_c), 0.f, 1.f);
   }
