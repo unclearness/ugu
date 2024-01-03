@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
   std::string color_path = data_dir + "fruits.jpg";
   std::string mask_path = data_dir + "fruits_scrabble.png";
 
-  ugu::Image1b mask = ugu::Imread<ugu::Image1b>(mask_path);
+  ugu::Image1b mask = ugu::Imread<ugu::Image1b>(mask_path, 0);
   ugu::Image3b color = ugu::Imread<ugu::Image3b>(color_path);
   ugu::Image3b color_gt = color;
   ugu::Image3b color_scrabbled = color.clone();
