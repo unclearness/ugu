@@ -10,17 +10,39 @@
 #include "ugu/inflation/inflation.h"
 #include "ugu/mesh.h"
 #include "ugu/util/image_util.h"
+#include "ugu/util/path_util.h"
 
 // test by bunny data with 6 views
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::string data_dir = "../data/anime/";
-  std::string mask_path = data_dir + "shion2_mask.png";
-  std::string color_path = data_dir + "shion2.jpg";
+  // https://www.bandainamco-mirai.com/images/miraikomachi/miraikomachi_pose_neon03.png
+  std::string data_dir = "../data/character/";
+  std::string img_path = data_dir + "miraikomachi_pose_neon03.png";
+  ugu::EnsureDirExists(data_dir);
+  if (!ugu::FileExists(img_path)) {
+    ugu::LOGE(
+        "Please download "
+        "https://www.bandainamco-mirai.com/images/miraikomachi/"
+        "miraikomachi_pose_neon03.png and put it as %s\nSee Mirai Komachi "
+        "informaiton https://www.miraikomachi.com/download/\n",
+        img_path.c_str());
+    return 1;
+  }
 
-  ugu::Image1b mask = ugu::Imread<ugu::Image1b>(mask_path);
+  ugu::Image4b rgba_org = ugu::imread(img_path, -1);
+
+  ugu::Image4b rgba;
+  ugu::resize(rgba_org, rgba,
+              {480, static_cast<int>(480 * static_cast<float>(rgba_org.rows) /
+                                     static_cast<float>(rgba_org.cols))},
+              0.0, 0.0);
+
+  std::vector<ugu::Image1b> planes;
+  ugu::Split(rgba, planes);
+
+  ugu::Image1b mask = planes[3];
   ugu::Erode(mask.clone(), &mask, 3);
   ugu::Erode(mask.clone(), &mask, 3);
   ugu::resize(mask.clone(), mask, ugu::Size(-1, -1), 0.5f, 0.5f);
@@ -35,7 +57,7 @@ int main(int argc, char* argv[]) {
 
   mesh.WritePly(data_dir + "00000_height.ply");
 
-  ugu::Image3b color = ugu::Imread<ugu::Image3b>(color_path);
+  ugu::Image3b color = ugu::Merge(planes[0], planes[1], planes[2]);
   ugu::InflationParams params;
   params.texture = &color;
   ugu::Inflation(mask, height, mesh, params);
