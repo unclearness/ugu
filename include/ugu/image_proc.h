@@ -615,11 +615,15 @@ void resize(const Image<T>& src, Image<T>& dst, Size dsize, double fx = 0.0,
   const std::type_info* cpp_type_src = &GetTypeidFromCvType(src.type());
   assert(*cpp_type_src == typeid(float) || *cpp_type_src == typeid(uint8_t));
 
+  stbir_pixel_layout layout = static_cast<stbir_pixel_layout>(n);
+
   if (*cpp_type_src == typeid(float)) {
-    stbir_resize_float(reinterpret_cast<float*>(src.data), w, h, 0,
-                       reinterpret_cast<float*>(dst.data), out_w, out_h, 0, n);
+    stbir_resize_float_linear(reinterpret_cast<float*>(src.data), w, h, 0,
+                              reinterpret_cast<float*>(dst.data), out_w, out_h,
+                              0, layout);
   } else {
-    stbir_resize_uint8(src.data, w, h, 0, dst.data, out_w, out_h, 0, n);
+    stbir_resize_uint8_srgb(src.data, w, h, 0, dst.data, out_w, out_h, 0,
+                            layout);
   }
 
   return;

@@ -84,7 +84,7 @@ class KdTreeNanoflannVector : public KdTree<Scalar, Rows> {
 
     /** The kd-tree index for the user to call its methods as usual with any
      * other FLANN index */
-    index_t* index = nullptr;
+    index_t* index_ = nullptr;
 
     /// Constructor: takes a const ref to the vector of vectors object with the
     /// data points
@@ -98,13 +98,13 @@ class KdTreeNanoflannVector : public KdTree<Scalar, Rows> {
         throw std::runtime_error(
             "Data set dimensionality does not match the 'DIM' template "
             "argument");
-      index =
+      index_ =
           new index_t(static_cast<int>(dims), *this /* adaptor */,
                       nanoflann::KDTreeSingleIndexAdaptorParams(leaf_max_size));
-      index->buildIndex();
+      index_->buildIndex();
     }
 
-    ~KDTreeVectorOfVectorsAdaptor() { delete index; }
+    ~KDTreeVectorOfVectorsAdaptor() { delete index_; }
 
     const VectorOfVectorsType& m_data;
 
@@ -162,12 +162,12 @@ template <typename KdPoint, typename Scalar, typename Adaptor, typename Index>
 KdTreeSearchResults RangeQueryKdTreeNanoflann(const KdPoint& query,
                                               const Adaptor& index,
                                               Scalar epsilon) {
-  std::vector<std::pair<Index, Scalar>> ret_matches;
-  nanoflann::SearchParams params;
+  std::vector<nanoflann::ResultItem<Index, Scalar>> ret_matches;
+
   // For squared L2 distance
   const Scalar sq_epsilon = epsilon * epsilon;
   const size_t nMatches =
-      index.index->radiusSearch(query.data(), sq_epsilon, ret_matches, params);
+      index.index_->radiusSearch(query.data(), sq_epsilon, ret_matches);
 
   KdTreeSearchResults results;
   for (size_t i = 0; i < nMatches; i++) {
@@ -184,7 +184,7 @@ KdTreeSearchResults QueryKnnNanoflann(const KdPoint& query,
                                       const Adaptor& index, size_t k) {
   std::vector<Index> out_indices(k);
   std::vector<Scalar> out_distances_sq(k);
-  const size_t nMatches = index.index->knnSearch(
+  const size_t nMatches = index.index_->knnSearch(
       query.data(), k, out_indices.data(), out_distances_sq.data());
 
   KdTreeSearchResults results;
@@ -207,7 +207,7 @@ bool KdTreeNanoflannEigenX<Scalar>::Build() {
   m_mat = std::move(mat);
   m_mat_index = std::make_unique<nf_eigen_adaptor>(
       static_cast<size_t>(m_data[0].size()), m_mat, m_max_leaf_data_num);
-  m_mat_index->index->buildIndex();
+  m_mat_index->index_->buildIndex();
 
   m_initialized = true;
 
@@ -261,7 +261,7 @@ template <typename Scalar, int Rows>
 bool KdTreeNanoflannVector<Scalar, Rows>::Build() {
   m_index = std::make_unique<nf_vector_adaptor>(
       static_cast<size_t>(m_data.size()), m_data, m_max_leaf_data_num);
-  m_index->index->buildIndex();
+  m_index->index_->buildIndex();
   m_initialized = true;
   return true;
 }
