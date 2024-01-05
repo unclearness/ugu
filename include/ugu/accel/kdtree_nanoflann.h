@@ -121,7 +121,7 @@ class KdTreeNanoflannVector : public KdTree<Scalar, Rows> {
                       const int nChecks_IGNORED = 10) const {
       nanoflann::KNNResultSet<num_t, IndexType> resultSet(num_closest);
       resultSet.init(out_indices, out_distances_sq);
-      index->findNeighbors(resultSet, query_point, nanoflann::SearchParams());
+      index_->findNeighbors(resultSet, query_point);
     }
 
     /** @name Interface expected by KDTreeSingleIndexAdaptor
