@@ -1026,7 +1026,7 @@ Image3b VisualizeMatrix(const Eigen::MatrixXd& mat,
   mat_img.convertTo(mat_img_f, CV_32FC1);
 
   double min_val, max_val;
-  minMaxLoc(mat_img, &min_val, &max_val);
+  ugu::minMaxLoc(mat_img, &min_val, &max_val);
 
   Image3b vis;
   Depth2Color(mat_img_f, &vis, static_cast<float>(min_val),

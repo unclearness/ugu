@@ -169,6 +169,36 @@ bool RasterizeVertexAttributeToTexture(
     return false;
   }
 
+#if 0
+  // For safety, fill exact vertex values on uv
+  for (size_t fid = 0; fid < vertex_attr_indices.size(); fid++) {
+    for (int j = 0; j < 3; j++) {
+      auto vid = vertex_attr_indices[fid][j];
+      auto uvid = uv_indices[fid][j];
+      auto x = ugu::U2X(uvs[uvid].x(), texture.cols);
+      auto y = ugu::V2Y(uvs[uvid].y(), texture.rows);
+
+      int x_min = static_cast<int>(std::max(0.f, std::floor(x) - 1));
+      int x_max = std::min(x_min + 2, texture.cols - 1);
+      int y_min = static_cast<int>(std::max(0.f, std::floor(y) - 1));
+      int y_max = std::min(y_min + 2, texture.rows - 1);
+
+      for (int yy = y_min; yy <= y_max; yy++) {
+        for (int xx = x_min; xx <= x_max; xx++) {
+          texture.template at<T>(y, x) =
+              T({static_cast<typename T::value_type>(vertex_attrs[vid][0]),
+                 static_cast<typename T::value_type>(vertex_attrs[vid][1]),
+                 static_cast<typename T::value_type>(vertex_attrs[vid][2])});
+
+          if (mask != nullptr) {
+            mask->at<unsigned char>(y, x) = 255;
+          }
+        }
+      }
+    }
+  }
+#endif
+
   const auto& face_num = vertex_attr_indices.size();
 
   auto face_func = [&](size_t i) {
