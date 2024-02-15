@@ -178,20 +178,20 @@ bool RasterizeVertexAttributeToTexture(
       auto x = ugu::U2X(uvs[uvid].x(), texture.cols);
       auto y = ugu::V2Y(uvs[uvid].y(), texture.rows);
 
-      int x_min = static_cast<int>(std::max(0.f, std::floor(x) - 1));
-      int x_max = std::min(x_min + 2, texture.cols - 1);
-      int y_min = static_cast<int>(std::max(0.f, std::floor(y) - 1));
-      int y_max = std::min(y_min + 2, texture.rows - 1);
+      int x_min = static_cast<int>(std::max(0.f, std::floor(x)));
+      int x_max = std::min(x_min, texture.cols - 1);
+      int y_min = static_cast<int>(std::max(0.f, std::floor(y)));
+      int y_max = std::min(y_min, texture.rows - 1);
 
       for (int yy = y_min; yy <= y_max; yy++) {
         for (int xx = x_min; xx <= x_max; xx++) {
-          texture.template at<T>(y, x) =
+          texture.template at<T>(yy, xx) =
               T({static_cast<typename T::value_type>(vertex_attrs[vid][0]),
                  static_cast<typename T::value_type>(vertex_attrs[vid][1]),
                  static_cast<typename T::value_type>(vertex_attrs[vid][2])});
 
           if (mask != nullptr) {
-            mask->at<unsigned char>(y, x) = 255;
+            mask->at<unsigned char>(yy, xx) = 255;
           }
         }
       }
