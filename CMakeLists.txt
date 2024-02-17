@@ -413,6 +413,9 @@ set(
   src/registration/rigid.cc
   src/registration/nonrigid.cc
 
+  include/ugu/editing/poisson_mesh_editing.h
+  src/editing/poisson_mesh_editing.cc
+
   include/ugu/shader/shader.h
   src/shader/vert.h
   src/shader/frag.h
@@ -515,6 +518,7 @@ if (UGU_BUILD_EXAMPLES)
   setup_exe(ex26_poisson_recon examples/ex26_poisson_recon.cc)
   setup_exe(ex27_math examples/ex27_math.cc)
   setup_exe(ex28_curvature examples/ex28_curvature.cc)
+  setup_exe(ex29_editing examples/ex29_editing.cc)
 endif()
 
 if (UGU_BUILD_APP)

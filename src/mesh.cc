@@ -718,7 +718,8 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
 
   face_indices_per_material_.resize(materials_.size());
   for (int i = 0; i < static_cast<int>(material_ids_.size()); i++) {
-    face_indices_per_material_[material_ids_[i]].push_back(i);
+    face_indices_per_material_[material_ids_[i] >= 0 ? material_ids_[i] : 0]
+        .push_back(i);
   }
 
   if (!no_face) {

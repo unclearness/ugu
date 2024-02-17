@@ -177,4 +177,18 @@ bool EstimateNormalsFromPoints(const std::vector<Eigen::Vector3f>& points,
 
 bool EstimateNormalsFromPoints(Mesh* mesh, uint32_t nn_num = 10);
 
+std::vector<Eigen::Vector3f> ComputeMeshLaplacian(
+    const std::vector<Eigen::Vector3f>& verts,
+    const std::vector<Eigen::Vector3i>& indices,
+    const Adjacency& adj = Adjacency());
+
+bool ConnectMeshes(const std::vector<Eigen::Vector3f> verts0,
+                   const std::vector<Eigen::Vector3i> indices0,
+                   const std::vector<int> boundary0,
+                   const std::vector<Eigen::Vector3f> verts1,
+                   const std::vector<Eigen::Vector3i> indices1,
+                   const std::vector<int> boundary1,
+                   std::vector<Eigen::Vector3f>& merged_verts,
+                   std::vector<Eigen::Vector3i>& merged_indices);
+
 }  // namespace ugu

@@ -351,7 +351,7 @@ bool MergeMeshes(const std::vector<MeshPtr>& src_meshes, Mesh* merged,
   for (size_t i = 1; i < src_meshes.size(); i++) {
     const auto& src = src_meshes[i];
     MergeMeshes(tmp0, *src, &tmp2, overwrite_material,
-                     merge_same_name_material);
+                merge_same_name_material);
     tmp0 = Mesh(tmp2);
   }
   *merged = tmp0;
@@ -1695,6 +1695,88 @@ bool EstimateNormalsFromPoints(Mesh* mesh, uint32_t nn_num) {
   std::vector<Eigen::Vector3f> normals = mesh->normals();
   EstimateNormalsFromPoints(mesh->vertices(), normals, nn_num);
   mesh->set_normals(normals);
+  return true;
+}
+
+std::vector<Eigen::Vector3f> ComputeMeshLaplacian(
+    const std::vector<Eigen::Vector3f>& verts,
+    const std::vector<Eigen::Vector3i>& indices, const Adjacency& adj_) {
+  Adjacency adj = adj_;
+  if (adj.size() != verts.size()) {
+    adj = GenerateVertexAdjacency(indices, verts.size());
+  }
+
+  std::vector<Eigen::Vector3f> laps(verts.size(), Eigen::Vector3f::Zero());
+  for (size_t vidx = 0; vidx < verts.size(); vidx++) {
+    if (adj[vidx].empty()) {
+      continue;
+    }
+
+    laps[vidx] = adj[vidx].size() * verts[vidx];
+    for (const int& adj_vidx : adj[vidx]) {
+      laps[vidx] -= verts[adj_vidx];
+    }
+  }
+  return laps;
+}
+
+bool ConnectMeshes(const std::vector<Eigen::Vector3f> verts0,
+                   const std::vector<Eigen::Vector3i> indices0,
+                   const std::vector<int> boundary0,
+                   const std::vector<Eigen::Vector3f> verts1,
+                   const std::vector<Eigen::Vector3i> indices1,
+                   const std::vector<int> boundary1,
+                   std::vector<Eigen::Vector3f>& merged_verts,
+                   std::vector<Eigen::Vector3i>& merged_indices) {
+  if (boundary0.empty() || boundary0.size() != boundary1.size()) {
+    return false;
+  }
+
+  merged_verts.clear();
+  merged_indices.clear();
+  std::vector<Eigen::Vector3f> verts1_boundary_removed;
+  std::unordered_map<int, int> boundary02boundary1, boundary12boundary0;
+  for (size_t i = 0; i < boundary0.size(); i++) {
+    boundary02boundary1[boundary0[i]] = boundary1[i];
+    boundary12boundary0[boundary1[i]] = boundary0[i];
+  }
+  std::unordered_map<size_t, size_t> vert1org2removed;
+  std::unordered_set<int> boundary1_set(boundary1.begin(), boundary1.end());
+  size_t removed_vidx = 0;
+  for (size_t vidx = 0; vidx < verts1.size(); vidx++) {
+    if (boundary1_set.find(static_cast<int>(vidx)) != boundary1_set.end()) {
+      continue;
+    }
+    verts1_boundary_removed.push_back(verts1[vidx]);
+    vert1org2removed[vidx] = removed_vidx;
+    removed_vidx++;
+  }
+  // std::vector<Eigen::Vector3f> indices1_boundary_removed;
+  CopyVec(verts0, &merged_verts);
+  CopyVec(verts1_boundary_removed, &merged_verts, false);
+
+  CopyVec(indices0, &merged_indices);
+
+  // indices1 -> org_vid1 -> vert1org2removed
+  // Found: Use it with offset
+  // Not found: Use boundary12boundary0[org_vid1]
+  int offset = static_cast<int>(verts0.size());
+  for (size_t fidx = 0; fidx < indices1.size(); fidx++) {
+    Eigen::Vector3i new_face;
+    for (int j = 0; j < 3; j++) {
+      int org_vid1 = indices1[fidx][j];
+      if (vert1org2removed.find(static_cast<size_t>(org_vid1)) !=
+          vert1org2removed.end()) {
+        new_face[j] = static_cast<int>(
+                          vert1org2removed.at(static_cast<size_t>(org_vid1))) +
+                      offset;
+      } else {
+        new_face[j] = boundary12boundary0[org_vid1];
+      }
+    }
+    merged_indices.push_back(new_face);
+  }
+
   return true;
 }
 
