@@ -175,7 +175,6 @@ int main(int argc, char* argv[]) {
   (void)argv;
 
   TestNormal();
-  return 0;
 
   {
     ugu::Image3b img = ugu::imread("../data/color_transfer/reference_00.jpg");

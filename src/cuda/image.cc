@@ -104,12 +104,21 @@ bool ComputeNormalsCuda(const int num_images, const int width, const int height,
 }
 
 NormalComputerCuda::NormalComputerCuda() {}
-NormalComputerCuda(int width, int height, int num_images, const float* h_fx,
-                   const float* h_fy, const float* h_cx, const float* h_cy,
-                   float max_connect_z_diff, int step, bool gl_coord) {}
+NormalComputerCuda::NormalComputerCuda(int width, int height, int num_images,
+                                       const float* h_fx, const float* h_fy,
+                                       const float* h_cx, const float* h_cy,
+                                       float max_connect_z_diff, int step,
+                                       bool gl_coord) {}
+
 NormalComputerCuda::~NormalComputerCuda() {}
 
 void NormalComputerCuda::ComputeNormals(float* h_depths, float* h_normals) {}
+
+class NormalComputerCuda::Impl {
+ public:
+  Impl() {}
+  ~Impl() {}
+};
 
 #endif
 
