@@ -282,7 +282,6 @@ if(UGU_USE_CUDA)
   add_library(my_cuda_flags INTERFACE)
   target_compile_options(my_cuda_flags INTERFACE $<$<COMPILE_LANGUAGE:CUDA>:${cuda_flags}>)
   set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_CUDA)
-  set(UGU_CUDA_SOURCES include/ugu/cuda/cuda_funcs.h src/cuda/cuda_funcs.cc src/cuda/cuda_funcs.cuh src/cuda/cuda_funcs.cu)
   set(UGU_CUDA_SOURCES
       include/ugu/cuda/image.h
       src/cuda/image.cc
@@ -489,7 +488,7 @@ set(SOURCE_LIST ${SOURCE_LIST} ${UGU_SOURCE})
 target_compile_definitions(ugu PUBLIC ${Ugu_DEFINES})
 
 if(UGU_USE_CUDA)
-  set(Ugu_LIBS ${Ugu_LIBS} CUDA::cudart)
+  #set(Ugu_LIBS ${Ugu_LIBS} CUDA::cudart)
   set_target_properties(${Ugu_LIB}
    PROPERTIES
        CUDA_SEPARABLE_COMPILATION ON

@@ -13,11 +13,169 @@
 #include "ugu/image_proc.h"
 #include "ugu/timer.h"
 #include "ugu/util/image_util.h"
+#include "ugu/util/rgbd_util.h"
 
-// test by bunny data with 6 views
+namespace {
+void TestNormal() {
+  std ::vector<ugu::Image1f> depths;
+  std::vector<ugu::Image3f> normals;
+  std::vector<ugu::PinholeCameraPtr> cameras;
+
+  ugu::Image1w imgw = ugu::imread("../data/bunny/00000_depth.png");
+  int target_width = 640;
+  float r = static_cast<float>(target_width) / static_cast<float>(imgw.cols);
+  int target_height = static_cast<int>(imgw.rows * r);
+
+  // Make PinholeCamera
+  // borrow KinectV1 intrinsics of Freiburg 1 RGB
+  // https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
+  // float r = 0.5f;  // scale to smaller size from VGA
+  float r2 = static_cast<float>(target_width) / 640.f;
+  int width = static_cast<int>(640 * r2);
+  int height = static_cast<int>(480 * r2);
+  Eigen::Vector2f principal_point(318.6f * r2, 255.3f * r2);
+  Eigen::Vector2f focal_length(517.3f * r2, 516.5f * r2);
+  std::shared_ptr<ugu::PinholeCamera> camera =
+      std::make_shared<ugu::PinholeCamera>(width, height,
+                                           Eigen::Affine3d::Identity(),
+                                           principal_point, focal_length);
+
+  for (int i = 0; i < 6; i++) {
+    ugu::Image1w imgw =
+        ugu::imread("../data/bunny/0000" + std::to_string(i) + "_depth.png");
+    if (imgw.empty()) {
+      std::cerr << "Failed to load image" << std::endl;
+      return;
+    }
+    ugu::Image1f imgf;
+    imgw.convertTo(imgf, CV_32FC1);
+
+    imgf = ugu::ResizeNearest(imgf, target_width, target_height);
+
+    depths.push_back(imgf);
+
+    ugu::Image3f normal = ugu::Image3f::zeros(imgf.rows, imgf.cols);
+    normals.push_back(normal);
+
+    cameras.push_back(camera);
+  }
+
+  ugu::Timer timer;
+  int n_trials = 100;
+  timer.Start();
+  for (int i = 0; i < n_trials; i++) {
+    ugu::ComputeNormalsCuda(depths, cameras, normals);
+  }
+  timer.End();
+  std::cout << "ComputeNormalsCuda (ugu::Image) : " << timer.elapsed_msec()
+            << " / " << timer.elapsed_msec() / n_trials << std::endl;
+  for (int i = 0; i < 6; i++) {
+    ugu::Image3b vis;
+    ugu::Normal2Color(normals[i], &vis, true);
+    ugu::imwrite("0000" + std::to_string(i) + "_normal_cudaugu.png", vis);
+  }
+
+  timer.Start();
+
+  const int num_images = static_cast<int>(depths.size());
+  // const int width = depths[0].cols;
+  // const int height = depths[0].rows;
+
+  std::vector<float> h_depths(num_images * width * height);
+
+  // #pragma omp parallel for
+  for (int i = 0; i < num_images; ++i) {
+    std::memcpy(h_depths.data() + i * width * height, depths[i].data,
+                sizeof(float) * width * height);
+  }
+
+  std::vector<float> h_fx(num_images);
+  std::vector<float> h_fy(num_images);
+  std::vector<float> h_cx(num_images);
+  std::vector<float> h_cy(num_images);
+
+  for (int i = 0; i < num_images; ++i) {
+    h_fx[i] = cameras[i]->focal_length().x();
+    h_fy[i] = cameras[i]->focal_length().y();
+    h_cx[i] = cameras[i]->principal_point().x();
+    h_cy[i] = cameras[i]->principal_point().y();
+  }
+
+  std::vector<float> h_normals(num_images * width * height * 3);
+  for (int i = 0; i < n_trials; i++) {
+    ugu::ComputeNormalsCuda(num_images, width, height, h_depths, h_normals,
+                            h_fx, h_fy, h_cx, h_cy);
+  }
+  timer.End();
+  std::cout << "ComputeNormalsCuda (Raw) : " << timer.elapsed_msec() << " / "
+            << timer.elapsed_msec() / n_trials << std::endl;
+  if (normals.size() != num_images) {
+    normals.resize(num_images);
+  }
+  // #pragma omp parallel for
+  for (int i = 0; i < num_images; ++i) {
+    if (normals[i].cols != width || normals[i].rows != height) {
+      normals[i] = ugu::Image1f::zeros(height, width);
+    }
+    std::memcpy(normals[i].data, h_normals.data() + i * width * height * 3,
+                sizeof(float) * width * height * 3);
+  }
+  for (int i = 0; i < 6; i++) {
+    ugu::Image3b vis;
+    ugu::Normal2Color(normals[i], &vis, true);
+    ugu::imwrite("0000" + std::to_string(i) + "_normal_cuda.png", vis);
+  }
+
+  {
+    ugu::NormalComputerCuda normal_computer(width, height, num_images,
+                                            h_fx.data(), h_fy.data(),
+                                            h_cx.data(), h_cy.data());
+    timer.Start();
+    for (int i = 0; i < n_trials; i++) {
+      normal_computer.ComputeNormals(h_depths.data(), h_normals.data());
+    }
+    timer.End();
+    std::cout << "NormalComputerCuda: " << timer.elapsed_msec() << " / "
+              << timer.elapsed_msec() / n_trials << std::endl;
+    for (int i = 0; i < num_images; ++i) {
+      if (normals[i].cols != width || normals[i].rows != height) {
+        normals[i] = ugu::Image1f::zeros(height, width);
+      }
+      std::memcpy(normals[i].data, h_normals.data() + i * width * height * 3,
+                  sizeof(float) * width * height * 3);
+    }
+    for (int i = 0; i < 6; i++) {
+      ugu::Image3b vis;
+      ugu::Normal2Color(normals[i], &vis, true);
+      ugu::imwrite("0000" + std::to_string(i) + "_normal_cudaclass.png", vis);
+    }
+  }
+
+  timer.Start();
+  for (int i = 0; i < n_trials; i++) {
+#pragma omp parallel for
+    for (int j = 0; j < 6; j++) {
+      ugu::ComputeNormal(depths[j], *cameras[j].get(), &normals[j], 1e8f);
+    }
+  }
+  timer.End();
+  std::cout << "ComputeNormals: " << timer.elapsed_msec() << " / "
+            << timer.elapsed_msec() / n_trials << std::endl;
+  for (int i = 0; i < 6; i++) {
+    ugu::Image3b vis;
+    ugu::Normal2Color(normals[i], &vis, true);
+    ugu::imwrite("0000" + std::to_string(i) + "_normal_cpu.png", vis);
+  }
+}
+
+}  // namespace
+
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
+
+  TestNormal();
+  return 0;
 
   {
     ugu::Image3b img = ugu::imread("../data/color_transfer/reference_00.jpg");

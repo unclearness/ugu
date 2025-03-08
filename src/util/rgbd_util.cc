@@ -560,11 +560,15 @@ bool ComputeNormal(const Image1f& depth, const Camera& camera, Image3f* normal,
                    float max_connect_z_diff, int x_step, int y_step,
                    bool gl_coord, bool to_world, Image3f* organized_pc,
                    Image1b* valid_mask, uint32_t num_threads) {
+  Image3f organized_pc_;
   if (organized_pc == nullptr) {
+    organized_pc = &organized_pc_;
     ugu::Init(organized_pc, depth.cols, depth.rows, 0.0f);
   }
 
+  Image1b valid_mask_;
   if (valid_mask == nullptr) {
+    valid_mask = &valid_mask_;
     ugu::Init(valid_mask, depth.cols, depth.rows, uint8_t(0));
   }
 
