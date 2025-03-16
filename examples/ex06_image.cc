@@ -15,6 +15,10 @@
 #include "ugu/util/image_util.h"
 #include "ugu/util/rgbd_util.h"
 
+#ifdef UGU_USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 namespace {
 void TestNormal() {
   std ::vector<ugu::Image1f> depths;
@@ -75,8 +79,6 @@ void TestNormal() {
     ugu::imwrite("0000" + std::to_string(i) + "_normal_cudaugu.png", vis);
   }
 
-  timer.Start();
-
   const int num_images = static_cast<int>(depths.size());
   // const int width = depths[0].cols;
   // const int height = depths[0].rows;
@@ -102,6 +104,8 @@ void TestNormal() {
   }
 
   std::vector<float> h_normals(num_images * width * height * 3);
+  std::memset(h_normals.data(), 0, sizeof(float) * width * height * 3);
+  timer.Start();
   for (int i = 0; i < n_trials; i++) {
     ugu::ComputeNormalsCuda(num_images, width, height, h_depths, h_normals,
                             h_fx, h_fy, h_cx, h_cy);
@@ -130,6 +134,7 @@ void TestNormal() {
     ugu::NormalComputerCuda normal_computer(width, height, num_images,
                                             h_fx.data(), h_fy.data(),
                                             h_cx.data(), h_cy.data());
+    std::memset(h_normals.data(), 0, sizeof(float) * width * height * 3);
     timer.Start();
     for (int i = 0; i < n_trials; i++) {
       normal_computer.ComputeNormals(h_depths.data(), h_normals.data());
@@ -150,6 +155,44 @@ void TestNormal() {
       ugu::imwrite("0000" + std::to_string(i) + "_normal_cudaclass.png", vis);
     }
   }
+
+#ifdef UGU_USE_CUDA
+  {
+    ugu::NormalComputerCuda normal_computer(width, height, num_images,
+                                            h_fx.data(), h_fy.data(),
+                                            h_cx.data(), h_cy.data());
+
+    float *h_depths_pinned, *h_normals_pinned;
+    cudaMallocHost(&h_depths_pinned,
+                   sizeof(float) * num_images * width * height);
+    cudaMallocHost(&h_normals_pinned,
+                   sizeof(float) * num_images * width * height * 3);
+    std::memcpy(h_depths_pinned, h_depths.data(),
+                sizeof(float) * num_images * width * height);
+    timer.Start();
+    for (int i = 0; i < n_trials; i++) {
+      normal_computer.ComputeNormals(h_depths_pinned, h_normals_pinned);
+    }
+    timer.End();
+    std::cout << "NormalComputerCuda (pinned memory): " << timer.elapsed_msec()
+              << " / " << timer.elapsed_msec() / n_trials << std::endl;
+    for (int i = 0; i < num_images; ++i) {
+      if (normals[i].cols != width || normals[i].rows != height) {
+        normals[i] = ugu::Image1f::zeros(height, width);
+      }
+      std::memcpy(normals[i].data, h_normals_pinned + i * width * height * 3,
+                  sizeof(float) * width * height * 3);
+    }
+    for (int i = 0; i < 6; i++) {
+      ugu::Image3b vis;
+      ugu::Normal2Color(normals[i], &vis, true);
+      ugu::imwrite("0000" + std::to_string(i) + "_normal_cudaclass_pinned.png",
+                   vis);
+    }
+    cudaFreeHost(h_depths_pinned);
+    cudaFreeHost(h_normals_pinned);
+  }
+#endif
 
   timer.Start();
   for (int i = 0; i < n_trials; i++) {

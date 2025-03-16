@@ -591,6 +591,18 @@ class NormalComputerCuda::Impl {
     checkCudaErrors(cudaMalloc3DArray(&d_depthArray, &channelDesc, extent,
                                       cudaArrayLayered));
 
+    memset(&resDesc, 0, sizeof(resDesc));
+    resDesc.resType = cudaResourceTypeArray;
+    resDesc.res.array.array = d_depthArray;
+
+    memset(&texDesc, 0, sizeof(texDesc));
+    texDesc.addressMode[0] = cudaAddressModeClamp;
+    texDesc.addressMode[1] = cudaAddressModeClamp;
+    texDesc.filterMode =
+        cudaFilterModePoint;  // 補間不要の場合はポイントフィルタ
+    texDesc.readMode = cudaReadModeElementType;
+    texDesc.normalizedCoords = 0;  // 非正規化座標でアクセス
+
     checkCudaErrors(cudaMalloc(&d_normals, 3 * num_pixels * sizeof(float)));
   }
   ~Impl() {
@@ -609,21 +621,6 @@ class NormalComputerCuda::Impl {
     copyParams.kind = cudaMemcpyHostToDevice;
     checkCudaErrors(cudaMemcpy3D(&copyParams));
 
-    // (6) テクスチャオブジェクトの設定（Layered 2D テクスチャ）
-    cudaResourceDesc resDesc;
-    memset(&resDesc, 0, sizeof(resDesc));
-    resDesc.resType = cudaResourceTypeArray;
-    resDesc.res.array.array = d_depthArray;
-
-    cudaTextureDesc texDesc;
-    memset(&texDesc, 0, sizeof(texDesc));
-    texDesc.addressMode[0] = cudaAddressModeClamp;
-    texDesc.addressMode[1] = cudaAddressModeClamp;
-    texDesc.filterMode =
-        cudaFilterModePoint;  // 補間不要の場合はポイントフィルタ
-    texDesc.readMode = cudaReadModeElementType;
-    texDesc.normalizedCoords = 0;  // 非正規化座標でアクセス
-
     texDepth = 0;
     checkCudaErrors(
         cudaCreateTextureObject(&texDepth, &resDesc, &texDesc, NULL));
@@ -635,7 +632,6 @@ class NormalComputerCuda::Impl {
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
-    
     size_t num_pixels = width * height * num_images;
 
     checkCudaErrors(cudaMemcpy(h_normals, d_normals,
@@ -649,6 +645,8 @@ class NormalComputerCuda::Impl {
   int num_images;
   cudaChannelFormatDesc channelDesc;
   cudaExtent extent;
+  cudaResourceDesc resDesc;
+  cudaTextureDesc texDesc;
   cudaTextureObject_t texDepth = 0;
   cudaArray* d_depthArray = nullptr;
   float* d_normals = nullptr;
@@ -666,8 +664,7 @@ NormalComputerCuda::NormalComputerCuda(int width, int height, int num_images,
 }
 NormalComputerCuda::~NormalComputerCuda() {}
 
-void NormalComputerCuda::ComputeNormals(float* h_depths,
-                                        float* h_normals) {
+void NormalComputerCuda::ComputeNormals(float* h_depths, float* h_normals) {
   impl_->ComputeNormals(h_depths, h_normals);
 }
 
