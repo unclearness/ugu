@@ -291,6 +291,10 @@ if(UGU_USE_CUDA)
       src/cuda/knn.cc
       src/cuda/knn.cuh
       src/cuda/knn.cu
+      include/ugu/cuda/voxel.h
+      src/cuda/voxel.cc
+      src/cuda/voxel.cuh
+      src/cuda/voxel.cu
       src/cuda/helper_cuda.h
       src/cuda/helper_string.h 
   )
