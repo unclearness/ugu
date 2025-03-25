@@ -19,6 +19,8 @@
 #include "ugu/voxel/marching_cubes.h"
 #include "ugu/voxel/voxel.h"
 
+#include "ugu/cuda/voxel.h"
+
 namespace {
 
 void AddDepthNoise(ugu::Image1f& depth, float mu, float sigma, float lack_ratio,
@@ -123,6 +125,17 @@ int main(int argc, char* argv[]) {
     colors.push_back(color.clone());
     cameras.push_back(camera);
   }
+
+#ifdef UGU_USE_CUDA
+  {
+    ugu::VoxelGridCuda voxel_grid;
+    voxel_grid.Init(1000000, 100000, 0.1f, 0.1f);
+    voxel_grid.FuseOrganizedPointCloudMulti();
+
+
+  }
+  return 0;
+#endif
 
   {
     ugu::VoxelGrid voxel_grid;
