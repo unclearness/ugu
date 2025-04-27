@@ -742,6 +742,70 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
 }
 #endif
 
+bool Mesh::LoadObjDouble(const std::string& obj_path,
+                         std::vector<Eigen::Vector3d>& vertices_d,
+                         Eigen::Vector3d& offset_d, const std::string& mtl_dir,
+                         bool use_input_offset) {
+  // TODO: Use double version of tinyobjloader
+
+  bool ret = LoadObj(obj_path, mtl_dir);
+  if (!ret) {
+    return false;
+  }
+
+  vertices_d.clear();
+
+  std::ifstream ifs(obj_path);
+  std::string line;
+
+  while (std::getline(ifs, line)) {
+    if (line.substr(0, 1) == "#") {
+      continue;
+    }
+
+    std::vector<std::string> splited = Split(line, ' ');
+
+    if (splited.size() < 4) {
+      continue;
+    }
+
+    // Load vertex position as double
+    if (splited[0] == "v") {
+      Eigen::Vector3d vertex;
+      vertex.x() = std::atof(splited[1].c_str());
+      vertex.y() = std::atof(splited[2].c_str());
+      vertex.z() = std::atof(splited[3].c_str());
+      vertices_d.push_back(vertex);
+    }
+  }
+
+  if (!use_input_offset) {
+    // Find the maximum value and use it as offset
+    offset_d = Eigen::Vector3d::Constant(std::numeric_limits<double>::lowest());
+    for (const auto& vertex : vertices_d) {
+      offset_d.x() = std::max(offset_d.x(), static_cast<double>(vertex.x()));
+      offset_d.y() = std::max(offset_d.y(), static_cast<double>(vertex.y()));
+      offset_d.z() = std::max(offset_d.z(), static_cast<double>(vertex.z()));
+    }
+  }
+
+  // Cast offset to float
+  Eigen::Vector3f offset = offset_d.cast<float>();
+
+  // Approximate double values to float with offset
+  std::vector<Eigen::Vector3f> vertices(vertices_d.size());
+  for (size_t i = 0; i < vertices_d.size(); i++) {
+    // Compute offset vertex postion
+    Eigen::Vector3f v = (vertices_d[i] - offset.cast<double>()).cast<float>();
+    vertices[i] = v;
+  }
+
+  set_vertices(vertices);
+  CalcNormal();
+
+  return true;
+}
+
 bool Mesh::LoadPly(const std::string& ply_path) {
   std::ifstream ifs(ply_path);
   std::string str;
@@ -934,7 +998,8 @@ bool Mesh::WritePly(const std::string& ply_path) const {
 
 bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
                     const std::string& mtl_basename, bool write_obj,
-                    bool write_mtl, bool write_texture) {
+                    bool write_mtl, bool write_texture,
+                    const std::vector<Eigen::Vector3d>& verticed_d) {
   bool ret{true};
   std::string mtl_name = mtl_basename + ".mtl";
   if (mtl_basename.empty()) {
@@ -955,18 +1020,46 @@ bool Mesh::WriteObj(const std::string& obj_dir, const std::string& obj_basename,
     ofs << "mtllib " << mtl_name << "\n"
         << "\n";
 
+    bool use_double =
+        !verticed_d.empty() && verticed_d.size() == vertices_.size();
+    bool use_color =
+        !vertex_colors_.empty() && vertex_colors_.size() == vertices_.size();
+
     // vertices
-    if (!vertex_colors_.empty() && vertex_colors_.size() == vertices_.size()) {
-      for (size_t i = 0; i < vertices_.size(); i++) {
-        const auto& v = vertices_[i];
-        const auto& vc = vertex_colors_[i] / 255.f;
-        ofs << "v " << v.x() << " " << v.y() << " " << v.z() << " " << vc.x()
-            << " " << vc.y() << " " << vc.z() << "\n";
+    if (use_double) {
+      // Keep original flags
+      std::ios_base::fmtflags original_flags = ofs.flags();
+      // Write text with double precision
+      ofs << std::fixed;
+      ofs << std::setprecision(std::numeric_limits<double>::max_digits10);
+      if (use_color) {
+        for (size_t i = 0; i < verticed_d.size(); i++) {
+          const auto& v = verticed_d[i];
+          const auto& vc = vertex_colors_[i] / 255.f;
+          ofs << "v " << v.x() << " " << v.y() << " " << v.z() << " " << vc.x()
+              << " " << vc.y() << " " << vc.z() << "\n";
+        }
+      } else {
+        for (const auto& v : verticed_d) {
+          ofs << "v " << v.x() << " " << v.y() << " " << v.z() << " 1.0"
+              << "\n";
+        }
       }
+      // Restore original flags
+      ofs.flags(original_flags);
     } else {
-      for (const auto& v : vertices_) {
-        ofs << "v " << v.x() << " " << v.y() << " " << v.z() << " 1.0"
-            << "\n";
+      if (use_color) {
+        for (size_t i = 0; i < vertices_.size(); i++) {
+          const auto& v = vertices_[i];
+          const auto& vc = vertex_colors_[i] / 255.f;
+          ofs << "v " << v.x() << " " << v.y() << " " << v.z() << " " << vc.x()
+              << " " << vc.y() << " " << vc.z() << "\n";
+        }
+      } else {
+        for (const auto& v : vertices_) {
+          ofs << "v " << v.x() << " " << v.y() << " " << v.z() << " 1.0"
+              << "\n";
+        }
       }
     }
 
