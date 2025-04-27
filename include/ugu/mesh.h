@@ -169,12 +169,18 @@ class Mesh {
   bool set_anim_interp(const AnimInterp& anim_interp);
 
   bool LoadObj(const std::string& obj_path, const std::string& mtl_dir = "");
+  bool LoadObjDouble(const std::string& obj_path,
+                     std::vector<Eigen::Vector3d>& vertices_d,
+                     Eigen::Vector3d& offset_d, const std::string& mtl_dir = "",
+                     bool use_input_offset = false);
   bool LoadPly(const std::string& ply_path);
   bool WritePly(const std::string& ply_path) const;
   // not const since this will update texture name and path
   bool WriteObj(const std::string& obj_dir, const std::string& obj_basename,
                 const std::string& mtl_basename = "", bool write_obj = true,
-                bool write_mtl = true, bool write_texture = true);
+                bool write_mtl = true, bool write_texture = true,
+                const std::vector<Eigen::Vector3d>& vertices_d =
+                    std::vector<Eigen::Vector3d>());
   bool WriteObj(const std::string& obj_path);
   bool WriteGltfSeparate(const std::string& gltf_dir,
                          const std::string& gltf_basename,
