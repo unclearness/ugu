@@ -26,6 +26,13 @@ __constant__ float d_fy[MAX_IMAGES];
 __constant__ float d_cx[MAX_IMAGES];
 __constant__ float d_cy[MAX_IMAGES];
 
+// camera to world tranformation
+__constant__ float d_R[MAX_IMAGES * 9];
+__constant__ float d_t[MAX_IMAGES * 3];
+
+#define BLOCK_W 16
+#define BLOCK_H 16
+
 __global__ void BoxFilterNaive(const uint8_t* d_in, uint8_t* d_out, int width,
                                int height, int K) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -199,6 +206,7 @@ __global__ void Transpose(const uint8_t* d_in, uint8_t* d_out, int width,
   }
 }
 
+#if 1
 __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
                                               float* normals) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -363,6 +371,144 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
   normals[3 * idx + 0] = nx;
   normals[3 * idx + 1] = ny;
   normals[3 * idx + 2] = nz;
+}
+#endif
+
+__global__ void ComputeNormalsTextureMultiCam_Shared(
+    cudaTextureObject_t texDepth, float* normals, float* points) {
+  // 各ブロックは 1 枚の画像を担当
+  int n = blockIdx.z;
+  if (n >= d_num_images) return;
+
+  // 2D タイル内のピクセル
+  int tx = threadIdx.x;
+  int ty = threadIdx.y;
+  int x = blockIdx.x * BLOCK_W + tx;
+  int y = blockIdx.y * BLOCK_H + ty;
+  if (x >= d_width || y >= d_height) return;
+
+  // 共有メモリ：タイル＋境界分
+  extern __shared__ float s_depth[];
+  const int S_W = BLOCK_W + 2 * d_step;
+  const int S_H = BLOCK_H + 2 * d_step;
+
+  // 共有メモリ上の座標
+  int sx = tx + d_step;
+  int sy = ty + d_step;
+  int sidx = sy * S_W + sx;
+
+  // (1) 中心画素の深度をロード
+  float d_center = tex2DLayered<float>(texDepth, x, y, n);
+  s_depth[sidx] = d_center;
+
+  // (2) 境界ピクセルもロード
+  //    各スレッドが自分の周辺 step 分の境界を担当します
+  if (tx < d_step) {
+    // 左境界
+    s_depth[sy * S_W + (sx - d_step)] =
+        tex2DLayered<float>(texDepth, x - d_step, y, n);
+  }
+  if (tx >= BLOCK_W - d_step) {
+    // 右境界
+    s_depth[sy * S_W + (sx + d_step)] =
+        tex2DLayered<float>(texDepth, x + d_step, y, n);
+  }
+  if (ty < d_step) {
+    // 上境界
+    s_depth[(sy - d_step) * S_W + sx] =
+        tex2DLayered<float>(texDepth, x, y - d_step, n);
+  }
+  if (ty >= BLOCK_H - d_step) {
+    // 下境界
+    s_depth[(sy + d_step) * S_W + sx] =
+        tex2DLayered<float>(texDepth, x, y + d_step, n);
+  }
+
+  // 角も必要なら同様に...
+  __syncthreads();
+
+  // 以降は shared メモリから読み出し
+  if (d_center <= 0.0f) {
+    // 無効深度
+    int idx = n * d_width * d_height + y * d_width + x;
+    normals[3 * idx + 0] = normals[3 * idx + 1] = normals[3 * idx + 2] = 0.0f;
+    points[3 * idx + 0] = points[3 * idx + 1] = points[3 * idx + 2] = 0.0f;
+    return;
+  }
+
+  // 共有メモリから右・下を読み出し
+  float d_r = s_depth[sidx + d_step];
+  float d_b = s_depth[(sidx + S_W * d_step)];
+
+  // 3D 点の計算（中心）
+  float u = float(x), v = float(y);
+  float fx_val = d_fx[n], fy_val = d_fy[n], cx_val = d_cx[n], cy_val = d_cy[n];
+  float inv_fx = 1.0f / fx_val, inv_fy = 1.0f / fy_val;
+  float X = (u - cx_val) * d_center * inv_fx;
+  float Y = (v - cy_val) * d_center * inv_fy;
+  float Z = d_center;
+  int idx = n * d_width * d_height + y * d_width + x;
+
+  if (d_gl_coord) {
+    Y = -Y;
+    Z = -Z;
+  }
+
+  // (3) 定数メモリから Extrinsics を読み出し
+  const float* R = &d_R[n * 9];  // R[0]..R[8] が 3×3 行列
+  const float* t = &d_t[n * 3];  // t[0]..t[2] が並進ベクトル
+
+  // (4) ワールド座標変換：点 (X,Y,Z) → (Xw,Yw,Zw)
+  float Xw = R[0] * X + R[1] * Y + R[2] * Z + t[0];
+  float Yw = R[3] * X + R[4] * Y + R[5] * Z + t[1];
+  float Zw = R[6] * X + R[7] * Y + R[8] * Z + t[2];
+
+  // (6) 出力バッファへ書き込み
+  points[3 * idx + 0] = Xw;
+  points[3 * idx + 1] = Yw;
+  points[3 * idx + 2] = Zw;
+
+  if (d_r <= 0.0f || d_b <= 0.0f) {
+    normals[3 * idx + 0] = normals[3 * idx + 1] = normals[3 * idx + 2] = 0.0f;
+    return;
+  }
+
+  // 隣接ピクセルの３次元座標
+  float Xr = ((u + d_step) - cx_val) * d_r * inv_fx;
+  float Yr = (v - cy_val) * d_r * inv_fy;
+  float Zr = d_r;
+  float Xb = (u - cx_val) * d_b * inv_fx;
+  float Yb = ((v + d_step) - cy_val) * d_b * inv_fy;
+  float Zb = d_b;
+
+  // 法線計算（前進差分）
+  float dx_x = Xr - X, dx_y = Yr - Y, dx_z = Zr - Z;
+  float dy_x = Xb - X, dy_y = Yb - Y, dy_z = Zb - Z;
+  float nx = dx_y * dy_z - dx_z * dy_y;
+  float ny = dx_z * dy_x - dx_x * dy_z;
+  float nz = dx_x * dy_y - dx_y * dy_x;
+  float norm = sqrtf(nx * nx + ny * ny + nz * nz);
+  if (norm > 1e-6f) {
+    nx /= norm;
+    ny /= norm;
+    nz /= norm;
+  } else {
+    nx = ny = nz = 0.0f;
+  }
+
+  if (d_gl_coord) {
+    ny = -ny;
+    nz = -nz;
+  }
+
+  // (5) 法線ベクトルは並進成分が効かないので回転のみ
+  float nxw = R[0] * nx + R[1] * ny + R[2] * nz;
+  float nyw = R[3] * nx + R[4] * ny + R[5] * nz;
+  float nzw = R[6] * nx + R[7] * ny + R[8] * nz;
+
+  normals[3 * idx + 0] = nxw;
+  normals[3 * idx + 1] = nyw;
+  normals[3 * idx + 2] = nzw;
 }
 
 }  // namespace
@@ -564,7 +710,8 @@ class NormalComputerCuda::Impl {
   Impl() {}
   Impl(int width, int height, int num_images, const float* h_fx,
        const float* h_fy, const float* h_cx, const float* h_cy,
-       float max_connect_z_diff, int step, bool gl_coord) {
+       float max_connect_z_diff, int step, bool gl_coord, const float* h_R,
+       const float* h_t) {
     this->width = width;
     this->height = height;
     this->num_images = num_images;
@@ -576,6 +723,7 @@ class NormalComputerCuda::Impl {
     cudaMemcpyToSymbol(d_max_connect_z_diff, &max_connect_z_diff,
                        sizeof(float));
     cudaMemcpyToSymbol(d_step, &step, sizeof(int));
+    this->step = step;
     cudaMemcpyToSymbol(d_gl_coord, &gl_coord, sizeof(bool));
     constexpr bool central_difference = true;
     cudaMemcpyToSymbol(d_central_difference, &central_difference, sizeof(bool));
@@ -584,6 +732,26 @@ class NormalComputerCuda::Impl {
     cudaMemcpyToSymbol(d_fy, h_fy, num_images * sizeof(float));
     cudaMemcpyToSymbol(d_cx, h_cx, num_images * sizeof(float));
     cudaMemcpyToSymbol(d_cy, h_cy, num_images * sizeof(float));
+
+    if (h_R != nullptr) {
+      cudaMemcpyToSymbol(d_R, h_R, num_images * 9 * sizeof(float));
+    } else {
+      std::vector<float> h_R_vec(num_images * 9, 0.0f);
+      for (int i = 0; i < num_images; ++i) {
+        h_R_vec[i * 9 + 0] = 1.0f;
+        h_R_vec[i * 9 + 4] = 1.0f;
+        h_R_vec[i * 9 + 8] = 1.0f;
+      }
+      // Identity matrix
+      cudaMemcpyToSymbol(d_R, h_R_vec.data(), num_images * 9 * sizeof(float));
+    }
+    if (h_t != nullptr) {
+      cudaMemcpyToSymbol(d_t, h_t, num_images * 3 * sizeof(float));
+    } else {
+      // Zero vector
+      std::vector<float> h_t_vec(num_images * 3, 0.0f);
+      cudaMemcpyToSymbol(d_t, h_t_vec.data(), num_images * 3 * sizeof(float));
+    }
 
     // (4) デバイス側：Layered CUDA Array の確保（深度画像用）
     channelDesc = cudaCreateChannelDesc<float>();
@@ -604,14 +772,17 @@ class NormalComputerCuda::Impl {
     texDesc.normalizedCoords = 0;  // 非正規化座標でアクセス
 
     checkCudaErrors(cudaMalloc(&d_normals, 3 * num_pixels * sizeof(float)));
+    checkCudaErrors(cudaMalloc(&d_points, 3 * num_pixels * sizeof(float)));
   }
+
   ~Impl() {
     checkCudaErrors(cudaDestroyTextureObject(texDepth));
     checkCudaErrors(cudaFreeArray(d_depthArray));
     checkCudaErrors(cudaFree(d_normals));
+    checkCudaErrors(cudaFree(d_points));
   }
 
-  void ComputeNormals(float* h_depths, float* h_normals) {
+  void ComputeNormals(float* h_depths, float* h_normals, float* h_points) {
     // (5) cudaMemcpy3D を用いてホストの深度画像データを CUDA Array へ転送
     cudaMemcpy3DParms copyParams = {0};
     copyParams.srcPtr =
@@ -628,7 +799,10 @@ class NormalComputerCuda::Impl {
     dim3 block(16, 16, 1);
     dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y,
               num_images);
-    ComputeNormalsTextureMultiCam<<<grid, block>>>(texDepth, d_normals);
+    unsigned long long shared_mem_size =
+        3 * sizeof(float) * (BLOCK_W + 2 * step) * (BLOCK_H + 2 * step);
+    ComputeNormalsTextureMultiCam_Shared<<<grid, block, shared_mem_size>>>(
+        texDepth, d_normals, d_points);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
@@ -637,12 +811,18 @@ class NormalComputerCuda::Impl {
     checkCudaErrors(cudaMemcpy(h_normals, d_normals,
                                3 * num_pixels * sizeof(float),
                                cudaMemcpyDeviceToHost));
+    if (h_points != nullptr) {
+      checkCudaErrors(cudaMemcpy(h_points, d_points,
+                                 3 * num_pixels * sizeof(float),
+                                 cudaMemcpyDeviceToHost));
+    }
   }
 
  private:
   int width;
   int height;
   int num_images;
+  int step;
   cudaChannelFormatDesc channelDesc;
   cudaExtent extent;
   cudaResourceDesc resDesc;
@@ -650,6 +830,7 @@ class NormalComputerCuda::Impl {
   cudaTextureObject_t texDepth = 0;
   cudaArray* d_depthArray = nullptr;
   float* d_normals = nullptr;
+  float* d_points = nullptr;
 };
 
 NormalComputerCuda::NormalComputerCuda() { impl_ = std::make_unique<Impl>(); }
@@ -658,14 +839,17 @@ NormalComputerCuda::NormalComputerCuda(int width, int height, int num_images,
                                        const float* h_fx, const float* h_fy,
                                        const float* h_cx, const float* h_cy,
                                        float max_connect_z_diff, int step,
-                                       bool gl_coord) {
-  impl_ = std::make_unique<Impl>(width, height, num_images, h_fx, h_fy, h_cx,
-                                 h_cy, max_connect_z_diff, step, gl_coord);
+                                       bool gl_coord, const float* h_R,
+                                       const float* h_t) {
+  impl_ =
+      std::make_unique<Impl>(width, height, num_images, h_fx, h_fy, h_cx, h_cy,
+                             max_connect_z_diff, step, gl_coord, h_R, h_t);
 }
 NormalComputerCuda::~NormalComputerCuda() {}
 
-void NormalComputerCuda::ComputeNormals(float* h_depths, float* h_normals) {
-  impl_->ComputeNormals(h_depths, h_normals);
+void NormalComputerCuda::ComputeNormals(float* h_depths, float* h_normals,
+                                        float* h_points) {
+  impl_->ComputeNormals(h_depths, h_normals, h_points);
 }
 
 }  // namespace ugu

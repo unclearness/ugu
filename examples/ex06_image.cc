@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 #include <fstream>
+#include <random>
 
 #include "ugu/cuda/image.h"
 #include "ugu/image.h"
@@ -119,7 +120,7 @@ void TestNormal() {
   // #pragma omp parallel for
   for (int i = 0; i < num_images; ++i) {
     if (normals[i].cols != width || normals[i].rows != height) {
-      normals[i] = ugu::Image1f::zeros(height, width);
+      normals[i] = ugu::Image3f::zeros(height, width);
     }
     std::memcpy(normals[i].data, h_normals.data() + i * width * height * 3,
                 sizeof(float) * width * height * 3);
@@ -144,7 +145,7 @@ void TestNormal() {
               << timer.elapsed_msec() / n_trials << std::endl;
     for (int i = 0; i < num_images; ++i) {
       if (normals[i].cols != width || normals[i].rows != height) {
-        normals[i] = ugu::Image1f::zeros(height, width);
+        normals[i] = ugu::Image3f::zeros(height, width);
       }
       std::memcpy(normals[i].data, h_normals.data() + i * width * height * 3,
                   sizeof(float) * width * height * 3);
@@ -178,7 +179,7 @@ void TestNormal() {
               << " / " << timer.elapsed_msec() / n_trials << std::endl;
     for (int i = 0; i < num_images; ++i) {
       if (normals[i].cols != width || normals[i].rows != height) {
-        normals[i] = ugu::Image1f::zeros(height, width);
+        normals[i] = ugu::Image3f::zeros(height, width);
       }
       std::memcpy(normals[i].data, h_normals_pinned + i * width * height * 3,
                   sizeof(float) * width * height * 3);
@@ -191,6 +192,85 @@ void TestNormal() {
     }
     cudaFreeHost(h_depths_pinned);
     cudaFreeHost(h_normals_pinned);
+  }
+#endif
+
+#ifdef UGU_USE_CUDA
+  {
+    std::uniform_real_distribution<float> dist{-1.f, 1.f};
+    std::random_device seed_gen;
+    std::mt19937 engine(seed_gen());
+    std::vector<float> h_R_vec(num_images * 9, 0.0f);
+    for (int i = 0; i < num_images; ++i) {
+      h_R_vec[i * 9 + 0] = 1.0f;
+      h_R_vec[i * 9 + 4] = 1.0f;
+      h_R_vec[i * 9 + 8] = 1.0f;
+    }
+    for (size_t i = 0; i < num_images; i++) {
+      Eigen::Vector3f axis = Eigen::Vector3f::Random().normalized();
+      float angle = dist(engine) * static_cast<float>(ugu::pi);
+      Eigen::Matrix3f R = Eigen::AngleAxisf(angle, axis).toRotationMatrix();
+
+      for (int j = 0; j < 9; j++) {
+        h_R_vec[i * 9 + j] = R(j / 3, j % 3);
+      }
+    }
+    std::vector<float> h_t_vec(num_images * 3, 0.0f);
+    auto rng = [&engine, &dist]() { return dist(engine) * 100.f; };
+    std::generate(h_t_vec.begin(), h_t_vec.end(), rng);
+    ugu::NormalComputerCuda normal_computer(
+        width, height, num_images, h_fx.data(), h_fy.data(), h_cx.data(),
+        h_cy.data(), 1e6f, 1, false, h_R_vec.data(), h_t_vec.data());
+
+    float *h_depths_pinned, *h_normals_pinned, *h_points_pinned;
+    cudaMallocHost(&h_depths_pinned,
+                   sizeof(float) * num_images * width * height);
+    cudaMallocHost(&h_normals_pinned,
+                   sizeof(float) * num_images * width * height * 3);
+    cudaMallocHost(&h_points_pinned,
+                   sizeof(float) * num_images * width * height * 3);
+    std::memcpy(h_depths_pinned, h_depths.data(),
+                sizeof(float) * num_images * width * height);
+    timer.Start();
+    for (int i = 0; i < n_trials; i++) {
+      normal_computer.ComputeNormals(h_depths_pinned, h_normals_pinned,
+                                     h_points_pinned);
+    }
+    timer.End();
+    std::cout << "NormalComputerCuda (pinned memory with points): "
+              << timer.elapsed_msec() << " / "
+              << timer.elapsed_msec() / n_trials << std::endl;
+    for (int i = 0; i < num_images; ++i) {
+      if (normals[i].cols != width || normals[i].rows != height) {
+        normals[i] = ugu::Image3f::zeros(height, width);
+      }
+      std::memcpy(normals[i].data, h_normals_pinned + i * width * height * 3,
+                  sizeof(float) * width * height * 3);
+    }
+    for (int i = 0; i < 6; i++) {
+      ugu::Image3b vis;
+      ugu::Normal2Color(normals[i], &vis, true);
+      ugu::imwrite("0000" + std::to_string(i) + "_normal_cudaclass_pinned.png",
+                   vis);
+    }
+    std::vector<ugu::Image3f> points(6);
+    for (int i = 0; i < num_images; ++i) {
+      if (points[i].cols != width || points[i].rows != height) {
+        points[i] = ugu::Image3f::zeros(height, width);
+      }
+      std::memcpy(points[i].data, h_points_pinned + i * width * height * 3,
+                  sizeof(float) * width * height * 3);
+    }
+    Eigen::Vector3f pos_min{-350.f, -350.f, -350.f};
+    Eigen::Vector3f pos_max{350.f, 350.f, 350.f};
+    for (int i = 0; i < 6; i++) {
+      ugu::Image3b vis = ugu::ColorizePosMap(points[i], pos_min, pos_max);
+      ugu::imwrite("0000" + std::to_string(i) + "_points_cudaclass_pinned.png",
+                   vis);
+    }
+    cudaFreeHost(h_depths_pinned);
+    cudaFreeHost(h_normals_pinned);
+    cudaFreeHost(h_points_pinned);
   }
 #endif
 
@@ -213,7 +293,7 @@ void TestNormal() {
 
 }  // namespace
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   (void)argc;
   (void)argv;
 
