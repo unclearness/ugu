@@ -27,10 +27,22 @@ class NormalComputerCuda {
   NormalComputerCuda(int width, int height, int num_images, const float* h_fx,
                      const float* h_fy, const float* h_cx, const float* h_cy,
                      float max_connect_z_diff = 1e6f, int step = 1,
-                     bool gl_coord = false, const float* h_R = nullptr, const float* h_t=nullptr);
+                     bool gl_coord = false, const float* h_R = nullptr,
+                     const float* h_t = nullptr);
   ~NormalComputerCuda();
 
-  void ComputeNormals(float* h_depths, float* h_normals, float* h_points=nullptr);
+  void Init(int width, int height, int num_images, const float* h_fx,
+            const float* h_fy, const float* h_cx, const float* h_cy,
+            float max_connect_z_diff = 1e6f, int step = 1,
+            bool gl_coord = false, const float* h_R = nullptr,
+            const float* h_t = nullptr);
+
+  void ComputeNormals(float* h_depths, float* h_normals,
+                      float* h_points = nullptr);
+
+  const float* get_d_normals() const;
+
+  const float* get_d_points() const;
 
  private:
   class Impl;

@@ -712,6 +712,29 @@ class NormalComputerCuda::Impl {
        const float* h_fy, const float* h_cx, const float* h_cy,
        float max_connect_z_diff, int step, bool gl_coord, const float* h_R,
        const float* h_t) {
+    Init(width, height, num_images, h_fx, h_fy, h_cx, h_cy, max_connect_z_diff,
+         step, gl_coord, h_R, h_t);
+  }
+
+  ~Impl() {
+    if (texDepth != 0) {
+      checkCudaErrors(cudaDestroyTextureObject(texDepth));
+    }
+    if (d_depthArray != nullptr) {
+      checkCudaErrors(cudaFreeArray(d_depthArray));
+    }
+    if (d_normals != nullptr) {
+      checkCudaErrors(cudaFree(d_normals));
+    }
+    if (d_points != nullptr) {
+      checkCudaErrors(cudaFree(d_points));
+    }
+  }
+
+  void Init(int width, int height, int num_images, const float* h_fx,
+            const float* h_fy, const float* h_cx, const float* h_cy,
+            float max_connect_z_diff, int step, bool gl_coord, const float* h_R,
+            const float* h_t) {
     this->width = width;
     this->height = height;
     this->num_images = num_images;
@@ -775,13 +798,6 @@ class NormalComputerCuda::Impl {
     checkCudaErrors(cudaMalloc(&d_points, 3 * num_pixels * sizeof(float)));
   }
 
-  ~Impl() {
-    checkCudaErrors(cudaDestroyTextureObject(texDepth));
-    checkCudaErrors(cudaFreeArray(d_depthArray));
-    checkCudaErrors(cudaFree(d_normals));
-    checkCudaErrors(cudaFree(d_points));
-  }
-
   void ComputeNormals(float* h_depths, float* h_normals, float* h_points) {
     // (5) cudaMemcpy3D を用いてホストの深度画像データを CUDA Array へ転送
     cudaMemcpy3DParms copyParams = {0};
@@ -808,15 +824,21 @@ class NormalComputerCuda::Impl {
 
     size_t num_pixels = width * height * num_images;
 
-    checkCudaErrors(cudaMemcpy(h_normals, d_normals,
-                               3 * num_pixels * sizeof(float),
-                               cudaMemcpyDeviceToHost));
+    if (h_normals != nullptr) {
+      checkCudaErrors(cudaMemcpy(h_normals, d_normals,
+                                 3 * num_pixels * sizeof(float),
+                                 cudaMemcpyDeviceToHost));
+    }
     if (h_points != nullptr) {
       checkCudaErrors(cudaMemcpy(h_points, d_points,
                                  3 * num_pixels * sizeof(float),
                                  cudaMemcpyDeviceToHost));
     }
   }
+
+  const float* get_d_normals() const { return d_normals; }
+
+  const float* get_d_points() const { return d_points; }
 
  private:
   int width;
@@ -845,7 +867,25 @@ NormalComputerCuda::NormalComputerCuda(int width, int height, int num_images,
       std::make_unique<Impl>(width, height, num_images, h_fx, h_fy, h_cx, h_cy,
                              max_connect_z_diff, step, gl_coord, h_R, h_t);
 }
+
 NormalComputerCuda::~NormalComputerCuda() {}
+
+void NormalComputerCuda::Init(int width, int height, int num_images,
+                              const float* h_fx, const float* h_fy,
+                              const float* h_cx, const float* h_cy,
+                              float max_connect_z_diff, int step, bool gl_coord,
+                              const float* h_R, const float* h_t) {
+  impl_->Init(width, height, num_images, h_fx, h_fy, h_cx, h_cy,
+              max_connect_z_diff, step, gl_coord, h_R, h_t);
+}
+
+const float* NormalComputerCuda::get_d_normals() const {
+  return impl_->get_d_normals();
+}
+
+const float* NormalComputerCuda::get_d_points() const {
+  return impl_->get_d_points();
+}
 
 void NormalComputerCuda::ComputeNormals(float* h_depths, float* h_normals,
                                         float* h_points) {

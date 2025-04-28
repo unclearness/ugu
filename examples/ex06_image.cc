@@ -233,6 +233,14 @@ void TestNormal() {
                 sizeof(float) * num_images * width * height);
     timer.Start();
     for (int i = 0; i < n_trials; i++) {
+      normal_computer.ComputeNormals(h_depths_pinned, nullptr, nullptr);
+    }
+    timer.End();
+    std::cout << "NormalComputerCuda (pinned memory, not copy back to host): "
+              << timer.elapsed_msec() << " / "
+              << timer.elapsed_msec() / n_trials << std::endl;
+    timer.Start();
+    for (int i = 0; i < n_trials; i++) {
       normal_computer.ComputeNormals(h_depths_pinned, h_normals_pinned,
                                      h_points_pinned);
     }

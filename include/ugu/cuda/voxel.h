@@ -15,21 +15,21 @@ struct float3 {
 #endif
 
 // Marching Cubes 用の頂点構造体
-struct VertexCuda {
+struct VertexHostDevice {
   float3 position;
   float3 normal;
 };
 
 // メッシュ構造体（ホスト側）
-struct HostMeshCuda {
-  VertexCuda* vertices{nullptr};
+struct MeshHostDevice {
+  VertexHostDevice* vertices{nullptr};
   int vertex_count{0};
   int* indices{nullptr};
   int index_count{0};
   int max_vertex_count{0};
   int max_index_count{0};
-  HostMeshCuda();
-  ~HostMeshCuda();
+  MeshHostDevice();
+  ~MeshHostDevice();
   void Reseave(int max_vertex_count, int max_index_count);
 };
 
@@ -48,6 +48,7 @@ class VoxelGridCuda {
                                     const float* d_normals, int width,
                                     int height, int num_images,
                                     bool sync = true);
+  void GenerateMesh(MeshHostDevice& mesh, bool connected = true); 
 
  private:
   class Impl;

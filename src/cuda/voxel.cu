@@ -552,7 +552,7 @@ __global__ void fuseOrganizedPointCloudMultiKernel(
 //
 __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
                                     int validBlockCount, float voxelSize,
-                                    ugu::VertexCuda* d_vertices, int* d_indices,
+                                    ugu::VertexHostDevice* d_vertices, int* d_indices,
                                     int* d_vertexCount, bool connected) {
   int cellsPerBlock = (BLOCK_SIZE - 1) * (BLOCK_SIZE - 1) * (BLOCK_SIZE - 1);
   int globalCellIdx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -657,10 +657,10 @@ __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
 
 namespace ugu {
 
-HostMeshCuda::HostMeshCuda()
+MeshHostDevice::MeshHostDevice()
     : vertices(nullptr), vertex_count(0), indices(nullptr), index_count(0) {}
 
-HostMeshCuda::~HostMeshCuda() {
+MeshHostDevice::~MeshHostDevice() {
   if (vertices) {
     cudaFreeHost(vertices);
   }
@@ -669,7 +669,7 @@ HostMeshCuda::~HostMeshCuda() {
   }
 };
 
-void HostMeshCuda::Reseave(int max_vertex_count_, int max_index_count_) {
+void MeshHostDevice::Reseave(int max_vertex_count_, int max_index_count_) {
   if (vertices) {
     cudaFreeHost(vertices);
     vertices = nullptr;
@@ -680,7 +680,7 @@ void HostMeshCuda::Reseave(int max_vertex_count_, int max_index_count_) {
   }
   max_vertex_count = max_vertex_count_;
   max_index_count = max_index_count_;
-  cudaMallocHost(&vertices, sizeof(VertexCuda) * max_vertex_count);
+  cudaMallocHost(&vertices, sizeof(VertexHostDevice) * max_vertex_count);
   if (0 < max_index_count) {
     cudaMallocHost(&indices, sizeof(int) * max_index_count);
   }
@@ -761,15 +761,16 @@ class VoxelGridCuda::Impl {
         d_points, d_normals, width, height, num_images, d_hashTable,
         m_hashTableSize, d_voxelBlocks, d_globalVoxelBlockCounter, m_mu,
         m_voxelSize);
+    checkCudaErrors(cudaGetLastError());
     if (sync) {
-      cudaDeviceSynchronize();
+      checkCudaErrors(cudaDeviceSynchronize());
     }
   }
 
   // generateMesh(): Marching Cubesによりメッシュ生成を行う関数
   // connected が true
   // の場合、インデックスバッファを生成（各三角形は独立頂点ですが、インデックスで接続した状態とする）
-  void GenerateMesh(HostMeshCuda& mesh, bool connected) {
+  void GenerateMesh(MeshHostDevice& mesh, bool connected) {
     // デバイス上に割り当てられたVoxelBlock数（有効なブロック数）を取得
     int validBlockCount;
     cudaMemcpy(&validBlockCount, d_globalVoxelBlockCounter, sizeof(int),
@@ -795,7 +796,7 @@ class VoxelGridCuda::Impl {
         //}
         max_vertices = current_max_vertices;
 
-        cudaMalloc(&d_vertices, max_vertices * sizeof(VertexCuda));
+        cudaMalloc(&d_vertices, max_vertices * sizeof(VertexHostDevice));
         // if (connected) {
         cudaMalloc(&d_indices, max_vertices * sizeof(int));
         //}
@@ -809,7 +810,8 @@ class VoxelGridCuda::Impl {
     marchingCubesKernel<<<blocks, threads>>>(d_voxelBlocks, validBlockCount,
                                              m_voxelSize, d_vertices, d_indices,
                                              d_vertexCount, connected);
-    cudaDeviceSynchronize();
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
 
     // 出力頂点数を取得
     int h_vertexCount;
@@ -824,7 +826,8 @@ class VoxelGridCuda::Impl {
     mesh.vertex_count = h_vertexCount;
     mesh.index_count = h_vertexCount;
 
-    cudaMemcpy(mesh.vertices, d_vertices, h_vertexCount * sizeof(HostMeshCuda),
+    cudaMemcpy(mesh.vertices, d_vertices,
+               h_vertexCount * sizeof(MeshHostDevice),
                cudaMemcpyDeviceToHost);
     if (connected) {
       cudaMemcpy(mesh.indices, d_indices, h_vertexCount * sizeof(int),
@@ -845,7 +848,7 @@ class VoxelGridCuda::Impl {
   VoxelBlock* d_voxelBlocks{nullptr};
   int* d_globalVoxelBlockCounter{nullptr};
 
-  VertexCuda* d_vertices{nullptr};
+  VertexHostDevice* d_vertices{nullptr};
   int* d_indices{nullptr};
   int* d_vertexCount{nullptr};
   // int max_triangles{0};
@@ -883,6 +886,10 @@ void VoxelGridCuda::FuseOrganizedPointCloudMulti(const float* d_points,
       reinterpret_cast<const float3*>(d_points),
       reinterpret_cast<const float3*>(d_normals), width, height, num_images,
       sync);
+}
+
+void VoxelGridCuda::GenerateMesh(MeshHostDevice& mesh, bool connected) {
+  impl_->GenerateMesh(mesh, connected);
 }
 
 }  // namespace ugu
