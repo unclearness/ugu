@@ -560,7 +560,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
     const float3* d_points, const float3* d_normals, int width, int height,
     int num_images, VoxelCudaNaive* d_voxel_, float3 voxel_size, float3 bb_max,
     float3 bb_min, int3 voxel_num, float truncation_band, float weight,
-    int sample_num) {
+    int sample_num, int nn_range) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int totalPixels = width * height * num_images;
   if (idx >= totalPixels) {
@@ -574,6 +574,59 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
 
   float3 normal = d_normals[idx];
 
+  if (0 < nn_range) {
+    float3 diff = pt - bb_min;
+    int x_index_ = floorf(diff.x / voxel_size.x);
+    int y_index_ = floorf(diff.y / voxel_size.y);
+    int z_index_ = floorf(diff.z / voxel_size.z);
+    for (int z = -nn_range; z <= nn_range; z++) {
+      int z_index = z_index_ + z;
+      if (z_index < 0 || voxel_num.z - 1 < z_index) {
+        continue;
+      }
+      for (int y = -nn_range; y <= nn_range; y++) {
+        int y_index = y_index_ + y;
+        if (y_index < 0 || voxel_num.y - 1 < y_index) {
+          continue;
+        }
+        for (int x = -nn_range; x <= nn_range; x++) {
+          int x_index = x_index_ + x;
+          if (x_index < 0 || voxel_num.x - 1 < x_index) {
+            continue;
+          }
+
+          float3 voxel_pos;
+          voxel_pos.x = bb_min.x + x_index * voxel_size.x;
+          voxel_pos.y = bb_min.y + y_index * voxel_size.y;
+          voxel_pos.z = bb_min.z + z_index * voxel_size.z;
+
+          // Distance from the voxel center to the point
+          float3 diff = voxel_pos - pt;
+          float sign = 1.f;
+          float d_dot_n = dot(diff, normal);
+          if (d_dot_n < 0) {
+            sign = -1.f;
+          }
+          float dist = sqrtf(dot(diff, diff)) * sign;
+
+          if (dist >= -truncation_band) {
+            dist = fminf(1.0f, dist / truncation_band);
+          } else {
+            continue;
+          }
+
+          VoxelCudaNaive* voxel =
+              &d_voxel_[x_index + y_index * voxel_num.x +
+                        z_index * voxel_num.x * voxel_num.y];
+
+          atomicAdd(&voxel->sdf_sum, dist * weight);
+          atomicAdd(&voxel->update_num, 1);
+        }
+      }
+    }
+  }
+
+  if (0 < sample_num) {
   for (int k = -sample_num; k < sample_num + 1; k++) {
     float3 offset;
     offset.x = k * voxel_size.x * normal.x;
@@ -581,8 +634,9 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
     offset.z = k * voxel_size.z * normal.z;
 
     float3 ray_pos = pt + offset;
-    if (ray_pos.x < bb_min.x || ray_pos.x > bb_max.x || ray_pos.y < bb_min.y ||
-        ray_pos.y > bb_max.y || ray_pos.z < bb_min.z || ray_pos.z > bb_max.z) {
+      if (ray_pos.x < bb_min.x || ray_pos.x > bb_max.x ||
+          ray_pos.y < bb_min.y || ray_pos.y > bb_max.y ||
+          ray_pos.z < bb_min.z || ray_pos.z > bb_max.z) {
       continue;
     }
 
@@ -592,14 +646,12 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
     int z_index = floorf(ray_diff.z / voxel_size.z);
 
     if (x_index < 0 || voxel_num.x - 1 < x_index || y_index < 0 ||
-        voxel_num.y - 1 < y_index || z_index < 0 || voxel_num.z - 1 < z_index) {
+          voxel_num.y - 1 < y_index || z_index < 0 ||
+          voxel_num.z - 1 < z_index) {
       continue;
     }
 
     float3 voxel_pos;
-    // voxel_pos.x = bb_min.x + (x_index + 0.5f) * voxel_size.x;
-    // voxel_pos.y = bb_min.y + (y_index + 0.5f) * voxel_size.y;
-    // voxel_pos.z = bb_min.z + (z_index + 0.5f) * voxel_size.z;
     voxel_pos.x = bb_min.x + x_index * voxel_size.x;
     voxel_pos.y = bb_min.y + y_index * voxel_size.y;
     voxel_pos.z = bb_min.z + z_index * voxel_size.z;
@@ -624,21 +676,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
 
     atomicAdd(&voxel->sdf_sum, dist * weight);
     atomicAdd(&voxel->update_num, 1);
-
-#if 0
-    if (voxel->update_num < 1) {
-      voxel->sdf = dist;
-      // voxel->col = c;
-      voxel->update_num++;
-      continue;
     }
-
-    const float inv_denom = 1.0f / (weight * (voxel->update_num + 1));
-    voxel->sdf =
-        (weight * voxel->update_num * voxel->sdf + weight * dist) * inv_denom;
-
-    voxel->update_num++;
-#endif
   }
 }
 
@@ -1308,14 +1346,15 @@ class VoxelGridCudaNaive::Impl {
     }
   }
   bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
-            float resolution, float truncation_band, int sample_num) {
+            float resolution, float truncation_band, int sample_num,
+            int nn_range) {
     return Init(bb_max, bb_min, Eigen::Vector3f::Constant(resolution),
-                truncation_band, sample_num);
+                truncation_band, sample_num, nn_range);
   }
 
   bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
             const Eigen::Vector3f& resolution, float truncation_band,
-            int sample_num) {
+            int sample_num, int nn_range) {
     bb_max_.x = bb_max[0];
     bb_max_.y = bb_max[1];
     bb_max_.z = bb_max[2];
@@ -1329,6 +1368,7 @@ class VoxelGridCudaNaive::Impl {
     resolution_.z = resolution[2];
 
     sample_num_ = sample_num;
+    nn_range_ = nn_range;
     truncation_band_ = truncation_band;
     voxel_update_weight_ = 1.f;
 
@@ -1393,8 +1433,7 @@ class VoxelGridCudaNaive::Impl {
     FuseOrganizedPointCloudMultiKernelNaive<<<blocks, threads>>>(
         d_points, d_normals, width, height, num_images, d_voxels_, resolution_,
         bb_max_, bb_min_, voxel_num_, truncation_band_, voxel_update_weight_,
-        sample_num_);
-
+        sample_num_, nn_range_);
     checkCudaErrors(cudaGetLastError());
     if (sync) {
       checkCudaErrors(cudaDeviceSynchronize());
@@ -1548,6 +1587,7 @@ class VoxelGridCudaNaive::Impl {
   float truncation_band_{0.f};
   float voxel_update_weight_{1.f};
   int sample_num_{1};
+  int nn_range_{1};
   int xy_slice_num_{0};
 };
 
@@ -1557,15 +1597,19 @@ VoxelGridCudaNaive::~VoxelGridCudaNaive() {}
 
 bool VoxelGridCudaNaive::Init(const Eigen::Vector3f& bb_max,
                               const Eigen::Vector3f& bb_min, float resolution,
-                              float truncation_band, int sample_num) {
-  return impl_->Init(bb_max, bb_min, resolution, truncation_band, sample_num);
+                              float truncation_band, int sample_num,
+                              int nn_range) {
+  return impl_->Init(bb_max, bb_min, resolution, truncation_band, sample_num,
+                     nn_range);
 }
 
 bool VoxelGridCudaNaive::Init(const Eigen::Vector3f& bb_max,
                               const Eigen::Vector3f& bb_min,
                               const Eigen::Vector3f& resolution,
-                              float truncation_band, int sample_num) {
-  return impl_->Init(bb_max, bb_min, resolution, truncation_band, sample_num);
+                              float truncation_band, int sample_num,
+                              int nn_range) {
+  return impl_->Init(bb_max, bb_min, resolution, truncation_band, sample_num,
+                     nn_range);
 }
 
 void VoxelGridCudaNaive::FusePointCloudMulti(const float* d_points,

@@ -64,11 +64,12 @@ class VoxelGridCudaNaive {
   ~VoxelGridCudaNaive();
 
   bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
-            float resolution, float truncation_band, int sample_num = 1);
+            float resolution, float truncation_band, int sample_num = 1,
+            int nn_range = 1);
 
   bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
             const Eigen::Vector3f& resolution, float truncation_band,
-            int sample_num = 1);
+            int sample_num = 1, int nn_range = 1);
 
   void FusePointCloudMulti(const float* d_points, const float* d_normals,
                            int width, int height, int num_images,
