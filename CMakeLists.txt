@@ -264,7 +264,7 @@ if(UGU_USE_OPENMP)
   endif()
 endif()
 
-option(UGU_USE_CUDA "Use CUDA" OFF)
+option(UGU_USE_CUDA "Use CUDA" ON)
 message("UGU_USE_CUDA: ${UGU_USE_CUDA}")
 if(UGU_USE_CUDA)
   include(CheckLanguage)
