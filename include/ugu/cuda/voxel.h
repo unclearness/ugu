@@ -2,6 +2,9 @@
 
 #include <memory>
 
+#include "ugu/mesh.h"
+#include "ugu/voxel/voxel.h"
+
 #ifdef UGU_USE_CUDA
 #include <cuda_runtime.h>
 #endif
@@ -33,12 +36,12 @@ struct MeshHostDevice {
   void Reseave(int max_vertex_count, int max_index_count);
 };
 
-class VoxelGridCuda {
+class VoxelGridCudaHashing {
  public:
-  VoxelGridCuda();
-  VoxelGridCuda(int hash_table_size, int voxel_block_count, float mu,
-                float voxel_size);
-  ~VoxelGridCuda();
+  VoxelGridCudaHashing();
+  VoxelGridCudaHashing(int hash_table_size, int voxel_block_count, float mu,
+                       float voxel_size);
+  ~VoxelGridCudaHashing();
   void Init(int hash_table_size, int voxel_block_count, float mu,
             float voxel_size);
   void FusePointCloud(const float* d_points, const float* d_normals,
@@ -48,7 +51,32 @@ class VoxelGridCuda {
                                     const float* d_normals, int width,
                                     int height, int num_images,
                                     bool sync = true);
-  void GenerateMesh(MeshHostDevice& mesh, bool connected = true); 
+  void GenerateMesh(MeshHostDevice& mesh, bool connected = true);
+
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+class VoxelGridCudaNaive {
+ public:
+  VoxelGridCudaNaive();
+  ~VoxelGridCudaNaive();
+
+  bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
+            float resolution, float truncation_band, int sample_num = 1);
+
+  bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
+            const Eigen::Vector3f& resolution, float truncation_band,
+            int sample_num = 1);
+
+  void FusePointCloudMulti(const float* d_points, const float* d_normals,
+                           int width, int height, int num_images,
+                           bool sync = true);
+
+  void ExtractMesh(Mesh& mesh, bool connected = true);
+  
+  void ReadToCpu(ugu::VoxelGrid& grid_cpu) const;
 
  private:
   class Impl;

@@ -142,20 +142,21 @@ int main(int argc, char* argv[]) {
 
       Eigen::Matrix3f R = cameras[i]->c2w().rotation().cast<float>();
       Eigen::Vector3f t = cameras[i]->c2w().translation().cast<float>();
-      // col-major
-      for (int j = 0; j < 9; j++) {
-        h_R_vec.push_back(R(j));
+      // Eigen is col-major on memory as default
+      // Use accesor to assume row-major
+      for (int k = 0; k < 3; k++) {
+        for (int j = 0; j < 3; j++) {
+          h_R_vec.push_back(R(k, j));
+        }
       }
       for (int j = 0; j < 3; j++) {
         h_t_vec.push_back(t.data()[j]);
       }
     }
 
-    std::cout << "hoge" << std::endl;
     normal_computer.Init(depths[0].cols, depths[0].rows, depths.size(),
                          h_fx_vec.data(), h_fy_vec.data(), h_cx_vec.data(),
                          h_cy_vec.data(), 1e6f, 1, false, h_R_vec.data(), h_t_vec.data());
-    std::cout << "hoge" << std::endl;
     const int num_images = static_cast<int>(depths.size());
     const int width = depths[0].cols;
     const int height = depths[0].rows;
@@ -175,12 +176,10 @@ int main(int argc, char* argv[]) {
                                           depths[0].rows * depths.size());
     std::memcpy(h_depths_pinned, h_depths.data(),
                 sizeof(float) * num_images * width * height);
-    std::cout << "hoge" << std::endl;
     timer.Start();
     normal_computer.ComputeNormals(h_depths_pinned, h_normals_pinned, h_points_pinned);
     timer.End();
     std::cout << "ComputeNormals  " << timer.elapsed_msec() << " ms" << std::endl;
-    std::cout << "hoge" << std::endl;
     {
     
        std::vector<ugu::Image3f> normals(depths.size());
@@ -213,18 +212,58 @@ int main(int argc, char* argv[]) {
     
     }
 
+    ugu::VoxelGridCudaNaive voxel_grid_naive;
+    Eigen::Vector3f resolution(10.f, 10.f, 10.f);
+    Eigen::Vector3f offset = resolution * 2;
+    //voxel_grid.Init(combined->stats().bb_max + offset,
+    //                combined->stats().bb_min - offset, resolution);
+    ugu::VoxelUpdateOption option =
+        ugu::GenFuseDepthDefaultOption(resolution.minCoeff());
 
-    ugu::VoxelGridCuda voxel_grid;
-    voxel_grid.Init(1000000, 100000, 1.f * 7, 1.f);
-    
-    voxel_grid.FuseOrganizedPointCloudMulti(normal_computer.get_d_points(),
-                                            normal_computer.get_d_normals(),
-                                            width, height, num_images, true);
+    voxel_grid_naive.Init(
+        combined->stats().bb_max + offset,
+        combined->stats().bb_min - offset,
+        resolution, option.truncation_band, 2);
 
-    ugu::MeshHostDevice mesh;
-    voxel_grid.GenerateMesh(mesh);
+    timer.Start();
+    voxel_grid_naive.FusePointCloudMulti(normal_computer.get_d_points(),
+                                         normal_computer.get_d_normals(), width,
+                                         height, num_images, true);
+    timer.End();
+    std::cout << "FusePointCloudMulti  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+
+    ugu::Mesh out_mesh;
+    timer.Start();
+    voxel_grid_naive.ExtractMesh(out_mesh, true);
+    timer.End();
+    std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+
+    out_mesh.set_default_material();
+    out_mesh.WriteObj("cuda_mc.obj");
+
+    ugu::VoxelGrid voxel_grid_cpu;
+    voxel_grid_cpu.Init(combined->stats().bb_max + offset,
+                    combined->stats().bb_min - offset, resolution);
+    voxel_grid_naive.ReadToCpu(voxel_grid_cpu);
+    ugu::MarchingCubes(voxel_grid_cpu, &out_mesh);
+    out_mesh.set_default_material();
+    out_mesh.CalcNormal();
+    out_mesh.WriteObj("cpu_mc.obj");
+
+
+    //ugu::VoxelGridCudaHashing voxel_grid;
+    //voxel_grid.Init(1000000, 10000, 1.f * 7, 1.f);
+    //
+    //voxel_grid.FuseOrganizedPointCloudMulti(normal_computer.get_d_points(),
+    //                                        normal_computer.get_d_normals(),
+    //                                        width, height, num_images, true);
+
+    //ugu::MeshHostDevice mesh;
+    //voxel_grid.GenerateMesh(mesh);
     
-    return 0;
+    //return 0;
   }
   
 #endif

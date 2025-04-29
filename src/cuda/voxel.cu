@@ -4,6 +4,7 @@
 #include "./helper_cuda.h"
 #include "./voxel.cuh"
 #include "ugu/cuda/voxel.h"
+#include "ugu/util/image_util.h"
 
 namespace {
 // 定数
@@ -360,6 +361,17 @@ __global__ void initVoxelBlocks(VoxelBlock* d_voxelBlocks,
   }
 }
 
+struct VoxelCudaNaive {
+  // float3 index{-1, -1, -1};  // voxel index
+  // int id{-1};
+  // float3 pos{0.0f, 0.0f, 0.0f};  // center of voxel
+  // float3 col{0.0f, 0.0f, 0.0f};
+  float sdf_sum{0.f};  // Signed Distance Function (SDF) value
+  int update_num{0};
+  VoxelCudaNaive(){};
+  ~VoxelCudaNaive(){};
+};
+
 //
 // 法線付き点群からVoxel Hash FusionによるSDF更新を行うカーネル
 //
@@ -446,7 +458,7 @@ __global__ void fusePointCloudKernel(const float3* points,
   voxel->weight = total_weight;
 }
 
-__global__ void fuseOrganizedPointCloudMultiKernel(
+__global__ void fuseOrganizedPointCloudMultiKernelHashing(
     const float3* d_points, const float3* d_normals, int width, int height,
     int num_images, HashEntry* d_hashTable, int hashTableSize,
     VoxelBlock* d_voxel_blocks, int* d_globalVoxelBlockCounter, float mu,
@@ -504,6 +516,7 @@ __global__ void fuseOrganizedPointCloudMultiKernel(
         found = h;
         break;
       }
+
       if (d_hashTable[h].ptr == -1) {
         d_hashTable[h].pos = block_coord;
         int new_ptr = atomicAdd(d_globalVoxelBlockCounter, 1);
@@ -543,6 +556,100 @@ __global__ void fuseOrganizedPointCloudMultiKernel(
   }
 }
 
+__global__ void FuseOrganizedPointCloudMultiKernelNaive(
+    const float3* d_points, const float3* d_normals, int width, int height,
+    int num_images, VoxelCudaNaive* d_voxel_, float3 voxel_size, float3 bb_max,
+    float3 bb_min, int3 voxel_num, float truncation_band, float weight,
+    int sample_num) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  int totalPixels = width * height * num_images;
+  if (idx >= totalPixels) {
+    return;
+  }
+
+  float3 pt = d_points[idx];
+  if (pt.x == 0.0f && pt.y == 0.0f && pt.z == 0.0f) {
+    return;
+  }
+
+  float3 normal = d_normals[idx];
+
+  for (int k = -sample_num; k < sample_num + 1; k++) {
+    float3 offset;
+    offset.x = k * voxel_size.x * normal.x;
+    offset.y = k * voxel_size.y * normal.y;
+    offset.z = k * voxel_size.z * normal.z;
+
+    float3 ray_pos = pt + offset;
+    if (ray_pos.x < bb_min.x || ray_pos.x > bb_max.x || ray_pos.y < bb_min.y ||
+        ray_pos.y > bb_max.y || ray_pos.z < bb_min.z || ray_pos.z > bb_max.z) {
+      continue;
+    }
+
+    float3 ray_diff = ray_pos - bb_min;
+    int x_index = floorf(ray_diff.x / voxel_size.x);
+    int y_index = floorf(ray_diff.y / voxel_size.y);
+    int z_index = floorf(ray_diff.z / voxel_size.z);
+
+    if (x_index < 0 || voxel_num.x - 1 < x_index || y_index < 0 ||
+        voxel_num.y - 1 < y_index || z_index < 0 || voxel_num.z - 1 < z_index) {
+      continue;
+    }
+
+    float3 voxel_pos;
+    // voxel_pos.x = bb_min.x + (x_index + 0.5f) * voxel_size.x;
+    // voxel_pos.y = bb_min.y + (y_index + 0.5f) * voxel_size.y;
+    // voxel_pos.z = bb_min.z + (z_index + 0.5f) * voxel_size.z;
+    voxel_pos.x = bb_min.x + x_index * voxel_size.x;
+    voxel_pos.y = bb_min.y + y_index * voxel_size.y;
+    voxel_pos.z = bb_min.z + z_index * voxel_size.z;
+
+    // Distance from the voxel center to the point
+    float3 diff = voxel_pos - pt;
+    float sign = 1.f;
+    float d_dot_n = dot(diff, normal);
+    if (d_dot_n < 0) {
+      sign = -1.f;
+    }
+    float dist = sqrtf(dot(diff, diff)) * sign;
+
+    if (dist >= -truncation_band) {
+      dist = fminf(1.0f, dist / truncation_band);
+    } else {
+      continue;
+    }
+
+    VoxelCudaNaive* voxel = &d_voxel_[x_index + y_index * voxel_num.x +
+                                      z_index * voxel_num.x * voxel_num.y];
+
+    atomicAdd(&voxel->sdf_sum, dist * weight);
+    atomicAdd(&voxel->update_num, 1);
+
+#if 0
+    if (voxel->update_num < 1) {
+      voxel->sdf = dist;
+      // voxel->col = c;
+      voxel->update_num++;
+      continue;
+    }
+
+    const float inv_denom = 1.0f / (weight * (voxel->update_num + 1));
+    voxel->sdf =
+        (weight * voxel->update_num * voxel->sdf + weight * dist) * inv_denom;
+
+    voxel->update_num++;
+#endif
+  }
+}
+
+__device__ float3 VertexInterp(float3 p1, float3 p2, float valp1, float valp2,
+                               float iso_level = 0.f) {
+  float diff = valp2 - valp1;
+  float t = (fabsf(diff) < 1e-6f) ? 0.5f : (iso_level - valp1) / diff;
+  return make_float3(p1.x + t * (p2.x - p1.x), p1.y + t * (p2.y - p1.y),
+                     p1.z + t * (p2.z - p1.z));
+}
+
 //
 // Marching Cubes によるメッシュ生成カーネル
 // 各スレッドは有効なVoxelBlock内の1セル（(BLOCK_SIZE-1)^3個のセル）に対して処理を行う
@@ -552,8 +659,9 @@ __global__ void fuseOrganizedPointCloudMultiKernel(
 //
 __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
                                     int validBlockCount, float voxelSize,
-                                    ugu::VertexHostDevice* d_vertices, int* d_indices,
-                                    int* d_vertexCount, bool connected) {
+                                    ugu::VertexHostDevice* d_vertices,
+                                    int* d_indices, int* d_vertexCount,
+                                    bool connected) {
   int cellsPerBlock = (BLOCK_SIZE - 1) * (BLOCK_SIZE - 1) * (BLOCK_SIZE - 1);
   int globalCellIdx = blockIdx.x * blockDim.x + threadIdx.x;
   int totalCells = validBlockCount * cellsPerBlock;
@@ -653,6 +761,115 @@ __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
   }
 }
 
+__global__ void InitVoxelsNaive(VoxelCudaNaive* voxels, size_t n,
+                                float initSdf) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < n) {
+    voxels[idx].sdf_sum = initSdf;
+    voxels[idx].update_num = 0;
+  }
+}
+
+__global__ void MarchingCubesKernelNaive(
+    const VoxelCudaNaive* __restrict__ voxels, float3 bb_min, float3 resolution,
+    int3 voxel_num, float weight,
+    float3* __restrict__ out_vertices,  // 三角形頂点バッファ
+    int* __restrict__ out_counter       // 原子で増加させる頂点数
+) {
+  // 各スレッドは「セル」（voxel_num-1 の範囲）を担当
+  int ix = blockIdx.x * blockDim.x + threadIdx.x;
+  int iy = blockIdx.y * blockDim.y + threadIdx.y;
+  int iz = blockIdx.z * blockDim.z + threadIdx.z;
+  if (ix >= voxel_num.x - 1 || iy >= voxel_num.y - 1 || iz >= voxel_num.z - 1)
+    return;
+
+  // セル頂点の格子インデックス
+  int3 base = make_int3(ix, iy, iz);
+
+  // 1) 8 コーナーの SDF 値を読み込み
+  float sdf[8];
+#pragma unroll
+  for (int k = 0; k < 8; ++k) {
+    int3 offs = make_int3((k & 1) ? 1 : 0, (k & 2) ? 1 : 0, (k & 4) ? 1 : 0);
+    int3 idx = make_int3(base.x + offs.x, base.y + offs.y, base.z + offs.z);
+    int flat = idx.z * voxel_num.y * voxel_num.x + idx.y * voxel_num.x + idx.x;
+    // Ignore if the voxel is not updated
+    if (voxels[flat].update_num < 1) {
+      return;
+    }
+    // Take average
+    sdf[k] = voxels[flat].sdf_sum / (weight * voxels[flat].update_num);
+  }
+
+  const float iso_level = 0.0f;
+  // 2) ケースインデックスを計算
+  int cubeIndex = 0;
+  if (sdf[0] < iso_level) cubeIndex |= 1;
+  if (sdf[1] < iso_level) cubeIndex |= 2;
+  if (sdf[2] < iso_level) cubeIndex |= 4;
+  if (sdf[3] < iso_level) cubeIndex |= 8;
+  if (sdf[4] < iso_level) cubeIndex |= 16;
+  if (sdf[5] < iso_level) cubeIndex |= 32;
+  if (sdf[6] < iso_level) cubeIndex |= 64;
+  if (sdf[7] < iso_level) cubeIndex |= 128;
+
+  // 立方体が完全に内部 or 外部なら何もしない
+  int edges = d_edgeTable[cubeIndex];
+  if (edges == 0) return;
+
+  // 3) 8 頂点のワールド座標を計算
+  float3 cornerPos[8];
+#pragma unroll
+  for (int k = 0; k < 8; ++k) {
+    int3 offs = make_int3((k & 1) ? 1 : 0, (k & 2) ? 1 : 0, (k & 4) ? 1 : 0);
+    float3 gridPos = make_float3(bb_min.x + (base.x + offs.x) * resolution.x,
+                                 bb_min.y + (base.y + offs.y) * resolution.y,
+                                 bb_min.z + (base.z + offs.z) * resolution.z);
+    cornerPos[k] = gridPos;
+  }
+
+  // 4) エッジ上の交点を線形補間で求める
+  float3 vertList[12];
+  if (edges & 1)
+    vertList[0] = VertexInterp(cornerPos[0], cornerPos[1], sdf[0], sdf[1]);
+  if (edges & 2)
+    vertList[1] = VertexInterp(cornerPos[1], cornerPos[2], sdf[1], sdf[2]);
+  if (edges & 4)
+    vertList[2] = VertexInterp(cornerPos[2], cornerPos[3], sdf[2], sdf[3]);
+  if (edges & 8)
+    vertList[3] = VertexInterp(cornerPos[3], cornerPos[0], sdf[3], sdf[0]);
+  if (edges & 16)
+    vertList[4] = VertexInterp(cornerPos[4], cornerPos[5], sdf[4], sdf[5]);
+  if (edges & 32)
+    vertList[5] = VertexInterp(cornerPos[5], cornerPos[6], sdf[5], sdf[6]);
+  if (edges & 64)
+    vertList[6] = VertexInterp(cornerPos[6], cornerPos[7], sdf[6], sdf[7]);
+  if (edges & 128)
+    vertList[7] = VertexInterp(cornerPos[7], cornerPos[4], sdf[7], sdf[4]);
+  if (edges & 256)
+    vertList[8] = VertexInterp(cornerPos[0], cornerPos[4], sdf[0], sdf[4]);
+  if (edges & 512)
+    vertList[9] = VertexInterp(cornerPos[1], cornerPos[5], sdf[1], sdf[5]);
+  if (edges & 1024)
+    vertList[10] = VertexInterp(cornerPos[2], cornerPos[6], sdf[2], sdf[6]);
+  if (edges & 2048)
+    vertList[11] = VertexInterp(cornerPos[3], cornerPos[7], sdf[3], sdf[7]);
+
+  // 5) triTable を見て三角形を出力
+  for (int t = 0; t < 16; t += 3) {
+    int e0 = d_triTable[cubeIndex][t + 0];
+    int e1 = d_triTable[cubeIndex][t + 1];
+    int e2 = d_triTable[cubeIndex][t + 2];
+    if (e0 < 0) break;  // テーブル終端
+
+    // 出力バッファへ原子操作で書き込み
+    int triIdx = atomicAdd(out_counter, 3);
+    out_vertices[triIdx + 0] = vertList[e0];
+    out_vertices[triIdx + 1] = vertList[e1];
+    out_vertices[triIdx + 2] = vertList[e2];
+  }
+}
+
 }  // namespace
 
 namespace ugu {
@@ -686,7 +903,7 @@ void MeshHostDevice::Reseave(int max_vertex_count_, int max_index_count_) {
   }
 }
 
-class VoxelGridCuda::Impl {
+class VoxelGridCudaHashing::Impl {
  public:
   Impl(){};
 
@@ -757,7 +974,10 @@ class VoxelGridCuda::Impl {
     int totalPixels = width * height * num_images;
     int threads = 256;
     int blocks = (totalPixels + threads - 1) / threads;
-    fuseOrganizedPointCloudMultiKernel<<<blocks, threads>>>(
+
+    // Hostのwidth, height, num_imagesを使ってるから怒られる
+
+    fuseOrganizedPointCloudMultiKernelHashing<<<blocks, threads>>>(
         d_points, d_normals, width, height, num_images, d_hashTable,
         m_hashTableSize, d_voxelBlocks, d_globalVoxelBlockCounter, m_mu,
         m_voxelSize);
@@ -827,8 +1047,7 @@ class VoxelGridCuda::Impl {
     mesh.index_count = h_vertexCount;
 
     cudaMemcpy(mesh.vertices, d_vertices,
-               h_vertexCount * sizeof(MeshHostDevice),
-               cudaMemcpyDeviceToHost);
+               h_vertexCount * sizeof(MeshHostDevice), cudaMemcpyDeviceToHost);
     if (connected) {
       cudaMemcpy(mesh.indices, d_indices, h_vertexCount * sizeof(int),
                  cudaMemcpyDeviceToHost);
@@ -855,41 +1074,254 @@ class VoxelGridCuda::Impl {
   int max_vertices{0};
 };
 
-VoxelGridCuda::VoxelGridCuda() {}
+VoxelGridCudaHashing::VoxelGridCudaHashing() {}
 
-VoxelGridCuda::VoxelGridCuda(int hash_table_size, int voxel_block_count,
-                             float mu, float voxel_size) {
+VoxelGridCudaHashing::VoxelGridCudaHashing(int hash_table_size,
+                                           int voxel_block_count, float mu,
+                                           float voxel_size) {
   Init(hash_table_size, voxel_block_count, mu, voxel_size);
 }
 
-VoxelGridCuda::~VoxelGridCuda() {}
+VoxelGridCudaHashing::~VoxelGridCudaHashing() {}
 
-void VoxelGridCuda::Init(int hash_table_size, int voxel_block_count, float mu,
-                         float voxel_size) {
+void VoxelGridCudaHashing::Init(int hash_table_size, int voxel_block_count,
+                                float mu, float voxel_size) {
   impl_ = std::make_unique<Impl>(hash_table_size, voxel_block_count, mu,
                                  voxel_size);
 }
 
-void VoxelGridCuda::FusePointCloud(const float* d_points,
-                                   const float* d_normals, uint32_t num_points,
-                                   bool sync) {
+void VoxelGridCudaHashing::FusePointCloud(const float* d_points,
+                                          const float* d_normals,
+                                          uint32_t num_points, bool sync) {
   impl_->FusePointCloud(reinterpret_cast<const float3*>(d_points),
                         reinterpret_cast<const float3*>(d_normals), num_points,
                         sync);
 }
 
-void VoxelGridCuda::FuseOrganizedPointCloudMulti(const float* d_points,
-                                                 const float* d_normals,
-                                                 int width, int height,
-                                                 int num_images, bool sync) {
+void VoxelGridCudaHashing::FuseOrganizedPointCloudMulti(const float* d_points,
+                                                        const float* d_normals,
+                                                        int width, int height,
+                                                        int num_images,
+                                                        bool sync) {
   impl_->FuseOrganizedPointCloudMulti(
       reinterpret_cast<const float3*>(d_points),
       reinterpret_cast<const float3*>(d_normals), width, height, num_images,
       sync);
 }
 
-void VoxelGridCuda::GenerateMesh(MeshHostDevice& mesh, bool connected) {
+void VoxelGridCudaHashing::GenerateMesh(MeshHostDevice& mesh, bool connected) {
   impl_->GenerateMesh(mesh, connected);
+}
+
+class VoxelGridCudaNaive::Impl {
+ public:
+  Impl() {}
+  ~Impl() {
+    if (d_voxels_ != nullptr) {
+      cudaFree(d_voxels_);
+      d_voxels_ = nullptr;
+    }
+    if (d_vertices != nullptr) {
+      cudaFree(d_vertices);
+      d_vertices = nullptr;
+    }
+    if (d_counter != nullptr) {
+      cudaFree(d_counter);
+      d_counter = nullptr;
+    }
+  }
+  bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
+            float resolution, float truncation_band, int sample_num) {
+    return Init(bb_max, bb_min, Eigen::Vector3f::Constant(resolution),
+                truncation_band, sample_num);
+  }
+
+  bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
+            const Eigen::Vector3f& resolution, float truncation_band,
+            int sample_num) {
+    bb_max_.x = bb_max[0];
+    bb_max_.y = bb_max[1];
+    bb_max_.z = bb_max[2];
+
+    bb_min_.x = bb_min[0];
+    bb_min_.y = bb_min[1];
+    bb_min_.z = bb_min[2];
+
+    resolution_.x = resolution[0];
+    resolution_.y = resolution[1];
+    resolution_.z = resolution[2];
+
+    sample_num_ = sample_num;
+    truncation_band_ = truncation_band;
+    voxel_update_weight_ = 1.f;
+
+    voxel_num_.x = static_cast<int>((bb_max_.x - bb_min_.x) / resolution_.x);
+    voxel_num_.y = static_cast<int>((bb_max_.y - bb_min_.y) / resolution_.y);
+    voxel_num_.z = static_cast<int>((bb_max_.z - bb_min_.z) / resolution_.z);
+
+    int total_voxel_num = voxel_num_.x * voxel_num_.y * voxel_num_.z;
+    if (d_voxels_ != nullptr) {
+      cudaFree(d_voxels_);
+      d_voxels_ = nullptr;
+    }
+    cudaMalloc(&d_voxels_, total_voxel_num * sizeof(VoxelCudaNaive));
+
+    const int threads = 256;
+    int blocks = (total_voxel_num + threads - 1) / threads;
+    // InitVoxelsNaive<<<blocks, threads>>>(d_voxels_, total_voxel_num,
+    //                                      FLT_MAX);
+    // checkCudaErrors(cudaGetLastError());
+    // checkCudaErrors(cudaDeviceSynchronize());
+
+    // Zero fill
+    cudaMemset(d_voxels_, 0, sizeof(VoxelCudaNaive) * total_voxel_num);
+
+    int totalCells =
+        (voxel_num_.x - 1) * (voxel_num_.y - 1) * (voxel_num_.z - 1);
+    int maxTris = totalCells * 5;
+
+    cudaMalloc(&d_vertices, sizeof(float3) * maxTris * 3);
+    cudaMemset(d_vertices, 0, sizeof(float3) * maxTris * 3);
+    cudaMalloc(&d_counter, sizeof(int));
+    cudaMemset(d_counter, 0, sizeof(int));
+
+    return true;
+  }
+
+  void FuseOrganizedPointCloudMulti(const float3* d_points,
+                                    const float3* d_normals, int width,
+                                    int height, int num_images,
+                                    bool sync = true) {
+    int totalPixels = width * height * num_images;
+    int threads = 256;
+    int blocks = (totalPixels + threads - 1) / threads;
+    FuseOrganizedPointCloudMultiKernelNaive<<<blocks, threads>>>(
+        d_points, d_normals, width, height, num_images, d_voxels_, resolution_,
+        bb_max_, bb_min_, voxel_num_, truncation_band_, voxel_update_weight_,
+        sample_num_);
+
+    checkCudaErrors(cudaGetLastError());
+    if (sync) {
+      checkCudaErrors(cudaDeviceSynchronize());
+    }
+  }
+
+  void ExtractMesh(Mesh& mesh, bool connected = true) {
+    cudaMemset(d_counter, 0, sizeof(int));
+
+    // グリッド／ブロック設定
+    dim3 block(8, 8, 8);
+    dim3 grid((voxel_num_.x - 1 + block.x - 1) / block.x,
+              (voxel_num_.y - 1 + block.y - 1) / block.y,
+              (voxel_num_.z - 1 + block.z - 1) / block.z);
+
+    MarchingCubesKernelNaive<<<grid, block>>>(d_voxels_, bb_min_, resolution_,
+                                              voxel_num_, voxel_update_weight_,
+                                              d_vertices, d_counter);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+
+    int h_vcount = 0;
+    cudaMemcpy(&h_vcount, d_counter, sizeof(int), cudaMemcpyDeviceToHost);
+
+    std::vector<Eigen::Vector3f> vertices(h_vcount);
+    std::vector<float3> temp(h_vcount);
+    cudaMemcpy(temp.data(), d_vertices, sizeof(float3) * h_vcount,
+               cudaMemcpyDeviceToHost);
+
+    for (int i = 0; i < h_vcount; ++i) {
+      vertices[i] = Eigen::Vector3f(temp[i].x, temp[i].y, temp[i].z);
+    }
+
+    std::vector<Eigen::Vector3i> indices;
+    for (int i = 0; i < h_vcount; i += 3) {
+      indices.emplace_back(i, i + 1, i + 2);
+    }
+
+    int triCount = h_vcount / 3;
+
+    // 4) フェイスリストを作成（Eigen::Vector3i の場合）
+    std::vector<Eigen::Vector3i> faces;
+    faces.reserve(triCount);
+    for (int i = 0; i < triCount; ++i) {
+      // 頂点リスト上で (3*i, 3*i+1, 3*i+2) が一つの三角形
+      faces.emplace_back(3 * i + 0, 3 * i + 1, 3 * i + 2);
+    }
+
+    mesh.set_vertices(vertices);
+    mesh.set_vertex_indices(faces);
+  }
+
+  void ReadToCpu(ugu::VoxelGrid& grid_cpu) const {
+    std::vector<VoxelCudaNaive> voxels_cpu(voxel_num_.x * voxel_num_.y *
+                                           voxel_num_.z);
+    cudaMemcpy(
+        voxels_cpu.data(), d_voxels_,
+        sizeof(VoxelCudaNaive) * voxel_num_.x * voxel_num_.y * voxel_num_.z,
+        cudaMemcpyDeviceToHost);
+
+    auto& voxels = grid_cpu.get_all();
+
+    for (int i = 0; i < voxel_num_.x * voxel_num_.y * voxel_num_.z; ++i) {
+      voxels[i].update_num = voxels_cpu[i].update_num;
+
+      if (voxels[i].update_num < 1) {
+        voxels[i].sdf = ugu::InvalidSdf::kVal;
+      } else {
+        voxels[i].sdf = voxels_cpu[i].sdf_sum / voxels_cpu[i].update_num;
+      }
+    }
+  }
+
+ private:
+  VoxelCudaNaive* d_voxels_{nullptr};
+  float3* d_vertices{nullptr};
+  int* d_counter{nullptr};
+
+  float3 bb_max_;
+  float3 bb_min_;
+  // Eigen::Vector3f resolution_{-1.f, -1.f, -1.f};
+  float3 resolution_;
+  int3 voxel_num_{0, 0, 0};
+  float truncation_band_{0.f};
+  float voxel_update_weight_{1.f};
+  int sample_num_{1};
+  int xy_slice_num_{0};
+};
+
+VoxelGridCudaNaive::VoxelGridCudaNaive() { impl_ = std::make_unique<Impl>(); }
+
+VoxelGridCudaNaive::~VoxelGridCudaNaive() {}
+
+bool VoxelGridCudaNaive::Init(const Eigen::Vector3f& bb_max,
+                              const Eigen::Vector3f& bb_min, float resolution,
+                              float truncation_band, int sample_num) {
+  return impl_->Init(bb_max, bb_min, resolution, truncation_band, sample_num);
+}
+
+bool VoxelGridCudaNaive::Init(const Eigen::Vector3f& bb_max,
+                              const Eigen::Vector3f& bb_min,
+                              const Eigen::Vector3f& resolution,
+                              float truncation_band, int sample_num) {
+  return impl_->Init(bb_max, bb_min, resolution, truncation_band, sample_num);
+}
+
+void VoxelGridCudaNaive::FusePointCloudMulti(const float* d_points,
+                                             const float* d_normals, int width,
+                                             int height, int num_images,
+                                             bool sync) {
+  impl_->FuseOrganizedPointCloudMulti(
+      reinterpret_cast<const float3*>(d_points),
+      reinterpret_cast<const float3*>(d_normals), width, height, num_images,
+      sync);
+}
+
+void VoxelGridCudaNaive::ExtractMesh(Mesh& mesh, bool connected) {
+  impl_->ExtractMesh(mesh, connected);
+}
+
+void VoxelGridCudaNaive::ReadToCpu(ugu::VoxelGrid& grid_cpu) const {
+  impl_->ReadToCpu(grid_cpu);
 }
 
 }  // namespace ugu

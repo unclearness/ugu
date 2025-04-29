@@ -481,12 +481,33 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
   float Yb = ((v + d_step) - cy_val) * d_b * inv_fy;
   float Zb = d_b;
 
+#if 0
   // 法線計算（前進差分）
   float dx_x = Xr - X, dx_y = Yr - Y, dx_z = Zr - Z;
   float dy_x = Xb - X, dy_y = Yb - Y, dy_z = Zb - Z;
-  float nx = dx_y * dy_z - dx_z * dy_y;
-  float ny = dx_z * dy_x - dx_x * dy_z;
-  float nz = dx_x * dy_y - dx_y * dy_x;
+  //float nx = dx_y * dy_z - dx_z * dy_y;
+  //float ny = dx_z * dy_x - dx_x * dy_z;
+  //float nz = dx_x * dy_y - dx_y * dy_x;
+
+#else
+  float d_l = s_depth[sidx - d_step];
+  float d_t = s_depth[(sidx + S_W - d_step)];
+
+  float Xl = ((u - d_step) - cx_val) * d_l * inv_fx;
+  float Yl = (v - cy_val) * d_l * inv_fy;
+  float Zl = d_l;
+  float Xt = (u - cx_val) * d_t * inv_fx;
+  float Yt = ((v - d_step) - cy_val) * d_t * inv_fy;
+  float Zt = d_t;
+
+  float dx_x = Xr - Xl, dx_y = Yr - Yl, dx_z = Zr - Zl;
+  float dy_x = Xb - Xt, dy_y = Yb - Yt, dy_z = Zb - Zt;
+#endif
+
+  float nx = dx_z * dy_y - dx_y * dy_z;
+  float ny = dx_x * dy_z - dx_z * dy_x;
+  float nz = dx_y * dy_x - dx_x * dy_y;
+
   float norm = sqrtf(nx * nx + ny * ny + nz * nz);
   if (norm > 1e-6f) {
     nx /= norm;
