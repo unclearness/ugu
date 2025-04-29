@@ -37,7 +37,7 @@ class NormalComputerCuda {
             bool gl_coord = false, const float* h_R = nullptr,
             const float* h_t = nullptr);
 
-  void ComputeNormals(float* h_depths, float* h_normals,
+  void ComputeNormals(const float* h_depths, float* h_normals,
                       float* h_points = nullptr);
 
   const float* get_d_normals() const;

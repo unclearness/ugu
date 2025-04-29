@@ -819,11 +819,12 @@ class NormalComputerCuda::Impl {
     checkCudaErrors(cudaMalloc(&d_points, 3 * num_pixels * sizeof(float)));
   }
 
-  void ComputeNormals(float* h_depths, float* h_normals, float* h_points) {
+  void ComputeNormals(const float* h_depths, float* h_normals,
+                      float* h_points) {
     // (5) cudaMemcpy3D を用いてホストの深度画像データを CUDA Array へ転送
     cudaMemcpy3DParms copyParams = {0};
-    copyParams.srcPtr =
-        make_cudaPitchedPtr(h_depths, width * sizeof(float), width, height);
+    copyParams.srcPtr = make_cudaPitchedPtr(
+        const_cast<float*>(h_depths), width * sizeof(float), width, height);
     copyParams.dstArray = d_depthArray;
     copyParams.extent = extent;
     copyParams.kind = cudaMemcpyHostToDevice;
@@ -908,7 +909,7 @@ const float* NormalComputerCuda::get_d_points() const {
   return impl_->get_d_points();
 }
 
-void NormalComputerCuda::ComputeNormals(float* h_depths, float* h_normals,
+void NormalComputerCuda::ComputeNormals(const float* h_depths, float* h_normals,
                                         float* h_points) {
   impl_->ComputeNormals(h_depths, h_normals, h_points);
 }

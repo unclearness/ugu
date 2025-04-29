@@ -79,6 +79,8 @@ class VoxelGridCudaNaive {
   
   void ReadToCpu(ugu::VoxelGrid& grid_cpu) const;
 
+  void Clear();
+
  private:
   class Impl;
   std::unique_ptr<Impl> impl_;

@@ -1526,6 +1526,11 @@ class VoxelGridCudaNaive::Impl {
     }
   }
 
+  void Clear() {
+    int total_voxel_num = voxel_num_.x * voxel_num_.y * voxel_num_.z;
+    cudaMemset(d_voxels_, 0, sizeof(VoxelCudaNaive) * total_voxel_num);
+  }
+
  private:
   VoxelCudaNaive* d_voxels_{nullptr};
   float3* d_vertices{nullptr};
@@ -1574,12 +1579,14 @@ void VoxelGridCudaNaive::FusePointCloudMulti(const float* d_points,
 }
 
 void VoxelGridCudaNaive::ExtractMesh(std::vector<Eigen::Vector3f>& vertices,
-                                   std::vector<Eigen::Vector3i>& faces) {
+                                     std::vector<Eigen::Vector3i>& faces) {
   impl_->ExtractMesh(vertices, faces);
 }
 
 void VoxelGridCudaNaive::ReadToCpu(ugu::VoxelGrid& grid_cpu) const {
   impl_->ReadToCpu(grid_cpu);
 }
+
+void VoxelGridCudaNaive::Clear() { impl_->Clear(); }
 
 }  // namespace ugu
