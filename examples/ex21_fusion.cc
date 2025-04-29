@@ -120,7 +120,7 @@ int main(int argc, char* argv[]) {
 
     renderer->Render(&color, &depth, nullptr, nullptr, nullptr);
 
-    //AddDepthNoise(depth, mu, sigma, 0.02f, static_cast<uint32_t>(i));
+    AddDepthNoise(depth, mu, sigma, 0.02f, static_cast<uint32_t>(i));
 
     depths.push_back(depth.clone());
     colors.push_back(color.clone());
@@ -223,7 +223,7 @@ int main(int argc, char* argv[]) {
     voxel_grid_naive.Init(
         combined->stats().bb_max + offset,
         combined->stats().bb_min - offset,
-        resolution, option.truncation_band, 2);
+        resolution, option.truncation_band, 5);
 
     timer.Start();
     voxel_grid_naive.FusePointCloudMulti(normal_computer.get_d_points(),
@@ -234,13 +234,17 @@ int main(int argc, char* argv[]) {
               << std::endl;
 
     ugu::Mesh out_mesh;
+    std::vector<Eigen::Vector3f> vertices;
+    std::vector<Eigen::Vector3i> faces;
     timer.Start();
-    voxel_grid_naive.ExtractMesh(out_mesh, true);
+    voxel_grid_naive.ExtractMesh(vertices, faces);
     timer.End();
     std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms"
               << std::endl;
-
+    out_mesh.set_vertices(vertices);
+    out_mesh.set_vertex_indices(faces);
     out_mesh.set_default_material();
+    out_mesh.CalcNormal();
     out_mesh.WriteObj("cuda_mc.obj");
 
     ugu::VoxelGrid voxel_grid_cpu;

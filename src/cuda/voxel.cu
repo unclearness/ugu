@@ -1,4 +1,4 @@
-#include <cuda_runtime.h>
+ï»¿#include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
 #include "./helper_cuda.h"
@@ -7,32 +7,32 @@
 #include "ugu/util/image_util.h"
 
 namespace {
-// ’è”
-#define BLOCK_SIZE 8  // ŠeVoxelBlock‚Í BLOCK_SIZE^3 ŒÂ‚ÌVoxel‚ğ‚Â
+// å®šæ•°
+#define BLOCK_SIZE 8  // å„VoxelBlockã¯ BLOCK_SIZE^3 å€‹ã®Voxelã‚’æŒã¤
 
-// Voxel\‘¢‘ÌFSDFAd‚İA–@ü‚ğ•Û
+// Voxelæ§‹é€ ä½“ï¼šSDFã€é‡ã¿ã€æ³•ç·šã‚’ä¿æŒ
 struct Voxel {
   float sdf;
   float weight;
   float3 normal;
 };
 
-// VoxelBlock\‘¢‘Ì
+// VoxelBlockæ§‹é€ ä½“
 struct VoxelBlock {
   Voxel voxels[BLOCK_SIZE * BLOCK_SIZE * BLOCK_SIZE];
 };
 
-// ƒnƒbƒVƒ…ƒe[ƒuƒ‹‚ÌƒGƒ“ƒgƒŠ\‘¢‘Ì
+// ãƒãƒƒã‚·ãƒ¥ãƒ†ãƒ¼ãƒ–ãƒ«ã®ã‚¨ãƒ³ãƒˆãƒªæ§‹é€ ä½“
 struct HashEntry {
-  int3 pos;  // ƒ{ƒNƒZƒ‹ƒuƒƒbƒNÀ•WiƒuƒƒbƒN’PˆÊj
-  int ptr;   // d_voxelBlocks ”z—ñ“à‚ÌƒCƒ“ƒfƒbƒNƒXB–¢Š„“–‚Í -1
+  int3 pos;  // ãƒœã‚¯ã‚»ãƒ«ãƒ–ãƒ­ãƒƒã‚¯åº§æ¨™ï¼ˆãƒ–ãƒ­ãƒƒã‚¯å˜ä½ï¼‰
+  int ptr;   // d_voxelBlocks é…åˆ—å†…ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã€‚æœªå‰²å½“ã¯ -1
 };
 
 //
 // ---------------------
-// Marching Cubes ƒe[ƒuƒ‹i•W€ƒe[ƒuƒ‹FŠ®‘S‚È“à—e‚ÍÈ—ªj
+// Marching Cubes ãƒ†ãƒ¼ãƒ–ãƒ«ï¼ˆæ¨™æº–ãƒ†ãƒ¼ãƒ–ãƒ«ï¼šå®Œå…¨ãªå†…å®¹ã¯çœç•¥ï¼‰
 // ---------------------
-// ¦ À‘•‚ÍŠeƒe[ƒuƒ‹‚Ì‘S—v‘f‚ğ’è‹`‚·‚é•K—v‚ª‚ ‚è‚Ü‚·B
+// â€» å®Ÿè£…æ™‚ã¯å„ãƒ†ãƒ¼ãƒ–ãƒ«ã®å…¨è¦ç´ ã‚’å®šç¾©ã™ã‚‹å¿…è¦ãŒã‚ã‚Šã¾ã™ã€‚
 //
 __device__ __constant__ int d_edgeTable[256] = {
     0x0,   0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c, 0x80c, 0x905, 0xa0f,
@@ -318,7 +318,7 @@ __device__ __constant__ int d_triTable[256][16] = {
     {0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
     {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}};
 //
-// GPU“àƒ†[ƒeƒBƒŠƒeƒBŠÖ”
+// GPUå†…ãƒ¦ãƒ¼ãƒ†ã‚£ãƒªãƒ†ã‚£é–¢æ•°
 //
 __device__ inline float dot(const float3 a, const float3 b) {
   return a.x * b.x + a.y * b.y + a.z * b.z;
@@ -341,7 +341,7 @@ __device__ inline float3 normalize(const float3 a) {
 }
 
 //
-// ƒnƒbƒVƒ…ƒe[ƒuƒ‹‰Šú‰»ƒJ[ƒlƒ‹iŠeƒGƒ“ƒgƒŠ‚Ì ptr ‚ğ -1 ‚Éİ’èj
+// ãƒãƒƒã‚·ãƒ¥ãƒ†ãƒ¼ãƒ–ãƒ«åˆæœŸåŒ–ã‚«ãƒ¼ãƒãƒ«ï¼ˆå„ã‚¨ãƒ³ãƒˆãƒªã® ptr ã‚’ -1 ã«è¨­å®šï¼‰
 //
 __global__ void initHashTable(HashEntry* hash_table, int hashTableSize) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -373,7 +373,7 @@ struct VoxelCudaNaive {
 };
 
 //
-// –@ü•t‚«“_ŒQ‚©‚çVoxel Hash Fusion‚É‚æ‚éSDFXV‚ğs‚¤ƒJ[ƒlƒ‹
+// æ³•ç·šä»˜ãç‚¹ç¾¤ã‹ã‚‰Voxel Hash Fusionã«ã‚ˆã‚‹SDFæ›´æ–°ã‚’è¡Œã†ã‚«ãƒ¼ãƒãƒ«
 //
 __global__ void fusePointCloudKernel(const float3* points,
                                      const float3* normals, int num_points,
@@ -384,17 +384,17 @@ __global__ void fusePointCloudKernel(const float3* points,
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= num_points) return;
 
-  // “ü—Í“_‚Æ–@ü‚ğæ“¾
+  // å…¥åŠ›ç‚¹ã¨æ³•ç·šã‚’å–å¾—
   float3 pt = points[idx];
   float3 normal = normals[idx];
 
-  // “_‚ÌˆÊ’u‚©‚çƒOƒ[ƒoƒ‹VoxelÀ•W‚ğŒvZ
+  // ç‚¹ã®ä½ç½®ã‹ã‚‰ã‚°ãƒ­ãƒ¼ãƒãƒ«Voxelåº§æ¨™ã‚’è¨ˆç®—
   int vx = floorf(pt.x / voxel_size);
   int vy = floorf(pt.y / voxel_size);
   int vz = floorf(pt.z / voxel_size);
   int3 voxel_coord = make_int3(vx, vy, vz);
 
-  // ƒ{ƒNƒZƒ‹ƒuƒƒbƒNÀ•W‚¨‚æ‚ÑƒuƒƒbƒN“àƒ[ƒJƒ‹À•W‚ğŒvZ
+  // ãƒœã‚¯ã‚»ãƒ«ãƒ–ãƒ­ãƒƒã‚¯åº§æ¨™ãŠã‚ˆã³ãƒ–ãƒ­ãƒƒã‚¯å†…ãƒ­ãƒ¼ã‚«ãƒ«åº§æ¨™ã‚’è¨ˆç®—
   int bx = voxel_coord.x / BLOCK_SIZE;
   int by = voxel_coord.y / BLOCK_SIZE;
   int bz = voxel_coord.z / BLOCK_SIZE;
@@ -404,13 +404,13 @@ __global__ void fusePointCloudKernel(const float3* points,
   int ly = voxel_coord.y - by * BLOCK_SIZE;
   int lz = voxel_coord.z - bz * BLOCK_SIZE;
 
-  // ƒnƒbƒVƒ…ŠÖ”i’Pƒ‚È‘g‚İ‡‚í‚¹j
+  // ãƒãƒƒã‚·ãƒ¥é–¢æ•°ï¼ˆå˜ç´”ãªçµ„ã¿åˆã‚ã›ï¼‰
   int h1 = (block_coord.x * 73856093) ^ (block_coord.y * 19349663) ^
            (block_coord.z * 83492791);
   h1 = h1 % hashTableSize;
   if (h1 < 0) h1 += hashTableSize;
 
-  // “ñdƒnƒbƒVƒ…–@‚É‚æ‚é’Tõ
+  // äºŒé‡ãƒãƒƒã‚·ãƒ¥æ³•ã«ã‚ˆã‚‹æ¢ç´¢
   int h2 = 1 + (h1 % (hashTableSize - 1));
   int found = -1;
   for (int i = 0; i < hashTableSize; i++) {
@@ -435,19 +435,19 @@ __global__ void fusePointCloudKernel(const float3* points,
   VoxelBlock* block = &d_voxel_blocks[block_idx];
   int voxel_index = lx + ly * BLOCK_SIZE + lz * BLOCK_SIZE * BLOCK_SIZE;
 
-  // ‘ÎÛVoxel‚Ì’†SÀ•Wiƒ[ƒ‹ƒh‹óŠÔj
+  // å¯¾è±¡Voxelã®ä¸­å¿ƒåº§æ¨™ï¼ˆãƒ¯ãƒ¼ãƒ«ãƒ‰ç©ºé–“ï¼‰
   float3 voxel_center;
   voxel_center.x = ((bx * BLOCK_SIZE + lx) + 0.5f) * voxel_size;
   voxel_center.y = ((by * BLOCK_SIZE + ly) + 0.5f) * voxel_size;
   voxel_center.z = ((bz * BLOCK_SIZE + lz) + 0.5f) * voxel_size;
 
-  // “_‚ÆVoxel’†S‚Æ‚Ì‘Š‘ÎˆÊ’u‚©‚çSDF‚ğŒvZi–@ü•ûŒü‚Ö‚ÌË‰e‹——£j
+  // ç‚¹ã¨Voxelä¸­å¿ƒã¨ã®ç›¸å¯¾ä½ç½®ã‹ã‚‰SDFã‚’è¨ˆç®—ï¼ˆæ³•ç·šæ–¹å‘ã¸ã®å°„å½±è·é›¢ï¼‰
   float3 diff = voxel_center - pt;
   float dist = dot(diff, normal);
   if (dist < -mu) return;
   float sdf = fminf(1.0f, dist / mu);
 
-  // XVFd‚İ•t‚«•½‹Ï‚ÅSDF‚Æ–@ü‚ğ—Z‡
+  // æ›´æ–°ï¼šé‡ã¿ä»˜ãå¹³å‡ã§SDFã¨æ³•ç·šã‚’èåˆ
   Voxel* voxel = &block->voxels[voxel_index];
   float new_weight = 1.0f;
   float total_weight = voxel->weight + new_weight;
@@ -467,41 +467,41 @@ __global__ void fuseOrganizedPointCloudMultiKernelHashing(
   int totalPixels = width * height * num_images;
   if (idx >= totalPixels) return;
 
-  // ‰æ‘œ–ˆ‚É˜A‘±‚µ‚ÄŠi”[‚³‚ê‚Ä‚¢‚é‚Ì‚ÅAidx ‚Å’¼ÚƒAƒNƒZƒX
+  // ç”»åƒæ¯ã«é€£ç¶šã—ã¦æ ¼ç´ã•ã‚Œã¦ã„ã‚‹ã®ã§ã€idx ã§ç›´æ¥ã‚¢ã‚¯ã‚»ã‚¹
   float3 pt = d_points[idx];
   if (pt.x == 0.0f && pt.y == 0.0f && pt.z == 0.0f) {
-    return;  // –³Œø‚È“_‚ÍƒXƒLƒbƒv
+    return;  // ç„¡åŠ¹ãªç‚¹ã¯ã‚¹ã‚­ãƒƒãƒ—
   }
 
   float3 normal = d_normals[idx];
 
-  // XV‚·‚éƒXƒeƒbƒv”: ƒgƒ‰ƒ“ƒP[ƒVƒ‡ƒ“• [-mu, mu] ‚ğ voxel_size ‚²‚Æ‚É‘–¸
+  // æ›´æ–°ã™ã‚‹ã‚¹ãƒ†ãƒƒãƒ—æ•°: ãƒˆãƒ©ãƒ³ã‚±ãƒ¼ã‚·ãƒ§ãƒ³å¹… [-mu, mu] ã‚’ voxel_size ã”ã¨ã«èµ°æŸ»
   int numSteps = (int)(2.0f * mu / voxel_size) +
-                 1;  // —á: mu=0.1, voxel_size=0.005 ¨ –ñ41ƒXƒeƒbƒv
+                 1;  // ä¾‹: mu=0.1, voxel_size=0.005 â†’ ç´„41ã‚¹ãƒ†ãƒƒãƒ—
 
   for (int i = 0; i < numSteps; i++) {
-    // t ‚ğ -mu ‚©‚ç +mu ‚ÌŠÔ‚Å‘–¸‚µA–@ü•ûŒü‚ÌŒó•â“_‚ğŒvZ
+    // t ã‚’ -mu ã‹ã‚‰ +mu ã®é–“ã§èµ°æŸ»ã—ã€æ³•ç·šæ–¹å‘ã®å€™è£œç‚¹ã‚’è¨ˆç®—
     float t = -mu + i * voxel_size;
     float3 candidate = pt + normal * t;
 
-    // candidate ‚ÌˆÊ’u‚©‚çƒ{ƒNƒZƒ‹À•W‚ğŒvZ
+    // candidate ã®ä½ç½®ã‹ã‚‰ãƒœã‚¯ã‚»ãƒ«åº§æ¨™ã‚’è¨ˆç®—
     int vx = floorf(candidate.x / voxel_size);
     int vy = floorf(candidate.y / voxel_size);
     int vz = floorf(candidate.z / voxel_size);
     int3 voxel_coord = make_int3(vx, vy, vz);
 
-    // ‘Î‰‚·‚éƒ{ƒNƒZƒ‹ƒuƒƒbƒN‚ÌÀ•WiŠeƒuƒƒbƒN‚Í BLOCK_SIZE ŒÂ‚ÌVoxel‚ğ‚Âj
+    // å¯¾å¿œã™ã‚‹ãƒœã‚¯ã‚»ãƒ«ãƒ–ãƒ­ãƒƒã‚¯ã®åº§æ¨™ï¼ˆå„ãƒ–ãƒ­ãƒƒã‚¯ã¯ BLOCK_SIZE å€‹ã®Voxelã‚’æŒã¤ï¼‰
     int bx = voxel_coord.x / BLOCK_SIZE;
     int by = voxel_coord.y / BLOCK_SIZE;
     int bz = voxel_coord.z / BLOCK_SIZE;
     int3 block_coord = make_int3(bx, by, bz);
 
-    // ƒuƒƒbƒN“à‚Å‚Ìƒ[ƒJƒ‹À•W
+    // ãƒ–ãƒ­ãƒƒã‚¯å†…ã§ã®ãƒ­ãƒ¼ã‚«ãƒ«åº§æ¨™
     int lx = voxel_coord.x - bx * BLOCK_SIZE;
     int ly = voxel_coord.y - by * BLOCK_SIZE;
     int lz = voxel_coord.z - bz * BLOCK_SIZE;
 
-    // ƒnƒbƒVƒ…ŠÖ”‚É‚æ‚éƒuƒƒbƒN’TõiƒuƒƒbƒN’PˆÊ‚ÅŠÇ—j
+    // ãƒãƒƒã‚·ãƒ¥é–¢æ•°ã«ã‚ˆã‚‹ãƒ–ãƒ­ãƒƒã‚¯æ¢ç´¢ï¼ˆãƒ–ãƒ­ãƒƒã‚¯å˜ä½ã§ç®¡ç†ï¼‰
     int h1 = (block_coord.x * 73856093) ^ (block_coord.y * 19349663) ^
              (block_coord.z * 83492791);
     h1 = h1 % hashTableSize;
@@ -526,25 +526,25 @@ __global__ void fuseOrganizedPointCloudMultiKernelHashing(
       }
     }
     if (found == -1)
-      continue;  // ƒnƒbƒVƒ…ƒe[ƒuƒ‹‚ª–”t‚Ìê‡A‚±‚ÌŒó•â‚ÍƒXƒLƒbƒv
+      continue;  // ãƒãƒƒã‚·ãƒ¥ãƒ†ãƒ¼ãƒ–ãƒ«ãŒæº€æ¯ã®å ´åˆã€ã“ã®å€™è£œã¯ã‚¹ã‚­ãƒƒãƒ—
 
     int block_idx = d_hashTable[found].ptr;
     VoxelBlock* block = &d_voxel_blocks[block_idx];
     int voxel_index = lx + ly * BLOCK_SIZE + lz * BLOCK_SIZE * BLOCK_SIZE;
 
-    // ‘ÎÛVoxel‚Ì’†SÀ•Wiƒ[ƒ‹ƒhÀ•Wj‚ğŒvZ
+    // å¯¾è±¡Voxelã®ä¸­å¿ƒåº§æ¨™ï¼ˆãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™ï¼‰ã‚’è¨ˆç®—
     float3 voxel_center;
     voxel_center.x = ((bx * BLOCK_SIZE + lx) + 0.5f) * voxel_size;
     voxel_center.y = ((by * BLOCK_SIZE + ly) + 0.5f) * voxel_size;
     voxel_center.z = ((bz * BLOCK_SIZE + lz) + 0.5f) * voxel_size;
 
-    // pt ‚©‚ç‚Ì–@ü•ûŒü‹——£icandidate ‚Å‚Í‚È‚­ voxel_center ‚ğg‚Á‚ÄÄŒvZj
+    // pt ã‹ã‚‰ã®æ³•ç·šæ–¹å‘è·é›¢ï¼ˆcandidate ã§ã¯ãªã voxel_center ã‚’ä½¿ã£ã¦å†è¨ˆç®—ï¼‰
     float3 diff = voxel_center - pt;
     float dist = dot(diff, normal);
-    if (fabsf(dist) > mu) continue;  // ƒgƒ‰ƒ“ƒP[ƒVƒ‡ƒ“•ŠO‚ÍXV‚µ‚È‚¢
+    if (fabsf(dist) > mu) continue;  // ãƒˆãƒ©ãƒ³ã‚±ãƒ¼ã‚·ãƒ§ãƒ³å¹…å¤–ã¯æ›´æ–°ã—ãªã„
     float sdf = fminf(1.0f, dist / mu);
 
-    // d‚İ•t‚«•½‹Ï‚É‚æ‚é SDF ‚Æ–@ü‚Ì—Z‡XV
+    // é‡ã¿ä»˜ãå¹³å‡ã«ã‚ˆã‚‹ SDF ã¨æ³•ç·šã®èåˆæ›´æ–°
     Voxel* voxel = &block->voxels[voxel_index];
     float new_weight = 1.0f;
     float total_weight = voxel->weight + new_weight;
@@ -651,11 +651,11 @@ __device__ float3 VertexInterp(float3 p1, float3 p2, float valp1, float valp2,
 }
 
 //
-// Marching Cubes ‚É‚æ‚éƒƒbƒVƒ…¶¬ƒJ[ƒlƒ‹
-// ŠeƒXƒŒƒbƒh‚Í—LŒø‚ÈVoxelBlock“à‚Ì1ƒZƒ‹i(BLOCK_SIZE-1)^3ŒÂ‚ÌƒZƒ‹j‚É‘Î‚µ‚Äˆ—‚ğs‚¤
-// isoLevel ‚Í 0 ‚ğ‘z’èiSDF=0 ‚Ì–ÊjAd_vertices, d_indices
-// ‚Ío—Íƒoƒbƒtƒ@id_indices‚Í connected==true ‚Ìê‡‚É‘‚«o‚·j d_vertexCount
-// ‚ÍƒOƒ[ƒoƒ‹o—Í’¸“_”ƒJƒEƒ“ƒ^[iŠeOŠpŒ`‚É‚Â‚«3’¸“_‚ğo—Íj
+// Marching Cubes ã«ã‚ˆã‚‹ãƒ¡ãƒƒã‚·ãƒ¥ç”Ÿæˆã‚«ãƒ¼ãƒãƒ«
+// å„ã‚¹ãƒ¬ãƒƒãƒ‰ã¯æœ‰åŠ¹ãªVoxelBlockå†…ã®1ã‚»ãƒ«ï¼ˆ(BLOCK_SIZE-1)^3å€‹ã®ã‚»ãƒ«ï¼‰ã«å¯¾ã—ã¦å‡¦ç†ã‚’è¡Œã†
+// isoLevel ã¯ 0 ã‚’æƒ³å®šï¼ˆSDF=0 ã®é¢ï¼‰ã€d_vertices, d_indices
+// ã¯å‡ºåŠ›ãƒãƒƒãƒ•ã‚¡ï¼ˆd_indicesã¯ connected==true ã®å ´åˆã«æ›¸ãå‡ºã™ï¼‰ d_vertexCount
+// ã¯ã‚°ãƒ­ãƒ¼ãƒãƒ«å‡ºåŠ›é ‚ç‚¹æ•°ã‚«ã‚¦ãƒ³ã‚¿ãƒ¼ï¼ˆå„ä¸‰è§’å½¢ã«ã¤ã3é ‚ç‚¹ã‚’å‡ºåŠ›ï¼‰
 //
 __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
                                     int validBlockCount, float voxelSize,
@@ -670,23 +670,23 @@ __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
   int cellIdxInBlock = globalCellIdx % cellsPerBlock;
   int blockIdxVoxel = globalCellIdx / cellsPerBlock;
 
-  // ƒZƒ‹“à‚Ìƒ[ƒJƒ‹À•WiŠeƒZƒ‹‚Í8ŒÂ‚Ì’¸“_‚ğ‚Âj
+  // ã‚»ãƒ«å†…ã®ãƒ­ãƒ¼ã‚«ãƒ«åº§æ¨™ï¼ˆå„ã‚»ãƒ«ã¯8å€‹ã®é ‚ç‚¹ã‚’æŒã¤ï¼‰
   int cell_z = cellIdxInBlock / ((BLOCK_SIZE - 1) * (BLOCK_SIZE - 1));
   int rem = cellIdxInBlock % ((BLOCK_SIZE - 1) * (BLOCK_SIZE - 1));
   int cell_y = rem / (BLOCK_SIZE - 1);
   int cell_x = rem % (BLOCK_SIZE - 1);
 
-  // Œ»İ‚ÌVoxelBlock‚ğæ“¾
+  // ç¾åœ¨ã®VoxelBlockã‚’å–å¾—
   VoxelBlock* curBlock = &d_voxelBlocks[blockIdxVoxel];
 
-  // ŠeƒZƒ‹‚Ì8’¸“_‚ÌƒIƒtƒZƒbƒg
+  // å„ã‚»ãƒ«ã®8é ‚ç‚¹ã®ã‚ªãƒ•ã‚»ãƒƒãƒˆ
   int3 offsets[8] = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0},
                      {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
 
   float sdf[8];
   float3 pos[8];
   float3 norm[8];
-  // Še’¸“_‚ÌSDF’lAˆÊ’uA–@ü‚ğæ“¾iƒZƒ‹“à‚ÌVoxel‚ÍƒZƒ‹‚Ì¶‰º‰œ‚ÌVoxel‚©‚ç‚ÌƒIƒtƒZƒbƒgj
+  // å„é ‚ç‚¹ã®SDFå€¤ã€ä½ç½®ã€æ³•ç·šã‚’å–å¾—ï¼ˆã‚»ãƒ«å†…ã®Voxelã¯ã‚»ãƒ«ã®å·¦ä¸‹å¥¥ã®Voxelã‹ã‚‰ã®ã‚ªãƒ•ã‚»ãƒƒãƒˆï¼‰
   for (int i = 0; i < 8; i++) {
     int vx = cell_x + offsets[i].x;
     int vy = cell_y + offsets[i].y;
@@ -700,7 +700,7 @@ __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
     norm[i] = v.normal;
   }
 
-  // Marching Cubes ‚ÌƒLƒ…[ƒuƒCƒ“ƒfƒbƒNƒX‚ğŒvZiisoLevel=0j
+  // Marching Cubes ã®ã‚­ãƒ¥ãƒ¼ãƒ–ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚’è¨ˆç®—ï¼ˆisoLevel=0ï¼‰
   int cubeIndex = 0;
   if (sdf[0] < 0) cubeIndex |= 1;
   if (sdf[1] < 0) cubeIndex |= 2;
@@ -711,10 +711,10 @@ __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
   if (sdf[6] < 0) cubeIndex |= 64;
   if (sdf[7] < 0) cubeIndex |= 128;
 
-  // Œğ·‚ª‚È‚¯‚ê‚Îˆ—‚µ‚È‚¢
+  // äº¤å·®ãŒãªã‘ã‚Œã°å‡¦ç†ã—ãªã„
   if (d_edgeTable[cubeIndex] == 0) return;
 
-  // ŠeƒGƒbƒW‚Å‚ÌŒğ·“_‚Æ–@ü‚ğŒvZ‚·‚é‚½‚ß‚Ì•â•ƒ‰ƒ€ƒ_
+  // å„ã‚¨ãƒƒã‚¸ã§ã®äº¤å·®ç‚¹ã¨æ³•ç·šã‚’è¨ˆç®—ã™ã‚‹ãŸã‚ã®è£œåŠ©ãƒ©ãƒ ãƒ€
   float3 edgeVertex[12];
   float3 edgeNormal[12];
   auto vertexInterp = [&](int edge, int a, int b) {
@@ -736,7 +736,7 @@ __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
   if (d_edgeTable[cubeIndex] & 1024) vertexInterp(10, 2, 6);
   if (d_edgeTable[cubeIndex] & 2048) vertexInterp(11, 3, 7);
 
-  // triTable ‚ğQÆ‚µ‚ÄOŠpŒ`‚ğ¶¬
+  // triTable ã‚’å‚ç…§ã—ã¦ä¸‰è§’å½¢ã‚’ç”Ÿæˆ
   for (int i = 0; d_triTable[cubeIndex][i] != -1; i += 3) {
     float3 v0 = edgeVertex[d_triTable[cubeIndex][i]];
     float3 v1 = edgeVertex[d_triTable[cubeIndex][i + 1]];
@@ -773,20 +773,20 @@ __global__ void InitVoxelsNaive(VoxelCudaNaive* voxels, size_t n,
 __global__ void MarchingCubesKernelNaive(
     const VoxelCudaNaive* __restrict__ voxels, float3 bb_min, float3 resolution,
     int3 voxel_num, float weight,
-    float3* __restrict__ out_vertices,  // OŠpŒ`’¸“_ƒoƒbƒtƒ@
-    int* __restrict__ out_counter       // Œ´q‚Å‘‰Á‚³‚¹‚é’¸“_”
+    float3* __restrict__ out_vertices,  // ä¸‰è§’å½¢é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡
+    int* __restrict__ out_counter       // åŸå­ã§å¢—åŠ ã•ã›ã‚‹é ‚ç‚¹æ•°
 ) {
-  // ŠeƒXƒŒƒbƒh‚ÍuƒZƒ‹vivoxel_num-1 ‚Ì”ÍˆÍj‚ğ’S“–
+  // å„ã‚¹ãƒ¬ãƒƒãƒ‰ã¯ã€Œã‚»ãƒ«ã€ï¼ˆvoxel_num-1 ã®ç¯„å›²ï¼‰ã‚’æ‹…å½“
   int ix = blockIdx.x * blockDim.x + threadIdx.x;
   int iy = blockIdx.y * blockDim.y + threadIdx.y;
   int iz = blockIdx.z * blockDim.z + threadIdx.z;
   if (ix >= voxel_num.x - 1 || iy >= voxel_num.y - 1 || iz >= voxel_num.z - 1)
     return;
 
-  // ƒZƒ‹’¸“_‚ÌŠiqƒCƒ“ƒfƒbƒNƒX
+  // ã‚»ãƒ«é ‚ç‚¹ã®æ ¼å­ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
   int3 base = make_int3(ix, iy, iz);
 
-  // 1) 8 ƒR[ƒi[‚Ì SDF ’l‚ğ“Ç‚İ‚İ
+  // 1) 8 ã‚³ãƒ¼ãƒŠãƒ¼ã® SDF å€¤ã‚’èª­ã¿è¾¼ã¿
   float sdf[8];
 #pragma unroll
   for (int k = 0; k < 8; ++k) {
@@ -802,7 +802,7 @@ __global__ void MarchingCubesKernelNaive(
   }
 
   const float iso_level = 0.0f;
-  // 2) ƒP[ƒXƒCƒ“ƒfƒbƒNƒX‚ğŒvZ
+  // 2) ã‚±ãƒ¼ã‚¹ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚’è¨ˆç®—
   int cubeIndex = 0;
   if (sdf[0] < iso_level) cubeIndex |= 1;
   if (sdf[1] < iso_level) cubeIndex |= 2;
@@ -813,11 +813,11 @@ __global__ void MarchingCubesKernelNaive(
   if (sdf[6] < iso_level) cubeIndex |= 64;
   if (sdf[7] < iso_level) cubeIndex |= 128;
 
-  // —§•û‘Ì‚ªŠ®‘S‚É“à•” or ŠO•”‚È‚ç‰½‚à‚µ‚È‚¢
+  // ç«‹æ–¹ä½“ãŒå®Œå…¨ã«å†…éƒ¨ or å¤–éƒ¨ãªã‚‰ä½•ã‚‚ã—ãªã„
   int edges = d_edgeTable[cubeIndex];
   if (edges == 0) return;
 
-  // 3) 8 ’¸“_‚Ìƒ[ƒ‹ƒhÀ•W‚ğŒvZ
+  // 3) 8 é ‚ç‚¹ã®ãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™ã‚’è¨ˆç®—
   float3 cornerPos[8];
 #pragma unroll
   for (int k = 0; k < 8; ++k) {
@@ -828,7 +828,7 @@ __global__ void MarchingCubesKernelNaive(
     cornerPos[k] = gridPos;
   }
 
-  // 4) ƒGƒbƒWã‚ÌŒğ“_‚ğüŒ`•âŠÔ‚Å‹‚ß‚é
+  // 4) ã‚¨ãƒƒã‚¸ä¸Šã®äº¤ç‚¹ã‚’ç·šå½¢è£œé–“ã§æ±‚ã‚ã‚‹
   float3 vertList[12];
   if (edges & 1)
     vertList[0] = VertexInterp(cornerPos[0], cornerPos[1], sdf[0], sdf[1]);
@@ -855,18 +855,188 @@ __global__ void MarchingCubesKernelNaive(
   if (edges & 2048)
     vertList[11] = VertexInterp(cornerPos[3], cornerPos[7], sdf[3], sdf[7]);
 
-  // 5) triTable ‚ğŒ©‚ÄOŠpŒ`‚ğo—Í
+  // 5) triTable ã‚’è¦‹ã¦ä¸‰è§’å½¢ã‚’å‡ºåŠ›
   for (int t = 0; t < 16; t += 3) {
     int e0 = d_triTable[cubeIndex][t + 0];
     int e1 = d_triTable[cubeIndex][t + 1];
     int e2 = d_triTable[cubeIndex][t + 2];
-    if (e0 < 0) break;  // ƒe[ƒuƒ‹I’[
+    if (e0 < 0) break;  // ãƒ†ãƒ¼ãƒ–ãƒ«çµ‚ç«¯
 
-    // o—Íƒoƒbƒtƒ@‚ÖŒ´q‘€ì‚Å‘‚«‚İ
+    // å‡ºåŠ›ãƒãƒƒãƒ•ã‚¡ã¸åŸå­æ“ä½œã§æ›¸ãè¾¼ã¿
     int triIdx = atomicAdd(out_counter, 3);
     out_vertices[triIdx + 0] = vertList[e0];
     out_vertices[triIdx + 1] = vertList[e1];
     out_vertices[triIdx + 2] = vertList[e2];
+  }
+}
+
+// edgeId: 0ã€œ11 (Marching Cubes ã®ä»•æ§˜æº–æ‹ )
+__device__ int computeEdgeKey(int ix, int iy, int iz, int edgeId, int nx,
+                              int ny, int nz) {
+  int xCount = (nx - 1) * ny * nz;
+  int yCount = nx * (ny - 1) * nz;
+  // zCount = nx*ny*(nz-1)  // ä½¿ã†ã®ã¯å¾Œè¿°ã®ã‚±ãƒ¼ã‚¹
+
+  switch (edgeId) {
+    // --- åº•é¢ (z) ã® X, Y ã‚¨ãƒƒã‚¸ ---
+    case 0:  // corner 0â€“1, X edge at (ix, iy, iz)
+      return ix + iy * (nx - 1) + iz * (nx - 1) * ny;
+    case 1:  // corner 1â€“2, Y edge at (ix+1, iy, iz)
+      return xCount + (ix + 1) + iy * nx + iz * nx * (ny - 1);
+    case 2:  // corner 2â€“3, X edge at (ix, iy+1, iz)
+      return ix + (iy + 1) * (nx - 1) + iz * (nx - 1) * ny;
+    case 3:  // corner 3â€“0, Y edge at (ix, iy, iz)
+      return xCount + ix + iy * nx + iz * nx * (ny - 1);
+
+    // --- ä¸Šé¢ (z+1) ã® X, Y ã‚¨ãƒƒã‚¸ ---
+    case 4:  // corner 4â€“5, X edge at (ix, iy, iz+1)
+      return ix + iy * (nx - 1) + (iz + 1) * (nx - 1) * ny;
+    case 5:  // corner 5â€“6, Y edge at (ix+1, iy, iz+1)
+      return xCount + (ix + 1) + iy * nx + (iz + 1) * nx * (ny - 1);
+    case 6:  // corner 6â€“7, X edge at (ix, iy+1, iz+1)
+      return ix + (iy + 1) * (nx - 1) + (iz + 1) * (nx - 1) * ny;
+    case 7:  // corner 7â€“4, Y edge at (ix, iy, iz+1)
+      return xCount + ix + iy * nx + (iz + 1) * nx * (ny - 1);
+
+    // --- å‚ç›´æ–¹å‘ (Z) ã®ã‚¨ãƒƒã‚¸ ---
+    // Z-edge æ•°ã¯ nx*ny*(nz-1) ã§ã™ãŒã€Yã‚ªãƒ•ã‚»ãƒƒãƒˆã®å¾Œã‚ã«ç¶šãã¨è€ƒãˆã¾ã™ã€‚
+    case 8:  // corner 0â€“4, Z edge at (ix, iy, iz)
+      return xCount + yCount + ix + iy * nx + iz * nx * ny;
+    case 9:  // corner 1â€“5, Z edge at (ix+1, iy, iz)
+      return xCount + yCount + (ix + 1) + iy * nx + iz * nx * ny;
+    case 10:  // corner 2â€“6, Z edge at (ix+1, iy+1, iz)
+      return xCount + yCount + (ix + 1) + (iy + 1) * nx + iz * nx * ny;
+    case 11:  // corner 3â€“7, Z edge at (ix, iy+1, iz)
+      return xCount + yCount + ix + (iy + 1) * nx + iz * nx * ny;
+  }
+  return -1;  // ä¸æ­£ãª edgeId
+}
+
+// Compute cube index based on iso threshold
+__device__ int calcCubeIndex(const VoxelCudaNaive* voxels, int ix, int iy,
+                             int iz, int3 vn, float3 bb_min, float3 res,
+                             float iso_level) {
+  float sdf[8];
+  int ids[8];
+  // offsets for 8 corners
+  const int offs[8][3] = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0},
+                          {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
+  for (int k = 0; k < 8; k++) {
+    int x = ix + offs[k][0];
+    int y = iy + offs[k][1];
+    int z = iz + offs[k][2];
+    int idx = z * vn.y * vn.x + y * vn.x + x;
+    // skip if empty
+    if (voxels[idx].update_num < 1) return -1;
+    sdf[k] = voxels[idx].sdf_sum / float(voxels[idx].update_num);
+  }
+  int cubeIndex = 0;
+  for (int k = 0; k < 8; k++) {
+    if (sdf[k] < iso_level) cubeIndex |= (1 << k);
+  }
+  return cubeIndex;
+}
+
+__device__ const int cornerOffset[8][3] = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0},
+                                           {0, 1, 0}, {0, 0, 1}, {1, 0, 1},
+                                           {1, 1, 1}, {0, 1, 1}};
+
+// edgeId 0ï½11 ã«å¯¾ã—ã¦ã€ã‚¨ãƒƒã‚¸ã‚’æ§‹æˆã™ã‚‹ï¼’ã¤ã®ã‚³ãƒ¼ãƒŠãƒ¼ç•ªå·
+__device__ const int edgeCorners[12][2] = {
+    {0, 1}, {1, 2}, {2, 3}, {3, 0},  // åº•é¢
+    {4, 5}, {5, 6}, {6, 7}, {7, 4},  // ä¸Šé¢
+    {0, 4}, {1, 5}, {2, 6}, {3, 7}   // å‚ç›´ã‚¨ãƒƒã‚¸
+};
+
+__global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
+                                    float3 resolution,
+                                    int3 vn,  // voxel_num
+                                    float iso_level, int* d_edgeVertexIds,
+                                    int* d_vtxCounter, float3* d_vertices) {
+  int ix = blockIdx.x * blockDim.x + threadIdx.x;
+  int iy = blockIdx.y * blockDim.y + threadIdx.y;
+  int iz = blockIdx.z * blockDim.z + threadIdx.z;
+  if (ix >= vn.x - 1 || iy >= vn.y - 1 || iz >= vn.z - 1) return;
+
+  int cubeIndex =
+      calcCubeIndex(voxels, ix, iy, iz, vn, bb_min, resolution, iso_level);
+  if (cubeIndex < 0) return;
+  int edges = d_edgeTable[cubeIndex];
+  if (edges == 0) return;
+
+  // ãƒ™ãƒ¼ã‚¹ã¨ãªã‚‹ flat ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
+  int baseFlat = iz * vn.y * vn.x + iy * vn.x + ix;
+
+  for (int e = 0; e < 12; e++) {
+    if (!(edges & (1 << e))) continue;
+
+    // 1) ã‚¨ãƒƒã‚¸ã‚­ãƒ¼ã‚’è¨ˆç®—ã—ã¦é ‚ç‚¹IDãƒ†ãƒ¼ãƒ–ãƒ«ã‚’äºˆç´„
+    int key = computeEdgeKey(ix, iy, iz, e, vn.x, vn.y, vn.z);
+    int old = atomicCAS(&d_edgeVertexIds[key], -1, 0);
+    if (old != -1) continue;  // æ—¢ã«èª°ã‹ãŒç”Ÿæˆæ¸ˆã¿
+
+    // 2) æ–°ã—ã„é ‚ç‚¹ID ã‚’ç¢ºä¿
+    int vid = atomicAdd(d_vtxCounter, 1);
+    atomicExch(&d_edgeVertexIds[key], vid);
+
+    // 3) ã‚¨ãƒƒã‚¸ã«å¯¾å¿œã™ã‚‹ 2 ã¤ã®ã‚³ãƒ¼ãƒŠãƒ¼ç•ªå·
+    int c0_id = edgeCorners[e][0];
+    int c1_id = edgeCorners[e][1];
+
+    // 4) ãã‚Œãã‚Œã®ã‚³ãƒ¼ãƒŠãƒ¼ã®ã‚°ãƒªãƒƒãƒ‰åº§æ¨™ (gx,gy,gz) ã‚’è¨ˆç®—
+    int gx0 = ix + cornerOffset[c0_id][0];
+    int gy0 = iy + cornerOffset[c0_id][1];
+    int gz0 = iz + cornerOffset[c0_id][2];
+    int gx1 = ix + cornerOffset[c1_id][0];
+    int gy1 = iy + cornerOffset[c1_id][1];
+    int gz1 = iz + cornerOffset[c1_id][2];
+
+    // 5) flat index ã«æˆ»ã™ï¼ˆå¿…è¦ãªã‚‰ä½¿ã‚ãšã«ç›´æ¥ sdf å‚ç…§ã‚‚å¯ï¼‰
+    int flat0 = gz0 * vn.y * vn.x + gy0 * vn.x + gx0;
+    int flat1 = gz1 * vn.y * vn.x + gy1 * vn.x + gx1;
+
+    // 6) å®Ÿãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™ã‚’è¨ˆç®—
+    float3 p1 = make_float3(bb_min.x + gx0 * resolution.x,
+                            bb_min.y + gy0 * resolution.y,
+                            bb_min.z + gz0 * resolution.z);
+    float3 p2 = make_float3(bb_min.x + gx1 * resolution.x,
+                            bb_min.y + gy1 * resolution.y,
+                            bb_min.z + gz1 * resolution.z);
+
+    // 7) SDF å€¤ã‚’å–å¾—
+    float v1 = voxels[flat0].sdf_sum / float(voxels[flat0].update_num);
+    float v2 = voxels[flat1].sdf_sum / float(voxels[flat1].update_num);
+
+    // 8) ç·šå½¢è£œé–“ã§é ‚ç‚¹ä½ç½®ã‚’æ±‚ã‚ã¦æ›¸ãè¾¼ã¿
+    d_vertices[vid] = VertexInterp(p1, p2, v1, v2, iso_level);
+  }
+}
+
+// --- Kernel B: build faces ---
+__global__ void BuildFacesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
+                                 float3 resolution, int3 vn, float iso_level,
+                                 int* d_edgeVertexIds, int* d_idxCounter,
+                                 int* d_faces) {
+  int ix = blockIdx.x * blockDim.x + threadIdx.x;
+  int iy = blockIdx.y * blockDim.y + threadIdx.y;
+  int iz = blockIdx.z * blockDim.z + threadIdx.z;
+  if (ix >= vn.x - 1 || iy >= vn.y - 1 || iz >= vn.z - 1) return;
+  int cubeIndex =
+      calcCubeIndex(voxels, ix, iy, iz, vn, bb_min, resolution, iso_level);
+  if (cubeIndex < 0) return;
+  int* tri = (int*)(&d_triTable[cubeIndex][0]);
+  for (int i = 0; tri[i] != -1; i += 3) {
+    int e0 = tri[i], e1 = tri[i + 1], e2 = tri[i + 2];
+    int k0 = computeEdgeKey(ix, iy, iz, e0, vn.x, vn.y, vn.z);
+    int k1 = computeEdgeKey(ix, iy, iz, e1, vn.x, vn.y, vn.z);
+    int k2 = computeEdgeKey(ix, iy, iz, e2, vn.x, vn.y, vn.z);
+    int v0 = d_edgeVertexIds[k0];
+    int v1 = d_edgeVertexIds[k1];
+    int v2 = d_edgeVertexIds[k2];
+    int idx = atomicAdd(d_idxCounter, 3);
+    d_faces[idx + 0] = v2;
+    d_faces[idx + 1] = v1;
+    d_faces[idx + 2] = v0;
   }
 }
 
@@ -907,7 +1077,7 @@ class VoxelGridCudaHashing::Impl {
  public:
   Impl(){};
 
-  // ƒRƒ“ƒXƒgƒ‰ƒNƒ^FƒnƒbƒVƒ…ƒe[ƒuƒ‹ƒTƒCƒYAVoxelBlock”z—ñ‚ÌÅ‘åŒÂ”Aƒgƒ‰ƒ“ƒP[ƒVƒ‡ƒ“•muA1ƒ{ƒNƒZƒ‹‚Ì‘å‚«‚³‚ğw’è
+  // ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ï¼šãƒãƒƒã‚·ãƒ¥ãƒ†ãƒ¼ãƒ–ãƒ«ã‚µã‚¤ã‚ºã€VoxelBlocké…åˆ—ã®æœ€å¤§å€‹æ•°ã€ãƒˆãƒ©ãƒ³ã‚±ãƒ¼ã‚·ãƒ§ãƒ³å¹…muã€1ãƒœã‚¯ã‚»ãƒ«ã®å¤§ãã•ã‚’æŒ‡å®š
   Impl(int hashTableSize, int voxelBlockCount, float mu, float voxelSize)
       : m_hashTableSize(hashTableSize),
         m_voxelBlockCount(voxelBlockCount),
@@ -916,21 +1086,21 @@ class VoxelGridCudaHashing::Impl {
         d_hashTable(nullptr),
         d_voxelBlocks(nullptr),
         d_globalVoxelBlockCounter(nullptr) {
-    // GPUã‚ÉŠeƒf[ƒ^\‘¢‚ğŠm•Û
+    // GPUä¸Šã«å„ãƒ‡ãƒ¼ã‚¿æ§‹é€ ã‚’ç¢ºä¿
     cudaMalloc(&d_hashTable, m_hashTableSize * sizeof(HashEntry));
     cudaMalloc(&d_voxelBlocks, m_voxelBlockCount * sizeof(VoxelBlock));
     cudaMalloc(&d_globalVoxelBlockCounter, sizeof(int));
 
-    // ƒnƒbƒVƒ…ƒe[ƒuƒ‹‰Šú‰»iptr‚ğ -1 ‚Éİ’èj
+    // ãƒãƒƒã‚·ãƒ¥ãƒ†ãƒ¼ãƒ–ãƒ«åˆæœŸåŒ–ï¼ˆptrã‚’ -1 ã«è¨­å®šï¼‰
     {
       int threads = 256;
       int blocks = (m_hashTableSize + threads - 1) / threads;
       initHashTable<<<blocks, threads>>>(d_hashTable, m_hashTableSize);
     }
-    // ƒOƒ[ƒoƒ‹ƒJƒEƒ“ƒ^[‰Šú‰»
+    // ã‚°ãƒ­ãƒ¼ãƒãƒ«ã‚«ã‚¦ãƒ³ã‚¿ãƒ¼åˆæœŸåŒ–
     cudaMemset(d_globalVoxelBlockCounter, 0, sizeof(int));
 
-    // ¦ •K—v‚É‰‚¶‚ÄVoxelBlock‚Ì‰Šú‰»ƒJ[ƒlƒ‹‚ğ’Ç‰Á‚µ‚Ä‚­‚¾‚³‚¢
+    // â€» å¿…è¦ã«å¿œã˜ã¦VoxelBlockã®åˆæœŸåŒ–ã‚«ãƒ¼ãƒãƒ«ã‚’è¿½åŠ ã—ã¦ãã ã•ã„
     {
       int threads = 256;
       int blocks = (m_voxelBlockCount + threads - 1) / threads;
@@ -955,7 +1125,6 @@ class VoxelGridCudaHashing::Impl {
 
   //}
 
-  // fusePointCloud(): “_ŒQ‚Æ–@üî•ñ‚©‚çSDFƒtƒ…[ƒWƒ‡ƒ“‚ğÀsi30FPS‚ğ‘z’èj
   void FusePointCloud(const float3* d_points, const float3* d_normals,
                       int num_points, bool sync) {
     int threads = 256;
@@ -975,8 +1144,6 @@ class VoxelGridCudaHashing::Impl {
     int threads = 256;
     int blocks = (totalPixels + threads - 1) / threads;
 
-    // Host‚Ìwidth, height, num_images‚ğg‚Á‚Ä‚é‚©‚ç“{‚ç‚ê‚é
-
     fuseOrganizedPointCloudMultiKernelHashing<<<blocks, threads>>>(
         d_points, d_normals, width, height, num_images, d_hashTable,
         m_hashTableSize, d_voxelBlocks, d_globalVoxelBlockCounter, m_mu,
@@ -987,18 +1154,18 @@ class VoxelGridCudaHashing::Impl {
     }
   }
 
-  // generateMesh(): Marching Cubes‚É‚æ‚èƒƒbƒVƒ…¶¬‚ğs‚¤ŠÖ”
-  // connected ‚ª true
-  // ‚Ìê‡AƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ğ¶¬iŠeOŠpŒ`‚Í“Æ—§’¸“_‚Å‚·‚ªAƒCƒ“ƒfƒbƒNƒX‚ÅÚ‘±‚µ‚½ó‘Ô‚Æ‚·‚éj
+  // generateMesh(): Marching Cubesã«ã‚ˆã‚Šãƒ¡ãƒƒã‚·ãƒ¥ç”Ÿæˆã‚’è¡Œã†é–¢æ•°
+  // connected ãŒ true
+  // ã®å ´åˆã€ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã‚’ç”Ÿæˆï¼ˆå„ä¸‰è§’å½¢ã¯ç‹¬ç«‹é ‚ç‚¹ã§ã™ãŒã€ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã§æ¥ç¶šã—ãŸçŠ¶æ…‹ã¨ã™ã‚‹ï¼‰
   void GenerateMesh(MeshHostDevice& mesh, bool connected) {
-    // ƒfƒoƒCƒXã‚ÉŠ„‚è“–‚Ä‚ç‚ê‚½VoxelBlock”i—LŒø‚ÈƒuƒƒbƒN”j‚ğæ“¾
+    // ãƒ‡ãƒã‚¤ã‚¹ä¸Šã«å‰²ã‚Šå½“ã¦ã‚‰ã‚ŒãŸVoxelBlockæ•°ï¼ˆæœ‰åŠ¹ãªãƒ–ãƒ­ãƒƒã‚¯æ•°ï¼‰ã‚’å–å¾—
     int validBlockCount;
     cudaMemcpy(&validBlockCount, d_globalVoxelBlockCounter, sizeof(int),
                cudaMemcpyDeviceToHost);
 
     int cellsPerBlock = (BLOCK_SIZE - 1) * (BLOCK_SIZE - 1) * (BLOCK_SIZE - 1);
     int totalCells = validBlockCount * cellsPerBlock;
-    // ŠeƒZƒ‹‚©‚çÅ‘å5ŒÂ‚ÌOŠpŒ`‚ª¶¬‚³‚ê‚é‚Æ‰¼’èiworst-casej
+    // å„ã‚»ãƒ«ã‹ã‚‰æœ€å¤§5å€‹ã®ä¸‰è§’å½¢ãŒç”Ÿæˆã•ã‚Œã‚‹ã¨ä»®å®šï¼ˆworst-caseï¼‰
     int current_max_triangles = validBlockCount * cellsPerBlock * 5;
     int current_max_vertices = current_max_triangles * 3;
 
@@ -1033,7 +1200,7 @@ class VoxelGridCudaHashing::Impl {
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
-    // o—Í’¸“_”‚ğæ“¾
+    // å‡ºåŠ›é ‚ç‚¹æ•°ã‚’å–å¾—
     int h_vertexCount;
     cudaMemcpy(&h_vertexCount, d_vertexCount, sizeof(int),
                cudaMemcpyDeviceToHost);
@@ -1054,8 +1221,8 @@ class VoxelGridCudaHashing::Impl {
     }
   }
 
-  // ¦
-  // ‚±‚±‚ÉAƒƒbƒVƒ…‚ÌƒŠƒZƒbƒg‚âƒzƒXƒg‘¤‚Ö‚Ì“]‘—ˆ—“™A•K—v‚ÈŠÖ”‚ğ’Ç‰Á‚µ‚Ä‚­‚¾‚³‚¢
+  // â€»
+  // ã“ã“ã«ã€ãƒ¡ãƒƒã‚·ãƒ¥ã®ãƒªã‚»ãƒƒãƒˆã‚„ãƒ›ã‚¹ãƒˆå´ã¸ã®è»¢é€å‡¦ç†ç­‰ã€å¿…è¦ãªé–¢æ•°ã‚’è¿½åŠ ã—ã¦ãã ã•ã„
 
  private:
   int m_hashTableSize;
@@ -1125,9 +1292,19 @@ class VoxelGridCudaNaive::Impl {
       cudaFree(d_vertices);
       d_vertices = nullptr;
     }
-    if (d_counter != nullptr) {
-      cudaFree(d_counter);
-      d_counter = nullptr;
+    if (d_vtxCounter != nullptr) {
+      cudaFree(d_vtxCounter);
+      d_vtxCounter = nullptr;
+    }
+
+    if (d_faces != nullptr) {
+      cudaFree(d_faces);
+      d_faces = nullptr;
+    }
+
+    if (d_idxCounter != nullptr) {
+      cudaFree(d_idxCounter);
+      d_idxCounter = nullptr;
     }
   }
   bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
@@ -1168,10 +1345,6 @@ class VoxelGridCudaNaive::Impl {
 
     const int threads = 256;
     int blocks = (total_voxel_num + threads - 1) / threads;
-    // InitVoxelsNaive<<<blocks, threads>>>(d_voxels_, total_voxel_num,
-    //                                      FLT_MAX);
-    // checkCudaErrors(cudaGetLastError());
-    // checkCudaErrors(cudaDeviceSynchronize());
 
     // Zero fill
     cudaMemset(d_voxels_, 0, sizeof(VoxelCudaNaive) * total_voxel_num);
@@ -1182,8 +1355,30 @@ class VoxelGridCudaNaive::Impl {
 
     cudaMalloc(&d_vertices, sizeof(float3) * maxTris * 3);
     cudaMemset(d_vertices, 0, sizeof(float3) * maxTris * 3);
-    cudaMalloc(&d_counter, sizeof(int));
-    cudaMemset(d_counter, 0, sizeof(int));
+    cudaMalloc(&d_vtxCounter, sizeof(int));
+    cudaMemset(d_vtxCounter, 0, sizeof(int));
+
+    // ã‚°ãƒªãƒƒãƒ‰ã®ã‚µã‚¤ã‚º
+    int nx = voxel_num_.x;
+    int ny = voxel_num_.y;
+    int nz = voxel_num_.z;
+
+    // å„æ–¹å‘ã®ã‚¨ãƒƒã‚¸æ•°
+    int xCount = (nx - 1) * ny * nz;  // X æ–¹å‘ã‚¨ãƒƒã‚¸
+    int yCount = nx * (ny - 1) * nz;  // Y æ–¹å‘ã‚¨ãƒƒã‚¸
+    int zCount = nx * ny * (nz - 1);  // Z æ–¹å‘ã‚¨ãƒƒã‚¸
+
+    // å…¨ã‚¨ãƒƒã‚¸æ•°
+    numEdges = xCount + yCount + zCount;
+
+    cudaMalloc(&d_edgeVertexIds, sizeof(int) * numEdges);
+    cudaMemset(d_edgeVertexIds, -1, sizeof(int) * numEdges);
+
+    // Face buffer and counter
+    int maxF = totalCells * 15;
+    cudaMalloc(&d_faces, sizeof(int) * maxF);
+    cudaMalloc(&d_idxCounter, sizeof(int));
+    cudaMemset(d_idxCounter, 0, sizeof(int));
 
     return true;
   }
@@ -1206,10 +1401,12 @@ class VoxelGridCudaNaive::Impl {
     }
   }
 
-  void ExtractMesh(Mesh& mesh, bool connected = true) {
+  void ExtractMesh(std::vector<Eigen::Vector3f>& vertices,
+                   std::vector<Eigen::Vector3i>& faces) {
+#if 0
     cudaMemset(d_counter, 0, sizeof(int));
 
-    // ƒOƒŠƒbƒh^ƒuƒƒbƒNİ’è
+    // ã‚°ãƒªãƒƒãƒ‰ï¼ãƒ–ãƒ­ãƒƒã‚¯è¨­å®š
     dim3 block(8, 8, 8);
     dim3 grid((voxel_num_.x - 1 + block.x - 1) / block.x,
               (voxel_num_.y - 1 + block.y - 1) / block.y,
@@ -1240,19 +1437,75 @@ class VoxelGridCudaNaive::Impl {
 
     int triCount = h_vcount / 3;
 
-    // 4) ƒtƒFƒCƒXƒŠƒXƒg‚ğì¬iEigen::Vector3i ‚Ìê‡j
+    // 4) ãƒ•ã‚§ã‚¤ã‚¹ãƒªã‚¹ãƒˆã‚’ä½œæˆï¼ˆEigen::Vector3i ã®å ´åˆï¼‰
     std::vector<Eigen::Vector3i> faces;
     faces.reserve(triCount);
     for (int i = 0; i < triCount; ++i) {
-      // ’¸“_ƒŠƒXƒgã‚Å (3*i, 3*i+1, 3*i+2) ‚ªˆê‚Â‚ÌOŠpŒ`
+      // é ‚ç‚¹ãƒªã‚¹ãƒˆä¸Šã§ (3*i, 3*i+1, 3*i+2) ãŒä¸€ã¤ã®ä¸‰è§’å½¢
       faces.emplace_back(3 * i + 0, 3 * i + 1, 3 * i + 2);
     }
 
     mesh.set_vertices(vertices);
     mesh.set_vertex_indices(faces);
+#endif
+
+    cudaMemset(d_vtxCounter, 0, sizeof(int));
+    cudaMemset(d_edgeVertexIds, -1, sizeof(int) * numEdges);
+    cudaMemset(d_idxCounter, 0, sizeof(int));
+
+    dim3 block(8, 8, 8);
+    dim3 grid((voxel_num_.x + block.x - 1) / block.x,
+              (voxel_num_.y + block.y - 1) / block.y,
+              (voxel_num_.z + block.z - 1) / block.z);
+
+    // Launch kernels
+    float iso_level = 0.f;
+    BuildVerticesKernel<<<grid, block>>>(d_voxels_, bb_min_, resolution_,
+                                         voxel_num_, iso_level, d_edgeVertexIds,
+                                         d_vtxCounter, d_vertices);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+
+    BuildFacesKernel<<<grid, block>>>(d_voxels_, bb_min_, resolution_,
+                                      voxel_num_, iso_level, d_edgeVertexIds,
+                                      d_idxCounter, d_faces);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+
+    // Copy counts
+    int h_vcount = 0, h_icount = 0;
+    cudaMemcpy(&h_vcount, d_vtxCounter, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&h_icount, d_idxCounter, sizeof(int), cudaMemcpyDeviceToHost);
+
+    // Copy data back
+    std::vector<float3> h_vertices;
+    h_vertices.resize(h_vcount);
+    cudaMemcpy(h_vertices.data(), d_vertices, sizeof(float3) * h_vcount,
+               cudaMemcpyDeviceToHost);
+
+    vertices.resize(h_vcount);
+    for (int i = 0; i < h_vcount; ++i) {
+      vertices[i] =
+          Eigen::Vector3f(h_vertices[i].x, h_vertices[i].y, h_vertices[i].z);
+    }
+
+    int faceCount = h_icount / 3;
+    faces.resize(faceCount);
+    std::vector<int> tmp(h_icount);
+    cudaMemcpy(tmp.data(), d_faces, sizeof(int) * h_icount,
+               cudaMemcpyDeviceToHost);
+    for (int i = 0; i < faceCount; i++) {
+      faces[i] =
+          Eigen::Vector3i(tmp[3 * i + 0], tmp[3 * i + 1], tmp[3 * i + 2]);
+    }
   }
 
   void ReadToCpu(ugu::VoxelGrid& grid_cpu) const {
+    // NOTE:
+    // CPU version has resultion * 0.5 offset for both voxel definition and
+    // marchingcubes. So the extracted mesh by CPU shows some shift from GPU
+    // one.
+
     std::vector<VoxelCudaNaive> voxels_cpu(voxel_num_.x * voxel_num_.y *
                                            voxel_num_.z);
     cudaMemcpy(
@@ -1276,8 +1529,12 @@ class VoxelGridCudaNaive::Impl {
  private:
   VoxelCudaNaive* d_voxels_{nullptr};
   float3* d_vertices{nullptr};
-  int* d_counter{nullptr};
+  int* d_vtxCounter{nullptr};
+  int* d_faces{nullptr};
+  int* d_idxCounter{nullptr};
+  int* d_edgeVertexIds{nullptr};
 
+  int numEdges;
   float3 bb_max_;
   float3 bb_min_;
   // Eigen::Vector3f resolution_{-1.f, -1.f, -1.f};
@@ -1316,8 +1573,9 @@ void VoxelGridCudaNaive::FusePointCloudMulti(const float* d_points,
       sync);
 }
 
-void VoxelGridCudaNaive::ExtractMesh(Mesh& mesh, bool connected) {
-  impl_->ExtractMesh(mesh, connected);
+void VoxelGridCudaNaive::ExtractMesh(std::vector<Eigen::Vector3f>& vertices,
+                                   std::vector<Eigen::Vector3i>& faces) {
+  impl_->ExtractMesh(vertices, faces);
 }
 
 void VoxelGridCudaNaive::ReadToCpu(ugu::VoxelGrid& grid_cpu) const {

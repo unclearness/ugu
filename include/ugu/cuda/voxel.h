@@ -74,7 +74,8 @@ class VoxelGridCudaNaive {
                            int width, int height, int num_images,
                            bool sync = true);
 
-  void ExtractMesh(Mesh& mesh, bool connected = true);
+  void ExtractMesh(std::vector<Eigen::Vector3f>& vertices,
+                   std::vector<Eigen::Vector3i>& faces);
   
   void ReadToCpu(ugu::VoxelGrid& grid_cpu) const;
 
