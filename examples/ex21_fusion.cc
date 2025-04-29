@@ -114,7 +114,7 @@ int main(int argc, char* argv[]) {
 
     Eigen::Affine3d c2w = (Eigen::Translation3f(pos) * R).cast<double>();
     ugu::PinholeCameraPtr camera =
-        std::make_shared<ugu::PinholeCamera>(160, 120, fov_y_deg);
+        std::make_shared<ugu::PinholeCamera>(640, 480, fov_y_deg);
     renderer->set_camera(camera);
     camera->set_c2w(c2w);
 
@@ -215,15 +215,13 @@ int main(int argc, char* argv[]) {
     ugu::VoxelGridCudaNaive voxel_grid_naive;
     Eigen::Vector3f resolution(10.f, 10.f, 10.f);
     Eigen::Vector3f offset = resolution * 2;
-    //voxel_grid.Init(combined->stats().bb_max + offset,
-    //                combined->stats().bb_min - offset, resolution);
     ugu::VoxelUpdateOption option =
         ugu::GenFuseDepthDefaultOption(resolution.minCoeff());
 
     voxel_grid_naive.Init(
         combined->stats().bb_max + offset,
         combined->stats().bb_min - offset,
-        resolution, option.truncation_band, 5);
+        resolution, option.truncation_band, 2);
 
     timer.Start();
     voxel_grid_naive.FusePointCloudMulti(normal_computer.get_d_points(),
@@ -255,19 +253,6 @@ int main(int argc, char* argv[]) {
     out_mesh.set_default_material();
     out_mesh.CalcNormal();
     out_mesh.WriteObj("cpu_mc.obj");
-
-
-    //ugu::VoxelGridCudaHashing voxel_grid;
-    //voxel_grid.Init(1000000, 10000, 1.f * 7, 1.f);
-    //
-    //voxel_grid.FuseOrganizedPointCloudMulti(normal_computer.get_d_points(),
-    //                                        normal_computer.get_d_normals(),
-    //                                        width, height, num_images, true);
-
-    //ugu::MeshHostDevice mesh;
-    //voxel_grid.GenerateMesh(mesh);
-    
-    //return 0;
   }
   
 #endif
