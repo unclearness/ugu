@@ -235,6 +235,8 @@ int main(int argc, char* argv[]) {
     ugu::VoxelGridCudaNaiveFuseOption fusion_option;
     fusion_option.set_default_truncation_band_from_resolution(
         resolution.minCoeff());
+    fusion_option.sample_num = 3;
+    fusion_option.nn_range = 1;
     timer.Start();
     voxel_grid_naive.FusePointCloudMulti(
         normal_computer.GetPointsGpu(), normal_computer.GetNormalsGpu(), width,
@@ -269,8 +271,50 @@ int main(int argc, char* argv[]) {
     out_mesh.set_default_material();
     out_mesh.CalcNormal();
     out_mesh.WriteObj("cpu_mc.obj");
-  }
 
+    {
+      ugu::VoxelGridCudaNaive voxel_grid_naive2;
+      voxel_grid_naive2.Init(combined->stats().bb_max + offset,
+                             combined->stats().bb_min - offset, resolution);
+
+      timer.Start();
+      voxel_grid_naive2.FuseDepthMulti(
+          h_depths_pinned, width, height, num_images, h_fx_vec.data(),
+          h_fy_vec.data(), h_cx_vec.data(), h_cy_vec.data(), h_R_vec.data(),
+          h_t_vec.data(), fusion_option, true);
+      timer.End();
+      std::cout << "FuseDepthMulti  " << timer.elapsed_msec() << " ms"
+                << std::endl;
+
+      ugu::Mesh out_mesh;
+      std::vector<Eigen::Vector3f> vertices;
+      std::vector<Eigen::Vector3i> faces;
+      timer.Start();
+      voxel_grid_naive2.ExtractMesh();
+      timer.End();
+      std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms"
+                << std::endl;
+      timer.Start();
+      voxel_grid_naive2.GetExtractMeshCpu(vertices, faces);
+      timer.End();
+      std::cout << "GetExtractMeshCpu  " << timer.elapsed_msec() << " ms"
+                << std::endl;
+      out_mesh.set_vertices(vertices);
+      out_mesh.set_vertex_indices(faces);
+      out_mesh.set_default_material();
+      out_mesh.CalcNormal();
+      out_mesh.WriteObj("cuda_mc2.obj");
+
+      ugu::VoxelGrid voxel_grid_cpu;
+      voxel_grid_cpu.Init(combined->stats().bb_max + offset,
+                          combined->stats().bb_min - offset, resolution);
+      voxel_grid_naive2.GetVoxelGridCpu(voxel_grid_cpu);
+      ugu::MarchingCubes(voxel_grid_cpu, &out_mesh);
+      out_mesh.set_default_material();
+      out_mesh.CalcNormal();
+      out_mesh.WriteObj("cpu_mc2.obj");
+    }
+  }
 #endif
 
   {

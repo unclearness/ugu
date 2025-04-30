@@ -7,6 +7,19 @@
 #include "ugu/util/image_util.h"
 
 namespace {
+
+#define MAX_IMAGES 32
+
+// カメラパラメータ（画像ごとに異なるが枚数は少ないと仮定）
+__constant__ float d_fx[MAX_IMAGES];
+__constant__ float d_fy[MAX_IMAGES];
+__constant__ float d_cx[MAX_IMAGES];
+__constant__ float d_cy[MAX_IMAGES];
+
+// camera to world tranformation
+__constant__ float d_R[MAX_IMAGES * 9];
+__constant__ float d_t[MAX_IMAGES * 3];
+
 // 定数
 #define BLOCK_SIZE 8  // 各VoxelBlockは BLOCK_SIZE^3 個のVoxelを持つ
 
@@ -664,6 +677,201 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
         sign = -1.f;
       }
       float dist = sqrtf(dot(diff, diff)) * sign;
+#
+      if (dist >= -truncation_band) {
+        dist = fminf(1.0f, dist / truncation_band);
+      } else {
+        continue;
+      }
+
+      VoxelCudaNaive* voxel = &d_voxel_[x_index + y_index * voxel_num.x +
+                                        z_index * voxel_num.x * voxel_num.y];
+
+      atomicAdd(&voxel->sdf_sum, dist * weight);
+      atomicAdd(&voxel->update_num, 1);
+    }
+  }
+}
+
+__global__ void FuseDepthMultiKernelNaive(const float* d_depth, int width,
+                                          int height, int num_images,
+                                          VoxelCudaNaive* d_voxel_,
+                                          float3 voxel_size, float3 bb_max,
+                                          float3 bb_min, int3 voxel_num,
+                                          float truncation_band, float weight,
+                                          int sample_num, int nn_range) {
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
+  int n = blockIdx.z * blockDim.z + threadIdx.z;
+
+  if (n >= num_images || x < 0 || y < 0 || x >= width || y >= height) {
+    return;
+  }
+
+  int idx = n * width * height + y * width + x;
+  int totalPixels = width * height * num_images;
+  if (idx >= totalPixels) {
+    return;
+  }
+
+  float d = d_depth[idx];
+
+  if (d <= 0) {
+    return;
+  }
+
+  float u = (float)x;
+  float v = (float)y;
+
+  float fx_val = d_fx[n];
+  float fy_val = d_fy[n];
+  float cx_val = d_cx[n];
+  float cy_val = d_cy[n];
+
+  float inv_fx = 1.0f / fx_val;
+  float inv_fy = 1.0f / fy_val;
+
+  float X = (u - cx_val) * d * inv_fx;
+  float Y = (v - cy_val) * d * inv_fy;
+  float Z = d;
+
+  const float* R = &d_R[n * 9];
+  const float* t = &d_t[n * 3];
+
+  float R_inv[9];
+  float t_inv[3];
+
+  // Inverse rotation matrix
+  R_inv[0] = R[0];
+  R_inv[1] = R[3];
+  R_inv[2] = R[6];
+  R_inv[3] = R[1];
+  R_inv[4] = R[4];
+  R_inv[5] = R[7];
+  R_inv[6] = R[2];
+  R_inv[7] = R[5];
+  R_inv[8] = R[8];
+  // Inverse translation vector
+  // t_inv[0] = -(R_inv[0] * t[0] + R_inv[1] * t[1] + R_inv[2] * t[2]);
+  // t_inv[1] = -(R_inv[3] * t[0] + R_inv[4] * t[1] + R_inv[5] * t[2]);
+  t_inv[2] = -(R_inv[6] * t[0] + R_inv[7] * t[1] + R_inv[8] * t[2]);
+
+  // camera to world
+  float3 pt;
+  pt.x = R[0] * X + R[1] * Y + R[2] * Z + t[0];
+  pt.y = R[3] * X + R[4] * Y + R[5] * Z + t[1];
+  pt.z = R[6] * X + R[7] * Y + R[8] * Z + t[2];
+
+  // Use reverse ray as pseudo normal
+  float3 ray = normalize(make_float3(X, Y, Z));
+  float3 pseudo_normal;
+  pseudo_normal.x = R[0] * ray.x + R[1] * ray.y + R[2] * ray.z;
+  pseudo_normal.y = R[3] * ray.x + R[4] * ray.y + R[5] * ray.z;
+  pseudo_normal.z = R[6] * ray.x + R[7] * ray.y + R[8] * ray.z;
+  pseudo_normal.x = -pseudo_normal.x;
+  pseudo_normal.y = -pseudo_normal.y;
+  pseudo_normal.z = -pseudo_normal.z;
+
+  if (0 < nn_range) {
+    float3 diff = pt - bb_min;
+    int x_index_ = floorf(diff.x / voxel_size.x);
+    int y_index_ = floorf(diff.y / voxel_size.y);
+    int z_index_ = floorf(diff.z / voxel_size.z);
+    for (int z = -nn_range; z <= nn_range; z++) {
+      int z_index = z_index_ + z;
+      if (z_index < 0 || voxel_num.z - 1 < z_index) {
+        continue;
+      }
+      for (int y = -nn_range; y <= nn_range; y++) {
+        int y_index = y_index_ + y;
+        if (y_index < 0 || voxel_num.y - 1 < y_index) {
+          continue;
+        }
+        for (int x = -nn_range; x <= nn_range; x++) {
+          int x_index = x_index_ + x;
+          if (x_index < 0 || voxel_num.x - 1 < x_index) {
+            continue;
+          }
+
+          float3 voxel_pos;
+          voxel_pos.x = bb_min.x + x_index * voxel_size.x;
+          voxel_pos.y = bb_min.y + y_index * voxel_size.y;
+          voxel_pos.z = bb_min.z + z_index * voxel_size.z;
+
+          // Distance from the voxel center to the point
+          float3 diff = voxel_pos - pt;
+          float sign = 1.f;
+          float voxel_z_cam = voxel_pos.x * R_inv[6] + voxel_pos.y * R_inv[7] +
+                              voxel_pos.z * R_inv[8] + t_inv[2];
+          if (Z < voxel_z_cam) {
+            sign = -1.f;
+          }
+          // float d_dot_n = dot(diff, pseudo_normal);
+          // if (d_dot_n < 0) {
+          //   sign = -1.f;
+          // }
+          float dist = sqrtf(dot(diff, diff)) * sign;
+
+          if (dist >= -truncation_band) {
+            dist = fminf(1.0f, dist / truncation_band);
+          } else {
+            continue;
+          }
+
+          VoxelCudaNaive* voxel =
+              &d_voxel_[x_index + y_index * voxel_num.x +
+                        z_index * voxel_num.x * voxel_num.y];
+
+          atomicAdd(&voxel->sdf_sum, dist * weight);
+          atomicAdd(&voxel->update_num, 1);
+        }
+      }
+    }
+  }
+
+  if (0 < sample_num) {
+    for (int k = -sample_num; k < sample_num + 1; k++) {
+      float3 offset;
+      offset.x = k * voxel_size.x * pseudo_normal.x;
+      offset.y = k * voxel_size.y * pseudo_normal.y;
+      offset.z = k * voxel_size.z * pseudo_normal.z;
+
+      float3 ray_pos = pt + offset;
+      if (ray_pos.x < bb_min.x || ray_pos.x > bb_max.x ||
+          ray_pos.y < bb_min.y || ray_pos.y > bb_max.y ||
+          ray_pos.z < bb_min.z || ray_pos.z > bb_max.z) {
+        continue;
+      }
+
+      float3 ray_diff = ray_pos - bb_min;
+      int x_index = floorf(ray_diff.x / voxel_size.x);
+      int y_index = floorf(ray_diff.y / voxel_size.y);
+      int z_index = floorf(ray_diff.z / voxel_size.z);
+
+      if (x_index < 0 || voxel_num.x - 1 < x_index || y_index < 0 ||
+          voxel_num.y - 1 < y_index || z_index < 0 ||
+          voxel_num.z - 1 < z_index) {
+        continue;
+      }
+
+      float3 voxel_pos;
+      voxel_pos.x = bb_min.x + x_index * voxel_size.x;
+      voxel_pos.y = bb_min.y + y_index * voxel_size.y;
+      voxel_pos.z = bb_min.z + z_index * voxel_size.z;
+
+      // Distance from the voxel center to the point
+      float3 diff = voxel_pos - pt;
+      float sign = 1.f;
+      // float d_dot_n = dot(diff, pseudo_normal);
+      // if (d_dot_n < 0) {
+      //   sign = -1.f;
+      // }
+      float voxel_z_cam = voxel_pos.x * R_inv[6] + voxel_pos.y * R_inv[7] +
+                          voxel_pos.z * R_inv[8] + t_inv[2];
+      if (Z < voxel_z_cam) {
+        sign = -1.f;
+      }
+      float dist = sqrtf(dot(diff, diff)) * sign;
 
       if (dist >= -truncation_band) {
         dist = fminf(1.0f, dist / truncation_band);
@@ -990,7 +1198,8 @@ __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
                                     float3 resolution,
                                     int3 vn,  // voxel_num
                                     float iso_level, int* d_edgeVertexIds,
-                                    int* d_vtxCounter, float3* d_vertices) {
+                                    int* d_vtxCounter, float3* d_vertices,
+                                    float weight) {
   int ix = blockIdx.x * blockDim.x + threadIdx.x;
   int iy = blockIdx.y * blockDim.y + threadIdx.y;
   int iz = blockIdx.z * blockDim.z + threadIdx.z;
@@ -1042,8 +1251,8 @@ __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
                             bb_min.z + gz1 * resolution.z);
 
     // 7) SDF 値を取得
-    float v1 = voxels[flat0].sdf_sum / float(voxels[flat0].update_num);
-    float v2 = voxels[flat1].sdf_sum / float(voxels[flat1].update_num);
+    float v1 = voxels[flat0].sdf_sum / float(voxels[flat0].update_num * weight);
+    float v2 = voxels[flat1].sdf_sum / float(voxels[flat1].update_num * weight);
 
     // 8) 線形補間で頂点位置を求めて書き込み
     d_vertices[vid] = VertexInterp(p1, p2, v1, v2, iso_level);
@@ -1321,30 +1530,7 @@ void VoxelGridCudaHashing::GenerateMesh(MeshHostDevice& mesh, bool connected) {
 class VoxelGridCudaNaive::Impl {
  public:
   Impl() {}
-  ~Impl() {
-    if (d_voxels_ != nullptr) {
-      cudaFree(d_voxels_);
-      d_voxels_ = nullptr;
-    }
-    if (d_vertices != nullptr) {
-      cudaFree(d_vertices);
-      d_vertices = nullptr;
-    }
-    if (d_vtxCounter != nullptr) {
-      cudaFree(d_vtxCounter);
-      d_vtxCounter = nullptr;
-    }
-
-    if (d_faces != nullptr) {
-      cudaFree(d_faces);
-      d_faces = nullptr;
-    }
-
-    if (d_idxCounter != nullptr) {
-      cudaFree(d_idxCounter);
-      d_idxCounter = nullptr;
-    }
-  }
+  ~Impl() { Free(); }
   bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
             float resolution) {
     return Init(bb_max, bb_min, Eigen::Vector3f::Constant(resolution));
@@ -1368,15 +1554,10 @@ class VoxelGridCudaNaive::Impl {
     voxel_num_.y = static_cast<int>((bb_max_.y - bb_min_.y) / resolution_.y);
     voxel_num_.z = static_cast<int>((bb_max_.z - bb_min_.z) / resolution_.z);
 
-    int total_voxel_num = voxel_num_.x * voxel_num_.y * voxel_num_.z;
-    if (d_voxels_ != nullptr) {
-      cudaFree(d_voxels_);
-      d_voxels_ = nullptr;
-    }
-    cudaMalloc(&d_voxels_, total_voxel_num * sizeof(VoxelCudaNaive));
+    Free();
 
-    const int threads = 256;
-    int blocks = (total_voxel_num + threads - 1) / threads;
+    int total_voxel_num = voxel_num_.x * voxel_num_.y * voxel_num_.z;
+    cudaMalloc(&d_voxels_, total_voxel_num * sizeof(VoxelCudaNaive));
 
     // Zero fill
     cudaMemset(d_voxels_, 0, sizeof(VoxelCudaNaive) * total_voxel_num);
@@ -1420,6 +1601,7 @@ class VoxelGridCudaNaive::Impl {
                                     int height, int num_images,
                                     const VoxelGridCudaNaiveFuseOption& option,
                                     bool sync = true) {
+    option_ = option;
     int totalPixels = width * height * num_images;
     int threads = 256;
     int blocks = (totalPixels + threads - 1) / threads;
@@ -1427,6 +1609,61 @@ class VoxelGridCudaNaive::Impl {
         d_points, d_normals, width, height, num_images, d_voxels_, resolution_,
         bb_max_, bb_min_, voxel_num_, option.truncation_band, option.weight,
         option.sample_num, option.nn_range);
+    checkCudaErrors(cudaGetLastError());
+    if (sync) {
+      checkCudaErrors(cudaDeviceSynchronize());
+    }
+  }
+
+  void FuseDepthMulti(const float* h_depth, int width, int height,
+                      int num_images, const float* h_fx, const float* h_fy,
+                      const float* h_cx, const float* h_cy, const float* h_R,
+                      const float* h_t,
+                      const VoxelGridCudaNaiveFuseOption& option,
+                      bool sync = true) {
+    option_ = option;
+
+    // Send camera parameters to GPU constant
+    cudaMemcpyToSymbol(d_fx, h_fx, num_images * sizeof(float));
+    cudaMemcpyToSymbol(d_fy, h_fy, num_images * sizeof(float));
+    cudaMemcpyToSymbol(d_cx, h_cx, num_images * sizeof(float));
+    cudaMemcpyToSymbol(d_cy, h_cy, num_images * sizeof(float));
+
+    if (h_R != nullptr) {
+      cudaMemcpyToSymbol(d_R, h_R, num_images * 9 * sizeof(float));
+    } else {
+      std::vector<float> h_R_vec(num_images * 9, 0.0f);
+      for (int i = 0; i < num_images; ++i) {
+        h_R_vec[i * 9 + 0] = 1.0f;
+        h_R_vec[i * 9 + 4] = 1.0f;
+        h_R_vec[i * 9 + 8] = 1.0f;
+      }
+      // Identity matrix
+      cudaMemcpyToSymbol(d_R, h_R_vec.data(), num_images * 9 * sizeof(float));
+    }
+    if (h_t != nullptr) {
+      cudaMemcpyToSymbol(d_t, h_t, num_images * 3 * sizeof(float));
+    } else {
+      // Zero vector
+      std::vector<float> h_t_vec(num_images * 3, 0.0f);
+      cudaMemcpyToSymbol(d_t, h_t_vec.data(), num_images * 3 * sizeof(float));
+    }
+
+    // TODO: Size/Num reset API
+    if (d_depth == nullptr) {
+      cudaMalloc(&d_depth, sizeof(float) * width * height * num_images);
+    }
+    cudaMemcpy(d_depth, h_depth, sizeof(float) * width * height * num_images,
+               cudaMemcpyHostToDevice);
+
+    dim3 block(16, 16, 1);
+    dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y,
+              num_images);
+    FuseDepthMultiKernelNaive<<<grid, block>>>(
+        d_depth, width, height, num_images, d_voxels_, resolution_, bb_max_,
+        bb_min_, voxel_num_, option.truncation_band, option.weight,
+        option.sample_num, option.nn_range);
+
     checkCudaErrors(cudaGetLastError());
     if (sync) {
       checkCudaErrors(cudaDeviceSynchronize());
@@ -1445,9 +1682,9 @@ class VoxelGridCudaNaive::Impl {
 
     // Launch kernels
     float iso_level = 0.f;
-    BuildVerticesKernel<<<grid, block>>>(d_voxels_, bb_min_, resolution_,
-                                         voxel_num_, iso_level, d_edgeVertexIds,
-                                         d_vtxCounter, d_vertices);
+    BuildVerticesKernel<<<grid, block>>>(
+        d_voxels_, bb_min_, resolution_, voxel_num_, iso_level, d_edgeVertexIds,
+        d_vtxCounter, d_vertices, option_.weight);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
@@ -1520,12 +1757,43 @@ class VoxelGridCudaNaive::Impl {
   }
 
  private:
+  void Free() {
+    if (d_voxels_ != nullptr) {
+      cudaFree(d_voxels_);
+      d_voxels_ = nullptr;
+    }
+    if (d_vertices != nullptr) {
+      cudaFree(d_vertices);
+      d_vertices = nullptr;
+    }
+    if (d_vtxCounter != nullptr) {
+      cudaFree(d_vtxCounter);
+      d_vtxCounter = nullptr;
+    }
+
+    if (d_faces != nullptr) {
+      cudaFree(d_faces);
+      d_faces = nullptr;
+    }
+
+    if (d_idxCounter != nullptr) {
+      cudaFree(d_idxCounter);
+      d_idxCounter = nullptr;
+    }
+
+    if (d_depth != nullptr) {
+      cudaFree(d_depth);
+      d_depth = nullptr;
+    }
+  }
+
   VoxelCudaNaive* d_voxels_{nullptr};
   float3* d_vertices{nullptr};
   int* d_vtxCounter{nullptr};
   int* d_faces{nullptr};
   int* d_idxCounter{nullptr};
   int* d_edgeVertexIds{nullptr};
+  float* d_depth{nullptr};
 
   int numEdges;
   float3 bb_max_;
@@ -1558,6 +1826,15 @@ void VoxelGridCudaNaive::FusePointCloudMulti(
       reinterpret_cast<const float3*>(d_points),
       reinterpret_cast<const float3*>(d_normals), width, height, num_images,
       option, sync);
+}
+
+void VoxelGridCudaNaive::FuseDepthMulti(
+    const float* h_depth, int width, int height, int num_images,
+    const float* h_fx, const float* h_fy, const float* h_cx, const float* h_cy,
+    const float* h_R, const float* h_t,
+    const VoxelGridCudaNaiveFuseOption& option, bool sync) {
+  impl_->FuseDepthMulti(h_depth, width, height, num_images, h_fx, h_fy, h_cx,
+                        h_cy, h_R, h_t, option, sync);
 }
 
 void VoxelGridCudaNaive::ExtractMesh() { impl_->ExtractMesh(); }

@@ -90,11 +90,17 @@ class VoxelGridCudaNaive {
                            int width, int height, int num_images,
                            const VoxelGridCudaNaiveFuseOption& option,
                            bool sync = true);
+  void FuseDepthMulti(const float* h_depth, int width, int height,
+                      int num_images, const float* h_fx, const float* h_fy,
+                      const float* h_cx, const float* h_cy, const float* h_R,
+                      const float* h_t,
+                      const VoxelGridCudaNaiveFuseOption& option,
+                      bool sync = true);
 
   void ExtractMesh();
   void GetExtractMeshCpu(std::vector<Eigen::Vector3f>& vertices,
-                   std::vector<Eigen::Vector3i>& faces);
-  
+                         std::vector<Eigen::Vector3i>& faces);
+
   void GetVoxelGridCpu(ugu::VoxelGrid& grid_cpu) const;
 
   void Clear();
