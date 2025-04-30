@@ -824,8 +824,7 @@ class NormalComputerCuda::Impl {
     checkCudaErrors(cudaMalloc(&d_points, 3 * num_pixels * sizeof(float)));
   }
 
-  void ComputeNormals(const float* h_depths, float* h_normals,
-                      float* h_points) {
+  void ComputeNormals(const float* h_depths) {
     // (5) cudaMemcpy3D を用いてホストの深度画像データを CUDA Array へ転送
     cudaMemcpy3DParms copyParams = {0};
     copyParams.srcPtr = make_cudaPitchedPtr(
@@ -848,24 +847,25 @@ class NormalComputerCuda::Impl {
         texDepth, d_normals, d_points);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
-
-    size_t num_pixels = width * height * num_images;
-
-    if (h_normals != nullptr) {
-      checkCudaErrors(cudaMemcpy(h_normals, d_normals,
-                                 3 * num_pixels * sizeof(float),
-                                 cudaMemcpyDeviceToHost));
-    }
-    if (h_points != nullptr) {
-      checkCudaErrors(cudaMemcpy(h_points, d_points,
-                                 3 * num_pixels * sizeof(float),
-                                 cudaMemcpyDeviceToHost));
-    }
   }
 
-  const float* get_d_normals() const { return d_normals; }
+  void GetNormalsCpu(float* h_normals) const {
+    size_t num_pixels = width * height * num_images;
+    checkCudaErrors(cudaMemcpy(h_normals, d_normals,
+                               3 * num_pixels * sizeof(float),
+                               cudaMemcpyDeviceToHost));
+  }
 
-  const float* get_d_points() const { return d_points; }
+  void GetPointsCpu(float* h_points) const {
+    size_t num_pixels = width * height * num_images;
+    checkCudaErrors(cudaMemcpy(h_points, d_points,
+                               3 * num_pixels * sizeof(float),
+                               cudaMemcpyDeviceToHost));
+  }
+
+  const float* GetNormalsGpu() const { return d_normals; }
+
+  const float* GetPointsGpu() const { return d_points; }
 
  private:
   int width;
@@ -906,17 +906,24 @@ void NormalComputerCuda::Init(int width, int height, int num_images,
               max_connect_z_diff, step, gl_coord, h_R, h_t);
 }
 
-const float* NormalComputerCuda::get_d_normals() const {
-  return impl_->get_d_normals();
+const float* NormalComputerCuda::GetNormalsGpu() const {
+  return impl_->GetNormalsGpu();
 }
 
-const float* NormalComputerCuda::get_d_points() const {
-  return impl_->get_d_points();
+const float* NormalComputerCuda::GetPointsGpu() const {
+  return impl_->GetPointsGpu();
 }
 
-void NormalComputerCuda::ComputeNormals(const float* h_depths, float* h_normals,
-                                        float* h_points) {
-  impl_->ComputeNormals(h_depths, h_normals, h_points);
+void NormalComputerCuda::ComputeNormals(const float* h_depths) {
+  impl_->ComputeNormals(h_depths);
+}
+
+void NormalComputerCuda::GetNormalsCpu(float* h_normals) const {
+  impl_->GetNormalsCpu(h_normals);
+}
+
+void NormalComputerCuda::GetPointsCpu(float* h_points) const {
+  impl_->GetPointsCpu(h_points);
 }
 
 }  // namespace ugu

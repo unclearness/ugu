@@ -177,11 +177,20 @@ int main(int argc, char* argv[]) {
     std::memcpy(h_depths_pinned, h_depths.data(),
                 sizeof(float) * num_images * width * height);
     timer.Start();
-    normal_computer.ComputeNormals(h_depths_pinned, h_normals_pinned,
-                                   h_points_pinned);
+    normal_computer.ComputeNormals(h_depths_pinned);
     timer.End();
     std::cout << "ComputeNormals  " << timer.elapsed_msec() << " ms"
               << std::endl;
+    timer.Start();
+    normal_computer.GetNormalsCpu(h_normals_pinned);
+    timer.End();
+    std::cout << "GetNormalsCpu  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+    timer.Start();
+    normal_computer.GetPointsCpu(h_points_pinned);
+    timer.End();
+    std::cout << "GetPointsCpu  " << timer.elapsed_msec() << " ms" << std::endl;
+
     {
       std::vector<ugu::Image3f> normals(depths.size());
       std::vector<ugu::Image3f> points(depths.size());
@@ -223,11 +232,13 @@ int main(int argc, char* argv[]) {
     voxel_grid_naive.Init(combined->stats().bb_max + offset,
                           combined->stats().bb_min - offset, resolution);
 
-    ugu::VoxelGridCudaNaiveFuseOption fusion_option(resolution.minCoeff());
+    ugu::VoxelGridCudaNaiveFuseOption fusion_option;
+    fusion_option.set_default_truncation_band_from_resolution(
+        resolution.minCoeff());
     timer.Start();
-    voxel_grid_naive.FusePointCloudMulti(normal_computer.get_d_points(),
-                                         normal_computer.get_d_normals(), width,
-                                         height, num_images, fusion_option, true);
+    voxel_grid_naive.FusePointCloudMulti(
+        normal_computer.GetPointsGpu(), normal_computer.GetNormalsGpu(), width,
+        height, num_images, fusion_option, true);
     timer.End();
     std::cout << "FusePointCloudMulti  " << timer.elapsed_msec() << " ms"
               << std::endl;
@@ -236,9 +247,14 @@ int main(int argc, char* argv[]) {
     std::vector<Eigen::Vector3f> vertices;
     std::vector<Eigen::Vector3i> faces;
     timer.Start();
-    voxel_grid_naive.ExtractMesh(vertices, faces);
+    voxel_grid_naive.ExtractMesh();
     timer.End();
     std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms" << std::endl;
+    timer.Start();
+    voxel_grid_naive.GetExtractMeshCpu(vertices, faces);
+    timer.End();
+    std::cout << "GetExtractMeshCpu  " << timer.elapsed_msec() << " ms"
+              << std::endl;
     out_mesh.set_vertices(vertices);
     out_mesh.set_vertex_indices(faces);
     out_mesh.set_default_material();
@@ -248,7 +264,7 @@ int main(int argc, char* argv[]) {
     ugu::VoxelGrid voxel_grid_cpu;
     voxel_grid_cpu.Init(combined->stats().bb_max + offset,
                         combined->stats().bb_min - offset, resolution);
-    voxel_grid_naive.ReadToCpu(voxel_grid_cpu);
+    voxel_grid_naive.GetVoxelGridCpu(voxel_grid_cpu);
     ugu::MarchingCubes(voxel_grid_cpu, &out_mesh);
     out_mesh.set_default_material();
     out_mesh.CalcNormal();

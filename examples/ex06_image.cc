@@ -138,7 +138,8 @@ void TestNormal() {
     std::memset(h_normals.data(), 0, sizeof(float) * width * height * 3);
     timer.Start();
     for (int i = 0; i < n_trials; i++) {
-      normal_computer.ComputeNormals(h_depths.data(), h_normals.data());
+      normal_computer.ComputeNormals(h_depths.data());
+      normal_computer.GetNormalsCpu(h_normals.data());
     }
     timer.End();
     std::cout << "NormalComputerCuda: " << timer.elapsed_msec() << " / "
@@ -172,7 +173,8 @@ void TestNormal() {
                 sizeof(float) * num_images * width * height);
     timer.Start();
     for (int i = 0; i < n_trials; i++) {
-      normal_computer.ComputeNormals(h_depths_pinned, h_normals_pinned);
+      normal_computer.ComputeNormals(h_depths_pinned);
+      normal_computer.GetNormalsCpu(h_normals_pinned);
     }
     timer.End();
     std::cout << "NormalComputerCuda (pinned memory): " << timer.elapsed_msec()
@@ -233,7 +235,7 @@ void TestNormal() {
                 sizeof(float) * num_images * width * height);
     timer.Start();
     for (int i = 0; i < n_trials; i++) {
-      normal_computer.ComputeNormals(h_depths_pinned, nullptr, nullptr);
+      normal_computer.ComputeNormals(h_depths_pinned);
     }
     timer.End();
     std::cout << "NormalComputerCuda (pinned memory, not copy back to host): "
@@ -241,8 +243,9 @@ void TestNormal() {
               << timer.elapsed_msec() / n_trials << std::endl;
     timer.Start();
     for (int i = 0; i < n_trials; i++) {
-      normal_computer.ComputeNormals(h_depths_pinned, h_normals_pinned,
-                                     h_points_pinned);
+      normal_computer.ComputeNormals(h_depths_pinned);
+      normal_computer.GetNormalsCpu(h_normals_pinned);
+      normal_computer.GetPointsCpu(h_points_pinned);
     }
     timer.End();
     std::cout << "NormalComputerCuda (pinned memory with points): "

@@ -37,12 +37,13 @@ class NormalComputerCuda {
             bool gl_coord = false, const float* h_R = nullptr,
             const float* h_t = nullptr);
 
-  void ComputeNormals(const float* h_depths, float* h_normals,
-                      float* h_points = nullptr);
+  void ComputeNormals(const float* h_depths);
 
-  const float* get_d_normals() const;
+  void GetNormalsCpu(float* h_normals) const;
+  void GetPointsCpu(float* h_points) const;
 
-  const float* get_d_points() const;
+  const float* GetNormalsGpu() const;
+  const float* GetPointsGpu() const;
 
  private:
   class Impl;

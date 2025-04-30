@@ -1433,54 +1433,7 @@ class VoxelGridCudaNaive::Impl {
     }
   }
 
-  void ExtractMesh(std::vector<Eigen::Vector3f>& vertices,
-                   std::vector<Eigen::Vector3i>& faces) {
-#if 0
-    cudaMemset(d_counter, 0, sizeof(int));
-
-    // グリッド／ブロック設定
-    dim3 block(8, 8, 8);
-    dim3 grid((voxel_num_.x - 1 + block.x - 1) / block.x,
-              (voxel_num_.y - 1 + block.y - 1) / block.y,
-              (voxel_num_.z - 1 + block.z - 1) / block.z);
-
-    MarchingCubesKernelNaive<<<grid, block>>>(d_voxels_, bb_min_, resolution_,
-                                              voxel_num_, voxel_update_weight_,
-                                              d_vertices, d_counter);
-    checkCudaErrors(cudaGetLastError());
-    checkCudaErrors(cudaDeviceSynchronize());
-
-    int h_vcount = 0;
-    cudaMemcpy(&h_vcount, d_counter, sizeof(int), cudaMemcpyDeviceToHost);
-
-    std::vector<Eigen::Vector3f> vertices(h_vcount);
-    std::vector<float3> temp(h_vcount);
-    cudaMemcpy(temp.data(), d_vertices, sizeof(float3) * h_vcount,
-               cudaMemcpyDeviceToHost);
-
-    for (int i = 0; i < h_vcount; ++i) {
-      vertices[i] = Eigen::Vector3f(temp[i].x, temp[i].y, temp[i].z);
-    }
-
-    std::vector<Eigen::Vector3i> indices;
-    for (int i = 0; i < h_vcount; i += 3) {
-      indices.emplace_back(i, i + 1, i + 2);
-    }
-
-    int triCount = h_vcount / 3;
-
-    // 4) フェイスリストを作成（Eigen::Vector3i の場合）
-    std::vector<Eigen::Vector3i> faces;
-    faces.reserve(triCount);
-    for (int i = 0; i < triCount; ++i) {
-      // 頂点リスト上で (3*i, 3*i+1, 3*i+2) が一つの三角形
-      faces.emplace_back(3 * i + 0, 3 * i + 1, 3 * i + 2);
-    }
-
-    mesh.set_vertices(vertices);
-    mesh.set_vertex_indices(faces);
-#endif
-
+  void ExtractMesh() {
     cudaMemset(d_vtxCounter, 0, sizeof(int));
     cudaMemset(d_edgeVertexIds, -1, sizeof(int) * numEdges);
     cudaMemset(d_idxCounter, 0, sizeof(int));
@@ -1503,7 +1456,10 @@ class VoxelGridCudaNaive::Impl {
                                       d_idxCounter, d_faces);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
+  }
 
+  void GetExtractMeshCpu(std::vector<Eigen::Vector3f>& vertices,
+                         std::vector<Eigen::Vector3i>& faces) {
     // Copy counts
     int h_vcount = 0, h_icount = 0;
     cudaMemcpy(&h_vcount, d_vtxCounter, sizeof(int), cudaMemcpyDeviceToHost);
@@ -1532,7 +1488,7 @@ class VoxelGridCudaNaive::Impl {
     }
   }
 
-  void ReadToCpu(ugu::VoxelGrid& grid_cpu) const {
+  void GetVoxelGridCpu(ugu::VoxelGrid& grid_cpu) const {
     // NOTE:
     // CPU version has resultion * 0.5 offset for both voxel definition and
     // marchingcubes. So the extracted mesh by CPU shows some shift from GPU
@@ -1604,13 +1560,16 @@ void VoxelGridCudaNaive::FusePointCloudMulti(
       option, sync);
 }
 
-void VoxelGridCudaNaive::ExtractMesh(std::vector<Eigen::Vector3f>& vertices,
-                                     std::vector<Eigen::Vector3i>& faces) {
-  impl_->ExtractMesh(vertices, faces);
+void VoxelGridCudaNaive::ExtractMesh() { impl_->ExtractMesh(); }
+
+void VoxelGridCudaNaive::GetExtractMeshCpu(
+    std::vector<Eigen::Vector3f>& vertices,
+    std::vector<Eigen::Vector3i>& faces) {
+  impl_->GetExtractMeshCpu(vertices, faces);
 }
 
-void VoxelGridCudaNaive::ReadToCpu(ugu::VoxelGrid& grid_cpu) const {
-  impl_->ReadToCpu(grid_cpu);
+void VoxelGridCudaNaive::GetVoxelGridCpu(ugu::VoxelGrid& grid_cpu) const {
+  impl_->GetVoxelGridCpu(grid_cpu);
 }
 
 void VoxelGridCudaNaive::Clear() { impl_->Clear(); }

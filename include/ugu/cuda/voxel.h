@@ -63,17 +63,16 @@ struct VoxelGridCudaNaiveFuseOption {
   // https://github.com/opencv/opencv_contrib/blob/9d0a451bee4cdaf9d3f76912e5abac6000865f1a/modules/rgbd/src/kinfu.cpp#L66
   static inline float kDefaultResToTruncFactor = 7.f;
 
-  float truncation_band {- 1.f};
+  float truncation_band{-1.f};
   int sample_num{1};
   int nn_range{1};
   float weight{1.f};
 
   VoxelGridCudaNaiveFuseOption() = default;
-  VoxelGridCudaNaiveFuseOption(float resolution){
-    this->truncation_band = kDefaultResToTruncFactor * resolution;
-  };
   ~VoxelGridCudaNaiveFuseOption() = default;
-
+  void set_default_truncation_band_from_resolution(float resolution) {
+    truncation_band = kDefaultResToTruncFactor * resolution;
+  };
 };
 
 class VoxelGridCudaNaive {
@@ -92,10 +91,11 @@ class VoxelGridCudaNaive {
                            const VoxelGridCudaNaiveFuseOption& option,
                            bool sync = true);
 
-  void ExtractMesh(std::vector<Eigen::Vector3f>& vertices,
+  void ExtractMesh();
+  void GetExtractMeshCpu(std::vector<Eigen::Vector3f>& vertices,
                    std::vector<Eigen::Vector3i>& faces);
   
-  void ReadToCpu(ugu::VoxelGrid& grid_cpu) const;
+  void GetVoxelGridCpu(ugu::VoxelGrid& grid_cpu) const;
 
   void Clear();
 
