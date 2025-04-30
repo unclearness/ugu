@@ -58,21 +58,38 @@ class VoxelGridCudaHashing {
   std::unique_ptr<Impl> impl_;
 };
 
+struct VoxelGridCudaNaiveFuseOption {
+  // Followed OpenCV kinfu
+  // https://github.com/opencv/opencv_contrib/blob/9d0a451bee4cdaf9d3f76912e5abac6000865f1a/modules/rgbd/src/kinfu.cpp#L66
+  static inline float kDefaultResToTruncFactor = 7.f;
+
+  float truncation_band {- 1.f};
+  int sample_num{1};
+  int nn_range{1};
+  float weight{1.f};
+
+  VoxelGridCudaNaiveFuseOption() = default;
+  VoxelGridCudaNaiveFuseOption(float resolution){
+    this->truncation_band = kDefaultResToTruncFactor * resolution;
+  };
+  ~VoxelGridCudaNaiveFuseOption() = default;
+
+};
+
 class VoxelGridCudaNaive {
  public:
   VoxelGridCudaNaive();
   ~VoxelGridCudaNaive();
 
   bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
-            float resolution, float truncation_band, int sample_num = 1,
-            int nn_range = 1);
+            float resolution);
 
   bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
-            const Eigen::Vector3f& resolution, float truncation_band,
-            int sample_num = 1, int nn_range = 1);
+            const Eigen::Vector3f& resolution);
 
   void FusePointCloudMulti(const float* d_points, const float* d_normals,
                            int width, int height, int num_images,
+                           const VoxelGridCudaNaiveFuseOption& option,
                            bool sync = true);
 
   void ExtractMesh(std::vector<Eigen::Vector3f>& vertices,

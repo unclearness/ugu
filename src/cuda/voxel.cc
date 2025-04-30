@@ -1,4 +1,4 @@
-#include "ugu/cuda/knn.h"
+#include "ugu/cuda/voxel.h"
 
 #ifdef UGU_USE_CUDA
 #include <cuda_runtime.h>
