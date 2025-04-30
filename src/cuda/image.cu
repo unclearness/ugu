@@ -491,7 +491,12 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
 
 #else
   float d_l = s_depth[sidx - d_step];
-  float d_t = s_depth[(sidx + S_W - d_step)];
+  float d_t = s_depth[(sidx - S_W * d_step)];
+
+  if (d_l <= 0.0f || d_t <= 0.0f) {
+    normals[3 * idx + 0] = normals[3 * idx + 1] = normals[3 * idx + 2] = 0.0f;
+    return;
+  }
 
   float Xl = ((u - d_step) - cx_val) * d_l * inv_fx;
   float Yl = (v - cy_val) * d_l * inv_fy;
