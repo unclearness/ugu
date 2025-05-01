@@ -25,6 +25,9 @@ jobs:
 
       - name: Install Clang
         uses: egor-tensin/setup-clang@v1
+      
+      - name: Install OpenMP for Clang
+        run: sudo apt-get install libomp-dev
 
       - name: Configure CMake Clang
         env:
