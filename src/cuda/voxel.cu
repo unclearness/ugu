@@ -1917,6 +1917,9 @@ class VoxelGridCudaNaive::Impl {
     cudaMalloc(&d_idxCounter, sizeof(int));
     cudaMemset(d_idxCounter, 0, sizeof(int));
 
+    cudaMallocHost(&h_vertices_pinned, sizeof(float3) * maxTris * 3);
+    cudaMallocHost(&h_faces_pinned, sizeof(int) * maxF);
+
     // Constat
     cudaMemcpyToSymbol(c_bb_min, &bb_min_, sizeof(float3));
     cudaMemcpyToSymbol(c_voxel_size, &resolution_, sizeof(float3));
@@ -2049,25 +2052,24 @@ class VoxelGridCudaNaive::Impl {
     cudaMemcpy(&h_icount, d_idxCounter, sizeof(int), cudaMemcpyDeviceToHost);
 
     // Copy data back
-    std::vector<float3> h_vertices;
-    h_vertices.resize(h_vcount);
-    cudaMemcpy(h_vertices.data(), d_vertices, sizeof(float3) * h_vcount,
+    cudaMemcpy(h_vertices_pinned, d_vertices, sizeof(float3) * h_vcount,
                cudaMemcpyDeviceToHost);
 
     vertices.resize(h_vcount);
     for (int i = 0; i < h_vcount; ++i) {
       vertices[i] =
-          Eigen::Vector3f(h_vertices[i].x, h_vertices[i].y, h_vertices[i].z);
+          Eigen::Vector3f(h_vertices_pinned[i].x, h_vertices_pinned[i].y,
+                          h_vertices_pinned[i].z);
     }
 
     int faceCount = h_icount / 3;
     faces.resize(faceCount);
-    std::vector<int> tmp(h_icount);
-    cudaMemcpy(tmp.data(), d_faces, sizeof(int) * h_icount,
+    cudaMemcpy(h_faces_pinned, d_faces, sizeof(int) * h_icount,
                cudaMemcpyDeviceToHost);
     for (int i = 0; i < faceCount; i++) {
       faces[i] =
-          Eigen::Vector3i(tmp[3 * i + 0], tmp[3 * i + 1], tmp[3 * i + 2]);
+          Eigen::Vector3i(h_faces_pinned[3 * i + 0], h_faces_pinned[3 * i + 1],
+                          h_faces_pinned[3 * i + 2]);
     }
   }
 
@@ -2131,6 +2133,21 @@ class VoxelGridCudaNaive::Impl {
       cudaFree(d_depth);
       d_depth = nullptr;
     }
+
+    if (d_edgeVertexIds != nullptr) {
+      cudaFree(d_edgeVertexIds);
+      d_edgeVertexIds = nullptr;
+    }
+
+    if (h_vertices_pinned != nullptr) {
+      cudaFreeHost(h_vertices_pinned);
+      h_vertices_pinned = nullptr;
+    }
+
+    if (h_faces_pinned != nullptr) {
+      cudaFreeHost(h_faces_pinned);
+      h_faces_pinned = nullptr;
+    }
   }
 
   VoxelCudaNaive* d_voxels_{nullptr};
@@ -2140,6 +2157,9 @@ class VoxelGridCudaNaive::Impl {
   int* d_idxCounter{nullptr};
   int* d_edgeVertexIds{nullptr};
   float* d_depth{nullptr};
+
+  float3* h_vertices_pinned{nullptr};
+  int* h_faces_pinned{nullptr};
 
   int numEdges;
   float3 bb_max_;
