@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.25)
 
 set(PROJECT_NAME ugu)
 project(${PROJECT_NAME} LANGUAGES CXX C VERSION 0.0.1 DESCRIPTION "UGU: Unclearness Geometry Utility")
@@ -270,14 +270,17 @@ if(UGU_USE_CUDA)
   include(CheckLanguage)
   check_language(CUDA)
   enable_language(CUDA)
-  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    set(CMAKE_CUDA_ARCHITECTURES 75 86)
-  endif()
   find_package(CUDAToolkit REQUIRED)
+
+  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES 50 52 60 61 70 72 75 80 86 87 89 90 100)
+  endif()
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-deprecated-gpu-targets")
   if (NOT DEFINED CMAKE_CUDA_STANDARD)
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
   endif()
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
   set(cuda_flags --expt-relaxed-constexpr)
   add_library(my_cuda_flags INTERFACE)
   target_compile_options(my_cuda_flags INTERFACE $<$<COMPILE_LANGUAGE:CUDA>:${cuda_flags}>)
@@ -291,6 +294,10 @@ if(UGU_USE_CUDA)
       src/cuda/knn.cc
       src/cuda/knn.cuh
       src/cuda/knn.cu
+      include/ugu/cuda/voxel.h
+      src/cuda/voxel.cc
+      src/cuda/voxel.cuh
+      src/cuda/voxel.cu
       src/cuda/helper_cuda.h
       src/cuda/helper_string.h 
   )

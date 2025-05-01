@@ -6,6 +6,8 @@
 #include <random>
 
 #include "ugu/clustering/clustering.h"
+#include "ugu/cuda/image.h"
+#include "ugu/cuda/voxel.h"
 #include "ugu/image_io.h"
 #include "ugu/image_proc.h"
 #include "ugu/plane.h"
@@ -90,7 +92,7 @@ int main(int argc, char* argv[]) {
 
   std::vector<ugu::Image1f> depths;
   std::vector<ugu::Image3b> colors;
-  std::vector<ugu::CameraPtr> cameras;
+  std::vector<ugu::PinholeCameraPtr> cameras;
   std::vector<ugu::MeshPtr> depth_meshes;
   ugu::MeshPtr depth_merged = ugu::Mesh::Create();
   ugu::MeshPtr depth_fused = ugu::Mesh::Create();
@@ -110,8 +112,8 @@ int main(int argc, char* argv[]) {
     ugu::c2w(pos, object->stats().center, up, &R);
 
     Eigen::Affine3d c2w = (Eigen::Translation3f(pos) * R).cast<double>();
-    ugu::CameraPtr camera =
-        std::make_shared<ugu::PinholeCamera>(160, 120, fov_y_deg);
+    ugu::PinholeCameraPtr camera =
+        std::make_shared<ugu::PinholeCamera>(640, 480, fov_y_deg);
     renderer->set_camera(camera);
     camera->set_c2w(c2w);
 
@@ -123,6 +125,197 @@ int main(int argc, char* argv[]) {
     colors.push_back(color.clone());
     cameras.push_back(camera);
   }
+
+#ifdef UGU_USE_CUDA
+  {
+    ugu::Timer timer;
+
+    ugu::NormalComputerCuda normal_computer;
+    std::vector<float> h_fx_vec, h_fy_vec, h_cx_vec, h_cy_vec, h_R_vec, h_t_vec;
+
+    for (size_t i = 0; i < cameras.size(); i++) {
+      h_fx_vec.push_back(cameras[i]->focal_length().x());
+      h_fy_vec.push_back(cameras[i]->focal_length().y());
+      h_cx_vec.push_back(cameras[i]->principal_point().x());
+      h_cy_vec.push_back(cameras[i]->principal_point().y());
+
+      Eigen::Matrix3f R = cameras[i]->c2w().rotation().cast<float>();
+      Eigen::Vector3f t = cameras[i]->c2w().translation().cast<float>();
+      // Eigen is col-major on memory as default
+      // Use accesor to assume row-major
+      for (int k = 0; k < 3; k++) {
+        for (int j = 0; j < 3; j++) {
+          h_R_vec.push_back(R(k, j));
+        }
+      }
+      for (int j = 0; j < 3; j++) {
+        h_t_vec.push_back(t.data()[j]);
+      }
+    }
+
+    normal_computer.Init(depths[0].cols, depths[0].rows, depths.size(),
+                         h_fx_vec.data(), h_fy_vec.data(), h_cx_vec.data(),
+                         h_cy_vec.data(), 1e6f, 1, false, h_R_vec.data(),
+                         h_t_vec.data());
+    const int num_images = static_cast<int>(depths.size());
+    const int width = depths[0].cols;
+    const int height = depths[0].rows;
+    std::vector<float> h_depths(num_images * width * height);
+
+    for (int i = 0; i < num_images; ++i) {
+      std::memcpy(h_depths.data() + i * width * height, depths[i].data,
+                  sizeof(float) * width * height);
+    }
+
+    float *h_depths_pinned, *h_normals_pinned, *h_points_pinned;
+    cudaMallocHost(&h_depths_pinned, sizeof(float) * depths[0].cols *
+                                         depths[0].rows * depths.size());
+    cudaMallocHost(&h_normals_pinned, sizeof(float) * depths[0].cols * 3 *
+                                          depths[0].rows * depths.size());
+    cudaMallocHost(&h_points_pinned, sizeof(float) * depths[0].cols * 3 *
+                                         depths[0].rows * depths.size());
+    std::memcpy(h_depths_pinned, h_depths.data(),
+                sizeof(float) * num_images * width * height);
+    timer.Start();
+    normal_computer.ComputeNormals(h_depths_pinned);
+    timer.End();
+    std::cout << "ComputeNormals  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+    timer.Start();
+    normal_computer.GetNormalsCpu(h_normals_pinned);
+    timer.End();
+    std::cout << "GetNormalsCpu  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+    timer.Start();
+    normal_computer.GetPointsCpu(h_points_pinned);
+    timer.End();
+    std::cout << "GetPointsCpu  " << timer.elapsed_msec() << " ms" << std::endl;
+
+    {
+      std::vector<ugu::Image3f> normals(depths.size());
+      std::vector<ugu::Image3f> points(depths.size());
+      for (int i = 0; i < num_images; ++i) {
+        if (normals[i].cols != width || normals[i].rows != height) {
+          normals[i] = ugu::Image3f::zeros(height, width);
+        }
+        std::memcpy(normals[i].data, h_normals_pinned + i * width * height * 3,
+                    sizeof(float) * width * height * 3);
+      }
+      for (int i = 0; i < num_images; i++) {
+        ugu::Image3b vis;
+        ugu::Normal2Color(normals[i], &vis, true);
+        ugu::imwrite(
+            "0000" + std::to_string(i) + "_normal_cudaclass_pinned_fuse.png",
+            vis);
+      }
+      for (int i = 0; i < num_images; ++i) {
+        if (points[i].cols != width || points[i].rows != height) {
+          points[i] = ugu::Image3f::zeros(height, width);
+        }
+        std::memcpy(points[i].data, h_points_pinned + i * width * height * 3,
+                    sizeof(float) * width * height * 3);
+      }
+      for (int i = 0; i < num_images; i++) {
+        ugu::Image3b vis = ugu::ColorizePosMap(points[i]);
+        ugu::imwrite(
+            "0000" + std::to_string(i) + "_points_cudaclass_pinned_fuse.png",
+            vis);
+      }
+    }
+
+    ugu::VoxelGridCudaNaive voxel_grid_naive;
+    Eigen::Vector3f resolution(10.f, 10.f, 10.f);
+    Eigen::Vector3f offset = resolution * 2;
+    ugu::VoxelUpdateOption option =
+        ugu::GenFuseDepthDefaultOption(resolution.minCoeff());
+
+    voxel_grid_naive.Init(combined->stats().bb_max + offset,
+                          combined->stats().bb_min - offset, resolution);
+
+    ugu::VoxelGridCudaNaiveFuseOption fusion_option;
+    fusion_option.set_default_truncation_band_from_resolution(
+        resolution.minCoeff());
+    fusion_option.sample_num = 3;
+    fusion_option.nn_range = 1;
+    timer.Start();
+    voxel_grid_naive.FusePointCloudMulti(
+        normal_computer.GetPointsGpu(), normal_computer.GetNormalsGpu(), width,
+        height, num_images, fusion_option, true);
+    timer.End();
+    std::cout << "FusePointCloudMulti  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+
+    ugu::Mesh out_mesh;
+    std::vector<Eigen::Vector3f> vertices;
+    std::vector<Eigen::Vector3i> faces;
+    timer.Start();
+    voxel_grid_naive.ExtractMesh();
+    timer.End();
+    std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms" << std::endl;
+    timer.Start();
+    voxel_grid_naive.GetExtractMeshCpu(vertices, faces);
+    timer.End();
+    std::cout << "GetExtractMeshCpu  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+    out_mesh.set_vertices(vertices);
+    out_mesh.set_vertex_indices(faces);
+    out_mesh.set_default_material();
+    out_mesh.CalcNormal();
+    out_mesh.WriteObj("cuda_mc.obj");
+
+    ugu::VoxelGrid voxel_grid_cpu;
+    voxel_grid_cpu.Init(combined->stats().bb_max + offset,
+                        combined->stats().bb_min - offset, resolution);
+    voxel_grid_naive.GetVoxelGridCpu(voxel_grid_cpu);
+    ugu::MarchingCubes(voxel_grid_cpu, &out_mesh);
+    out_mesh.set_default_material();
+    out_mesh.CalcNormal();
+    out_mesh.WriteObj("cpu_mc.obj");
+
+    {
+      ugu::VoxelGridCudaNaive voxel_grid_naive2;
+      voxel_grid_naive2.Init(combined->stats().bb_max + offset,
+                             combined->stats().bb_min - offset, resolution);
+
+      timer.Start();
+      voxel_grid_naive2.FuseDepthMulti(
+          h_depths_pinned, width, height, num_images, h_fx_vec.data(),
+          h_fy_vec.data(), h_cx_vec.data(), h_cy_vec.data(), h_R_vec.data(),
+          h_t_vec.data(), fusion_option, true);
+      timer.End();
+      std::cout << "FuseDepthMulti  " << timer.elapsed_msec() << " ms"
+                << std::endl;
+
+      ugu::Mesh out_mesh;
+      std::vector<Eigen::Vector3f> vertices;
+      std::vector<Eigen::Vector3i> faces;
+      timer.Start();
+      voxel_grid_naive2.ExtractMesh();
+      timer.End();
+      std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms"
+                << std::endl;
+      timer.Start();
+      voxel_grid_naive2.GetExtractMeshCpu(vertices, faces);
+      timer.End();
+      std::cout << "GetExtractMeshCpu  " << timer.elapsed_msec() << " ms"
+                << std::endl;
+      out_mesh.set_vertices(vertices);
+      out_mesh.set_vertex_indices(faces);
+      out_mesh.set_default_material();
+      out_mesh.CalcNormal();
+      out_mesh.WriteObj("cuda_mc2.obj");
+
+      ugu::VoxelGrid voxel_grid_cpu;
+      voxel_grid_cpu.Init(combined->stats().bb_max + offset,
+                          combined->stats().bb_min - offset, resolution);
+      voxel_grid_naive2.GetVoxelGridCpu(voxel_grid_cpu);
+      ugu::MarchingCubes(voxel_grid_cpu, &out_mesh);
+      out_mesh.set_default_material();
+      out_mesh.CalcNormal();
+      out_mesh.WriteObj("cpu_mc2.obj");
+    }
+  }
+#endif
 
   {
     ugu::VoxelGrid voxel_grid;

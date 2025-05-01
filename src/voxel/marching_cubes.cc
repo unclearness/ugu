@@ -37,12 +37,11 @@ void VertexInterp(double isolevel, const Eigen::Vector3f &p1,
     *c = c2;
     return;
   }
-  if (std::abs(valp1 - valp2) < 0.00001) {
-    *p = p1;
-    *c = c1;
-    return;
-  }
   double mu = (isolevel - valp1) / (valp2 - valp1);
+  // If two values are close, set mu to 0.5
+  if (std::abs(valp1 - valp2) < 0.00001) {
+    mu = 0.5;
+  }
   p->x() = static_cast<float>(p1.x() + mu * (p2.x() - p1.x()));
   p->y() = static_cast<float>(p1.y() + mu * (p2.y() - p1.y()));
   p->z() = static_cast<float>(p1.z() + mu * (p2.z() - p1.z()));
