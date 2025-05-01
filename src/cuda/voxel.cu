@@ -330,6 +330,13 @@ __device__ __constant__ int d_triTable[256][16] = {
     {0, 9, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
     {0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
     {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}};
+
+__device__ __constant__ float3 c_bb_min;
+__device__ __constant__ float3 c_voxel_size;
+__device__ __constant__ float3 c_inv_voxel_size;
+__device__ __constant__ int3 c_voxel_num;
+__device__ __constant__ float c_trunc;
+
 //
 // GPU内ユーティリティ関数
 //
@@ -781,6 +788,228 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
       atomicAdd(&voxel->sdf_sum, dist * weight);
       atomicAdd(&voxel->update_num, 1);
     }
+  }
+}
+
+// constexpr int NAIVE_KERNEL_HASH_SIZE = 2048;
+// extern __shared__ int s_keys[];
+// extern __shared__ float s_vals[];
+// extern __shared__ int s_counts[];
+
+__global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
+    const float3* __restrict__ d_pts, const float3* __restrict__ d_nml,
+    VoxelCudaNaive* d_voxels, int totalPixels) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  // int lane = threadIdx.x;
+  //// 1) shared を初期化 (各スレッドで分担)
+  // for (int i = lane; i < NAIVE_KERNEL_HASH_SIZE; i += blockDim.x) {
+  //   s_keys[i] = -1;  // empty marker
+  //   s_vals[i] = 0.0f;
+  //   s_counts[i] = 0;
+  // }
+  //__syncthreads();
+
+  if (idx >= totalPixels) return;
+
+  float3 pt = d_pts[idx];
+  if (pt.x == 0 && pt.y == 0 && pt.z == 0) return;
+
+  // 1) インデックス計算（乗算＋キャスト）
+  float3 diff = pt - c_bb_min;
+  int xi = __float2int_rz(diff.x * c_inv_voxel_size.x);
+  int yi = __float2int_rz(diff.y * c_inv_voxel_size.y);
+  int zi = __float2int_rz(diff.z * c_inv_voxel_size.z);
+  if (xi < 0 || xi >= c_voxel_num.x || yi < 0 || yi >= c_voxel_num.y ||
+      zi < 0 || zi >= c_voxel_num.z) {
+    return;
+  }
+
+  // 2) オフセットループはアンロール済み
+  float3 normal = d_nml[idx];
+  constexpr int nn_range = 1;  // nn_range=1 なら 3×3×3 ブロック
+  constexpr int MAX_NEI =
+      (2 * nn_range + 1) * (2 * nn_range + 1) * (2 * nn_range + 1);
+  float local_contribs[MAX_NEI];  // nn_range=1 なら 3×3 ブロック
+  int local_idxs[MAX_NEI];        // flatten したインデックス
+  int cnt = 0;
+
+#pragma unroll
+  for (int dz = -nn_range; dz <= nn_range; ++dz) {
+    for (int dy = -nn_range; dy <= nn_range; ++dy) {
+      for (int dx = -nn_range; dx <= nn_range; ++dx) {
+        int xj = xi + dx;
+        int yj = yi + dy;
+        int zj = zi + dz;
+        // 範囲チェック
+        if (xj < 0 || xj >= c_voxel_num.x || yj < 0 || yj >= c_voxel_num.y ||
+            zj < 0 || zj >= c_voxel_num.z) {
+          continue;
+        }
+        int vid = xj + yj * c_voxel_num.x + zj * c_voxel_num.x * c_voxel_num.y;
+        float3 vpos = c_bb_min;
+        vpos.x += xj * c_voxel_size.x;
+        vpos.y += yj * c_voxel_size.y;
+        vpos.z += zj * c_voxel_size.z;
+        float3 dff = vpos - pt;
+        // SDF の計算は sqrt を可能なら rsqrt で高速化
+        float sign = dot(dff, normal) < 0 ? -1.f : 1.f;
+        float dist = sqrtf(dot(dff, dff)) * sign;
+        dist = (dist >= -c_trunc) ? fminf(1.f, dist / c_trunc) : 0.f;
+        local_idxs[cnt] = vid;
+        local_contribs[cnt] = dist;
+        ++cnt;
+
+        //// 3) shared-hash にインサート＋集約
+        ////    simple linear‐probing
+        // int slot = vid & (NAIVE_KERNEL_HASH_SIZE - 1);
+        // while (true) {
+        //   int old = atomicCAS(&s_keys[slot], -1, vid);
+        //   if (old == -1 || old == vid) {
+        //     // 同じ vid ならここで集約
+        //     atomicAdd(&s_vals[slot], dist);
+        //     atomicAdd(&s_counts[slot], 1);
+        //     break;
+        //   }
+        //   slot = (slot + 1) & (NAIVE_KERNEL_HASH_SIZE - 1);
+        // }
+      }
+    }
+  }
+
+  //// 3) スレッド内集約 → atomicAdd は cnt 回ではなく「有効な vid 数」回に
+  for (int i = 0; i < cnt; ++i) {
+    atomicAdd(&d_voxels[local_idxs[i]].sdf_sum, local_contribs[i]);
+    atomicAdd(&d_voxels[local_idxs[i]].update_num, 1);
+  }
+
+  constexpr int sample_num = 2;
+  constexpr int MAX_SAMPLE = sample_num * 2 + 1;
+  float local_contribs_ray[MAX_SAMPLE];
+  int local_idxs_ray[MAX_SAMPLE];  // flatten したインデックス
+  int cnt_ray = 0;
+
+#pragma unroll
+  for (int k = -sample_num; k <= sample_num; k++) {
+    float3 offset;
+    offset.x = k * c_voxel_size.x * normal.x;
+    offset.y = k * c_voxel_size.y * normal.y;
+    offset.z = k * c_voxel_size.z * normal.z;
+
+    float3 ray_pos = pt + offset;
+
+    float3 ray_diff = ray_pos - c_bb_min;
+    int x_index = floorf(ray_diff.x / c_voxel_size.x);
+    int y_index = floorf(ray_diff.y / c_voxel_size.y);
+    int z_index = floorf(ray_diff.z / c_voxel_size.z);
+
+    if (x_index < 0 || c_voxel_num.x - 1 < x_index || y_index < 0 ||
+        c_voxel_num.y - 1 < y_index || z_index < 0 ||
+        c_voxel_num.z - 1 < z_index) {
+      continue;
+    }
+
+    int vid = x_index + y_index * c_voxel_num.x +
+              z_index * c_voxel_num.x * c_voxel_num.y;
+
+    float3 vpos = c_bb_min;
+    vpos.x += x_index * c_voxel_size.x;
+    vpos.y += y_index * c_voxel_size.y;
+    vpos.z += z_index * c_voxel_size.z;
+    float3 dff = vpos - pt;
+    // SDF の計算は sqrt を可能なら rsqrt で高速化
+    float sign = dot(dff, normal) < 0 ? -1.f : 1.f;
+    float dist = sqrtf(dot(dff, dff)) * sign;
+    dist = (dist >= -c_trunc) ? fminf(1.f, dist / c_trunc) : 0.f;
+    local_idxs_ray[cnt_ray] = vid;
+    local_contribs_ray[cnt_ray] = dist;
+    ++cnt_ray;
+
+    // int slot = vid & (NAIVE_KERNEL_HASH_SIZE - 1);
+    // while (true) {
+    //   int old = atomicCAS(&s_keys[slot], -1, vid);
+    //   if (old == -1 || old == vid) {
+    //     // 同じ vid ならここで集約
+    //     atomicAdd(&s_vals[slot], dist);
+    //     atomicAdd(&s_counts[slot], 1);
+    //     break;
+    //   }
+    //   slot = (slot + 1) & (NAIVE_KERNEL_HASH_SIZE - 1);
+    // }
+  }
+
+  //__syncthreads();
+
+  // if (lane == 0) {
+  //   for (int i = 0; i < NAIVE_KERNEL_HASH_SIZE; ++i) {
+  //     int vid = s_keys[i];
+  //     if (vid >= 0) {
+  //       float sum = s_vals[i];
+  //       int cnt = s_counts[i];
+  //       // ここでグローバルにまとめて加算
+  //       atomicAdd(&d_voxels[vid].sdf_sum, sum);
+  //       atomicAdd(&d_voxels[vid].update_num, cnt);
+  //     }
+  //   }
+  // }
+
+  // int uCnt = 0;
+  //  // ユニーク化バッファ（最大近傍数に合わせたサイズ）
+  // constexpr int MAX_BUF_NUM = MAX_NEI + MAX_SAMPLE;
+  // int uidBuf[MAX_BUF_NUM];
+  // float sumBuf[MAX_BUF_NUM];
+  // int updBuf[MAX_BUF_NUM];
+
+  // for (int i = 0; i < cnt; ++i) {
+  //   int vid = local_idxs[i];
+  //   float val = local_contribs[i];
+  //   // 既に登録済みか線形検索
+  //   int j = 0;
+  //   for (; j < uCnt; ++j) {
+  //     if (uidBuf[j] == vid) {
+  //       sumBuf[j] += val;
+  //       updBuf[j] += 1;  // update_num 用
+  //       break;
+  //     }
+  //   }
+  //   if (j == uCnt) {
+  //     // 新規エントリ
+  //     uidBuf[uCnt] = vid;
+  //     sumBuf[uCnt] = val;
+  //     updBuf[uCnt] = 1;
+  //     ++uCnt;
+  //   }
+  // }
+
+  // for (int i = 0; i < cnt_ray; ++i) {
+  //   int vid = local_idxs_ray[i];
+  //   float val = local_contribs_ray[i];
+  //   // 既に登録済みか線形検索
+  //   int j = 0;
+  //   for (; j < uCnt; ++j) {
+  //     if (uidBuf[j] == vid) {
+  //       sumBuf[j] += val;
+  //       updBuf[j] += 1;  // update_num 用
+  //       break;
+  //     }
+  //   }
+  //   if (j == uCnt) {
+  //     // 新規エントリ
+  //     uidBuf[uCnt] = vid;
+  //     sumBuf[uCnt] = val;
+  //     updBuf[uCnt] = 1;
+  //     ++uCnt;
+  //   }
+  // }
+
+  // // ここで uCnt はユニークなボクセル数
+  // for (int j = 0; j < uCnt; ++j) {
+  //   atomicAdd(&d_voxels[uidBuf[j]].sdf_sum, sumBuf[j]);
+  //   atomicAdd(&d_voxels[uidBuf[j]].update_num, updBuf[j]);
+  // }
+
+  for (int i = 0; i < cnt_ray; ++i) {
+    atomicAdd(&d_voxels[local_idxs_ray[i]].sdf_sum, local_contribs_ray[i]);
+    atomicAdd(&d_voxels[local_idxs_ray[i]].update_num, 1);
   }
 }
 
@@ -1641,6 +1870,10 @@ class VoxelGridCudaNaive::Impl {
     resolution_.y = resolution[1];
     resolution_.z = resolution[2];
 
+    inv_resolution_.x = 1.0f / resolution_.x;
+    inv_resolution_.y = 1.0f / resolution_.y;
+    inv_resolution_.z = 1.0f / resolution_.z;
+
     voxel_num_.x = static_cast<int>((bb_max_.x - bb_min_.x) / resolution_.x);
     voxel_num_.y = static_cast<int>((bb_max_.y - bb_min_.y) / resolution_.y);
     voxel_num_.z = static_cast<int>((bb_max_.z - bb_min_.z) / resolution_.z);
@@ -1684,6 +1917,13 @@ class VoxelGridCudaNaive::Impl {
     cudaMalloc(&d_idxCounter, sizeof(int));
     cudaMemset(d_idxCounter, 0, sizeof(int));
 
+    // Constat
+    cudaMemcpyToSymbol(c_bb_min, &bb_min_, sizeof(float3));
+    cudaMemcpyToSymbol(c_voxel_size, &resolution_, sizeof(float3));
+    cudaMemcpyToSymbol(c_inv_voxel_size, &inv_resolution_, sizeof(float3));
+    cudaMemcpyToSymbol(c_voxel_num, &voxel_num_, sizeof(int3));
+    cudaMemcpyToSymbol(c_trunc, &option_.truncation_band, sizeof(float));
+
     return true;
   }
 
@@ -1696,10 +1936,25 @@ class VoxelGridCudaNaive::Impl {
     int totalPixels = width * height * num_images;
     int threads = 256;
     int blocks = (totalPixels + threads - 1) / threads;
-    FuseOrganizedPointCloudMultiKernelNaive<<<blocks, threads>>>(
-        d_points, d_normals, width, height, num_images, d_voxels_, resolution_,
-        bb_max_, bb_min_, voxel_num_, option.truncation_band, option.weight,
-        option.sample_num, option.nn_range, option.r, option.height_half);
+
+    if (fabsf(option.weight - 1.f) < 0.01f && option.sample_num == 2 &&
+        option.nn_range == 1 && option.r < 0.f && option.height_half < 0.f) {
+      // Need to send here
+      cudaMemcpyToSymbol(c_trunc, &option_.truncation_band, sizeof(float));
+      // size_t sharedBytes = NAIVE_KERNEL_HASH_SIZE * (2 * sizeof(int) +
+      // sizeof(float));
+      // FuseOrganizedPointCloudMultiKernelNaiveOptimized<<<blocks, threads,
+      //                                                    sharedBytes>>>(
+      //     d_points, d_normals, d_voxels_, totalPixels);
+      FuseOrganizedPointCloudMultiKernelNaiveOptimized<<<blocks, threads>>>(
+          d_points, d_normals, d_voxels_, totalPixels);
+    } else {
+      FuseOrganizedPointCloudMultiKernelNaive<<<blocks, threads>>>(
+          d_points, d_normals, width, height, num_images, d_voxels_,
+          resolution_, bb_max_, bb_min_, voxel_num_, option.truncation_band,
+          option.weight, option.sample_num, option.nn_range, option.r,
+          option.height_half);
+    }
     checkCudaErrors(cudaGetLastError());
     if (sync) {
       checkCudaErrors(cudaDeviceSynchronize());
@@ -1890,6 +2145,7 @@ class VoxelGridCudaNaive::Impl {
   float3 bb_max_;
   float3 bb_min_;
   float3 resolution_;
+  float3 inv_resolution_;
   int3 voxel_num_{0, 0, 0};
   VoxelGridCudaNaiveFuseOption option_;
   int xy_slice_num_{0};
