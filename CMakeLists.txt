@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 set(PROJECT_NAME ugu)
-project(${PROJECT_NAME} LANGUAGES CXX C VERSION 0.0.1 DESCRIPTION "UGU: Unclearness Geometry Utility")
+project(${PROJECT_NAME} LANGUAGES C CXX CUDA VERSION 0.0.1 DESCRIPTION "UGU: Unclearness Geometry Utility")
 
 set(CMAKE_VERBOSE_MAKEFILE TRUE)
 
@@ -257,7 +257,9 @@ endif()
 
 # For OpenMP
 if(UGU_USE_OPENMP)
-  find_package(OpenMP)
+  # Not require CUDA
+  find_package(OpenMP REQUIRED COMPONENTS C CXX)
+  message("OpenMP_FOUND: ${OpenMP_FOUND}")
   if(OpenMP_FOUND)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
