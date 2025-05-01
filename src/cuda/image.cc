@@ -108,11 +108,24 @@ NormalComputerCuda::NormalComputerCuda(int width, int height, int num_images,
                                        const float* h_fx, const float* h_fy,
                                        const float* h_cx, const float* h_cy,
                                        float max_connect_z_diff, int step,
-                                       bool gl_coord) {}
+                                       bool gl_coord, const float* h_R,
+                                       const float* h_t) {}
 
 NormalComputerCuda::~NormalComputerCuda() {}
 
-void NormalComputerCuda::ComputeNormals(float* h_depths, float* h_normals) {}
+void NormalComputerCuda::Init(int width, int height, int num_images,
+                              const float* h_fx, const float* h_fy,
+                              const float* h_cx, const float* h_cy,
+                              float max_connect_z_diff, int step, bool gl_coord,
+                              const float* h_R, const float* h_t) {}
+
+void NormalComputerCuda::ComputeNormals(const float* h_depths) {}
+
+void NormalComputerCuda::GetNormalsCpu(float* h_normals) const {}
+void NormalComputerCuda::GetPointsCpu(float* h_points) const {}
+
+const float* NormalComputerCuda::GetNormalsGpu() const { return nullptr; }
+const float* NormalComputerCuda::GetPointsGpu() const { return nullptr; }
 
 class NormalComputerCuda::Impl {
  public:
