@@ -68,6 +68,9 @@ struct VoxelGridCudaNaiveFuseOption {
   int nn_range{1};
   float weight{1.f};
 
+  float r{-1.f};
+  float height_half{-1.f};
+
   VoxelGridCudaNaiveFuseOption() = default;
   ~VoxelGridCudaNaiveFuseOption() = default;
   void set_default_truncation_band_from_resolution(float resolution) {

@@ -573,7 +573,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
     const float3* d_points, const float3* d_normals, int width, int height,
     int num_images, VoxelCudaNaive* d_voxel_, float3 voxel_size, float3 bb_max,
     float3 bb_min, int3 voxel_num, float truncation_band, float weight,
-    int sample_num, int nn_range) {
+    int sample_num, int nn_range, float r, float height_half) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int totalPixels = width * height * num_images;
   if (idx >= totalPixels) {
@@ -587,7 +587,97 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
 
   float3 normal = d_normals[idx];
 
+  if (0 < r && 0 < height_half) {
+    // Update voxel with AABB surrounding cylinder
+    float3 tangent = make_float3(0.0f, 0.0f, 0.0f);
+    if (fabsf(normal.x) > fabsf(normal.y) &&
+        fabsf(normal.x) > fabsf(normal.z)) {
+      tangent = make_float3(0.0f, normal.z, -normal.y);
+    } else if (fabsf(normal.y) > fabsf(normal.x) &&
+               fabsf(normal.y) > fabsf(normal.z)) {
+      tangent = make_float3(-normal.z, 0.0f, normal.x);
+    } else {
+      tangent = make_float3(-normal.y, normal.x, 0.0f);
+    }
+
+    tangent = normalize(tangent);
+    float3 tangent_abs =
+        make_float3(fabsf(tangent.x), fabsf(tangent.y), fabsf(tangent.z));
+
+    float3 normal_abs =
+        make_float3(fabsf(normal.x), fabsf(normal.y), fabsf(normal.z));
+
+    float3 normal_offset = make_float3(height_half, height_half, height_half);
+
+    float min_x = pt.x - normal_abs.x * normal_offset.x - r * tangent_abs.x;
+    float max_x = pt.x + normal_abs.x * normal_offset.x + r * tangent_abs.x;
+    float min_y = pt.y - normal_abs.y * normal_offset.y - r * tangent_abs.y;
+    float max_y = pt.y + normal_abs.y * normal_offset.y + r * tangent_abs.y;
+    float min_z = pt.z - normal_abs.z * normal_offset.z - r * tangent_abs.z;
+    float max_z = pt.z + normal_abs.z * normal_offset.z + r * tangent_abs.z;
+
+    int min_x_index = floorf((min_x - bb_min.x) / voxel_size.x);
+    int max_x_index = floorf((max_x - bb_min.x) / voxel_size.x);
+    int min_y_index = floorf((min_y - bb_min.y) / voxel_size.y);
+    int max_y_index = floorf((max_y - bb_min.y) / voxel_size.y);
+    int min_z_index = floorf((min_z - bb_min.z) / voxel_size.z);
+    int max_z_index = floorf((max_z - bb_min.z) / voxel_size.z);
+
+    if (min_x_index < 0) {
+      min_x_index = 0;
+    }
+    if (max_x_index >= voxel_num.x) {
+      max_x_index = voxel_num.x - 1;
+    }
+    if (min_y_index < 0) {
+      min_y_index = 0;
+    }
+    if (max_y_index >= voxel_num.y) {
+      max_y_index = voxel_num.y - 1;
+    }
+    if (min_z_index < 0) {
+      min_z_index = 0;
+    }
+    if (max_z_index >= voxel_num.z) {
+      max_z_index = voxel_num.z - 1;
+    }
+
+    for (int z_index = min_z_index; z_index <= max_z_index; z_index++) {
+      for (int y_index = min_y_index; y_index <= max_y_index; y_index++) {
+        for (int x_index = min_x_index; x_index <= max_x_index; x_index++) {
+          float3 voxel_pos;
+          voxel_pos.x = bb_min.x + x_index * voxel_size.x;
+          voxel_pos.y = bb_min.y + y_index * voxel_size.y;
+          voxel_pos.z = bb_min.z + z_index * voxel_size.z;
+
+          // Distance from the voxel center to the point
+          float3 diff = voxel_pos - pt;
+          float sign = 1.f;
+          float d_dot_n = dot(diff, normal);
+          if (d_dot_n < 0) {
+            sign = -1.f;
+          }
+          float dist = sqrtf(dot(diff, diff)) * sign;
+
+          if (dist >= -truncation_band) {
+            dist = fminf(1.0f, dist / truncation_band);
+          } else {
+            continue;
+          }
+
+          VoxelCudaNaive* voxel =
+              &d_voxel_[x_index + y_index * voxel_num.x +
+                        z_index * voxel_num.x * voxel_num.y];
+
+          atomicAdd(&voxel->sdf_sum, dist * weight);
+          atomicAdd(&voxel->update_num, 1);
+        }
+      }
+    }
+  }
+
   if (0 < nn_range) {
+    // Update neighboring voxels
     float3 diff = pt - bb_min;
     int x_index_ = floorf(diff.x / voxel_size.x);
     int y_index_ = floorf(diff.y / voxel_size.y);
@@ -640,6 +730,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
   }
 
   if (0 < sample_num) {
+    // Update voxel along the normal direction
     for (int k = -sample_num; k < sample_num + 1; k++) {
       float3 offset;
       offset.x = k * voxel_size.x * normal.x;
@@ -900,8 +991,8 @@ __device__ float3 VertexInterp(float3 p1, float3 p2, float valp1, float valp2,
 // Marching Cubes によるメッシュ生成カーネル
 // 各スレッドは有効なVoxelBlock内の1セル（(BLOCK_SIZE-1)^3個のセル）に対して処理を行う
 // isoLevel は 0 を想定（SDF=0 の面）、d_vertices, d_indices
-// は出力バッファ（d_indicesは connected==true の場合に書き出す） d_vertexCount
-// はグローバル出力頂点数カウンター（各三角形につき3頂点を出力）
+// は出力バッファ（d_indicesは connected==true の場合に書き出す）
+// d_vertexCount はグローバル出力頂点数カウンター（各三角形につき3頂点を出力）
 //
 __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
                                     int validBlockCount, float voxelSize,
@@ -1608,7 +1699,7 @@ class VoxelGridCudaNaive::Impl {
     FuseOrganizedPointCloudMultiKernelNaive<<<blocks, threads>>>(
         d_points, d_normals, width, height, num_images, d_voxels_, resolution_,
         bb_max_, bb_min_, voxel_num_, option.truncation_band, option.weight,
-        option.sample_num, option.nn_range);
+        option.sample_num, option.nn_range, option.r, option.height_half);
     checkCudaErrors(cudaGetLastError());
     if (sync) {
       checkCudaErrors(cudaDeviceSynchronize());
