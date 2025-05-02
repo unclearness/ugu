@@ -7,7 +7,11 @@
 
 #include "ugu/clustering/clustering.h"
 #include "ugu/cuda/image.h"
+
+#ifdef UGU_USE_CUDA
 #include "ugu/cuda/voxel.h"
+#endif
+
 #include "ugu/image_io.h"
 #include "ugu/image_proc.h"
 #include "ugu/plane.h"
