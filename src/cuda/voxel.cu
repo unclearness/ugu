@@ -1525,7 +1525,7 @@ __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
                                     int3 vn,  // voxel_num
                                     float iso_level, int* d_edgeVertexIds,
                                     int* d_vtxCounter, float3* d_vertices,
-                                    float weight) {
+                                    float weight, int max_vertices_num) {
   int ix = blockIdx.x * blockDim.x + threadIdx.x;
   int iy = blockIdx.y * blockDim.y + threadIdx.y;
   int iz = blockIdx.z * blockDim.z + threadIdx.z;
@@ -1550,6 +1550,11 @@ __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
 
     // 2) 新しい頂点ID を確保
     int vid = atomicAdd(d_vtxCounter, 1);
+
+    if (max_vertices_num < vid) {
+      return;
+    }
+
     atomicExch(&d_edgeVertexIds[key], vid);
 
     // 3) エッジに対応する 2 つのコーナー番号
@@ -1589,7 +1594,7 @@ __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
 __global__ void BuildFacesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
                                  float3 resolution, int3 vn, float iso_level,
                                  int* d_edgeVertexIds, int* d_idxCounter,
-                                 int* d_faces) {
+                                 int* d_faces, int max_faces) {
   int ix = blockIdx.x * blockDim.x + threadIdx.x;
   int iy = blockIdx.y * blockDim.y + threadIdx.y;
   int iz = blockIdx.z * blockDim.z + threadIdx.z;
@@ -1607,6 +1612,9 @@ __global__ void BuildFacesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
     int v1 = d_edgeVertexIds[k1];
     int v2 = d_edgeVertexIds[k2];
     int idx = atomicAdd(d_idxCounter, 3);
+    if (max_faces < idx) {
+      return;
+    }
     d_faces[idx + 0] = v2;
     d_faces[idx + 1] = v1;
     d_faces[idx + 2] = v0;
@@ -1615,7 +1623,7 @@ __global__ void BuildFacesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
 __global__ void BuildFacesKernelWithNormal(
     const VoxelCudaNaive* voxels, float3 bb_min, float3 resolution, int3 vn,
     float iso_level, int* d_edgeVertexIds, int* d_idxCounter, int* d_faces,
-    float3* d_vertices, float3* d_face_normals) {
+    float3* d_vertices, float3* d_face_normals, int max_faces) {
   int ix = blockIdx.x * blockDim.x + threadIdx.x;
   int iy = blockIdx.y * blockDim.y + threadIdx.y;
   int iz = blockIdx.z * blockDim.z + threadIdx.z;
@@ -1633,12 +1641,15 @@ __global__ void BuildFacesKernelWithNormal(
     int v1 = d_edgeVertexIds[k1];
     int v2 = d_edgeVertexIds[k2];
     int idx = atomicAdd(d_idxCounter, 3);
+    if (max_faces < idx) {
+      return;
+    }
     d_faces[idx + 0] = v2;
     d_faces[idx + 1] = v1;
     d_faces[idx + 2] = v0;
 
-    float3 face_normal = cross(d_vertices[v2] - d_vertices[v0],
-                               d_vertices[v1] - d_vertices[v0]);
+    float3 face_normal =
+        cross(d_vertices[v2] - d_vertices[v0], d_vertices[v1] - d_vertices[v0]);
     d_face_normals[idx / 3] = normalize(face_normal);
   }
 }
@@ -1924,10 +1935,14 @@ class VoxelGridCudaNaive::Impl {
 
     int totalCells =
         (voxel_num_.x - 1) * (voxel_num_.y - 1) * (voxel_num_.z - 1);
-    int maxTris = totalCells * 5;
+    int maxTris_ = totalCells * 5;  // Theoretical max;
 
-    cudaMalloc(&d_vertices, sizeof(float3) * maxTris * 3);
-    cudaMemset(d_vertices, 0, sizeof(float3) * maxTris * 3);
+    // Practical max
+    max_tris_ = maxTris_ / max(max(voxel_num_.x, voxel_num_.y), voxel_num_.z);
+
+    cudaMalloc(&d_vertices, sizeof(float3) * max_tris_ * 3);
+    cudaMemset(d_vertices, 0, sizeof(float3) * max_tris_ * 3);
+
     cudaMalloc(&d_vtxCounter, sizeof(int));
     cudaMemset(d_vtxCounter, 0, sizeof(int));
 
@@ -1948,16 +1963,20 @@ class VoxelGridCudaNaive::Impl {
     cudaMemset(d_edgeVertexIds, -1, sizeof(int) * numEdges);
 
     // Face buffer and counter
-    int maxF = totalCells * 15;
-    cudaMalloc(&d_faces, sizeof(int) * maxF);
+    int maxF_ = totalCells * 15;
+
+    // Practical max
+    max_faces_ = maxF_ / max(max(voxel_num_.x, voxel_num_.y), voxel_num_.z);
+
+    cudaMalloc(&d_faces, sizeof(int) * max_faces_);
     cudaMalloc(&d_idxCounter, sizeof(int));
     cudaMemset(d_idxCounter, 0, sizeof(int));
 
-    cudaMalloc(&d_face_normals, sizeof(float3) * maxF / 3);
+    cudaMalloc(&d_face_normals, sizeof(float3) * max_faces_ / 3);
 
-    cudaMallocHost(&h_vertices_pinned, sizeof(float3) * maxTris * 3);
-    cudaMallocHost(&h_faces_pinned, sizeof(int) * maxF);
-    cudaMallocHost(&h_face_normals_pinned, sizeof(float3) * maxF / 3);
+    cudaMallocHost(&h_vertices_pinned, sizeof(float3) * max_tris_ * 3);
+    cudaMallocHost(&h_faces_pinned, sizeof(int) * max_faces_);
+    cudaMallocHost(&h_face_normals_pinned, sizeof(float3) * max_faces_ / 3);
 
     // Constat
     cudaMemcpyToSymbol(c_bb_min, &bb_min_, sizeof(float3));
@@ -2069,24 +2088,48 @@ class VoxelGridCudaNaive::Impl {
               (voxel_num_.z + block.z - 1) / block.z);
 
     // Launch kernels
-    float iso_level = 0.f;
-    BuildVerticesKernel<<<grid, block>>>(
-        d_voxels_, bb_min_, resolution_, voxel_num_, iso_level, d_edgeVertexIds,
-        d_vtxCounter, d_vertices, option_.weight);
-    checkCudaErrors(cudaGetLastError());
-    checkCudaErrors(cudaDeviceSynchronize());
-
-    if (with_face_normals) {
-      BuildFacesKernelWithNormal<<<grid, block>>>(
+    constexpr float iso_level = 0.f;
+    constexpr int tri_ratio = 2;
+    while (true) {
+      BuildVerticesKernel<<<grid, block>>>(
           d_voxels_, bb_min_, resolution_, voxel_num_, iso_level,
-          d_edgeVertexIds, d_idxCounter, d_faces, d_vertices, d_face_normals);
-    } else {
-      BuildFacesKernel<<<grid, block>>>(d_voxels_, bb_min_, resolution_,
-                                        voxel_num_, iso_level, d_edgeVertexIds,
-                                        d_idxCounter, d_faces);
+          d_edgeVertexIds, d_vtxCounter, d_vertices, option_.weight, max_tris_);
+      checkCudaErrors(cudaGetLastError());
+      checkCudaErrors(cudaDeviceSynchronize());
+      int h_vcount = 0;
+      cudaMemcpy(&h_vcount, d_vtxCounter, sizeof(int), cudaMemcpyDeviceToHost);
+      if (h_vcount < max_tris_) {
+        break;
+      }
+      // If memory is not enough, reallocate
+      cudaMemset(d_vtxCounter, 0, sizeof(int));
+      EnsureTriangleVertexMemory(max_tris_ * tri_ratio);
     }
-    checkCudaErrors(cudaGetLastError());
-    checkCudaErrors(cudaDeviceSynchronize());
+
+    while (true) {
+      if (with_face_normals) {
+        BuildFacesKernelWithNormal<<<grid, block>>>(
+            d_voxels_, bb_min_, resolution_, voxel_num_, iso_level,
+            d_edgeVertexIds, d_idxCounter, d_faces, d_vertices, d_face_normals,
+            max_faces_);
+      } else {
+        BuildFacesKernel<<<grid, block>>>(
+            d_voxels_, bb_min_, resolution_, voxel_num_, iso_level,
+            d_edgeVertexIds, d_idxCounter, d_faces, max_faces_);
+      }
+      checkCudaErrors(cudaGetLastError());
+      checkCudaErrors(cudaDeviceSynchronize());
+
+      int h_icount = 0;
+      cudaMemcpy(&h_icount, d_idxCounter, sizeof(int), cudaMemcpyDeviceToHost);
+      if (h_icount < max_faces_) {
+        break;
+      }
+      // if memory is not enough, reallocate
+      cudaMemset(d_idxCounter, 0, sizeof(int));
+      cudaMemset(d_edgeVertexIds, -1, sizeof(int) * numEdges);
+      EnsureTriangleMemory(max_faces_ * tri_ratio);
+    }
   }
 
   void GetVerticesCpu(std::vector<Eigen::Vector3f>& vertices) {
@@ -2234,6 +2277,43 @@ class VoxelGridCudaNaive::Impl {
       cudaFreeHost(h_face_normals_pinned);
       h_face_normals_pinned = nullptr;
     }
+
+    max_faces_ = 0;
+    max_tris_ = 0;
+  }
+
+  void EnsureTriangleVertexMemory(int tris_num) {
+    if (tris_num <= max_tris_) {
+      return;
+    }
+
+    max_tris_ = tris_num;
+
+    cudaFree(d_vertices);
+    cudaFreeHost(h_vertices_pinned);
+
+    cudaMalloc(&d_vertices, sizeof(float3) * max_tris_ * 3);
+    cudaMallocHost(&h_vertices_pinned, sizeof(float3) * max_tris_ * 3);
+  }
+
+  void EnsureTriangleMemory(int faces_num) {
+    if (faces_num <= max_faces_) {
+      return;
+    }
+
+    max_faces_ = faces_num;
+
+    cudaFree(d_faces);
+    cudaFree(d_face_normals);
+
+    cudaFreeHost(h_faces_pinned);
+    cudaFreeHost(h_face_normals_pinned);
+
+    cudaMalloc(&d_faces, sizeof(int) * max_faces_);
+    cudaMalloc(&d_face_normals, sizeof(float3) * max_faces_ / 3);
+
+    cudaMallocHost(&h_faces_pinned, sizeof(int) * max_faces_);
+    cudaMallocHost(&h_face_normals_pinned, sizeof(float3) * max_faces_ / 3);
   }
 
   VoxelCudaNaive* d_voxels_{nullptr};
@@ -2257,6 +2337,9 @@ class VoxelGridCudaNaive::Impl {
   int3 voxel_num_{0, 0, 0};
   VoxelGridCudaNaiveFuseOption option_;
   int xy_slice_num_{0};
+
+  int max_tris_{0};
+  int max_faces_{0};
 };
 
 VoxelGridCudaNaive::VoxelGridCudaNaive() { impl_ = std::make_unique<Impl>(); }
