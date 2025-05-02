@@ -355,6 +355,12 @@ __device__ inline float3 operator*(const float3 a, const float b) {
 __device__ inline float3 operator/(const float3 a, const float b) {
   return make_float3(a.x / b, a.y / b, a.z / b);
 }
+
+__device__ inline float3 cross(const float3 a, const float3 b) {
+  return make_float3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z,
+                     a.x * b.y - a.y * b.x);
+}
+
 __device__ inline float3 normalize(const float3 a) {
   float len = sqrtf(dot(a, a));
   return (len > 0.0f) ? a / len : make_float3(0.0f, 0.0f, 0.0f);
@@ -1606,6 +1612,36 @@ __global__ void BuildFacesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
     d_faces[idx + 2] = v0;
   }
 }
+__global__ void BuildFacesKernelWithNormal(
+    const VoxelCudaNaive* voxels, float3 bb_min, float3 resolution, int3 vn,
+    float iso_level, int* d_edgeVertexIds, int* d_idxCounter, int* d_faces,
+    float3* d_vertices, float3* d_face_normals) {
+  int ix = blockIdx.x * blockDim.x + threadIdx.x;
+  int iy = blockIdx.y * blockDim.y + threadIdx.y;
+  int iz = blockIdx.z * blockDim.z + threadIdx.z;
+  if (ix >= vn.x - 1 || iy >= vn.y - 1 || iz >= vn.z - 1) return;
+  int cubeIndex =
+      calcCubeIndex(voxels, ix, iy, iz, vn, bb_min, resolution, iso_level);
+  if (cubeIndex < 0) return;
+  int* tri = (int*)(&d_triTable[cubeIndex][0]);
+  for (int i = 0; tri[i] != -1; i += 3) {
+    int e0 = tri[i], e1 = tri[i + 1], e2 = tri[i + 2];
+    int k0 = computeEdgeKey(ix, iy, iz, e0, vn.x, vn.y, vn.z);
+    int k1 = computeEdgeKey(ix, iy, iz, e1, vn.x, vn.y, vn.z);
+    int k2 = computeEdgeKey(ix, iy, iz, e2, vn.x, vn.y, vn.z);
+    int v0 = d_edgeVertexIds[k0];
+    int v1 = d_edgeVertexIds[k1];
+    int v2 = d_edgeVertexIds[k2];
+    int idx = atomicAdd(d_idxCounter, 3);
+    d_faces[idx + 0] = v2;
+    d_faces[idx + 1] = v1;
+    d_faces[idx + 2] = v0;
+
+    float3 face_normal =
+        cross(d_vertices[v1] - d_vertices[v0], d_vertices[v2] - d_vertices[v0]);
+    d_face_normals[idx / 3] = normalize(face_normal);
+  }
+}
 
 }  // namespace
 
@@ -1917,8 +1953,11 @@ class VoxelGridCudaNaive::Impl {
     cudaMalloc(&d_idxCounter, sizeof(int));
     cudaMemset(d_idxCounter, 0, sizeof(int));
 
+    cudaMalloc(&d_face_normals, sizeof(float3) * maxF);
+
     cudaMallocHost(&h_vertices_pinned, sizeof(float3) * maxTris * 3);
     cudaMallocHost(&h_faces_pinned, sizeof(int) * maxF);
+    cudaMallocHost(&h_face_normals_pinned, sizeof(float3) * maxF);
 
     // Constat
     cudaMemcpyToSymbol(c_bb_min, &bb_min_, sizeof(float3));
@@ -2019,7 +2058,7 @@ class VoxelGridCudaNaive::Impl {
     }
   }
 
-  void ExtractMesh() {
+  void ExtractMesh(bool with_face_normals) {
     cudaMemset(d_vtxCounter, 0, sizeof(int));
     cudaMemset(d_edgeVertexIds, -1, sizeof(int) * numEdges);
     cudaMemset(d_idxCounter, 0, sizeof(int));
@@ -2037,19 +2076,23 @@ class VoxelGridCudaNaive::Impl {
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
-    BuildFacesKernel<<<grid, block>>>(d_voxels_, bb_min_, resolution_,
-                                      voxel_num_, iso_level, d_edgeVertexIds,
-                                      d_idxCounter, d_faces);
+    if (with_face_normals) {
+      BuildFacesKernelWithNormal<<<grid, block>>>(
+          d_voxels_, bb_min_, resolution_, voxel_num_, iso_level,
+          d_edgeVertexIds, d_idxCounter, d_faces, d_vertices, d_face_normals);
+    } else {
+      BuildFacesKernel<<<grid, block>>>(d_voxels_, bb_min_, resolution_,
+                                        voxel_num_, iso_level, d_edgeVertexIds,
+                                        d_idxCounter, d_faces);
+    }
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
   }
 
-  void GetExtractMeshCpu(std::vector<Eigen::Vector3f>& vertices,
-                         std::vector<Eigen::Vector3i>& faces) {
+  void GetVerticesCpu(std::vector<Eigen::Vector3f>& vertices) {
     // Copy counts
-    int h_vcount = 0, h_icount = 0;
+    int h_vcount = 0;
     cudaMemcpy(&h_vcount, d_vtxCounter, sizeof(int), cudaMemcpyDeviceToHost);
-    cudaMemcpy(&h_icount, d_idxCounter, sizeof(int), cudaMemcpyDeviceToHost);
 
     // Copy data back
     cudaMemcpy(h_vertices_pinned, d_vertices, sizeof(float3) * h_vcount,
@@ -2061,6 +2104,12 @@ class VoxelGridCudaNaive::Impl {
           Eigen::Vector3f(h_vertices_pinned[i].x, h_vertices_pinned[i].y,
                           h_vertices_pinned[i].z);
     }
+  }
+
+  void GetFacesCpu(std::vector<Eigen::Vector3i>& faces) {
+    // Copy counts
+    int h_icount = 0;
+    cudaMemcpy(&h_icount, d_idxCounter, sizeof(int), cudaMemcpyDeviceToHost);
 
     int faceCount = h_icount / 3;
     faces.resize(faceCount);
@@ -2070,6 +2119,23 @@ class VoxelGridCudaNaive::Impl {
       faces[i] =
           Eigen::Vector3i(h_faces_pinned[3 * i + 0], h_faces_pinned[3 * i + 1],
                           h_faces_pinned[3 * i + 2]);
+    }
+  }
+
+  void GetFaceNormalsCpu(std::vector<Eigen::Vector3f>& face_normals) {
+    // Copy counts
+    int h_icount = 0;
+    cudaMemcpy(&h_icount, d_idxCounter, sizeof(int), cudaMemcpyDeviceToHost);
+
+    int faceCount = h_icount / 3;
+    face_normals.resize(faceCount);
+    cudaMemcpy(h_face_normals_pinned, d_face_normals,
+               sizeof(float3) * faceCount, cudaMemcpyDeviceToHost);
+
+    for (int i = 0; i < faceCount; ++i) {
+      face_normals[i] = Eigen::Vector3f(h_face_normals_pinned[i].x,
+                                        h_face_normals_pinned[i].y,
+                                        h_face_normals_pinned[i].z);
     }
   }
 
@@ -2129,6 +2195,11 @@ class VoxelGridCudaNaive::Impl {
       d_idxCounter = nullptr;
     }
 
+    if (d_face_normals != nullptr) {
+      cudaFree(d_face_normals);
+      d_face_normals = nullptr;
+    }
+
     if (d_depth != nullptr) {
       cudaFree(d_depth);
       d_depth = nullptr;
@@ -2148,6 +2219,11 @@ class VoxelGridCudaNaive::Impl {
       cudaFreeHost(h_faces_pinned);
       h_faces_pinned = nullptr;
     }
+
+    if (h_face_normals_pinned) {
+      cudaFreeHost(h_face_normals_pinned);
+      h_face_normals_pinned = nullptr;
+    }
   }
 
   VoxelCudaNaive* d_voxels_{nullptr};
@@ -2156,10 +2232,12 @@ class VoxelGridCudaNaive::Impl {
   int* d_faces{nullptr};
   int* d_idxCounter{nullptr};
   int* d_edgeVertexIds{nullptr};
+  float3* d_face_normals{nullptr};
   float* d_depth{nullptr};
 
   float3* h_vertices_pinned{nullptr};
   int* h_faces_pinned{nullptr};
+  float3* h_face_normals_pinned{nullptr};
 
   int numEdges;
   float3 bb_max_;
@@ -2204,12 +2282,22 @@ void VoxelGridCudaNaive::FuseDepthMulti(
                         h_cy, h_R, h_t, option, sync);
 }
 
-void VoxelGridCudaNaive::ExtractMesh() { impl_->ExtractMesh(); }
+void VoxelGridCudaNaive::ExtractMesh(bool with_face_normals) {
+  impl_->ExtractMesh(with_face_normals);
+}
 
-void VoxelGridCudaNaive::GetExtractMeshCpu(
-    std::vector<Eigen::Vector3f>& vertices,
-    std::vector<Eigen::Vector3i>& faces) {
-  impl_->GetExtractMeshCpu(vertices, faces);
+void VoxelGridCudaNaive::GetVerticesCpu(
+    std::vector<Eigen::Vector3f>& vertices) {
+  impl_->GetVerticesCpu(vertices);
+}
+
+void VoxelGridCudaNaive::GetFacesCpu(std::vector<Eigen::Vector3i>& faces) {
+  impl_->GetFacesCpu(faces);
+}
+
+void VoxelGridCudaNaive::GetFaceNormalsCpu(
+    std::vector<Eigen::Vector3f>& face_normals) {
+  impl_->GetFaceNormalsCpu(face_normals);
 }
 
 void VoxelGridCudaNaive::GetVoxelGridCpu(ugu::VoxelGrid& grid_cpu) const {

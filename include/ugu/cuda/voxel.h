@@ -100,10 +100,10 @@ class VoxelGridCudaNaive {
                       const VoxelGridCudaNaiveFuseOption& option,
                       bool sync = true);
 
-  void ExtractMesh();
-  void GetExtractMeshCpu(std::vector<Eigen::Vector3f>& vertices,
-                         std::vector<Eigen::Vector3i>& faces);
-
+  void ExtractMesh(bool with_face_normals = true);
+  void GetVerticesCpu(std::vector<Eigen::Vector3f>& vertices);
+  void GetFacesCpu(std::vector<Eigen::Vector3i>& faces);
+  void GetFaceNormalsCpu(std::vector<Eigen::Vector3f>& face_normals);
   void GetVoxelGridCpu(ugu::VoxelGrid& grid_cpu) const;
 
   void Clear();
