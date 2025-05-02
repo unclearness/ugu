@@ -1953,11 +1953,11 @@ class VoxelGridCudaNaive::Impl {
     cudaMalloc(&d_idxCounter, sizeof(int));
     cudaMemset(d_idxCounter, 0, sizeof(int));
 
-    cudaMalloc(&d_face_normals, sizeof(float3) * maxF);
+    cudaMalloc(&d_face_normals, sizeof(float3) * maxF / 3);
 
     cudaMallocHost(&h_vertices_pinned, sizeof(float3) * maxTris * 3);
     cudaMallocHost(&h_faces_pinned, sizeof(int) * maxF);
-    cudaMallocHost(&h_face_normals_pinned, sizeof(float3) * maxF);
+    cudaMallocHost(&h_face_normals_pinned, sizeof(float3) * maxF / 3);
 
     // Constat
     cudaMemcpyToSymbol(c_bb_min, &bb_min_, sizeof(float3));
@@ -2165,6 +2165,16 @@ class VoxelGridCudaNaive::Impl {
     }
   }
 
+  const float3* GetVerticesGpu() const { return d_vertices; }
+
+  const int* GetFacesGpu() const { return d_faces; }
+
+  const float3* GetFaceNormalsGpu() const { return d_face_normals; }
+
+  const int* GetVerticesNumGpu() const { return d_vtxCounter; }
+
+  const int* GetFacesNumGpu() const { return d_idxCounter; }
+
   void Clear() {
     int total_voxel_num = voxel_num_.x * voxel_num_.y * voxel_num_.z;
     cudaMemset(d_voxels_, 0, sizeof(VoxelCudaNaive) * total_voxel_num);
@@ -2302,6 +2312,26 @@ void VoxelGridCudaNaive::GetFaceNormalsCpu(
 
 void VoxelGridCudaNaive::GetVoxelGridCpu(ugu::VoxelGrid& grid_cpu) const {
   impl_->GetVoxelGridCpu(grid_cpu);
+}
+
+const float3* VoxelGridCudaNaive::GetVerticesGpu() const {
+  return impl_->GetVerticesGpu();
+}
+
+const int* VoxelGridCudaNaive::GetFacesGpu() const {
+  return impl_->GetFacesGpu();
+}
+
+const float3* VoxelGridCudaNaive::GetFaceNormalsGpu() const {
+  return impl_->GetFaceNormalsGpu();
+}
+
+const int* VoxelGridCudaNaive::GetVerticesNumGpu() const {
+  return impl_->GetVerticesNumGpu();
+}
+
+const int* VoxelGridCudaNaive::GetFacesNumGpu() const {
+  return impl_->GetFacesNumGpu();
 }
 
 void VoxelGridCudaNaive::Clear() { impl_->Clear(); }

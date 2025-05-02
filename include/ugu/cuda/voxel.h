@@ -106,6 +106,12 @@ class VoxelGridCudaNaive {
   void GetFaceNormalsCpu(std::vector<Eigen::Vector3f>& face_normals);
   void GetVoxelGridCpu(ugu::VoxelGrid& grid_cpu) const;
 
+  const float3* GetVerticesGpu() const;
+  const int* GetFacesGpu() const;
+  const float3* GetFaceNormalsGpu() const;
+  const int* GetVerticesNumGpu() const;
+  const int* GetFacesNumGpu() const;
+
   void Clear();
 
  private:

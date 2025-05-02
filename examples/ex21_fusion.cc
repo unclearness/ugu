@@ -253,9 +253,14 @@ int main(int argc, char* argv[]) {
     timer.End();
     std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms" << std::endl;
     timer.Start();
-    voxel_grid_naive.GetExtractMeshCpu(vertices, faces);
+    voxel_grid_naive.GetVerticesCpu(vertices);
     timer.End();
-    std::cout << "GetExtractMeshCpu  " << timer.elapsed_msec() << " ms"
+    std::cout << "GetVerticesCpu  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+    timer.Start();
+    voxel_grid_naive.GetFacesCpu(faces);
+    timer.End();
+    std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms"
               << std::endl;
     out_mesh.set_vertices(vertices);
     out_mesh.set_vertex_indices(faces);
@@ -295,9 +300,14 @@ int main(int argc, char* argv[]) {
       std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms"
                 << std::endl;
       timer.Start();
-      voxel_grid_naive2.GetExtractMeshCpu(vertices, faces);
+      voxel_grid_naive2.GetVerticesCpu(vertices);
       timer.End();
-      std::cout << "GetExtractMeshCpu  " << timer.elapsed_msec() << " ms"
+      std::cout << "GetVerticesCpu  " << timer.elapsed_msec() << " ms"
+                << std::endl;
+      timer.Start();
+      voxel_grid_naive2.GetFacesCpu(faces);
+      timer.End();
+      std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms"
                 << std::endl;
       out_mesh.set_vertices(vertices);
       out_mesh.set_vertex_indices(faces);
