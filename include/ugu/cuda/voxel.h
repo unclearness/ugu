@@ -11,12 +11,6 @@
 
 namespace ugu {
 
-#ifndef UGU_USE_CUDA
-struct float3 {
-  float x, y, z;
-};
-#endif
-
 // Marching Cubes —p‚Ì’¸“_\‘¢‘Ì
 struct VertexHostDevice {
   float3 position;

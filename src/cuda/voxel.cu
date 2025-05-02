@@ -1637,8 +1637,8 @@ __global__ void BuildFacesKernelWithNormal(
     d_faces[idx + 1] = v1;
     d_faces[idx + 2] = v0;
 
-    float3 face_normal =
-        cross(d_vertices[v1] - d_vertices[v0], d_vertices[v2] - d_vertices[v0]);
+    float3 face_normal = cross(d_vertices[v2] - d_vertices[v0],
+                               d_vertices[v1] - d_vertices[v0]);
     d_face_normals[idx / 3] = normalize(face_normal);
   }
 }
