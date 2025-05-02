@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <execution>
 #include <mutex>
 #include <random>
 
@@ -264,6 +265,35 @@ void MergeMaterialsAndIds(const std::vector<ugu::ObjMaterial>& src1_materials,
                                       src2_materials_, src2_material_ids_,
                                       materials, material_ids, merge_same_name);
   }
+}
+
+// Edge struct for undirected edge between two vertex indices
+struct Edge {
+  int v0, v1;
+  Edge(int a, int b) {
+    if (a < b) {
+      v0 = a;
+      v1 = b;
+    } else {
+      v0 = b;
+      v1 = a;
+    }
+  }
+  bool operator==(Edge const& o) const { return v0 == o.v0 && v1 == o.v1; }
+};
+
+// Hash for Edge
+struct EdgeHash {
+  size_t operator()(Edge const& e) const noexcept {
+    // combine two 32-bit ints into one 64-bit key
+    return (static_cast<size_t>(e.v0) << 32) ^ static_cast<size_t>(e.v1);
+  }
+};
+
+static inline uint64_t MakeEdgeKey(int a, int b) {
+  uint32_t v0 = static_cast<uint32_t>(std::min(a, b));
+  uint32_t v1 = static_cast<uint32_t>(std::max(a, b));
+  return (static_cast<uint64_t>(v0) << 32) | v1;
 }
 
 }  // namespace
@@ -1778,6 +1808,127 @@ bool ConnectMeshes(const std::vector<Eigen::Vector3f> verts0,
   }
 
   return true;
+}
+
+/**
+ * @brief   Build CSR-format face adjacency from triangle faces.
+ * @param   faces     Vector of faces, each Eigen::Vector3i of vertex indices.
+ * @param   offsets   Output offsets (size = num_faces+1).
+ * @param   neighbors Output flattened neighbor list.
+ */
+void BuildFaceAdjacencyCSR(const std::vector<Eigen::Vector3i>& faces,
+                           std::vector<int>& offsets,
+                           std::vector<int>& neighbors) {
+  int num_faces = static_cast<int>(faces.size());
+
+  // 1) Map each undirected edge to list of adjacent faces
+  std::unordered_map<::Edge, std::vector<int>, ::EdgeHash> edge2faces;
+  edge2faces.reserve(num_faces * 3);
+
+  for (int fid = 0; fid < num_faces; ++fid) {
+    const auto& f = faces[fid];
+    // three edges per triangle
+    ::Edge e0(f[0], f[1]);
+    ::Edge e1(f[1], f[2]);
+    ::Edge e2(f[2], f[0]);
+    edge2faces[e0].push_back(fid);
+    edge2faces[e1].push_back(fid);
+    edge2faces[e2].push_back(fid);
+  }
+
+  // 2) Build adjacency lists per face
+  std::vector<std::vector<int>> adj_list(num_faces);
+  for (auto& kv : edge2faces) {
+    auto& flist = kv.second;
+    // for each pair of faces sharing this edge, add adjacency
+    for (int i = 0; i < (int)flist.size(); ++i) {
+      for (int j = 0; j < (int)flist.size(); ++j) {
+        if (i == j) continue;
+        adj_list[flist[i]].push_back(flist[j]);
+      }
+    }
+  }
+
+  // 3) Sort and unique neighbor lists
+  for (int i = 0; i < num_faces; ++i) {
+    auto& nbrs = adj_list[i];
+    std::sort(nbrs.begin(), nbrs.end());
+    nbrs.erase(std::unique(nbrs.begin(), nbrs.end()), nbrs.end());
+  }
+
+  // 4) Build CSR arrays
+  offsets.resize(num_faces + 1);
+  offsets[0] = 0;
+  for (int i = 0; i < num_faces; ++i) {
+    offsets[i + 1] = offsets[i] + static_cast<int>(adj_list[i].size());
+  }
+  neighbors.clear();
+  neighbors.reserve(offsets.back());
+  for (int i = 0; i < num_faces; ++i) {
+    for (int nb : adj_list[i]) {
+      neighbors.push_back(nb);
+    }
+  }
+}
+
+void BuildFaceAdjacencyCSRParallel(const std::vector<Eigen::Vector3i>& faces,
+                                   std::vector<int>& offsets,
+                                   std::vector<int>& neighbors) {
+  int num_faces = (int)faces.size();
+  int E = num_faces * 3;
+
+  // 1) Make Edge list
+  std::vector<uint64_t> edgeKeys(E);
+  std::vector<int> faceIds(E);
+#pragma omp parallel for schedule(static)
+  for (int fid = 0; fid < num_faces; ++fid) {
+    const auto& f = faces[fid];
+    int idx = fid * 3;
+    edgeKeys[idx + 0] = MakeEdgeKey(f[0], f[1]);
+    faceIds[idx + 0] = fid;
+    edgeKeys[idx + 1] = MakeEdgeKey(f[1], f[2]);
+    faceIds[idx + 1] = fid;
+    edgeKeys[idx + 2] = MakeEdgeKey(f[2], f[0]);
+    faceIds[idx + 2] = fid;
+  }
+
+  // 2) Apply parallel sort for index array
+  // https://qiita.com/Nabetani/items/2dc2264764e2c68e7bcf
+  std::vector<int> idx(E);
+  std::iota(idx.begin(), idx.end(), 0);
+  std::sort(std::execution::par_unseq, idx.begin(), idx.end(),
+            [&](int a, int b) { return edgeKeys[a] < edgeKeys[b]; });
+
+  // 3) Grouping and collect adjacent pairs
+  std::vector<std::pair<int, int>> adjPairs;
+  adjPairs.reserve(E);
+  for (int p = 0; p < E;) {
+    int q = p + 1;
+    uint64_t key = edgeKeys[idx[p]];
+    while (q < E && edgeKeys[idx[q]] == key) ++q;
+    // Enumrate all combinations in the group
+    for (int i = p; i < q; ++i) {
+      for (int j = p; j < q; ++j) {
+        if (i != j) adjPairs.emplace_back(faceIds[idx[i]], faceIds[idx[j]]);
+      }
+    }
+    p = q;
+  }
+
+  // 4) Remove duplication
+  std::sort(std::execution::par_unseq, adjPairs.begin(), adjPairs.end());
+  adjPairs.erase(std::unique(adjPairs.begin(), adjPairs.end()), adjPairs.end());
+
+  // 5) Convert to CSR format
+  offsets.assign(num_faces + 1, 0);
+  for (auto& pr : adjPairs) offsets[pr.first + 1]++;
+  for (int i = 1; i <= num_faces; ++i) offsets[i] += offsets[i - 1];
+  neighbors.resize(adjPairs.size());
+  std::vector<int> ptr = offsets;
+  for (auto& pr : adjPairs) {
+    int f = pr.first;
+    neighbors[ptr[f]++] = pr.second;
+  }
 }
 
 }  // namespace ugu

@@ -191,4 +191,11 @@ bool ConnectMeshes(const std::vector<Eigen::Vector3f> verts0,
                    std::vector<Eigen::Vector3f>& merged_verts,
                    std::vector<Eigen::Vector3i>& merged_indices);
 
+void BuildFaceAdjacencyCSR(const std::vector<Eigen::Vector3i>& faces,
+                           std::vector<int>& offsets,
+                           std::vector<int>& neighbors);
+
+void BuildFaceAdjacencyCSRParallel(const std::vector<Eigen::Vector3i>& faces,
+                                   std::vector<int>& offsets,
+                                   std::vector<int>& neighbors);
 }  // namespace ugu
