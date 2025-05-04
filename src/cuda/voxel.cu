@@ -2103,7 +2103,8 @@ class VoxelGridCudaNaive::Impl {
       }
       // If memory is not enough, reallocate
       cudaMemset(d_vtxCounter, 0, sizeof(int));
-      EnsureTriangleVertexMemory(max_tris_ * tri_ratio);
+      cudaMemset(d_edgeVertexIds, -1, sizeof(int) * numEdges);
+      EnsureTriangleVertexMemory(h_vcount * tri_ratio);
     }
 
     while (true) {
@@ -2127,8 +2128,7 @@ class VoxelGridCudaNaive::Impl {
       }
       // if memory is not enough, reallocate
       cudaMemset(d_idxCounter, 0, sizeof(int));
-      cudaMemset(d_edgeVertexIds, -1, sizeof(int) * numEdges);
-      EnsureTriangleMemory(max_faces_ * tri_ratio);
+      EnsureTriangleMemory(h_icount * tri_ratio);
     }
   }
 
