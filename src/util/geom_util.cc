@@ -1896,8 +1896,17 @@ void BuildFaceAdjacencyCSRParallel(const std::vector<Eigen::Vector3i>& faces,
   // https://qiita.com/Nabetani/items/2dc2264764e2c68e7bcf
   std::vector<int> idx(E);
   std::iota(idx.begin(), idx.end(), 0);
+
+  // FIXME!:
+  // Depending on the environment, linux may fail to link TBB if
+  // std::execution::par_unseq was set...
+#ifdef _WIN32
   std::sort(std::execution::par_unseq, idx.begin(), idx.end(),
             [&](int a, int b) { return edgeKeys[a] < edgeKeys[b]; });
+#else
+  std::sort(idx.begin(), idx.end(),
+            [&](int a, int b) { return edgeKeys[a] < edgeKeys[b]; });
+#endif
 
   // 3) Grouping and collect adjacent pairs
   std::vector<std::pair<int, int>> adjPairs;
@@ -1916,7 +1925,15 @@ void BuildFaceAdjacencyCSRParallel(const std::vector<Eigen::Vector3i>& faces,
   }
 
   // 4) Remove duplication
+
+  // FIXME!:
+  // Depending on the environment, linux may fail to link TBB if
+  // std::execution::par_unseq was set...
+#ifdef _WIN32
   std::sort(std::execution::par_unseq, adjPairs.begin(), adjPairs.end());
+#else
+  std::sort(adjPairs.begin(), adjPairs.end());
+#endif
   adjPairs.erase(std::unique(adjPairs.begin(), adjPairs.end()), adjPairs.end());
 
   // 5) Convert to CSR format
