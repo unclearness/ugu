@@ -761,6 +761,12 @@ class NormalComputerCuda::Impl {
             const float* h_fy, const float* h_cx, const float* h_cy,
             float max_connect_z_diff, int step, bool gl_coord, const float* h_R,
             const float* h_t) {
+    if (MAX_IMAGES < num_images) {
+      std::cerr << "Error: num_images (" << num_images
+                << ") exceeds MAX_IMAGES (" << MAX_IMAGES << ")" << std::endl;
+      return;
+    }
+
     this->width = width;
     this->height = height;
     this->num_images = num_images;

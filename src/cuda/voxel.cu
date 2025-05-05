@@ -2028,6 +2028,12 @@ class VoxelGridCudaNaive::Impl {
                       const float* h_t,
                       const VoxelGridCudaNaiveFuseOption& option,
                       bool sync = true) {
+    if (MAX_IMAGES < num_images) {
+      std::cerr << "Error: num_images (" << num_images
+                << ") exceeds MAX_IMAGES (" << MAX_IMAGES << ")" << std::endl;
+      return;
+    }
+
     option_ = option;
 
     // Send camera parameters to GPU constant
