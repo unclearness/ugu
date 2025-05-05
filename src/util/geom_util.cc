@@ -1880,7 +1880,6 @@ void BuildFaceAdjacencyCSRParallel(const std::vector<Eigen::Vector3i>& faces,
   // 1) Make Edge list
   std::vector<uint64_t> edgeKeys(E);
   std::vector<int> faceIds(E);
-#pragma omp parallel for schedule(static)
   for (int fid = 0; fid < num_faces; ++fid) {
     const auto& f = faces[fid];
     int idx = fid * 3;
