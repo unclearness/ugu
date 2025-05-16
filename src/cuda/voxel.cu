@@ -366,6 +366,14 @@ __device__ inline float3 normalize(const float3 a) {
   return (len > 0.0f) ? a / len : make_float3(0.0f, 0.0f, 0.0f);
 }
 
+__device__ inline float3 voxel_idx2pos(int3 idx, float3 bb_min,
+                                       float3 resolution) {
+  return make_float3(bb_min.x + idx.x * resolution.x,
+                     bb_min.y + idx.y * resolution.y,
+                     bb_min.z + idx.z * resolution.z)    +
+         resolution * 0.5f;
+}
+
 //
 // ハッシュテーブル初期化カーネル（各エントリの ptr を -1 に設定）
 //
@@ -658,10 +666,8 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
     for (int z_index = min_z_index; z_index <= max_z_index; z_index++) {
       for (int y_index = min_y_index; y_index <= max_y_index; y_index++) {
         for (int x_index = min_x_index; x_index <= max_x_index; x_index++) {
-          float3 voxel_pos;
-          voxel_pos.x = bb_min.x + x_index * voxel_size.x;
-          voxel_pos.y = bb_min.y + y_index * voxel_size.y;
-          voxel_pos.z = bb_min.z + z_index * voxel_size.z;
+          float3 voxel_pos = voxel_idx2pos(make_int3(x_index, y_index, z_index),
+                                           bb_min, voxel_size);
 
           // Distance from the voxel center to the point
           float3 diff = voxel_pos - pt;
@@ -711,10 +717,8 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
             continue;
           }
 
-          float3 voxel_pos;
-          voxel_pos.x = bb_min.x + x_index * voxel_size.x;
-          voxel_pos.y = bb_min.y + y_index * voxel_size.y;
-          voxel_pos.z = bb_min.z + z_index * voxel_size.z;
+          float3 voxel_pos = voxel_idx2pos(make_int3(x_index, y_index, z_index),
+                                           bb_min, voxel_size);
 
           // Distance from the voxel center to the point
           float3 diff = voxel_pos - pt;
@@ -768,10 +772,8 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
         continue;
       }
 
-      float3 voxel_pos;
-      voxel_pos.x = bb_min.x + x_index * voxel_size.x;
-      voxel_pos.y = bb_min.y + y_index * voxel_size.y;
-      voxel_pos.z = bb_min.z + z_index * voxel_size.z;
+      float3 voxel_pos = voxel_idx2pos(make_int3(x_index, y_index, z_index),
+                                       bb_min, voxel_size);
 
       // Distance from the voxel center to the point
       float3 diff = voxel_pos - pt;
@@ -1574,12 +1576,8 @@ __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
     int flat1 = gz1 * vn.y * vn.x + gy1 * vn.x + gx1;
 
     // 6) 実ワールド座標を計算
-    float3 p1 = make_float3(bb_min.x + gx0 * resolution.x,
-                            bb_min.y + gy0 * resolution.y,
-                            bb_min.z + gz0 * resolution.z);
-    float3 p2 = make_float3(bb_min.x + gx1 * resolution.x,
-                            bb_min.y + gy1 * resolution.y,
-                            bb_min.z + gz1 * resolution.z);
+    float3 p1 = voxel_idx2pos(make_int3(gx0, gy0, gz0), bb_min, resolution);
+    float3 p2 = voxel_idx2pos(make_int3(gx1, gy1, gz1), bb_min, resolution);
 
     // 7) SDF 値を取得
     float v1 = voxels[flat0].sdf_sum / float(voxels[flat0].update_num * weight);
@@ -2078,16 +2076,11 @@ class VoxelGridCudaNaive::Impl {
     int totalPixels = width * height * num_images;
     int threads = 256;
     int blocks = (totalPixels + threads - 1) / threads;
-
+#if 0
     if (fabsf(option.weight - 1.f) < 0.01f && option.sample_num == 2 &&
         option.nn_range == 1 && option.r < 0.f && option.height_half < 0.f) {
       // Need to send here
       cudaMemcpyToSymbol(c_trunc, &option_.truncation_band, sizeof(float));
-      // size_t sharedBytes = NAIVE_KERNEL_HASH_SIZE * (2 * sizeof(int) +
-      // sizeof(float));
-      // FuseOrganizedPointCloudMultiKernelNaiveOptimized<<<blocks, threads,
-      //                                                    sharedBytes>>>(
-      //     d_points, d_normals, d_voxels_, totalPixels);
       FuseOrganizedPointCloudMultiKernelNaiveOptimized<<<blocks, threads>>>(
           d_points, d_normals, d_voxels_, totalPixels);
     } else {
@@ -2097,6 +2090,12 @@ class VoxelGridCudaNaive::Impl {
           option.weight, option.sample_num, option.nn_range, option.r,
           option.height_half);
     }
+#else
+    FuseOrganizedPointCloudMultiKernelNaive<<<blocks, threads>>>(
+        d_points, d_normals, width, height, num_images, d_voxels_, resolution_,
+        bb_max_, bb_min_, voxel_num_, option.truncation_band, option.weight,
+        option.sample_num, option.nn_range, option.r, option.height_half);
+#endif
     checkCudaErrors(cudaGetLastError());
     if (sync) {
       checkCudaErrors(cudaDeviceSynchronize());
