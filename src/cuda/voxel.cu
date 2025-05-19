@@ -370,8 +370,29 @@ __device__ inline float3 voxel_idx2pos(int3 idx, float3 bb_min,
                                        float3 resolution) {
   return make_float3(bb_min.x + idx.x * resolution.x,
                      bb_min.y + idx.y * resolution.y,
-                     bb_min.z + idx.z * resolution.z)    +
+                     bb_min.z + idx.z * resolution.z) +
          resolution * 0.5f;
+}
+
+__device__ inline int3 voxel_pos2voxel(const float3 pos, const float3 bb_min,
+                                       const float3 resolution) {
+  // Compute offset from the true voxel‐corner origin (accounting for the
+  // 0.5*resolution shift)
+  float3 d = make_float3(pos.x - bb_min.x - 0.5f * resolution.x,
+                         pos.y - bb_min.y - 0.5f * resolution.y,
+                         pos.z - bb_min.z - 0.5f * resolution.z);
+
+  // Convert to floating‐point voxel coordinates
+  float fx = d.x / resolution.x;
+  float fy = d.y / resolution.y;
+  float fz = d.z / resolution.z;
+
+  // Floor to get integer indices
+  int ix = floorf(fx);
+  int iy = floorf(fy);
+  int iz = floorf(fz);
+
+  return make_int3(ix, iy, iz);
 }
 
 //
@@ -637,12 +658,17 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
     float min_z = pt.z - normal_abs.z * normal_offset.z - r * tangent_abs.z;
     float max_z = pt.z + normal_abs.z * normal_offset.z + r * tangent_abs.z;
 
-    int min_x_index = floorf((min_x - bb_min.x) / voxel_size.x);
-    int max_x_index = floorf((max_x - bb_min.x) / voxel_size.x);
-    int min_y_index = floorf((min_y - bb_min.y) / voxel_size.y);
-    int max_y_index = floorf((max_y - bb_min.y) / voxel_size.y);
-    int min_z_index = floorf((min_z - bb_min.z) / voxel_size.z);
-    int max_z_index = floorf((max_z - bb_min.z) / voxel_size.z);
+    float3 max_pos = make_float3(max_x, max_y, max_z);
+    int3 max_idx = voxel_pos2voxel(max_pos, bb_min, voxel_size);
+    int max_x_index = max_idx.x;
+    int max_y_index = max_idx.y;
+    int max_z_index = max_idx.z;
+
+    float3 min_pos = make_float3(min_x, min_y, min_z);
+    int3 min_idx = voxel_pos2voxel(min_pos, bb_min, voxel_size);
+    int min_x_index = min_idx.x;
+    int min_y_index = min_idx.y;
+    int min_z_index = min_idx.z;
 
     if (min_x_index < 0) {
       min_x_index = 0;
@@ -697,10 +723,10 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
 
   if (0 < nn_range) {
     // Update neighboring voxels
-    float3 diff = pt - bb_min;
-    int x_index_ = floorf(diff.x / voxel_size.x);
-    int y_index_ = floorf(diff.y / voxel_size.y);
-    int z_index_ = floorf(diff.z / voxel_size.z);
+    int3 idx = voxel_pos2voxel(pt, bb_min, voxel_size);
+    int x_index_ = idx.x;
+    int y_index_ = idx.y;
+    int z_index_ = idx.z;
     for (int z = -nn_range; z <= nn_range; z++) {
       int z_index = z_index_ + z;
       if (z_index < 0 || voxel_num.z - 1 < z_index) {
@@ -761,10 +787,10 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
         continue;
       }
 
-      float3 ray_diff = ray_pos - bb_min;
-      int x_index = floorf(ray_diff.x / voxel_size.x);
-      int y_index = floorf(ray_diff.y / voxel_size.y);
-      int z_index = floorf(ray_diff.z / voxel_size.z);
+      int3 idx = voxel_pos2voxel(ray_pos, bb_min, voxel_size);
+      int x_index = idx.x;
+      int y_index = idx.y;
+      int z_index = idx.z;
 
       if (x_index < 0 || voxel_num.x - 1 < x_index || y_index < 0 ||
           voxel_num.y - 1 < y_index || z_index < 0 ||
@@ -2318,14 +2344,38 @@ class VoxelGridCudaNaive::Impl {
         cudaMemcpyDeviceToHost);
 
     auto& voxels = grid_cpu.get_all();
-
+#if 0
     for (int i = 0; i < voxel_num_.x * voxel_num_.y * voxel_num_.z; ++i) {
       voxels[i].update_num = voxels_cpu[i].update_num;
 
       if (voxels[i].update_num < 1) {
         voxels[i].sdf = ugu::InvalidSdf::kVal;
       } else {
-        voxels[i].sdf = voxels_cpu[i].sdf_sum / voxels_cpu[i].update_num;
+        voxels[i].sdf =
+            voxels_cpu[i].sdf_sum / (voxels_cpu[i].update_num * option_.weight);
+      }
+    }
+#endif
+    for (int z = 1; z < voxel_num_.z - 1; ++z) {
+      for (int y = 1; y < voxel_num_.y - 1; ++y) {
+        for (int x = 1; x < voxel_num_.x - 1; ++x) {
+          int i = z * voxel_num_.y * voxel_num_.x + y * voxel_num_.x + x;
+          int offset = 0;
+          int j = (z + offset) * voxel_num_.y * voxel_num_.x +
+                  (y + offset) * voxel_num_.x + (x + offset);
+          voxels[j].update_num = voxels_cpu[i].update_num;
+
+          // voxels[j].pos.x() += resolution_.x * 0.5f;
+          // voxels[j].pos.y() += resolution_.y * 0.5f;
+          // voxels[j].pos.z() += resolution_.z * 0.5f;
+
+          if (voxels[j].update_num < 1) {
+            voxels[j].sdf = ugu::InvalidSdf::kVal;
+          } else {
+            voxels[j].sdf = voxels_cpu[i].sdf_sum /
+                            (voxels_cpu[i].update_num * option_.weight);
+          }
+        }
       }
     }
   }
