@@ -376,22 +376,12 @@ __device__ inline float3 voxel_idx2pos(int3 idx, float3 bb_min,
 
 __device__ inline int3 voxel_pos2voxel(const float3 pos, const float3 bb_min,
                                        const float3 resolution) {
-  // Compute offset from the true voxel‐corner origin (accounting for the
-  // 0.5*resolution shift)
-  float3 d = make_float3(pos.x - bb_min.x - 0.5f * resolution.x,
-                         pos.y - bb_min.y - 0.5f * resolution.y,
-                         pos.z - bb_min.z - 0.5f * resolution.z);
-
-  // Convert to floating‐point voxel coordinates
-  float fx = d.x / resolution.x;
-  float fy = d.y / resolution.y;
-  float fz = d.z / resolution.z;
-
-  // Floor to get integer indices
-  int ix = floorf(fx);
-  int iy = floorf(fy);
-  int iz = floorf(fz);
-
+  // グリッド原点からのオフセット
+  float3 d = make_float3(pos.x - bb_min.x, pos.y - bb_min.y, pos.z - bb_min.z);
+  // 各軸ごとにセル長で割り、floor して含まれるセルを得る
+  int ix = floorf(d.x / resolution.x);
+  int iy = floorf(d.y / resolution.y);
+  int iz = floorf(d.z / resolution.z);
   return make_int3(ix, iy, iz);
 }
 
@@ -697,12 +687,8 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
 
           // Distance from the voxel center to the point
           float3 diff = voxel_pos - pt;
-          float sign = 1.f;
           float d_dot_n = dot(diff, normal);
-          if (d_dot_n < 0) {
-            sign = -1.f;
-          }
-          float dist = sqrtf(dot(diff, diff)) * sign;
+          float dist = d_dot_n;
 
           if (dist >= -truncation_band) {
             dist = fminf(1.0f, dist / truncation_band);
@@ -748,12 +734,8 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
 
           // Distance from the voxel center to the point
           float3 diff = voxel_pos - pt;
-          float sign = 1.f;
           float d_dot_n = dot(diff, normal);
-          if (d_dot_n < 0) {
-            sign = -1.f;
-          }
-          float dist = sqrtf(dot(diff, diff)) * sign;
+          float dist = d_dot_n;
 
           if (dist >= -truncation_band) {
             dist = fminf(1.0f, dist / truncation_band);
@@ -801,14 +783,9 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
       float3 voxel_pos = voxel_idx2pos(make_int3(x_index, y_index, z_index),
                                        bb_min, voxel_size);
 
-      // Distance from the voxel center to the point
       float3 diff = voxel_pos - pt;
-      float sign = 1.f;
       float d_dot_n = dot(diff, normal);
-      if (d_dot_n < 0) {
-        sign = -1.f;
-      }
-      float dist = sqrtf(dot(diff, diff)) * sign;
+      float dist = d_dot_n;
 #
       if (dist >= -truncation_band) {
         dist = fminf(1.0f, dist / truncation_band);
