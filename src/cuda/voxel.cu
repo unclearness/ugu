@@ -1835,7 +1835,7 @@ class VoxelGridCudaHashing::Impl {
                                     int height, int num_images, bool sync) {
     int totalPixels = width * height * num_images;
     int threads = 256;
-    int blocks = (totalPixels + threads - 1) / threads;
+    int blocks = std::max(1, (totalPixels + threads - 1) / threads);
 
     fuseOrganizedPointCloudMultiKernelHashing<<<blocks, threads>>>(
         d_points, d_normals, width, height, num_images, d_hashTable,
@@ -1886,7 +1886,7 @@ class VoxelGridCudaHashing::Impl {
     cudaMemset(d_vertexCount, 0, sizeof(int));
 
     int threads = 256;
-    int blocks = (totalCells + threads - 1) / threads;
+    int blocks = std::max(1, (totalCells + threads - 1) / threads);
     marchingCubesKernel<<<blocks, threads>>>(d_voxelBlocks, validBlockCount,
                                              m_voxelSize, d_vertices, d_indices,
                                              d_vertexCount, connected);
@@ -2078,7 +2078,7 @@ class VoxelGridCudaNaive::Impl {
     option_ = option;
     int totalPixels = width * height * num_images;
     int threads = 256;
-    int blocks = (totalPixels + threads - 1) / threads;
+    int blocks = std::max(1, (totalPixels + threads - 1) / threads);
 #if 0
     if (fabsf(option.weight - 1.f) < 0.01f && option.sample_num == 2 &&
         option.nn_range == 1 && option.r < 0.f && option.height_half < 0.f) {
@@ -2197,6 +2197,12 @@ class VoxelGridCudaNaive::Impl {
       EnsureTriangleVertexMemory(h_vcount * tri_ratio);
     }
 
+    if (num_vertices_ < 3) {
+      num_vertices_ = 0;
+      num_faces_ = 0;
+      return;
+    }
+
     while (true) {
       if (with_face_normals) {
         BuildFacesKernelWithNormal<<<grid, block>>>(
@@ -2226,12 +2232,17 @@ class VoxelGridCudaNaive::Impl {
   void ComputeVertexNormals() {
     // Zero clear for summation
 
+    if (num_vertices_ < 3) {
+      return;
+    }
+
     cudaMemset(d_vertex_normals, 0, sizeof(float3) * num_vertices_);
 
     const int THREADS = 256;
 
-    int blocksF = (num_faces_ + THREADS - 1) / THREADS;
-    int blocksV = (num_vertices_ + THREADS - 1) / THREADS;
+    int blocksF = std::max(1, (num_faces_ + THREADS - 1) / THREADS);
+    int blocksV = std::max(1, (num_vertices_ + THREADS - 1) / THREADS);
+
     ComputeVertexNormalsKernel<<<blocksF, THREADS>>>(
         d_face_normals, d_faces, d_vertex_normals, num_faces_);
     checkCudaErrors(cudaGetLastError());
@@ -2243,8 +2254,13 @@ class VoxelGridCudaNaive::Impl {
   }
 
   void SmoothFaceNormalsWithVertexNormals() {
+    // Return if no faces
+    if (num_faces_ < 1) {
+      return;
+    }
+
     const int THREADS = 256;
-    int blocksF = (num_faces_ + THREADS - 1) / THREADS;
+    int blocksF = std::max(1, (num_faces_ + THREADS - 1) / THREADS);
 
     SmoothFaceNormalsKernel<<<blocksF, THREADS>>>(
         d_faces, d_vertex_normals, d_face_smooth_normals, num_faces_);
@@ -2253,11 +2269,16 @@ class VoxelGridCudaNaive::Impl {
   }
 
   void GetVerticesCpu(std::vector<Eigen::Vector3f>& vertices) {
+    vertices.resize(num_vertices_);
+
+    if (num_vertices_ < 1) {
+      return;
+    }
+
     // Copy data back
     cudaMemcpy(h_vertices_pinned, d_vertices, sizeof(float3) * num_vertices_,
                cudaMemcpyDeviceToHost);
 
-    vertices.resize(num_vertices_);
     for (int i = 0; i < num_vertices_; ++i) {
       vertices[i] =
           Eigen::Vector3f(h_vertices_pinned[i].x, h_vertices_pinned[i].y,
@@ -2269,11 +2290,15 @@ class VoxelGridCudaNaive::Impl {
     // Use the same host buffer, h_vertices_pinned, as vertices becasue byte
     // size is identical
 
+    vertex_normals.resize(num_vertices_);
+    if (num_vertices_ < 1) {
+      return;
+    }
+
     // Copy data back
     cudaMemcpy(h_vertices_pinned, d_vertex_normals,
                sizeof(float3) * num_vertices_, cudaMemcpyDeviceToHost);
 
-    vertex_normals.resize(num_vertices_);
     for (int i = 0; i < num_vertices_; ++i) {
       vertex_normals[i] =
           Eigen::Vector3f(h_vertices_pinned[i].x, h_vertices_pinned[i].y,
@@ -2283,6 +2308,10 @@ class VoxelGridCudaNaive::Impl {
 
   void GetFacesCpu(std::vector<Eigen::Vector3i>& faces) {
     faces.resize(num_faces_);
+    if (num_faces_ < 1) {
+      return;
+    }
+
     cudaMemcpy(h_faces_pinned, d_faces, sizeof(int) * num_faces_ * 3,
                cudaMemcpyDeviceToHost);
     for (int i = 0; i < num_faces_; i++) {
@@ -2295,6 +2324,11 @@ class VoxelGridCudaNaive::Impl {
   void GetFaceNormalsCpu(std::vector<Eigen::Vector3f>& face_normals,
                          bool smoothing = false) {
     face_normals.resize(num_faces_);
+
+    if (num_faces_ < 1) {
+      return;
+    }
+
     float3* d_face_normals_source =
         smoothing ? d_face_smooth_normals : d_face_normals;
     cudaMemcpy(h_face_normals_pinned, d_face_normals_source,
