@@ -111,13 +111,14 @@ bool ConcatHorizontallyTextureAndUv(
   // Make tiled image and get tile xy
   ugu::Image3b texture;
 
-  ConcatHorizontally(keyframes, texture);
+  std::thread texture_image_thread(
+      [&]() { ConcatHorizontally(keyframes, texture); });
 
   // Convert projected_tri to UV by tile xy
   std::vector<Eigen::Vector2f> uv;
-  uv.reserve(info.face_info_list.size() * 3);
+  uv.resize(info.face_info_list.size() * 3);
   std::vector<Eigen::Vector3i> uv_indices;
-  uv_indices.reserve(info.face_info_list.size());
+  uv_indices.resize(info.face_info_list.size());
   std::unordered_map<int, int> id2index;
 
   for (int i = 0; i < static_cast<int>(keyframes.size()); i++) {
@@ -128,6 +129,7 @@ bool ConcatHorizontallyTextureAndUv(
   int tex_w = keyframes[0]->color.cols * static_cast<int>(keyframes.size());
   int tex_h = keyframes[0]->color.rows;
 
+#pragma omp parallel for schedule(dynamic)
   for (int i = 0; i < static_cast<int>(info.face_info_list.size()); i++) {
     // Get corresponding kf_id, index and projected_tri
     const auto& bestkf = faceid2bestkf[i];
@@ -149,13 +151,12 @@ bool ConcatHorizontallyTextureAndUv(
         uv_tri[j].y() = 1.0f - ((texture_tri[j].y() + 0.5f) / tex_h);
       }
     }
-    uv.push_back(uv_tri[0]);
-    uv.push_back(uv_tri[1]);
-    uv.push_back(uv_tri[2]);
+    uv[i * 3] = uv_tri[0];
+    uv[i * 3 + 1] = uv_tri[1];
+    uv[i * 3 + 2] = uv_tri[2];
 
-    int uv_size = static_cast<int>(uv.size());
-    uv_indices.push_back(
-        Eigen::Vector3i(uv_size - 3, uv_size - 2, uv_size - 1));
+    const int uv_size = (i + 1) * 3;
+    uv_indices[i] = Eigen::Vector3i(uv_size - 3, uv_size - 2, uv_size - 1);
   }
 
   mesh->set_uv(uv);
@@ -163,6 +164,7 @@ bool ConcatHorizontallyTextureAndUv(
 
   std::vector<ugu::ObjMaterial> materials(1);
   materials[0].name = option.texture_base_name;
+  texture_image_thread.join();
   materials[0].diffuse_tex = texture;
   mesh->set_materials(materials);
 
@@ -180,13 +182,14 @@ bool ConcatVerticallyTextureAndUv(
   // Make tiled image and get tile xy
   ugu::Image3b texture;
 
-  ConcatVertically(keyframes, texture);
+  std::thread texture_image_thread(
+      [&]() { ConcatVertically(keyframes, texture); });
 
   // Convert projected_tri to UV by tile xy
   std::vector<Eigen::Vector2f> uv;
-  uv.reserve(info.face_info_list.size() * 3);
+  uv.resize(info.face_info_list.size() * 3);
   std::vector<Eigen::Vector3i> uv_indices;
-  uv_indices.reserve(info.face_info_list.size());
+  uv_indices.resize(info.face_info_list.size());
   std::unordered_map<int, int> id2index;
 
   for (int i = 0; i < static_cast<int>(keyframes.size()); i++) {
@@ -200,6 +203,7 @@ bool ConcatVerticallyTextureAndUv(
   float inv_tex_w = 1.f / static_cast<float>(tex_w);
   float inv_tex_h = 1.f / static_cast<float>(tex_h);
 
+#pragma omp parallel for schedule(dynamic)
   for (int i = 0; i < static_cast<int>(info.face_info_list.size()); i++) {
     // Get corresponding kf_id, index and projected_tri
     const auto& bestkf = faceid2bestkf[i];
@@ -221,13 +225,12 @@ bool ConcatVerticallyTextureAndUv(
         uv_tri[j].y() = 1.0f - ((texture_tri[j].y() + 0.5f) * inv_tex_h);
       }
     }
-    uv.push_back(uv_tri[0]);
-    uv.push_back(uv_tri[1]);
-    uv.push_back(uv_tri[2]);
+    uv[i * 3] = uv_tri[0];
+    uv[i * 3 + 1] = uv_tri[1];
+    uv[i * 3 + 2] = uv_tri[2];
 
-    int uv_size = static_cast<int>(uv.size());
-    uv_indices.push_back(
-        Eigen::Vector3i(uv_size - 3, uv_size - 2, uv_size - 1));
+    const int uv_size = (i + 1) * 3;
+    uv_indices[i] = Eigen::Vector3i(uv_size - 3, uv_size - 2, uv_size - 1);
   }
 
   mesh->set_uv(uv);
@@ -235,6 +238,7 @@ bool ConcatVerticallyTextureAndUv(
 
   std::vector<ugu::ObjMaterial> materials(1);
   materials[0].name = option.texture_base_name;
+  texture_image_thread.join();
   materials[0].diffuse_tex = texture;
   mesh->set_materials(materials);
 
@@ -253,11 +257,12 @@ bool GenerateSimpleTileTextureAndUv(
   ugu::Image3b texture;
 
   // Make tiled image and get tile xy
-  const int default_x_tile_num = static_cast<int>(std::sqrt(keyframes.size()));
-  int x_tile_num = keyframes.size() < default_x_tile_num
-                       ? static_cast<int>(keyframes.size())
-                       : default_x_tile_num;
-  int y_tile_num = static_cast<int>(keyframes.size() / x_tile_num);
+  int x_tile_num = static_cast<int>(std::ceil(std::sqrt(keyframes.size())));
+  int y_tile_num = static_cast<int>(std::ceil(
+      static_cast<float>(keyframes.size()) / static_cast<float>(x_tile_num)));
+
+  assert(x_tile_num > 0 && y_tile_num > 0);
+  assert(x_tile_num * y_tile_num >= static_cast<int>(keyframes.size()));
 
   MakeTiledImage(keyframes, &texture, x_tile_num, y_tile_num);
 

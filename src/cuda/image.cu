@@ -33,6 +33,7 @@ __constant__ float d_t[MAX_IMAGES * 3];
 #define BLOCK_W 16
 #define BLOCK_H 16
 
+#if 0
 __global__ void BoxFilterNaive(const uint8_t* d_in, uint8_t* d_out, int width,
                                int height, int K) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -63,7 +64,9 @@ __global__ void BoxFilterNaive(const uint8_t* d_in, uint8_t* d_out, int width,
     d_out[outIdxBase + c] = (uint8_t)(sumVal / (float)count);
   }
 }
+#endif
 
+#if 0
 __global__ void BoxFilterShared(const uint8_t* d_in, uint8_t* d_out, int width,
                                 int height, int K) {
   extern __shared__ float tile[];
@@ -129,6 +132,7 @@ __global__ void BoxFilterShared(const uint8_t* d_in, uint8_t* d_out, int width,
     d_out[outIdxBase + c] = outVal[c] / (float)count;
   }
 }
+#endif
 
 __global__ void BoxFilterRow(const uint8_t* d_in, uint8_t* d_out, int width,
                              int height, int K) {
@@ -176,6 +180,7 @@ __global__ void BoxFilterCol(const uint8_t* d_in, uint8_t* d_out, int width,
   }
 }
 
+#if 0
 __global__ void Transpose(const uint8_t* d_in, uint8_t* d_out, int width,
                           int height) {
   //__shared__ float tile[16][16 * 3];
@@ -205,6 +210,7 @@ __global__ void Transpose(const uint8_t* d_in, uint8_t* d_out, int width,
     }
   }
 }
+#endif
 
 #if 1
 __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
@@ -390,7 +396,7 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
   // 共有メモリ：タイル＋境界分
   extern __shared__ float s_depth[];
   const int S_W = BLOCK_W + 2 * d_step;
-  const int S_H = BLOCK_H + 2 * d_step;
+  // const int S_H = BLOCK_H + 2 * d_step;
 
   // 共有メモリ上の座標
   int sx = tx + d_step;
@@ -550,7 +556,7 @@ void BoxFilterCuda3b(int width, int height, void* data, int k) {
 
   cudaMemcpy(d_in, data, totalSize, cudaMemcpyHostToDevice);
 
-  int N = 1 << 20;
+  // int N = 1 << 20;
   int blocksize = 32;
 
   dim3 block(blocksize, blocksize);  // 32x32 = 1024 threads
@@ -757,19 +763,20 @@ class NormalComputerCuda::Impl {
     }
   }
 
-  void Init(int width, int height, int num_images, const float* h_fx,
+  void Init(int width_, int height_, int num_images_, const float* h_fx,
             const float* h_fy, const float* h_cx, const float* h_cy,
-            float max_connect_z_diff, int step, bool gl_coord, const float* h_R,
-            const float* h_t) {
-    if (MAX_IMAGES < num_images) {
-      std::cerr << "Error: num_images (" << num_images
+            float max_connect_z_diff, int step_, bool gl_coord,
+            const float* h_R, const float* h_t) {
+    if (MAX_IMAGES < num_images_) {
+      std::cerr << "Error: num_images (" << num_images_
                 << ") exceeds MAX_IMAGES (" << MAX_IMAGES << ")" << std::endl;
       return;
     }
 
-    this->width = width;
-    this->height = height;
-    this->num_images = num_images;
+    width = width_;
+    height = height_;
+    num_images = num_images_;
+    step = step_;
 
     size_t num_pixels = width * height * num_images;
     cudaMemcpyToSymbol(d_height, &height, sizeof(int));
@@ -778,7 +785,7 @@ class NormalComputerCuda::Impl {
     cudaMemcpyToSymbol(d_max_connect_z_diff, &max_connect_z_diff,
                        sizeof(float));
     cudaMemcpyToSymbol(d_step, &step, sizeof(int));
-    this->step = step;
+
     cudaMemcpyToSymbol(d_gl_coord, &gl_coord, sizeof(bool));
     constexpr bool central_difference = true;
     cudaMemcpyToSymbol(d_central_difference, &central_difference, sizeof(bool));

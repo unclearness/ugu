@@ -802,6 +802,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaive(
   }
 }
 
+#if 0
 // constexpr int NAIVE_KERNEL_HASH_SIZE = 2048;
 // extern __shared__ int s_keys[];
 // extern __shared__ float s_vals[];
@@ -1023,6 +1024,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
     atomicAdd(&d_voxels[local_idxs_ray[i]].update_num, 1);
   }
 }
+#endif
 
 __global__ void FuseDepthMultiKernelNaive(const float* d_depth, int width,
                                           int height, int num_images,
@@ -1338,6 +1340,7 @@ __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
   }
 }
 
+#if 0
 __global__ void InitVoxelsNaive(VoxelCudaNaive* voxels, size_t n,
                                 float initSdf) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1446,6 +1449,7 @@ __global__ void MarchingCubesKernelNaive(
     out_vertices[triIdx + 2] = vertList[e2];
   }
 }
+#endif
 
 // edgeId: 0〜11 (Marching Cubes の仕様準拠)
 __device__ int computeEdgeKey(int ix, int iy, int iz, int edgeId, int nx,
@@ -1494,7 +1498,7 @@ __device__ int calcCubeIndex(const VoxelCudaNaive* voxels, int ix, int iy,
                              int iz, int3 vn, float3 bb_min, float3 res,
                              float iso_level) {
   float sdf[8];
-  int ids[8];
+  // int ids[8];
   // offsets for 8 corners
   const int offs[8][3] = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0},
                           {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
@@ -1543,7 +1547,7 @@ __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
   if (edges == 0) return;
 
   // ベースとなる flat インデックス
-  int baseFlat = iz * vn.y * vn.x + iy * vn.x + ix;
+  // int baseFlat = iz * vn.y * vn.x + iy * vn.x + ix;
 
   for (int e = 0; e < 12; e++) {
     if (!(edges & (1 << e))) continue;

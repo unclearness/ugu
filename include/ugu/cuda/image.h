@@ -7,8 +7,6 @@ namespace ugu {
 
 void BoxFilterCuda(Image3b& img, int kernel);
 
-void BilateralFilterCuda(const Image3b& src, Image3b& dst, int kernel);
-
 bool ComputeNormalsCuda(const std::vector<Image1f>& depths,
                         const std::vector<PinholeCameraPtr>& cameras,
                         std::vector<Image3f>& normals,

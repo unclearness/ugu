@@ -14,8 +14,6 @@ void BoxFilterCuda(Image3b& img, int kernel) {
   BoxFilterCuda3b(img.cols, img.rows, img.data, kernel);
 }
 
-void BilateralFilterCuda(const Image3b& src, Image3b& dst, int kernel) {}
-
 bool ComputeNormalsCuda(const std::vector<Image1f>& depths,
                         const std::vector<PinholeCameraPtr>& cameras,
                         std::vector<Image3f>& normals, float max_connect_z_diff,
@@ -46,9 +44,10 @@ bool ComputeNormalsCuda(const std::vector<Image1f>& depths,
 
   std::vector<float> h_normals(num_images * width * height * 3);
 
-  ComputeNormalsCudaImpl(width, height, h_depths.data(), num_images,
-                         h_fx.data(), h_fy.data(), h_cx.data(), h_cy.data(),
-                         h_normals.data(), max_connect_z_diff, step, gl_coord);
+  ComputeNormalsCudaImpl(width, height, h_depths.data(),
+                         static_cast<int>(num_images), h_fx.data(), h_fy.data(),
+                         h_cx.data(), h_cy.data(), h_normals.data(),
+                         max_connect_z_diff, step, gl_coord);
 
   if (normals.size() != num_images) {
     normals.resize(num_images);

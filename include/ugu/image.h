@@ -301,7 +301,7 @@ using Scalar = Scalar_<double>;
 int GetBitsFromCvType(int cv_type);
 const std::type_info& GetTypeidFromCvType(int cv_type);
 template <typename T>
-const int GetDepth() {
+int GetDepth() {
   int depth = -1;
   const std::type_info& cpp_type = typeid(T);
   if (cpp_type == typeid(uint8_t)) {
