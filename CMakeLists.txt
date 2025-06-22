@@ -266,6 +266,21 @@ if(UGU_USE_OPENMP)
   endif()
 endif()
 
+option(UGU_USE_TBB "Use TBB" ON)
+message("UGU_USE_TBB: ${UGU_USE_TBB}")
+if(UGU_USE_TBB)
+  find_package(TBB CONFIG)
+  message("TBB_FOUND: ${TBB_FOUND}")
+  if(TBB_FOUND)
+    set(Ugu_DEFINES ${Ugu_DEFINES} UGU_USE_TBB)
+    set(Ugu_INCLUDE_DIRS ${Ugu_INCLUDE_DIRS} ${TBB_INCLUDE_DIRS})
+    set(Ugu_LIBS ${Ugu_LIBS} TBB::tbb TBB::tbbmalloc)
+  else()
+    message(WARNING "TBB not found. Disable UGU_USE_TBB")
+    set(UGU_USE_TBB OFF)
+  endif()
+endif()
+
 option(UGU_USE_CUDA "Use CUDA" OFF)
 message("UGU_USE_CUDA: ${UGU_USE_CUDA}")
 if(UGU_USE_CUDA)
@@ -503,7 +518,15 @@ if(UGU_USE_CUDA)
        CUDA_SEPARABLE_COMPILATION ON
        CUDA_RESOLVE_DEVICE_SYMBOLS ON
   )
-  target_link_libraries(${Ugu_LIB} my_cuda_flags)
+  set(LIBS_LINED_TO_Ugu ${LIBS_LINED_TO_Ugu} my_cuda_flags)
+endif()
+
+if(UGU_USE_TBB)
+  set(LIBS_LINED_TO_Ugu ${LIBS_LINED_TO_Ugu} TBB::tbb TBB::tbbmalloc)
+endif()
+
+if (UGU_USE_CUDA OR UGU_USE_TBB)
+  target_link_libraries(${Ugu_LIB} PUBLIC ${LIBS_LINED_TO_Ugu})
 endif()
 
 set_as_cache(Ugu_LIBS "${Ugu_LIBS}" "Ugu_LIBS")

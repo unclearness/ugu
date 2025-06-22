@@ -290,10 +290,96 @@ struct EdgeHash {
   }
 };
 
-static inline uint64_t MakeEdgeKey(int a, int b) {
+inline uint64_t MakeEdgeKey(int a, int b) {
   uint32_t v0 = static_cast<uint32_t>(std::min(a, b));
   uint32_t v1 = static_cast<uint32_t>(std::max(a, b));
   return (static_cast<uint64_t>(v0) << 32) | v1;
+}
+
+void BuildFaceAdjacencyCSRParallel_TwoPass(
+    const std::vector<Eigen::Vector3i>& faces, std::vector<int>& offsets,
+    std::vector<int>& neighbors) {
+  int num_faces = static_cast<int>(faces.size());
+  if (num_faces == 0) {
+    offsets.assign(1, 0);
+    neighbors.clear();
+    return;
+  }
+  int E = num_faces * 3;
+
+  // 1. Make edge list
+  std::vector<uint64_t> edgeKeys(E);
+  std::vector<int> faceIds(E);
+  for (int fid = 0; fid < num_faces; ++fid) {
+    const auto& f = faces[fid];
+    int idx = fid * 3;
+    edgeKeys[idx + 0] = MakeEdgeKey(f[0], f[1]);
+    faceIds[idx + 0] = fid;
+    edgeKeys[idx + 1] = MakeEdgeKey(f[1], f[2]);
+    faceIds[idx + 1] = fid;
+    edgeKeys[idx + 2] = MakeEdgeKey(f[2], f[0]);
+    faceIds[idx + 2] = fid;
+  }
+
+  // 2. Sort
+  std::vector<int> idx(E);
+  std::iota(idx.begin(), idx.end(), 0);
+#if !defined(_WIN32) && !defined(UGU_USE_TBB)
+  // This case, std::execution::par_unseq may depend on TBB but not linked
+  std::sort(idx.begin(), idx.end(),
+            [&](int a, int b) { return edgeKeys[a] < edgeKeys[b]; });
+#else
+  std::sort(std::execution::par_unseq, idx.begin(), idx.end(),
+            [&](int a, int b) { return edgeKeys[a] < edgeKeys[b]; });
+#endif
+
+  // 3. Pass1: Count neighbors per face
+  offsets.assign(num_faces + 1, 0);
+  for (int p = 0; p < E;) {
+    int q = p + 1;
+    uint64_t key = edgeKeys[idx[p]];
+    while (q < E && edgeKeys[idx[q]] == key) ++q;
+
+    // The number of faces sharing this edge is k = q - p
+    // So, each face in this group is adjacent to (k - 1) others
+    if (q - p > 1) {
+      for (int i = p; i < q; ++i) {
+        offsets[faceIds[idx[i]] + 1] += (q - p - 1);
+      }
+    }
+    p = q;
+  }
+
+  // Compute cumulative sum
+  for (int i = 1; i <= num_faces; ++i) {
+    offsets[i] += offsets[i - 1];
+  }
+
+  // 4. Pass2: Fill neighbors array
+  neighbors.resize(offsets[num_faces]);
+  std::vector<int> current_pos = offsets;  // Copy start positions for each face
+
+  for (int p = 0; p < E;) {
+    int q = p + 1;
+    uint64_t key = edgeKeys[idx[p]];
+    while (q < E && edgeKeys[idx[q]] == key) ++q;
+
+    if (q - p > 1) {
+      for (int i = p; i < q; ++i) {
+        for (int j = p; j < q; ++j) {
+          if (i == j) continue;
+
+          int face_from = faceIds[idx[i]];
+          int face_to = faceIds[idx[j]];
+
+          // Write the adjacent face to the corresponding position and advance
+          // the pointer
+          neighbors[current_pos[face_from]++] = face_to;
+        }
+      }
+    }
+    p = q;
+  }
 }
 
 }  // namespace
@@ -1874,77 +1960,7 @@ void BuildFaceAdjacencyCSR(const std::vector<Eigen::Vector3i>& faces,
 void BuildFaceAdjacencyCSRParallel(const std::vector<Eigen::Vector3i>& faces,
                                    std::vector<int>& offsets,
                                    std::vector<int>& neighbors) {
-  int num_faces = (int)faces.size();
-  int E = num_faces * 3;
-
-  // 1) Make Edge list
-  std::vector<uint64_t> edgeKeys(E);
-  std::vector<int> faceIds(E);
-  for (int fid = 0; fid < num_faces; ++fid) {
-    const auto& f = faces[fid];
-    int idx = fid * 3;
-    edgeKeys[idx + 0] = MakeEdgeKey(f[0], f[1]);
-    faceIds[idx + 0] = fid;
-    edgeKeys[idx + 1] = MakeEdgeKey(f[1], f[2]);
-    faceIds[idx + 1] = fid;
-    edgeKeys[idx + 2] = MakeEdgeKey(f[2], f[0]);
-    faceIds[idx + 2] = fid;
-  }
-
-  // 2) Apply parallel sort for index array
-  // https://qiita.com/Nabetani/items/2dc2264764e2c68e7bcf
-  std::vector<int> idx(E);
-  std::iota(idx.begin(), idx.end(), 0);
-
-  // FIXME!:
-  // Depending on the environment, linux may fail to link TBB if
-  // std::execution::par_unseq was set...
-#ifdef _WIN32
-  std::sort(std::execution::par_unseq, idx.begin(), idx.end(),
-            [&](int a, int b) { return edgeKeys[a] < edgeKeys[b]; });
-#else
-  std::sort(idx.begin(), idx.end(),
-            [&](int a, int b) { return edgeKeys[a] < edgeKeys[b]; });
-#endif
-
-  // 3) Grouping and collect adjacent pairs
-  std::vector<std::pair<int, int>> adjPairs;
-  adjPairs.reserve(E);
-  for (int p = 0; p < E;) {
-    int q = p + 1;
-    uint64_t key = edgeKeys[idx[p]];
-    while (q < E && edgeKeys[idx[q]] == key) ++q;
-    // Enumrate all combinations in the group
-    for (int i = p; i < q; ++i) {
-      for (int j = p; j < q; ++j) {
-        if (i != j) adjPairs.emplace_back(faceIds[idx[i]], faceIds[idx[j]]);
-      }
-    }
-    p = q;
-  }
-
-  // 4) Remove duplication
-
-  // FIXME!:
-  // Depending on the environment, linux may fail to link TBB if
-  // std::execution::par_unseq was set...
-#ifdef _WIN32
-  std::sort(std::execution::par_unseq, adjPairs.begin(), adjPairs.end());
-#else
-  std::sort(adjPairs.begin(), adjPairs.end());
-#endif
-  adjPairs.erase(std::unique(adjPairs.begin(), adjPairs.end()), adjPairs.end());
-
-  // 5) Convert to CSR format
-  offsets.assign(num_faces + 1, 0);
-  for (auto& pr : adjPairs) offsets[pr.first + 1]++;
-  for (int i = 1; i <= num_faces; ++i) offsets[i] += offsets[i - 1];
-  neighbors.resize(adjPairs.size());
-  std::vector<int> ptr = offsets;
-  for (auto& pr : adjPairs) {
-    int f = pr.first;
-    neighbors[ptr[f]++] = pr.second;
-  }
+  BuildFaceAdjacencyCSRParallel_TwoPass(faces, offsets, neighbors);
 }
 
 }  // namespace ugu
