@@ -518,15 +518,15 @@ if(UGU_USE_CUDA)
        CUDA_SEPARABLE_COMPILATION ON
        CUDA_RESOLVE_DEVICE_SYMBOLS ON
   )
-  set(LIBS_LINED_TO_Ugu ${LIBS_LINED_TO_Ugu} my_cuda_flags)
+  set(LIBS_LINKED_TO_Ugu ${LIBS_LINKED_TO_Ugu} my_cuda_flags)
 endif()
 
 if(UGU_USE_TBB)
-  set(LIBS_LINED_TO_Ugu ${LIBS_LINED_TO_Ugu} TBB::tbb TBB::tbbmalloc)
+  set(LIBS_LINKED_TO_Ugu ${LIBS_LINKED_TO_Ugu} TBB::tbb TBB::tbbmalloc)
 endif()
 
 if (UGU_USE_CUDA OR UGU_USE_TBB)
-  target_link_libraries(${Ugu_LIB} PUBLIC ${LIBS_LINED_TO_Ugu})
+  target_link_libraries(${Ugu_LIB} PUBLIC ${LIBS_LINKED_TO_Ugu})
 endif()
 
 set_as_cache(Ugu_LIBS "${Ugu_LIBS}" "Ugu_LIBS")
