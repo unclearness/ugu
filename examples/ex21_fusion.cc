@@ -295,7 +295,7 @@ int main(int argc, char* argv[]) {
     out_mesh.CalcNormal();
     out_mesh.WriteObj("cuda_mc_cleaned.obj");
 
-    return 1;
+   // return 1;
 
     // ugu::VoxelGrid voxel_grid_cpu;
     // voxel_grid_cpu.Init(combined->stats().bb_max + offset,
@@ -379,7 +379,9 @@ int main(int argc, char* argv[]) {
     }
     timer.Start();
     const auto [labels, counts] =
-        ugu::ConnectedComponentLabelingVoxels(voxel_grid, 1, 100, false);
+        ugu::ConnectedComponentLabelingVoxels(voxel_grid, 1, 100, false, 0.f);
+    //const auto [labels, counts] =
+    //    ugu::ConnectedComponentLabelingVoxelsZeroCrossing(voxel_grid, 1000, 1);
     timer.End();
     ugu::LOGI("ConnectedComponentLabelingVoxels %f ms\n", timer.elapsed_msec());
 
@@ -388,8 +390,8 @@ int main(int argc, char* argv[]) {
     std::vector<Eigen::Vector3f> label_colors;
 
     for (size_t i = 0; i < counts.size(); i++) {
-      label_colors.push_back(Eigen::Vector3f::Random() * 122.5f +
-                             Eigen::Vector3f::Constant(122.5f));
+      label_colors.push_back(122.5f *(Eigen::Vector3f::Random() +
+                             Eigen::Vector3f::Constant(1.f)));
     }
 
     for (size_t i = 0; i < voxel_grid.get_all().size(); i++) {
@@ -411,11 +413,96 @@ int main(int argc, char* argv[]) {
     depth_fused->CalcNormal();
     depth_fused->WriteObj(data_dir, "depthfuse");
 
+
+    std::vector<Eigen::Vector3f> verts;
+    std::vector<Eigen::Vector3i> tris;
+    timer.Start();
+    ugu::RemoveSmallComponentsParallel(depth_fused->vertices(),
+                                       depth_fused->vertex_indices(), 1000,
+                                       100, verts, tris);
+    timer.End();
+    ugu::LOGI("RemoveSmallComponentsParallel %f ms\n", timer.elapsed_msec());
+    depth_fused->Clear();
+    depth_fused->set_vertices(verts);
+    depth_fused->set_vertex_indices(tris);
+    depth_fused->set_default_material();
+    depth_fused->CalcNormal();
+    depth_fused->WriteObj(data_dir, "depthfuse_removedpara");
+    depth_fused->Clear();
+
+    const std::vector<Eigen::Vector3i> neighbor6_offsets = {
+          Eigen::Vector3i(-1, 0, 0), Eigen::Vector3i(1, 0, 0),
+          Eigen::Vector3i(0, -1, 0), Eigen::Vector3i(0, 1, 0),
+          Eigen::Vector3i(0, 0, -1), Eigen::Vector3i(0, 0, 1)};
+
+  const std::vector<Eigen::Vector3i> neighbor27_offsets = {
+        Eigen::Vector3i(-1, -1, -1), Eigen::Vector3i(0, -1, -1),
+        Eigen::Vector3i(1, -1, -1),  Eigen::Vector3i(-1, 0, -1),
+        Eigen::Vector3i(0, 0, -1),   Eigen::Vector3i(1, 0, -1),
+        Eigen::Vector3i(-1, 1, -1),  Eigen::Vector3i(0, 1, -1),
+        Eigen::Vector3i(1, 1, -1),   Eigen::Vector3i(-1, -1, 0),
+        Eigen::Vector3i(0, -1, 0),   Eigen::Vector3i(1, -1, 0),
+        Eigen::Vector3i(-1, 0, 0),   Eigen::Vector3i(0, 0, 0),
+        Eigen::Vector3i(1, 0, 0),    Eigen::Vector3i(-1, 1, 0),
+        Eigen::Vector3i(0, 1, 0),    Eigen::Vector3i(1, 1, 0),
+        Eigen::Vector3i(-1, -1, 1),  Eigen::Vector3i(0, -1, 1),
+        Eigen::Vector3i(1, -1, 1),   Eigen::Vector3i(-1, 0, 1),
+        Eigen::Vector3i(0, 0, 1),    Eigen::Vector3i(1, 0, 1),
+        Eigen::Vector3i(-1, 1, 1),   Eigen::Vector3i(0, 1, 1),
+        Eigen::Vector3i(1, 1, 1)};
+    const std::vector<Eigen::Vector3i> neighbor8_offsets = {
+        Eigen::Vector3i(-1, -1, -1), Eigen::Vector3i(0, -1, -1),
+        Eigen::Vector3i(-1, 0, -1),  Eigen::Vector3i(-1, 1, -1),
+
+        Eigen::Vector3i(-1, -1, 0),  Eigen::Vector3i(0, -1, 0),
+        Eigen::Vector3i(1, -1, 0),   Eigen::Vector3i(-1, 0, 0)};
+
     for (size_t i = 0; i < voxel_grid.get_all().size(); i++) {
-      if (counts[labels[i]] < 10) {
+      if (labels[i] > 0 && counts[labels[i]] < 10) {
+        std::cout << i << " label " << labels[i] << " count "
+                  << counts[labels[i]] << std::endl;
         auto& voxel = voxel_grid.get_all()[i];
-        voxel.sdf = 1.f;  // Set maximum outside SDF value (normalized by
-                          // truncation band)
+
+        //bool all_good = true;
+        //for (const auto& neighbor : neighbor27_offsets) {
+        //  Eigen::Vector3i neighbor_index =
+        //      voxel_grid.get_index(voxel.pos) + neighbor;
+
+        //  if (neighbor_index.x() < 0 ||
+        //      neighbor_index.x() >= voxel_grid.resolution().x() ||
+        //      neighbor_index.y() < 0 ||
+        //      neighbor_index.y() >= voxel_grid.resolution().y() ||
+        //      neighbor_index.z() < 0 ||
+        //      neighbor_index.z() >= voxel_grid.resolution().z()) {
+        //    continue;
+        //  }
+
+        //  size_t neighbor_flat_index =
+        //      neighbor_index.x() +
+        //      neighbor_index.y() * voxel_grid.resolution().x() +
+        //      neighbor_index.z() * voxel_grid.resolution().x() *
+        //          voxel_grid.resolution().y();
+        //  //voxel_grid.get_all()[neighbor_flat_index].sdf = 1.f;
+        //  //voxel_grid.get_all()[neighbor_flat_index].update_num = 0.f;
+        //  
+        //  if (labels[neighbor_flat_index] == 0 ||
+        //      counts[labels[neighbor_flat_index]] < 10) {
+        //    all_good = false;
+        //    break;
+        //  }
+        //}
+        voxel.sdf = 1.f;
+        voxel.update_num = 0;
+        
+        //if (!all_good) {
+        //  voxel.sdf = 1.f;
+        //  //ugu::InvalidSdf::kVal;
+        //  voxel.update_num = 0;
+        //}
+
+        //voxel.sdf = ugu::InvalidSdf::kVal;
+        //voxel.update_num = 0;
+
       }
     }
 

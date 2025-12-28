@@ -159,4 +159,8 @@ ConnectedComponentLabelingVoxels(const VoxelGrid& voxel_grid,
                                  bool neighbors_27 = false,
                                  float min_sdf = 0.f);
 
+std::tuple<std::vector<int32_t>, std::vector<uint32_t>>
+ConnectedComponentLabelingVoxelsZeroCrossing(const VoxelGrid& voxel_grid,
+                                             uint32_t max_iter,
+                                             uint32_t min_update_num);
 }  // namespace ugu

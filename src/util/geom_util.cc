@@ -382,6 +382,192 @@ void BuildFaceAdjacencyCSRParallel_TwoPass(
   }
 }
 
+static inline uint64_t pack_edge_u64(int a, int b) {
+  uint32_t lo = (uint32_t)std::min(a, b);
+  uint32_t hi = (uint32_t)std::max(a, b);
+  return (uint64_t(hi) << 32) | uint64_t(lo);
+}
+
+struct EdgeRec {
+  uint64_t key;
+  int face;
+};
+
+static std::vector<std::array<int, 3>> build_face_adjacency_by_shared_edge(
+    const std::vector<Eigen::Vector3i>& tris) {
+  const int F = (int)tris.size();
+  std::vector<EdgeRec> edges;
+  edges.reserve((size_t)F * 3);
+
+  for (int f = 0; f < F; ++f) {
+    const auto& t = tris[f];
+    edges.push_back({pack_edge_u64(t[0], t[1]), f});
+    edges.push_back({pack_edge_u64(t[1], t[2]), f});
+    edges.push_back({pack_edge_u64(t[2], t[0]), f});
+  }
+
+  std::sort(edges.begin(), edges.end(),
+            [](const EdgeRec& a, const EdgeRec& b) { return a.key < b.key; });
+
+  std::vector<std::array<int, 3>> nbr(F, {-1, -1, -1});
+
+  for (size_t i = 0; i < edges.size();) {
+    size_t j = i + 1;
+    while (j < edges.size() && edges[j].key == edges[i].key) ++j;
+
+    if (j - i >= 2) {
+      int f0 = edges[i].face;
+      int f1 = edges[i + 1].face;
+
+      for (int k = 0; k < 3; ++k)
+        if (nbr[f0][k] == -1) {
+          nbr[f0][k] = f1;
+          break;
+        }
+      for (int k = 0; k < 3; ++k)
+        if (nbr[f1][k] == -1) {
+          nbr[f1][k] = f0;
+          break;
+        }
+    }
+    i = j;
+  }
+  return nbr;
+}
+
+// =======================
+// K 回ラベル伝播（近似 CC）
+// =======================
+#if 0
+static std::vector<int> approx_labels_k_iters(
+    const std::vector<std::array<int, 3>>& nbr, int K) {
+  const int F = (int)nbr.size();
+  std::vector<int> label(F), next(F);
+  std::iota(label.begin(), label.end(), 0);
+
+  for (int it = 0; it < K; ++it) {
+#pragma omp parallel for schedule(static)
+    for (int f = 0; f < F; ++f) {
+      int m = label[f];
+      if (nbr[f][0] >= 0) m = std::min(m, label[nbr[f][0]]);
+      if (nbr[f][1] >= 0) m = std::min(m, label[nbr[f][1]]);
+      if (nbr[f][2] >= 0) m = std::min(m, label[nbr[f][2]]);
+      // pointer jumping
+      m = std::min(m, label[m]);
+      next[f] = m;
+    }
+    label.swap(next);
+  }
+  return label;
+}
+#else
+static std::vector<int> approx_labels_k_iters(
+    const std::vector<std::array<int, 3>>& nbr, int K) {
+  const int F = (int)nbr.size();
+  std::vector<int> label(F), next(F);
+  std::iota(label.begin(), label.end(), 0);
+
+  for (int it = 0; it < K; ++it) {
+    int changed = 0;  // 0: no change, 1: changed somewhere
+
+#pragma omp parallel for schedule(static) reduction(| : changed)
+    for (int f = 0; f < F; ++f) {
+      int old = label[f];
+      int m = old;
+
+      if (nbr[f][0] >= 0) m = std::min(m, label[nbr[f][0]]);
+      if (nbr[f][1] >= 0) m = std::min(m, label[nbr[f][1]]);
+      if (nbr[f][2] >= 0) m = std::min(m, label[nbr[f][2]]);
+
+      // pointer jumping
+      m = std::min(m, label[m]);
+
+      next[f] = m;
+      if (m != old) changed = 1;
+    }
+
+    label.swap(next);
+
+    // 収束 → 早期終了
+    if (!changed) break;
+  }
+
+  return label;
+}
+#endif
+
+// =======================
+// 小さい成分の面を落とす
+// =======================
+
+static std::vector<uint8_t> build_face_keep_mask(const std::vector<int>& label,
+                                                 int min_faces) {
+  const int F = (int)label.size();
+  std::vector<int> order(F);
+  std::iota(order.begin(), order.end(), 0);
+
+  std::sort(order.begin(), order.end(),
+            [&](int a, int b) { return label[a] < label[b]; });
+
+  std::vector<uint8_t> keep(F, 1);
+
+  for (int i = 0; i < F;) {
+    int j = i + 1;
+    while (j < F && label[order[j]] == label[order[i]]) ++j;
+
+    if (j - i < min_faces) {
+      for (int k = i; k < j; ++k) keep[order[k]] = 0;
+    }
+    i = j;
+  }
+  return keep;
+}
+
+// =======================
+// 頂点削除 + インデックス詰め
+// =======================
+
+static void compact_vertices_and_faces(
+    const std::vector<Eigen::Vector3f>& verts,
+    const std::vector<Eigen::Vector3i>& tris,
+    const std::vector<uint8_t>& face_keep,
+    std::vector<Eigen::Vector3f>& out_verts,
+    std::vector<Eigen::Vector3i>& out_tris) {
+  const int V = (int)verts.size();
+  const int F = (int)tris.size();
+
+  std::vector<uint8_t> v_used(V, 0);
+
+#pragma omp parallel for
+  for (int f = 0; f < F; ++f) {
+    if (!face_keep[f]) continue;
+    const auto& t = tris[f];
+    v_used[t[0]] = 1;
+    v_used[t[1]] = 1;
+    v_used[t[2]] = 1;
+  }
+
+  // 新しい頂点ID
+  std::vector<int> v_new_id(V, -1);
+  int newV = 0;
+  for (int i = 0; i < V; ++i)
+    if (v_used[i]) v_new_id[i] = newV++;
+
+  // 頂点コピー
+  out_verts.resize(newV);
+#pragma omp parallel for
+  for (int i = 0; i < V; ++i)
+    if (v_new_id[i] >= 0) out_verts[v_new_id[i]] = verts[i];
+
+  // 面コピー
+  out_tris.reserve(F);
+  for (int f = 0; f < F; ++f) {
+    if (!face_keep[f]) continue;
+    const auto& t = tris[f];
+    out_tris.emplace_back(v_new_id[t[0]], v_new_id[t[1]], v_new_id[t[2]]);
+  }
+}
+
 }  // namespace
 
 namespace ugu {
@@ -1961,6 +2147,17 @@ void BuildFaceAdjacencyCSRParallel(const std::vector<Eigen::Vector3i>& faces,
                                    std::vector<int>& offsets,
                                    std::vector<int>& neighbors) {
   BuildFaceAdjacencyCSRParallel_TwoPass(faces, offsets, neighbors);
+}
+
+void RemoveSmallComponentsParallel(const std::vector<Eigen::Vector3f>& verts,
+                                   const std::vector<Eigen::Vector3i>& tris,
+                                   int K, int min_faces,
+                                   std::vector<Eigen::Vector3f>& out_verts,
+                                   std::vector<Eigen::Vector3i>& out_tris) {
+  auto nbr = build_face_adjacency_by_shared_edge(tris);
+  auto labels = approx_labels_k_iters(nbr, K);
+  auto face_keep = build_face_keep_mask(labels, min_faces);
+  compact_vertices_and_faces(verts, tris, face_keep, out_verts, out_tris);
 }
 
 }  // namespace ugu

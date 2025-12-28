@@ -198,4 +198,10 @@ void BuildFaceAdjacencyCSR(const std::vector<Eigen::Vector3i>& faces,
 void BuildFaceAdjacencyCSRParallel(const std::vector<Eigen::Vector3i>& faces,
                                    std::vector<int>& offsets,
                                    std::vector<int>& neighbors);
+
+void RemoveSmallComponentsParallel(const std::vector<Eigen::Vector3f>& verts,
+                                   const std::vector<Eigen::Vector3i>& tris,
+                                   int K, int min_faces,
+                                   std::vector<Eigen::Vector3f>& out_verts,
+                                   std::vector<Eigen::Vector3i>& out_tris);
 }  // namespace ugu
