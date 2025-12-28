@@ -8,9 +8,11 @@
 #include <thrust/sort.h>
 
 #include <cstdint>
+#include <cub/cub.cuh>
 #include <iostream>
 
 #include "./mesh.cuh"
+#include "ugu/timer.h"
 
 namespace {
 
@@ -247,6 +249,47 @@ __global__ void remap_faces_vertices(int* faces, int F2, const int* v_new_id) {
   faces[3 * f + 2] = v_new_id[faces[3 * f + 2]];
 }
 
+static void sort_edges_by_key_cub(
+    thrust::device_vector<uint64_t>& d_edge_key,
+    thrust::device_vector<int>& d_edge_face,
+    // 再利用用バッファ（呼び出し側で保持して毎回渡すと速い）
+    thrust::device_vector<uint64_t>& d_edge_key_tmp,
+    thrust::device_vector<int>& d_edge_face_tmp,
+    thrust::device_vector<uint8_t>& d_temp_storage, cudaStream_t stream) {
+  const int E = (int)d_edge_key.size();
+  if ((int)d_edge_face.size() != E) std::exit(1);
+
+  // tmp を確保（サイズが違うときだけリサイズ）
+  if ((int)d_edge_key_tmp.size() != E) d_edge_key_tmp.resize(E);
+  if ((int)d_edge_face_tmp.size() != E) d_edge_face_tmp.resize(E);
+
+  uint64_t* keys_in = thrust::raw_pointer_cast(d_edge_key.data());
+  uint64_t* keys_out = thrust::raw_pointer_cast(d_edge_key_tmp.data());
+  int* vals_in = thrust::raw_pointer_cast(d_edge_face.data());
+  int* vals_out = thrust::raw_pointer_cast(d_edge_face_tmp.data());
+
+  void* temp_ptr = nullptr;
+  size_t temp_bytes = 0;
+
+  // 1) required temp size
+  CUDA_CHECK(cub::DeviceRadixSort::SortPairs(
+      nullptr, temp_bytes, keys_in, keys_out, vals_in, vals_out, E,
+      /*begin_bit=*/0, /*end_bit=*/64, stream));
+
+  // 2) allocate/reuse temp storage
+  if (d_temp_storage.size() < temp_bytes) d_temp_storage.resize(temp_bytes);
+  temp_ptr = thrust::raw_pointer_cast(d_temp_storage.data());
+
+  // 3) sort
+  CUDA_CHECK(cub::DeviceRadixSort::SortPairs(
+      temp_ptr, temp_bytes, keys_in, keys_out, vals_in, vals_out, E,
+      /*begin_bit=*/0, /*end_bit=*/64, stream));
+
+  // 4) swap so that d_edge_key / d_edge_face become sorted
+  d_edge_key.swap(d_edge_key_tmp);
+  d_edge_face.swap(d_edge_face_tmp);
+}
+
 }  // namespace
 
 namespace ugu {
@@ -262,6 +305,10 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   const int threads = 256;
   const int blocksF = (F + threads - 1) / threads;
 
+  Timer timer;
+
+  timer.Start();
+
   // ---- build neighbors ----
   const int E = 3 * F;
   thrust::device_vector<uint64_t> d_edge_key(E);
@@ -271,22 +318,48 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
       in.d_faces, F, thrust::raw_pointer_cast(d_edge_key.data()),
       thrust::raw_pointer_cast(d_edge_face.data()));
   CUDA_CHECK(cudaGetLastError());
+  timer.End();
+  std::cout << "Build edges time: " << timer.elapsed_msec() << " ms"
+            << std::endl;
 
+  timer.Start();
+#if 1
   thrust::sort_by_key(thrust::cuda::par.on(stream), d_edge_key.begin(),
                       d_edge_key.end(), d_edge_face.begin());
+#else
+  static thrust::device_vector<uint64_t> d_edge_key_tmp;
+  static thrust::device_vector<int> d_edge_face_tmp;
+  static thrust::device_vector<uint8_t> d_sort_tmp_storage;
 
+  sort_edges_by_key_cub(d_edge_key, d_edge_face, d_edge_key_tmp,
+                        d_edge_face_tmp, d_sort_tmp_storage, stream);
+#endif
+  timer.End();
+  std::cout << "sort_by_key time: " << timer.elapsed_msec() << " ms"
+            << std::endl;
+  timer.Start();
   thrust::device_vector<int> d_nbr(3 * F);
   init_int_kernel<<<(3 * F + threads - 1) / threads, threads, 0, stream>>>(
       thrust::raw_pointer_cast(d_nbr.data()), 3 * F, -1);
   CUDA_CHECK(cudaGetLastError());
 
+  timer.End();
+  std::cout << "init_int_kernel time: " << timer.elapsed_msec() << " ms"
+            << std::endl;
+
+  timer.Start();
   build_adjacency_from_sorted_edges<<<(E + threads - 1) / threads, threads, 0,
                                       stream>>>(
       thrust::raw_pointer_cast(d_edge_key.data()),
       thrust::raw_pointer_cast(d_edge_face.data()), E,
       thrust::raw_pointer_cast(d_nbr.data()), F);
   CUDA_CHECK(cudaGetLastError());
+  timer.End();
+  std::cout << "Build adjacency time: " << timer.elapsed_msec() << " ms"
+            << std::endl;
+
   // ---- label propagation with early exit ----
+  timer.Start();
   thrust::device_vector<int> d_label(F);
   thrust::device_vector<int> d_next(F);
   thrust::sequence(thrust::cuda::par.on(stream), d_label.begin(),
@@ -310,15 +383,27 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
     CUDA_CHECK(cudaMemcpyAsync(&h_changed, d_changed, sizeof(int),
                                cudaMemcpyDeviceToHost, stream));
     CUDA_CHECK(cudaStreamSynchronize(stream));  // early-exitのため同期
-    if (!h_changed) break;
+    if (!h_changed) {
+      std::cout << "Label propagation converged at iter " << it << std::endl;
+      break;
+    }
   }
   CUDA_CHECK(cudaFree(d_changed));
 
+  timer.End();
+  std::cout << "label propagation : " << timer.elapsed_msec() << " ms"
+            << std::endl;
+
+  timer.Start();
   // ---- compute face_cc_size[f] from sorted (label, faceId) ----
   thrust::device_vector<int> d_face_id(F);
   thrust::sequence(thrust::cuda::par.on(stream), d_face_id.begin(),
                    d_face_id.end());
+  timer.End();
+  std::cout << "compute face_cc_sizee: " << timer.elapsed_msec() << " ms"
+            << std::endl;
 
+  timer.Start();
   // sort pairs by label
   thrust::sort_by_key(thrust::cuda::par.on(stream), d_label.begin(),
                       d_label.end(), d_face_id.begin());
@@ -334,13 +419,26 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
       thrust::raw_pointer_cast(d_face_cc_size.data()));
   CUDA_CHECK(cudaGetLastError());
 
+  timer.End();
+  std::cout << "sort pairs by label: " << timer.elapsed_msec() << " ms"
+            << std::endl;
+
+  timer.Start();
   // ---- face_keep and face compaction ----
   thrust::device_vector<uint8_t> d_face_keep(F);
+  timer.End();
+  std::cout << " thrust::device_vector: " << timer.elapsed_msec() << " ms"
+            << std::endl;
+
+  timer.Start();
   make_face_keep<<<blocksF, threads, 0, stream>>>(
       thrust::raw_pointer_cast(d_face_cc_size.data()), F, min_faces,
       thrust::raw_pointer_cast(d_face_keep.data()));
   CUDA_CHECK(cudaGetLastError());
+  timer.End();
+  std::cout << "make_face_keep: " << timer.elapsed_msec() << " ms" << std::endl;
 
+  timer.Start();
   // scan keep -> new face indices
   thrust::device_vector<int> d_face_keep_i(F);
   thrust::transform(thrust::cuda::par.on(stream), d_face_keep.begin(),
@@ -350,7 +448,11 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   thrust::device_vector<int> d_face_scan(F);
   thrust::exclusive_scan(thrust::cuda::par.on(stream), d_face_keep_i.begin(),
                          d_face_keep_i.end(), d_face_scan.begin(), 0);
+  timer.End();
+  std::cout << " scan keep -> new face indices: " << timer.elapsed_msec()
+            << " ms" << std::endl;
 
+  timer.Start();
   int kept_faces = 0;
   {
     int last_keep = 0, last_scan = 0;
@@ -363,7 +465,10 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
     CUDA_CHECK(cudaStreamSynchronize(stream));
     kept_faces = last_scan + last_keep;
   }
+  timer.End();
+  std::cout << "kept_faces: " << timer.elapsed_msec() << " ms" << std::endl;
 
+  timer.Start();
   // allocate new faces
   int* d_faces2 = nullptr;
   CUDA_CHECK(cudaMalloc(&d_faces2, sizeof(int) * 3 * kept_faces));
@@ -371,12 +476,15 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   if (in.d_face_normals) {
     CUDA_CHECK(cudaMalloc(&d_face_normals2, sizeof(float3) * kept_faces));
   }
+  timer.End();
+  std::cout << "malloc: " << timer.elapsed_msec() << " ms" << std::endl;
 
   // compact_faces_kernel<<<blocksF, threads, 0, stream>>>(
   //     in.d_faces, F, thrust::raw_pointer_cast(d_face_keep.data()),
   //     thrust::raw_pointer_cast(d_face_scan.data()), d_faces2);
   // CUDA_CHECK(cudaGetLastError());
 
+  timer.Start();
   compact_faces_and_normals_kernel<<<blocksF, threads, 0, stream>>>(
       in.d_faces, in.d_face_normals, F,
       thrust::raw_pointer_cast(d_face_keep.data()),
@@ -393,7 +501,11 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   // mark_used_vertices<<<blocksF2, threads, 0, stream>>>(
   //     d_faces2, kept_faces, thrust::raw_pointer_cast(d_v_used.data()));
   // CUDA_CHECK(cudaGetLastError());
+  timer.End();
+  std::cout << "compact_faces_and_normals_kernel: " << timer.elapsed_msec()
+            << " ms" << std::endl;
 
+  timer.Start();
   thrust::device_vector<int> d_v_used(V);
   thrust::fill(thrust::cuda::par.on(stream), d_v_used.begin(), d_v_used.end(),
                0);
@@ -411,7 +523,11 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   thrust::device_vector<int> d_v_scan(V);
   thrust::exclusive_scan(thrust::cuda::par.on(stream), d_v_used.begin(),
                          d_v_used.end(), d_v_scan.begin(), 0);
+  timer.End();
+  std::cout << "mark_used_vertices_i32: " << timer.elapsed_msec() << " ms"
+            << std::endl;
 
+  timer.Start();
   int kept_vertices = 0;
   {
     int last_used = 0, last_vscan = 0;
@@ -452,6 +568,9 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   out.d_face_normals = d_face_normals2;
   out.num_vertices_ = kept_vertices;
   out.num_faces_ = kept_faces;
+
+  timer.End();
+  std::cout << "Last: " << timer.elapsed_msec() << " ms" << std::endl;
 
   // std::cout << "Removed small connected components: "
   //           << " input_faces=" << F << ", kept_faces=" << kept_faces
