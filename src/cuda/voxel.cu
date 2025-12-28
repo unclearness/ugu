@@ -3261,7 +3261,16 @@ class VoxelGridCudaNaive::Impl {
     mesh_in.d_faces = d_faces;
     mesh_in.d_face_normals = d_face_normals;
     mesh_in.num_faces_ = num_faces_;
-    ugu::RemoveSmallConnectedComponents(mesh_in, max_iter, min_faces, mesh_out);
+    Timer timer;
+
+    timer.Start();
+
+    d_mesh_process_buf_.EnsureCapacity(num_faces_, num_vertices_);
+    timer.End();
+    std::cout << "EnsureCapacity: " << timer.elapsed_msec() << " ms"
+              << std::endl;
+    ugu::RemoveSmallConnectedComponents(mesh_in, max_iter, min_faces, mesh_out,
+                                        d_mesh_process_buf_);
     checkCudaErrors(cudaGetLastError());
 
     num_vertices_ = mesh_out.num_vertices_;
@@ -3279,10 +3288,10 @@ class VoxelGridCudaNaive::Impl {
     }
     checkCudaErrors(cudaGetLastError());
 
-    cudaFree(mesh_out.d_faces);
-    cudaFree(mesh_out.d_vertices);
-    cudaFree(mesh_out.d_face_normals);
-    checkCudaErrors(cudaGetLastError());
+    //cudaFree(mesh_out.d_faces);
+    //cudaFree(mesh_out.d_vertices);
+    //cudaFree(mesh_out.d_face_normals);
+    //checkCudaErrors(cudaGetLastError());
   }
 
   void ComputeVertexNormals() {
@@ -3535,6 +3544,8 @@ class VoxelGridCudaNaive::Impl {
 
     max_faces_ = 0;
     max_tris_ = 0;
+
+    d_mesh_process_buf_.Free();
   }
 
   void EnsureTriangleVertexMemory(int tris_num) {
@@ -3604,6 +3615,8 @@ class VoxelGridCudaNaive::Impl {
 
   int num_faces_{0};
   int num_vertices_{0};
+
+  ugu::RemoveSmallConnectedComponentsBuf d_mesh_process_buf_;
 };
 
 VoxelGridCudaNaive::VoxelGridCudaNaive() { impl_ = std::make_unique<Impl>(); }
