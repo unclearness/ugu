@@ -239,6 +239,8 @@ bool VoxelGrid::Init(const Eigen::Vector3f& bb_max,
 
 const Eigen::Vector3i& VoxelGrid::voxel_num() const { return voxel_num_; }
 
+const int VoxelGrid::xy_slice_num() const { return xy_slice_num_; }
+
 const Voxel& VoxelGrid::get(int x, int y, int z) const {
   return voxels_[z * xy_slice_num_ + (y * voxel_num_.x() + x)];
 }
@@ -248,6 +250,8 @@ Voxel* VoxelGrid::get_ptr(int x, int y, int z) {
 }
 
 std::vector<Voxel>& VoxelGrid::get_all() { return voxels_; }
+
+const std::vector<Voxel>& VoxelGrid::get_all() const { return voxels_; }
 
 Eigen::Vector3f VoxelGrid::resolution() const { return resolution_; }
 
@@ -515,6 +519,203 @@ bool FusePoints(const std::vector<Eigen::Vector3f>& points,
   }
 
   return true;
+}
+
+std::tuple<std::vector<int32_t>, std::vector<uint32_t>>
+ConnectedComponentLabelingVoxels(const VoxelGrid& voxel_grid,
+                                 int32_t min_voxel_update_num,
+                                 uint32_t max_iter, bool neighbors_27) {
+  // Determine occupied voxels
+  std::vector<bool> occupied_flags(voxel_grid.get_all().size(), false);
+
+  int64_t num_voxels = static_cast<int64_t>(voxel_grid.get_all().size());
+  for (int64_t i = 0; i < num_voxels; i++) {
+    const auto& voxel = voxel_grid.get_all()[i];
+    if (voxel.update_num >= min_voxel_update_num && voxel.sdf < 0) {
+      occupied_flags[i] = true;
+    }
+  }
+
+  // Assign initial labels
+  std::vector<int32_t> labels(occupied_flags.size(), -1);
+  int32_t cur_label = 0;
+  for (size_t i = 0; i < labels.size(); i++) {
+    if (occupied_flags[i]) {
+      labels[i] = cur_label;
+      cur_label++;
+    }
+  }
+
+  const int32_t num_labels = cur_label;
+
+  const std::vector<Eigen::Vector3i> neighbor6_offsets = {
+      Eigen::Vector3i(-1, 0, 0), Eigen::Vector3i(1, 0, 0),
+      Eigen::Vector3i(0, -1, 0), Eigen::Vector3i(0, 1, 0),
+      Eigen::Vector3i(0, 0, -1), Eigen::Vector3i(0, 0, 1)};
+
+  const std::vector<Eigen::Vector3i> neighbor27_offsets = {
+      Eigen::Vector3i(-1, -1, -1), Eigen::Vector3i(0, -1, -1),
+      Eigen::Vector3i(1, -1, -1),  Eigen::Vector3i(-1, 0, -1),
+      Eigen::Vector3i(0, 0, -1),   Eigen::Vector3i(1, 0, -1),
+      Eigen::Vector3i(-1, 1, -1),  Eigen::Vector3i(0, 1, -1),
+      Eigen::Vector3i(1, 1, -1),   Eigen::Vector3i(-1, -1, 0),
+      Eigen::Vector3i(0, -1, 0),   Eigen::Vector3i(1, -1, 0),
+      Eigen::Vector3i(-1, 0, 0),   Eigen::Vector3i(0, 0, 0),
+      Eigen::Vector3i(1, 0, 0),    Eigen::Vector3i(-1, 1, 0),
+      Eigen::Vector3i(0, 1, 0),    Eigen::Vector3i(1, 1, 0),
+      Eigen::Vector3i(-1, -1, 1),  Eigen::Vector3i(0, -1, 1),
+      Eigen::Vector3i(1, -1, 1),   Eigen::Vector3i(-1, 0, 1),
+      Eigen::Vector3i(0, 0, 1),    Eigen::Vector3i(1, 0, 1),
+      Eigen::Vector3i(-1, 1, 1),   Eigen::Vector3i(0, 1, 1),
+      Eigen::Vector3i(1, 1, 1)};
+
+  std::vector<Eigen::Vector3i> neighbor_offsets;
+  if (neighbors_27) {
+    neighbor_offsets = neighbor27_offsets;
+  } else {
+    neighbor_offsets = neighbor6_offsets;
+  }
+#if 0
+  uint32_t iter = 0;
+  std::vector<int32_t> prev_labels = labels;
+  while (iter <= max_iter) {
+    bool changed = false;
+#if defined(_OPENMP) && defined(UGU_USE_OPENMP)
+#pragma omp parallel for
+#endif
+    for (int64_t i = 0; i < num_voxels; i++) {
+      if (!occupied_flags[i]) {
+        continue;
+      }
+      const auto& voxel = voxel_grid.get_all()[i];
+      bool changed_ = false;
+      int32_t label = prev_labels[i];
+      for (const auto& offset : neighbor_offsets) {
+        const Eigen::Vector3i neighbor_idx = voxel.index + offset;
+        if (neighbor_idx.x() < 0 ||
+            voxel_grid.voxel_num().x() <= neighbor_idx.x() ||
+            neighbor_idx.y() < 0 ||
+            voxel_grid.voxel_num().y() <= neighbor_idx.y() ||
+            neighbor_idx.z() < 0 ||
+            voxel_grid.voxel_num().z() <= neighbor_idx.z()) {
+          continue;
+        }
+        const int64_t neighbor_flat_idx =
+            neighbor_idx.z() * voxel_grid.xy_slice_num() +
+            (neighbor_idx.y() * voxel_grid.voxel_num().x() + neighbor_idx.x());
+
+        const int32_t& nn_label = prev_labels[neighbor_flat_idx];
+
+        if (nn_label >= 0 && nn_label < label) {
+          label = nn_label;
+          changed = true;
+        }
+      }
+      labels[i] = label;
+    }
+
+    if (!changed) {
+      break;
+    }
+    iter++;
+    prev_labels = labels;
+  }
+#else
+
+  uint32_t iter = 0;
+  std::vector<int32_t> prev_labels = labels;
+
+  std::vector<int64_t> active;
+  active.reserve(num_voxels);
+  for (int64_t i = 0; i < num_voxels; ++i) {
+    if (occupied_flags[i]) active.push_back(i);
+  }
+
+  const auto vnum = voxel_grid.voxel_num();
+  const int64_t nx = vnum.x(), ny = vnum.y(), nz = vnum.z();
+  const int64_t xys = voxel_grid.xy_slice_num();
+  const auto* voxels = voxel_grid.get_all().data();
+  const int64_t active_size = static_cast<int64_t>(active.size());
+
+  for (; iter <= max_iter; ++iter) {
+    int changed_sum = 0;
+
+#pragma omp parallel for reduction(+ : changed_sum)
+    for (int64_t t = 0; t < active_size; ++t) {
+      const int64_t i = active[t];
+
+      int32_t label = prev_labels[i];
+      const auto& voxel = voxels[i];
+
+      for (const auto& off : neighbor_offsets) {
+        const auto n = voxel.index + off;
+        if (n.x() < 0 || n.x() >= nx || n.y() < 0 || n.y() >= ny || n.z() < 0 ||
+            n.z() >= nz) {
+          continue;
+        }
+        const int64_t j = n.z() * xys + (n.y() * nx + n.x());
+        const int32_t nn_label = prev_labels[j];
+        if (nn_label >= 0 && nn_label < label) {
+          label = nn_label;
+        }
+      }
+
+      if (label != prev_labels[i]) {
+        labels[i] = label;
+        changed_sum += 1;
+      } else {
+        labels[i] = prev_labels[i];
+      }
+    }
+
+    if (changed_sum == 0) {
+      break;
+    }
+
+    prev_labels.swap(labels);
+  }
+#endif
+
+  // std::cout << "Connected Component Labeling converged at iter: " << iter
+  //           << " / " << max_iter << ", initial num_labels: " << num_labels
+  //           << std::endl;
+
+  // Reassign labels
+  std::vector<int32_t> unique_labels = labels;
+  // Make sorted unique values
+  std::sort(unique_labels.begin(), unique_labels.end());
+  auto unique_result = std::unique(unique_labels.begin(), unique_labels.end());
+  unique_labels.erase(unique_result, unique_labels.end());
+  // Update labels
+  // 0: Empty
+  // 1~: Connected component labels
+  std::map<int32_t, int32_t> label_map;
+  label_map[-1] = 0;
+  for (size_t i = 1; i < unique_labels.size(); i++) {
+    // std::cout << unique_labels[i] << " -> " << (i) << std::endl;
+    label_map[unique_labels[i]] = static_cast<int32_t>(i);
+  }
+
+  for (int64_t i = 0; i < num_voxels; i++) {
+    labels[i] = label_map[labels[i]];
+  }
+
+  // Count labels
+  std::vector<uint32_t> counts(unique_labels.size(), 0);
+  for (int64_t i = 0; i < num_voxels; ++i) {
+    const int32_t l = labels[i];
+    counts[l]++;
+  }
+
+  // std::cout << "Connected Component Labeling found " << unique_labels.size()
+  // + 1
+  //           << " components." << std::endl;
+  // for (size_t i = 0; i < counts.size(); ++i) {
+  //   std::cout << "  Label " << i << ": " << counts[i] << " voxels."
+  //             << std::endl;
+  // }
+
+  return std::make_tuple(labels, counts);
 }
 
 float SdfInterpolationNn(const Eigen::Vector2f& image_p,

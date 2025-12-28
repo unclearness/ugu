@@ -99,9 +99,11 @@ class VoxelGrid {
   bool Init(const Eigen::Vector3f& bb_max, const Eigen::Vector3f& bb_min,
             const Eigen::Vector3f& resolution);
   const Eigen::Vector3i& voxel_num() const;
+  const int xy_slice_num() const;
   const Voxel& get(int x, int y, int z) const;
   Voxel* get_ptr(int x, int y, int z);
   std::vector<Voxel>& get_all();
+  const std::vector<Voxel>& VoxelGrid::get_all() const;
   Eigen::Vector3f resolution() const;
   void ResetOnSurface();
   bool initialized() const;
@@ -148,5 +150,11 @@ void UpdateVoxelWeightedAverage(
     ugu::Voxel* voxel, const ugu::VoxelUpdateOption& option, float sdf,
     bool with_color = false,
     const Eigen::Vector3f& col = Eigen::Vector3f::Zero());
+
+std::tuple<std::vector<int32_t>, std::vector<uint32_t>>
+ConnectedComponentLabelingVoxels(const VoxelGrid& voxel_grid,
+                                 int32_t min_voxel_update_num = 1,
+                                 uint32_t max_iter = 200,
+                                 bool neighbors_27 = false);
 
 }  // namespace ugu
