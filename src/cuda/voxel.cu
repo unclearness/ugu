@@ -3,10 +3,14 @@
 
 #include <cub/cub.cuh>
 
+#include <map>
+#include <algorithm>
+
 #include "./helper_cuda.h"
 #include "./voxel.cuh"
 #include "ugu/cuda/voxel.h"
 #include "ugu/util/image_util.h"
+#include "ugu/timer.h"
 
 namespace {
 
@@ -1240,7 +1244,7 @@ __global__ void MakeValidMaskKernel(int* d_valid, int* d_labels,
   }
 }
 
-__global__ void VoxelFilterKernel(VoxelCudaNaive* voxels, const int* d_valid,
+__global__ void VoxelFilterKernelOrg(VoxelCudaNaive* voxels, const int* d_valid,
                                   const int3 vn, float sdf_val) {
   const int ix = blockIdx.x * blockDim.x + threadIdx.x;
   const int iy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -1258,7 +1262,29 @@ __global__ void VoxelFilterKernel(VoxelCudaNaive* voxels, const int* d_valid,
   voxels[idx].update_num = 1;
 }
 
-__global__ void BuildOccupiedKernel(int* occupied, const VoxelCudaNaive* voxels,
+
+__global__ void VoxelFilterKernel(VoxelCudaNaive* voxels, const int* d_labels,
+                                  const unsigned int* d_counts, const int3 vn,
+                                  unsigned int min_connect_components_num,
+                                  float sdf_val) {
+  const int ix = blockIdx.x * blockDim.x + threadIdx.x;
+  const int iy = blockIdx.y * blockDim.y + threadIdx.y;
+  const int iz = blockIdx.z * blockDim.z + threadIdx.z;
+  if (ix >= vn.x || iy >= vn.y || iz >= vn.z) {
+    return;
+  }
+
+  const int idx = ix + iy * vn.x + iz * vn.x * vn.y;
+  if (d_counts[d_labels[idx]] >= min_connect_components_num) {
+    return;
+  }
+
+  voxels[idx].sdf_sum = sdf_val;
+  voxels[idx].update_num = 1;
+}
+
+__global__ void BuildOccupiedKernel(uint8_t* occupied,
+                                    const VoxelCudaNaive* voxels,
                                     int3 vn, int min_voxel_update_num,
                                     float min_sdf) {
   const int ix = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1279,25 +1305,17 @@ __global__ void BuildOccupiedKernel(int* occupied, const VoxelCudaNaive* voxels,
 }
 
 // occ=0/1 → label=scan[i] or -1
-__global__ void LabelFromScanKernel(const int* occ, const int* scan,
+__global__ void LabelFromScanKernel(const uint8_t* occ, const int* scan,
                                     int* labels, int N) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   if (i >= N) return;
   labels[i] = occ[i] ? scan[i] : -1;
 }
 
-//__global__ void LabelPropagationKernel(int* d_labels, int* d_labels_prev, int
-// N,
-//                                       int max_iter, bool neighbors_27) {
-//
-//  // IMPLEMENT HERE
-//
-//
-//}
 
 __global__ void LabelPropagationOneIter(int* next_labels,        // 書き出し
                                         const int* prev_labels,  // 読み出し
-                                        const int* occupied,     // 0/1
+                                        const uint8_t* occupied,     // 0/1
                                         int nx, int ny, int nz,
                                         int neighbors_27,
                                         int* d_changed)  // 変更総数（原子加算）
@@ -1326,9 +1344,11 @@ __global__ void LabelPropagationOneIter(int* next_labels,        // 書き出し
     for (int dz = -1; dz <= 1; ++dz) {
       int zz = z + dz;
       if ((unsigned)zz >= (unsigned)nz) continue;
+#pragma unroll
       for (int dy = -1; dy <= 1; ++dy) {
         int yy = y + dy;
         if ((unsigned)yy >= (unsigned)ny) continue;
+#pragma unroll
         for (int dx = -1; dx <= 1; ++dx) {
           int xx = x + dx;
           if ((unsigned)xx >= (unsigned)nx) continue;
@@ -1397,8 +1417,9 @@ __global__ void LabelPropagationOneIter(int* next_labels,        // 書き出し
 }
 
 void RunLabelPropagation(
-    int* d_labels,  // 入出力: 初期ラベル（占有は0..K-1, 非占有は-1）
-    const int* d_occupied,  // 0/1
+    int* d_labels,  // 入出力: 初期ラベル（占有は0..K-1, 非占有は-1
+    int* h_end_iter,
+    const uint8_t* d_occupied,  // 0/1
     int nx, int ny, int nz, int max_iter, bool neighbors_27) {
   const int N = nx * ny * nz;
 
@@ -1414,7 +1435,8 @@ void RunLabelPropagation(
   const int TPB = 256;
   const int blocks = (N + TPB - 1) / TPB;
 
-  for (int it = 0; it <= max_iter; ++it) {
+  int it = 0;
+  while(it < max_iter) {
     cudaMemset(d_changed, 0, sizeof(int));
     LabelPropagationOneIter<<<blocks, TPB>>>(d_next, d_prev, d_occupied, nx, ny,
                                              nz, neighbors_27 ? 1 : 0,
@@ -1430,17 +1452,378 @@ void RunLabelPropagation(
       break;
     }
 
-    // 反復継続：prev/next を入れ替え
-    std::swap(d_prev, d_next);
-
     if (it == max_iter) {
       // 最大反復に到達：最新の prev を返す
       cudaMemcpy(d_labels, d_prev, N * sizeof(int), cudaMemcpyDeviceToDevice);
     }
+
+    // 反復継続：prev/next を入れ替え
+    std::swap(d_prev, d_next);
+
+    it++;
   }
+
+  *h_end_iter = it;
 
   cudaFree(d_prev);
   cudaFree(d_next);
+  cudaFree(d_changed);
+}
+
+
+template <bool N27>
+__global__ void LabelPropagationOneIter3D(
+    int* __restrict__ next_labels,        // 書き出し
+    const int* __restrict__ prev_labels,  // 読み出し
+    const int* __restrict__ occupied,     // 0/1
+    int nx, int ny, int nz) {
+  const int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+  const int z = blockIdx.z * blockDim.z + threadIdx.z;
+  if (x >= nx || y >= ny || z >= nz) return;
+
+  const int xys = nx * ny;
+  const int idx = z * xys + y * nx + x;
+
+  if (!occupied[idx]) {
+    next_labels[idx] = -1;
+    return;
+  }
+
+  int label = prev_labels[idx];
+
+  if constexpr (N27) {
+    // 27近傍（中心除外）
+#pragma unroll
+    for (int dz = -1; dz <= 1; ++dz) {
+      const int zz = z + dz;
+      if ((unsigned)zz >= (unsigned)nz) continue;
+#pragma unroll
+      for (int dy = -1; dy <= 1; ++dy) {
+        const int yy = y + dy;
+        if ((unsigned)yy >= (unsigned)ny) continue;
+#pragma unroll
+        for (int dx = -1; dx <= 1; ++dx) {
+          const int xx = x + dx;
+          if ((unsigned)xx >= (unsigned)nx) continue;
+          if (dx == 0 && dy == 0 && dz == 0) continue;
+
+          const int j = zz * xys + yy * nx + xx;
+          if (!occupied[j]) continue;
+          const int nn = prev_labels[j];
+          if (nn >= 0 && nn < label) label = nn;
+        }
+      }
+    }
+  } else {
+    // 6近傍
+    // ±x
+    if (x > 0) {
+      int j = idx - 1;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    if (x + 1 < nx) {
+      int j = idx + 1;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    // ±y
+    if (y > 0) {
+      int j = idx - nx;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    if (y + 1 < ny) {
+      int j = idx + nx;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    // ±z
+    if (z > 0) {
+      int j = idx - xys;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    if (z + 1 < nz) {
+      int j = idx + xys;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+  }
+
+  next_labels[idx] = label;
+}
+
+// prev と next の差分フラグ（1:異なる, 0:同じ）
+__global__ void DiffFlagKernel(const int* __restrict__ a,
+                               const int* __restrict__ b, int N,
+                               int* __restrict__ flags) {
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= N) return;
+  flags[i] = (a[i] != b[i]);
+}
+
+template <bool N27, int BX, int BY, int BZ>
+__global__ void PropOneIter_BlockReduce(int* __restrict__ nextL,
+                                        const int* __restrict__ prevL,
+                                        const uint8_t* __restrict__ occ, int nx,
+                                        int ny, int nz,
+                                        int* __restrict__ changed_sum) {
+  int x = blockIdx.x * BX + threadIdx.x;
+  int y = blockIdx.y * BY + threadIdx.y;
+  int z = blockIdx.z * BZ + threadIdx.z;
+  if (x >= nx || y >= ny || z >= nz) return;
+
+  const int xys = nx * ny;
+  int idx = z * xys + y * nx + x;
+
+  if (!occ[idx]) {
+    nextL[idx] = -1;
+    return;
+  }
+
+  int label = prevL[idx];
+
+  if constexpr (N27) {
+#pragma unroll
+    for (int dz = -1; dz <= 1; ++dz) {
+      int zz = z + dz;
+      if ((unsigned)zz >= (unsigned)nz) continue;
+#pragma unroll
+      for (int dy = -1; dy <= 1; ++dy) {
+        int yy = y + dy;
+        if ((unsigned)yy >= (unsigned)ny) continue;
+#pragma unroll
+        for (int dx = -1; dx <= 1; ++dx) {
+          int xx = x + dx;
+          if ((unsigned)xx >= (unsigned)nx) continue;
+          if ((dx | dy | dz) == 0) continue;
+          int j = zz * xys + yy * nx + xx;
+          if (!occ[j]) continue;
+          int nn = prevL[j];
+          if (nn >= 0 && nn < label) label = nn;
+        }
+      }
+    }
+  } else {
+    if (x > 0) {
+      int j = idx - 1;
+      if (occ[j]) {
+        int nn = prevL[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    if (x + 1 < nx) {
+      int j = idx + 1;
+      if (occ[j]) {
+        int nn = prevL[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    if (y > 0) {
+      int j = idx - nx;
+      if (occ[j]) {
+        int nn = prevL[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    if (y + 1 < ny) {
+      int j = idx + nx;
+      if (occ[j]) {
+        int nn = prevL[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    if (z > 0) {
+      int j = idx - xys;
+      if (occ[j]) {
+        int nn = prevL[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    if (z + 1 < nz) {
+      int j = idx + xys;
+      if (occ[j]) {
+        int nn = prevL[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+  }
+
+  int old = prevL[idx];
+  nextL[idx] = label;
+
+  // block内縮約（warp単位→block合成）
+  int changed = (label != old);
+  // warp内和
+  unsigned mask = 0xffffffff;
+  for (int offset = 16; offset > 0; offset >>= 1)
+    changed += __shfl_down_sync(mask, changed, offset);
+
+  // warp leader が共有メモリに書く
+  __shared__ int warpSums[(BX * BY * BZ + 31) / 32];
+  int lane = threadIdx.x & 31;
+  int warp = (threadIdx.z * BY * BX + threadIdx.y * BX + threadIdx.x) >> 5;
+  if (lane == 0) warpSums[warp] = changed;
+
+  __syncthreads();
+  // block内で和（warp個数は小さい）
+  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+    int blockSum = 0;
+    int W = (BX * BY * BZ + 31) / 32;
+    for (int i = 0; i < W; ++i) blockSum += warpSums[i];
+    if (blockSum) atomicAdd(changed_sum, blockSum);
+  }
+}
+
+__global__ void ConvertIntToU8(const int* src, uint8_t* dst, int N) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= N) return;
+  dst[i] = static_cast<uint8_t>(src[i] != 0);
+}
+
+// ------------------------------------------------------------
+// 最適化版ラベル伝播（①atomic除去＋CUB reduce, ②3Dグリッド, ③6/27テンプレ）
+// d_labels: 初期=占有0..K-1 / 非占有=-1, 終了時=伝播後
+// d_occupied: 0/1（int配列）
+// ------------------------------------------------------------
+void RunLabelPropagationOptimized(int* d_labels, int* h_end_iter,
+                                  const uint8_t* d_occ8, int nx,
+                                  int ny, int nz, int max_iter,
+                                  bool neighbors_27) {
+  const int N = nx * ny * nz;
+  const int TPB = 256;
+
+  // 3D起動構成（8^3 は多くの環境で無難）
+  const dim3 block3(8, 8, 8);
+  const dim3 grid3((nx + block3.x - 1) / block3.x,
+                   (ny + block3.y - 1) / block3.y,
+                   (nz + block3.z - 1) / block3.z);
+
+  // 1D起動構成（差分フラグ用）
+  const int blocks1 = (N + TPB - 1) / TPB;
+
+  // prev/next バッファ
+  int *d_prev = nullptr, *d_next = nullptr;
+  checkCudaErrors(cudaMalloc(&d_prev, N * sizeof(int)));
+  checkCudaErrors(cudaMalloc(&d_next, N * sizeof(int)));
+  checkCudaErrors(
+      cudaMemcpy(d_prev, d_labels, N * sizeof(int), cudaMemcpyDeviceToDevice));
+
+  // flags（変化フラグ）
+  int* d_flags = nullptr;
+  checkCudaErrors(cudaMalloc(&d_flags, N * sizeof(int)));
+
+  // CUB reduce 用ワークスペース（再利用）
+  void* d_tmp = nullptr;
+  size_t tmp_bytes = 0;
+  // サイズ問い合わせ
+  cub::DeviceReduce::Sum(d_tmp, tmp_bytes, d_flags, d_next /*dummy*/, N);
+  checkCudaErrors(cudaMalloc(&d_tmp, tmp_bytes));
+  // reduce出力（changed数）
+  int* d_changed = nullptr;
+  checkCudaErrors(cudaMalloc(&d_changed, sizeof(int)));
+
+  int h_changed = 0;
+
+  //for (int it = 0; it <= max_iter; ++it) {
+  //  // 1反復：prev -> next
+  //  if (neighbors_27) {
+  //    LabelPropagationOneIter3D<true>
+  //        <<<grid3, block3>>>(d_next, d_prev, d_occupied, nx, ny, nz);
+  //  } else {
+  //    LabelPropagationOneIter3D<false>
+  //        <<<grid3, block3>>>(d_next, d_prev, d_occupied, nx, ny, nz);
+  //  }
+  //  checkCudaErrors(cudaGetLastError());
+
+  //  // prev/next の差分フラグを立てる
+  //  DiffFlagKernel<<<blocks1, TPB>>>(d_prev, d_next, N, d_flags);
+  //  checkCudaErrors(cudaGetLastError());
+
+  //  // sum(flags) -> d_changed
+  //  cub::DeviceReduce::Sum(d_tmp, tmp_bytes, d_flags, d_changed, N);
+
+  //  // 収束判定
+  //  checkCudaErrors(
+  //      cudaMemcpy(&h_changed, d_changed, sizeof(int), cudaMemcpyDeviceToHost));
+  //  if (h_changed == 0) {
+  //    // 収束: d_prev が最新なので d_labels へ
+  //    checkCudaErrors(cudaMemcpy(d_labels, d_prev, N * sizeof(int),
+  //                          cudaMemcpyDeviceToDevice));
+  //    break;
+  //  }
+
+  //  // 続行: prev/next を入れ替え
+  //  std::swap(d_prev, d_next);
+
+  //  if (it == max_iter) {
+  //    // 打ち切り: 最新の prev を返す
+  //    checkCudaErrors(cudaMemcpy(d_labels, d_prev, N * sizeof(int),
+  //                          cudaMemcpyDeviceToDevice));
+  //  }
+  //}
+
+
+  //uint8_t* d_occ8 = nullptr;
+  //cudaMalloc(&d_occ8, N * sizeof(uint8_t));
+  //{
+  //  int t = 256;
+  //  int b = (N + t - 1) / t;
+  //  ConvertIntToU8<<<b, t>>>(d_occupied, d_occ8, N);
+  //  checkCudaErrors(cudaGetLastError());
+  //}
+  dim3 block(8, 8, 4);  // 256thread 程度からチューニング開始
+  dim3 grid((nx + block.x - 1) / block.x, (ny + block.y - 1) / block.y,
+            (nz + block.z - 1) / block.z);
+
+  for (int it = 0; it <= max_iter; ++it) {
+    *h_end_iter = it;
+
+    checkCudaErrors(cudaMemset(d_changed, 0, sizeof(int)));
+
+    if (neighbors_27)
+      PropOneIter_BlockReduce<true, 8, 8, 4>
+          <<<grid, block>>>(d_next, d_prev, d_occ8, nx, ny, nz, d_changed);
+    else
+      PropOneIter_BlockReduce<false, 8, 8, 4>
+          <<<grid, block>>>(d_next, d_prev, d_occ8, nx, ny, nz, d_changed);
+
+    checkCudaErrors(cudaGetLastError());
+    int h = 0;
+    checkCudaErrors(
+        cudaMemcpy(&h, d_changed, sizeof(int), cudaMemcpyDeviceToHost));
+    if (h == 0) {
+      checkCudaErrors(cudaMemcpy(d_labels, d_prev, N * sizeof(int),
+                            cudaMemcpyDeviceToDevice));
+      break;
+    }
+    std::swap(d_prev, d_next);
+    if (it == max_iter)
+      checkCudaErrors(cudaMemcpy(d_labels, d_prev, N * sizeof(int),
+                            cudaMemcpyDeviceToDevice));
+
+
+  }
+
+  //cudaFree(d_occ8);
+  cudaFree(d_prev);
+  cudaFree(d_next);
+  cudaFree(d_flags);
+  cudaFree(d_tmp);
   cudaFree(d_changed);
 }
 
@@ -1563,6 +1946,7 @@ void FinalizeLabelAndCount(int* d_labels, unsigned int** d_counts_new_, int N, i
   //    d_counts をコピー
   //unsigned int* d_counts_new = *d_counts_new_;
   int counts_size = (shift == 0) ? U : (U + 1);
+  //std::cout << first_key << std::endl;
   //std::cout << "counts_size: " << counts_size << std::endl;
   //std::cout << "U: " << U << std::endl;
   //std::cout << "shift: " << shift << std::endl;
@@ -2595,54 +2979,72 @@ class VoxelGridCudaNaive::Impl {
   void ReduceFlyingNoiseOnVoxels(unsigned int min_connected_components_num,
                                  int min_update_num, float min_sdf,
                                  int max_iter, bool neighbors_27) {
+    ugu::Timer timer;
+    timer.Start();
+
     const int3 vn = voxel_num_;
     const int N = vn.x * vn.y * vn.z;
 
-    int *d_occ = nullptr, *d_scan = nullptr;
+    //int* d_occ = nullptr;
+    uint8_t* d_occ8 = nullptr;
+    int *d_scan = nullptr;
     int* d_labels = nullptr;
     int* d_valid = nullptr;
-    // int* d_labels_prev = nullptr;
 
-    cudaMalloc(&d_occ, N * sizeof(int));
+    cudaMalloc(&d_occ8, N * sizeof(uint8_t));
+    //cudaMalloc(&d_occ, N * sizeof(int));
     cudaMalloc(&d_scan, N * sizeof(int));
     cudaMalloc(&d_labels, N * sizeof(int));
     cudaMalloc(&d_valid, N * sizeof(int));
-    // cudaMalloc(&d_labels_prev, N * sizeof(int));
 
+    timer.End();
+    std::cout << "Malloc: " << timer.elapsed_msec() << " [ms]"
+              << std::endl;
+
+       timer.Start();
     dim3 block(8, 8, 8);
     dim3 grid((voxel_num_.x + block.x - 1) / block.x,
               (voxel_num_.y + block.y - 1) / block.y,
               (voxel_num_.z + block.z - 1) / block.z);
-    BuildOccupiedKernel<<<grid, block>>>(d_occ, d_voxels_, vn, min_update_num,
+    BuildOccupiedKernel<<<grid, block>>>(d_occ8, d_voxels_, vn, min_update_num,
                                          min_sdf);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
+    timer.End();
+    std::cout << "BuildOccupiedKernel: " << timer.elapsed_msec() << " [ms]"
+              << std::endl;
+
+    timer.Start();
+
     // --- CUB Exclusive Scan ---
     void* d_temp = nullptr;
     size_t temp_bytes = 0;
-    cub::DeviceScan::ExclusiveSum(d_temp, temp_bytes, d_occ, d_scan, N);
+    cub::DeviceScan::ExclusiveSum(d_temp, temp_bytes, d_occ8, d_scan, N);
     cudaMalloc(&d_temp, temp_bytes);
-    cub::DeviceScan::ExclusiveSum(d_temp, temp_bytes, d_occ, d_scan, N);
+    cub::DeviceScan::ExclusiveSum(d_temp, temp_bytes, d_occ8, d_scan, N);
     cudaFree(d_temp);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
     // --- 総占有数を取得 ---
-    int last_scan, last_occ;
+    int last_scan;
+    uint8_t last_occ;
     cudaMemcpy(&last_scan, d_scan + N - 1, sizeof(int), cudaMemcpyDeviceToHost);
-    cudaMemcpy(&last_occ, d_occ + N - 1, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&last_occ, d_occ8 + N - 1, sizeof(uint8_t), cudaMemcpyDeviceToHost);
     int K = last_scan + last_occ;
     // if (out_num_occ) *out_num_occ = K;
 
     // --- ラベル付け ---
     int threads = 256;
     int blocks = (N + threads - 1) / threads;
-    LabelFromScanKernel<<<blocks, threads>>>(d_occ, d_scan, d_labels, N);
+    LabelFromScanKernel<<<blocks, threads>>>(d_occ8, d_scan, d_labels, N);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
-
+    timer.End();
+    std::cout << "Labeling: " << timer.elapsed_msec() << " [ms]"
+              << std::endl;
     //{ std::vector<int> h_labels(N);
     //  cudaMemcpy(h_labels.data(), d_labels, sizeof(int) * N,
     //             cudaMemcpyDeviceToHost);
@@ -2650,24 +3052,104 @@ class VoxelGridCudaNaive::Impl {
 
     //    std::cout << "label[" << i << "] = " << h_labels[i] << std::endl;
     //  }
+    // 
+// 
     //}
+#if 0
+    timer.Start();
+    std::vector<int> h_occ(N);
+    std::vector<int> h_labels(N, -1);
+    cudaMemcpy(h_occ.data(), d_occ, sizeof(int) * N, cudaMemcpyDeviceToHost);
+    int32_t cur_label = 0;
+    for (size_t i = 0; i < h_labels.size(); i++) {
+      if (h_occ[i]) {
+        h_labels[i] = cur_label;
+        cur_label++;
+      }
+    }
+    cudaMemcpy(d_labels, h_labels.data(), sizeof(int) * N,
+               cudaMemcpyHostToDevice);
+    timer.End();
+    std::cout << "Labeling on CPU: " << timer.elapsed_msec() << " [ms]"
+              << std::endl;
+#endif
 
-    RunLabelPropagation(d_labels, d_occ, vn.x, vn.y, vn.z, max_iter,
+    timer.Start();
+    int h_end_iter = 0;
+    RunLabelPropagationOptimized(d_labels, &h_end_iter, d_occ8, vn.x, vn.y, vn.z, max_iter,
                         neighbors_27);
+    timer.End();
+    std::cout << "Propagation: " << timer.elapsed_msec() << " [ms]"
+              << std::endl;
+    std::cout << "  end_iter = " << h_end_iter << std::endl;
 
+    timer.Start();
     unsigned int* d_counts = nullptr;
     int labels_num = 0;
     FinalizeLabelAndCount(d_labels, &d_counts, N, labels_num);
+    timer.End();
+    std::cout << "Re-assign: " << timer.elapsed_msec() << " [ms]" << std::endl;
+
+
+    #if 0
+        timer.Start();
+    {
+      std::vector<int> labels_host(N);
+      cudaMemcpy(labels_host.data(), d_labels, N * sizeof(int),
+                 cudaMemcpyDeviceToHost);
+  
+      std::vector<int32_t> unique_labels = labels_host;
+      // Make sorted unique values
+      std::sort(unique_labels.begin(), unique_labels.end());
+      auto unique_result =
+          std::unique(unique_labels.begin(), unique_labels.end());
+      unique_labels.erase(unique_result, unique_labels.end());
+      // Update labels
+      // 0: Empty
+      // 1~: Connected component labels
+      std::map<int32_t, int32_t> label_map;
+      label_map[-1] = 0;
+      for (size_t i = 1; i < unique_labels.size(); i++) {
+        // std::cout << unique_labels[i] << " -> " << (i) << std::endl;
+        label_map[unique_labels[i]] = static_cast<int32_t>(i);
+      }
+
+      for (int64_t i = 0; i < N; i++) {
+        labels_host[i] = label_map[labels_host[i]];
+      }
+
+      // Count labels
+      std::vector<uint32_t> counts(unique_labels.size(), 0);
+      for (int64_t i = 0; i < N; ++i) {
+        const int32_t l = labels_host[i];
+        counts[l]++;
+      }
+
+
+      cudaMemcpy(d_labels, labels_host.data(), N * sizeof(int),
+                 cudaMemcpyHostToDevice);
+
+      cudaMalloc(&d_counts, sizeof(unsigned int) * counts.size());
+      cudaMemcpy(d_counts, counts.data(), sizeof(unsigned int) * counts.size(),
+                 cudaMemcpyHostToDevice);
+
+    }
+
+        timer.End();
+    std::cout << "Re-assign on CPU: " << timer.elapsed_msec() << " [ms]" << std::endl;
+#endif
+
+
     //{
     //
     //  std::vector<int> labels_host(N);
     //  cudaMemcpy(labels_host.data(), d_labels, N * sizeof(int),
     //             cudaMemcpyDeviceToHost);
-    //  for (int i = 0; i < N; ++i) {
-    //    if (labels_host[i] > 1) {
-    //      printf("label[%d] = %d\n", i, labels_host[i]);
-    //    }
-    //  }
+    //  //for (int i = 0; i < N; ++i) {
+    //  //  if (labels_host[i] > 1) {
+    //  //    printf("label[%d] = %d\n", i, labels_host[i]);
+    //  //  }
+    //  //}
     //  std::cout << "labels_num = " << labels_num << std::endl;
     //  std::vector<unsigned int> counts_host(labels_num);
     //  cudaMemcpy(counts_host.data(), d_counts,
@@ -2675,35 +3157,42 @@ class VoxelGridCudaNaive::Impl {
     //  for (int i = 0; i < labels_num; ++i) {
     //    printf("counts_new[%d] = %u\n", i, counts_host[i]);
     //  }
-
     //}
 
-    MakeValidMaskKernel<<<block, grid>>>(d_valid, d_labels, d_counts, vn,
-                                             min_connected_components_num);
-    checkCudaErrors(cudaGetLastError());
-    checkCudaErrors(cudaDeviceSynchronize());
-    //{
-    //  std::vector<int> h_valid(N);
-    //  cudaMemcpy(h_valid.data(), d_valid, sizeof(int) * N,
-    //             cudaMemcpyDeviceToHost);
-    //  for (int i = 0; i < N; ++i) {
-    //    if (h_valid[i]) {
-    //      std::cout << "valid[" << i << "] = " << h_valid[i] << std::endl;
-    //    }
-    //  }
-    //}
+    timer.Start();
+    //MakeValidMaskKernel<<<block, grid>>>(d_valid, d_labels, d_counts, vn,
+    //                                         min_connected_components_num);
+    //checkCudaErrors(cudaGetLastError());
+    //checkCudaErrors(cudaDeviceSynchronize());
+    ////{
+    ////  std::vector<int> h_valid(N);
+    ////  cudaMemcpy(h_valid.data(), d_valid, sizeof(int) * N,
+    ////             cudaMemcpyDeviceToHost);
+    ////  for (int i = 0; i < N; ++i) {
+    ////    if (h_valid[i]) {
+    ////      std::cout << "valid[" << i << "] = " << h_valid[i] << std::endl;
+    ////    }
+    ////  }
+    ////}
+
+    //constexpr float filter_sdf_val = 1.0f;
+    //VoxelFilterKernel<<<block, grid>>>(d_voxels_, d_valid, vn,
+    //                                       filter_sdf_val);
+    //checkCudaErrors(cudaGetLastError());
+    //checkCudaErrors(cudaDeviceSynchronize());
 
     constexpr float filter_sdf_val = 1.0f;
-    VoxelFilterKernel<<<block, grid>>>(d_voxels_, d_valid, vn,
-                                           filter_sdf_val);
-    checkCudaErrors(cudaGetLastError());
-    checkCudaErrors(cudaDeviceSynchronize());
-
+    VoxelFilterKernel<<<block, grid>>>(d_voxels_, d_labels, d_counts, vn,
+                      min_connected_components_num, filter_sdf_val);
+     checkCudaErrors(cudaGetLastError());
+     checkCudaErrors(cudaDeviceSynchronize());
     cudaFree(d_valid);
     cudaFree(d_counts);
-    cudaFree(d_occ);
+    cudaFree(d_occ8);
     cudaFree(d_scan);
     cudaFree(d_labels);
+    timer.End();
+    std::cout << "End: " << timer.elapsed_msec() << " [ms]" << std::endl;
   }
 
   void ExtractMesh(bool with_face_normals) {

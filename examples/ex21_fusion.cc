@@ -252,27 +252,27 @@ int main(int argc, char* argv[]) {
     ugu::Mesh out_mesh;
     std::vector<Eigen::Vector3f> vertices;
     std::vector<Eigen::Vector3i> faces;
-    timer.Start();
-    voxel_grid_naive.ExtractMesh();
-    timer.End();
-    std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms" << std::endl;
-    timer.Start();
-    voxel_grid_naive.GetVerticesCpu(vertices);
-    timer.End();
-    std::cout << "GetVerticesCpu  " << timer.elapsed_msec() << " ms"
-              << std::endl;
-    timer.Start();
-    voxel_grid_naive.GetFacesCpu(faces);
-    timer.End();
-    std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms" << std::endl;
-    out_mesh.set_vertices(vertices);
-    out_mesh.set_vertex_indices(faces);
-    out_mesh.set_default_material();
-    out_mesh.CalcNormal();
-    out_mesh.WriteObj("cuda_mc.obj");
+    //timer.Start();
+    //voxel_grid_naive.ExtractMesh();
+    //timer.End();
+    //std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms" << std::endl;
+    //timer.Start();
+    //voxel_grid_naive.GetVerticesCpu(vertices);
+    //timer.End();
+    //std::cout << "GetVerticesCpu  " << timer.elapsed_msec() << " ms"
+    //          << std::endl;
+    //timer.Start();
+    //voxel_grid_naive.GetFacesCpu(faces);
+    //timer.End();
+    //std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms" << std::endl;
+    //out_mesh.set_vertices(vertices);
+    //out_mesh.set_vertex_indices(faces);
+    //out_mesh.set_default_material();
+    //out_mesh.CalcNormal();
+    //out_mesh.WriteObj("cuda_mc.obj");
 
     timer.Start();
-    voxel_grid_naive.ReduceFlyingNoiseOnVoxels();
+    voxel_grid_naive.ReduceFlyingNoiseOnVoxels(30, 1, 0.f, 150, false);
     timer.End();
     std::cout << "ReduceFlyingNoiseOnVoxels  " << timer.elapsed_msec() << " ms"
               << std::endl;
@@ -379,7 +379,7 @@ int main(int argc, char* argv[]) {
     }
     timer.Start();
     const auto [labels, counts] =
-        ugu::ConnectedComponentLabelingVoxels(voxel_grid, 1, 1000, false);
+        ugu::ConnectedComponentLabelingVoxels(voxel_grid, 1, 100, false);
     timer.End();
     ugu::LOGI("ConnectedComponentLabelingVoxels %f ms\n", timer.elapsed_msec());
 
@@ -412,12 +412,17 @@ int main(int argc, char* argv[]) {
     depth_fused->WriteObj(data_dir, "depthfuse");
 
     for (size_t i = 0; i < voxel_grid.get_all().size(); i++) {
-      if (labels[i] > 1) {
+      if (counts[labels[i]] < 10) {
         auto& voxel = voxel_grid.get_all()[i];
         voxel.sdf = 1.f;  // Set maximum outside SDF value (normalized by
                           // truncation band)
       }
     }
+
+     for (size_t i = 0; i < counts.size(); ++i) {
+       std::cout << "  Label " << i << ": " << counts[i] << " voxels."
+                 << std::endl;
+     }
 
     ugu::MarchingCubes(voxel_grid, depth_fused.get());
     depth_fused->set_default_material();
