@@ -93,10 +93,8 @@ class VoxelGridCudaNaive {
                       const float* h_t,
                       const VoxelGridCudaNaiveFuseOption& option,
                       bool sync = true);
-  void ReduceFlyingNoiseOnVoxels(
-      unsigned int min_connected_components_num = 100u, int min_update_num = 1,
-      float min_sdf = 0.f, int max_iter = 1000, bool neighbors_27 = false);
   void ExtractMesh(bool with_face_normals = true);
+  void RemoveSmallConnectedComponents(int max_iter, int min_faces);
   void ComputeVertexNormals();
   void SmoothFaceNormalsWithVertexNormals();
   void GetVerticesCpu(std::vector<Eigen::Vector3f>& vertices);

@@ -315,6 +315,8 @@ if(UGU_USE_CUDA)
       src/cuda/voxel.cc
       src/cuda/voxel.cuh
       src/cuda/voxel.cu
+      src/cuda/mesh.cuh
+      src/cuda/mesh.cu
       src/cuda/helper_cuda.h
       src/cuda/helper_string.h 
   )

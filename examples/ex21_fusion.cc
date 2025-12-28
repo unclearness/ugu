@@ -252,34 +252,45 @@ int main(int argc, char* argv[]) {
     ugu::Mesh out_mesh;
     std::vector<Eigen::Vector3f> vertices;
     std::vector<Eigen::Vector3i> faces;
-    //timer.Start();
-    //voxel_grid_naive.ExtractMesh();
-    //timer.End();
-    //std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms" << std::endl;
-    //timer.Start();
-    //voxel_grid_naive.GetVerticesCpu(vertices);
-    //timer.End();
-    //std::cout << "GetVerticesCpu  " << timer.elapsed_msec() << " ms"
-    //          << std::endl;
-    //timer.Start();
-    //voxel_grid_naive.GetFacesCpu(faces);
-    //timer.End();
-    //std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms" << std::endl;
-    //out_mesh.set_vertices(vertices);
-    //out_mesh.set_vertex_indices(faces);
-    //out_mesh.set_default_material();
-    //out_mesh.CalcNormal();
-    //out_mesh.WriteObj("cuda_mc.obj");
-
-    timer.Start();
-    voxel_grid_naive.ReduceFlyingNoiseOnVoxels(30, 1, 0.f, 150, false);
-    timer.End();
-    std::cout << "ReduceFlyingNoiseOnVoxels  " << timer.elapsed_msec() << " ms"
-              << std::endl;
     timer.Start();
     voxel_grid_naive.ExtractMesh();
     timer.End();
     std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms" << std::endl;
+    timer.Start();
+    voxel_grid_naive.GetVerticesCpu(vertices);
+    timer.End();
+    std::cout << "GetVerticesCpu  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+    timer.Start();
+    voxel_grid_naive.GetFacesCpu(faces);
+    timer.End();
+    std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms" << std::endl;
+    out_mesh.set_vertices(vertices);
+    out_mesh.set_vertex_indices(faces);
+    out_mesh.set_default_material();
+    out_mesh.CalcNormal();
+    out_mesh.WriteObj("cuda_mc.obj");
+
+    //timer.Start();
+    //voxel_grid_naive.ReduceFlyingNoiseOnVoxels(30, 1, 0.f, 150, false);
+    //timer.End();
+    //std::cout << "ReduceFlyingNoiseOnVoxels  " << timer.elapsed_msec() << " ms"
+    //          << std::endl;
+    timer.Start();
+    voxel_grid_naive.ExtractMesh();
+    timer.End();
+    std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms" << std::endl;
+
+    timer.Start();
+    voxel_grid_naive.RemoveSmallConnectedComponents(1000, 100);
+    timer.End();
+    std::cout << "RemoveSmallConnectedComponents  " << timer.elapsed_msec()
+              << " ms" << std::endl;
+    timer.Start();
+    voxel_grid_naive.ComputeVertexNormals();
+    timer.End();
+    std::cout << "ComputeVertexNormals  " << timer.elapsed_msec() << " ms"
+              << std::endl;
     timer.Start();
     voxel_grid_naive.GetVerticesCpu(vertices);
     timer.End();

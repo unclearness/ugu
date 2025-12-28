@@ -1,16 +1,16 @@
 ﻿#include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
-#include <cub/cub.cuh>
-
-#include <map>
 #include <algorithm>
+#include <cub/cub.cuh>
+#include <map>
 
 #include "./helper_cuda.h"
+#include "./mesh.cuh"
 #include "./voxel.cuh"
 #include "ugu/cuda/voxel.h"
-#include "ugu/util/image_util.h"
 #include "ugu/timer.h"
+#include "ugu/util/image_util.h"
 
 namespace {
 
@@ -1245,7 +1245,7 @@ __global__ void MakeValidMaskKernel(int* d_valid, int* d_labels,
 }
 
 __global__ void VoxelFilterKernelOrg(VoxelCudaNaive* voxels, const int* d_valid,
-                                  const int3 vn, float sdf_val) {
+                                     const int3 vn, float sdf_val) {
   const int ix = blockIdx.x * blockDim.x + threadIdx.x;
   const int iy = blockIdx.y * blockDim.y + threadIdx.y;
   const int iz = blockIdx.z * blockDim.z + threadIdx.z;
@@ -1261,7 +1261,6 @@ __global__ void VoxelFilterKernelOrg(VoxelCudaNaive* voxels, const int* d_valid,
   voxels[idx].sdf_sum = sdf_val;
   voxels[idx].update_num = 1;
 }
-
 
 __global__ void VoxelFilterKernel(VoxelCudaNaive* voxels, const int* d_labels,
                                   const unsigned int* d_counts, const int3 vn,
@@ -1284,9 +1283,8 @@ __global__ void VoxelFilterKernel(VoxelCudaNaive* voxels, const int* d_labels,
 }
 
 __global__ void BuildOccupiedKernel(uint8_t* occupied,
-                                    const VoxelCudaNaive* voxels,
-                                    int3 vn, int min_voxel_update_num,
-                                    float min_sdf) {
+                                    const VoxelCudaNaive* voxels, int3 vn,
+                                    int min_voxel_update_num, float min_sdf) {
   const int ix = blockIdx.x * blockDim.x + threadIdx.x;
   const int iy = blockIdx.y * blockDim.y + threadIdx.y;
   const int iz = blockIdx.z * blockDim.z + threadIdx.z;
@@ -1312,10 +1310,9 @@ __global__ void LabelFromScanKernel(const uint8_t* occ, const int* scan,
   labels[i] = occ[i] ? scan[i] : -1;
 }
 
-
 __global__ void LabelPropagationOneIter(int* next_labels,        // 書き出し
                                         const int* prev_labels,  // 読み出し
-                                        const uint8_t* occupied,     // 0/1
+                                        const uint8_t* occupied,  // 0/1
                                         int nx, int ny, int nz,
                                         int neighbors_27,
                                         int* d_changed)  // 変更総数（原子加算）
@@ -1436,7 +1433,7 @@ void RunLabelPropagation(
   const int blocks = (N + TPB - 1) / TPB;
 
   int it = 0;
-  while(it < max_iter) {
+  while (it < max_iter) {
     cudaMemset(d_changed, 0, sizeof(int));
     LabelPropagationOneIter<<<blocks, TPB>>>(d_next, d_prev, d_occupied, nx, ny,
                                              nz, neighbors_27 ? 1 : 0,
@@ -1469,7 +1466,6 @@ void RunLabelPropagation(
   cudaFree(d_next);
   cudaFree(d_changed);
 }
-
 
 template <bool N27>
 __global__ void LabelPropagationOneIter3D(
@@ -1701,9 +1697,8 @@ __global__ void ConvertIntToU8(const int* src, uint8_t* dst, int N) {
 // d_occupied: 0/1（int配列）
 // ------------------------------------------------------------
 void RunLabelPropagationOptimized(int* d_labels, int* h_end_iter,
-                                  const uint8_t* d_occ8, int nx,
-                                  int ny, int nz, int max_iter,
-                                  bool neighbors_27) {
+                                  const uint8_t* d_occ8, int nx, int ny, int nz,
+                                  int max_iter, bool neighbors_27) {
   const int N = nx * ny * nz;
   const int TPB = 256;
 
@@ -1739,16 +1734,16 @@ void RunLabelPropagationOptimized(int* d_labels, int* h_end_iter,
 
   int h_changed = 0;
 
-  //for (int it = 0; it <= max_iter; ++it) {
-  //  // 1反復：prev -> next
-  //  if (neighbors_27) {
-  //    LabelPropagationOneIter3D<true>
-  //        <<<grid3, block3>>>(d_next, d_prev, d_occupied, nx, ny, nz);
-  //  } else {
-  //    LabelPropagationOneIter3D<false>
-  //        <<<grid3, block3>>>(d_next, d_prev, d_occupied, nx, ny, nz);
-  //  }
-  //  checkCudaErrors(cudaGetLastError());
+  // for (int it = 0; it <= max_iter; ++it) {
+  //   // 1反復：prev -> next
+  //   if (neighbors_27) {
+  //     LabelPropagationOneIter3D<true>
+  //         <<<grid3, block3>>>(d_next, d_prev, d_occupied, nx, ny, nz);
+  //   } else {
+  //     LabelPropagationOneIter3D<false>
+  //         <<<grid3, block3>>>(d_next, d_prev, d_occupied, nx, ny, nz);
+  //   }
+  //   checkCudaErrors(cudaGetLastError());
 
   //  // prev/next の差分フラグを立てる
   //  DiffFlagKernel<<<blocks1, TPB>>>(d_prev, d_next, N, d_flags);
@@ -1759,7 +1754,8 @@ void RunLabelPropagationOptimized(int* d_labels, int* h_end_iter,
 
   //  // 収束判定
   //  checkCudaErrors(
-  //      cudaMemcpy(&h_changed, d_changed, sizeof(int), cudaMemcpyDeviceToHost));
+  //      cudaMemcpy(&h_changed, d_changed, sizeof(int),
+  //      cudaMemcpyDeviceToHost));
   //  if (h_changed == 0) {
   //    // 収束: d_prev が最新なので d_labels へ
   //    checkCudaErrors(cudaMemcpy(d_labels, d_prev, N * sizeof(int),
@@ -1777,15 +1773,14 @@ void RunLabelPropagationOptimized(int* d_labels, int* h_end_iter,
   //  }
   //}
 
-
-  //uint8_t* d_occ8 = nullptr;
-  //cudaMalloc(&d_occ8, N * sizeof(uint8_t));
+  // uint8_t* d_occ8 = nullptr;
+  // cudaMalloc(&d_occ8, N * sizeof(uint8_t));
   //{
-  //  int t = 256;
-  //  int b = (N + t - 1) / t;
-  //  ConvertIntToU8<<<b, t>>>(d_occupied, d_occ8, N);
-  //  checkCudaErrors(cudaGetLastError());
-  //}
+  //   int t = 256;
+  //   int b = (N + t - 1) / t;
+  //   ConvertIntToU8<<<b, t>>>(d_occupied, d_occ8, N);
+  //   checkCudaErrors(cudaGetLastError());
+  // }
   dim3 block(8, 8, 4);  // 256thread 程度からチューニング開始
   dim3 grid((nx + block.x - 1) / block.x, (ny + block.y - 1) / block.y,
             (nz + block.z - 1) / block.z);
@@ -1808,18 +1803,16 @@ void RunLabelPropagationOptimized(int* d_labels, int* h_end_iter,
         cudaMemcpy(&h, d_changed, sizeof(int), cudaMemcpyDeviceToHost));
     if (h == 0) {
       checkCudaErrors(cudaMemcpy(d_labels, d_prev, N * sizeof(int),
-                            cudaMemcpyDeviceToDevice));
+                                 cudaMemcpyDeviceToDevice));
       break;
     }
     std::swap(d_prev, d_next);
     if (it == max_iter)
       checkCudaErrors(cudaMemcpy(d_labels, d_prev, N * sizeof(int),
-                            cudaMemcpyDeviceToDevice));
-
-
+                                 cudaMemcpyDeviceToDevice));
   }
 
-  //cudaFree(d_occ8);
+  // cudaFree(d_occ8);
   cudaFree(d_prev);
   cudaFree(d_next);
   cudaFree(d_flags);
@@ -1857,7 +1850,8 @@ __global__ void ArangeKernel(int* out, int n) {
   if (i < n) out[i] = i;
 }
 
-void FinalizeLabelAndCount(int* d_labels, unsigned int** d_counts_new_, int N, int& labels_num) {
+void FinalizeLabelAndCount(int* d_labels, unsigned int** d_counts_new_, int N,
+                           int& labels_num) {
   // 0) indices (0..N-1)
   int *d_idx_in = nullptr, *d_idx_sorted = nullptr;
   cudaMalloc(&d_idx_in, N * sizeof(int));
@@ -1944,12 +1938,12 @@ void FinalizeLabelAndCount(int* d_labels, unsigned int** d_counts_new_, int N, i
   //    - 先頭が -1 のとき: counts_new[0..U-1] = d_counts[0..U-1]
   //    - 先頭が -1 でないとき: counts_new のサイズを U+1 にして先頭0、以降に
   //    d_counts をコピー
-  //unsigned int* d_counts_new = *d_counts_new_;
+  // unsigned int* d_counts_new = *d_counts_new_;
   int counts_size = (shift == 0) ? U : (U + 1);
-  //std::cout << first_key << std::endl;
-  //std::cout << "counts_size: " << counts_size << std::endl;
-  //std::cout << "U: " << U << std::endl;
-  //std::cout << "shift: " << shift << std::endl;
+  // std::cout << first_key << std::endl;
+  // std::cout << "counts_size: " << counts_size << std::endl;
+  // std::cout << "U: " << U << std::endl;
+  // std::cout << "shift: " << shift << std::endl;
   cudaMalloc(d_counts_new_, counts_size * sizeof(unsigned int));
   unsigned int* d_counts_new = *d_counts_new_;
   if (shift == 0) {
@@ -1960,22 +1954,22 @@ void FinalizeLabelAndCount(int* d_labels, unsigned int** d_counts_new_, int N, i
     cudaMemcpy(d_counts_new + 1, d_counts, U * sizeof(int),
                cudaMemcpyDeviceToDevice);
   }
-  //d_counts_new_ = d_counts_new;
+  // d_counts_new_ = d_counts_new;
 
-  //std::vector<int> labels_host(N);
-  //cudaMemcpy(labels_host.data(), d_labels, N * sizeof(int),
-  //           cudaMemcpyDeviceToHost);
-  //for (int i = 0; i < N; ++i) {
-  //  if (labels_host[i] > 1) {
-  //    printf("label[%d] = %d\n", i, labels_host[i]);
-  //  }
-  //}
-  //std::vector<unsigned int> counts_host(counts_size);
-  //cudaMemcpy(counts_host.data(), d_counts_new,
-  //           counts_size * sizeof(unsigned int), cudaMemcpyDeviceToHost);
-  //for (int i = 0; i < counts_size; ++i) {
-  //  printf("counts_new[%d] = %u\n", i, counts_host[i]);
-  //}
+  // std::vector<int> labels_host(N);
+  // cudaMemcpy(labels_host.data(), d_labels, N * sizeof(int),
+  //            cudaMemcpyDeviceToHost);
+  // for (int i = 0; i < N; ++i) {
+  //   if (labels_host[i] > 1) {
+  //     printf("label[%d] = %d\n", i, labels_host[i]);
+  //   }
+  // }
+  // std::vector<unsigned int> counts_host(counts_size);
+  // cudaMemcpy(counts_host.data(), d_counts_new,
+  //            counts_size * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+  // for (int i = 0; i < counts_size; ++i) {
+  //   printf("counts_new[%d] = %u\n", i, counts_host[i]);
+  // }
 
   labels_num = counts_size;
 
@@ -2985,23 +2979,22 @@ class VoxelGridCudaNaive::Impl {
     const int3 vn = voxel_num_;
     const int N = vn.x * vn.y * vn.z;
 
-    //int* d_occ = nullptr;
+    // int* d_occ = nullptr;
     uint8_t* d_occ8 = nullptr;
-    int *d_scan = nullptr;
+    int* d_scan = nullptr;
     int* d_labels = nullptr;
     int* d_valid = nullptr;
 
     cudaMalloc(&d_occ8, N * sizeof(uint8_t));
-    //cudaMalloc(&d_occ, N * sizeof(int));
+    // cudaMalloc(&d_occ, N * sizeof(int));
     cudaMalloc(&d_scan, N * sizeof(int));
     cudaMalloc(&d_labels, N * sizeof(int));
     cudaMalloc(&d_valid, N * sizeof(int));
 
     timer.End();
-    std::cout << "Malloc: " << timer.elapsed_msec() << " [ms]"
-              << std::endl;
+    std::cout << "Malloc: " << timer.elapsed_msec() << " [ms]" << std::endl;
 
-       timer.Start();
+    timer.Start();
     dim3 block(8, 8, 8);
     dim3 grid((voxel_num_.x + block.x - 1) / block.x,
               (voxel_num_.y + block.y - 1) / block.y,
@@ -3031,7 +3024,8 @@ class VoxelGridCudaNaive::Impl {
     int last_scan;
     uint8_t last_occ;
     cudaMemcpy(&last_scan, d_scan + N - 1, sizeof(int), cudaMemcpyDeviceToHost);
-    cudaMemcpy(&last_occ, d_occ8 + N - 1, sizeof(uint8_t), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&last_occ, d_occ8 + N - 1, sizeof(uint8_t),
+               cudaMemcpyDeviceToHost);
     int K = last_scan + last_occ;
     // if (out_num_occ) *out_num_occ = K;
 
@@ -3043,8 +3037,7 @@ class VoxelGridCudaNaive::Impl {
     checkCudaErrors(cudaDeviceSynchronize());
 
     timer.End();
-    std::cout << "Labeling: " << timer.elapsed_msec() << " [ms]"
-              << std::endl;
+    std::cout << "Labeling: " << timer.elapsed_msec() << " [ms]" << std::endl;
     //{ std::vector<int> h_labels(N);
     //  cudaMemcpy(h_labels.data(), d_labels, sizeof(int) * N,
     //             cudaMemcpyDeviceToHost);
@@ -3052,9 +3045,9 @@ class VoxelGridCudaNaive::Impl {
 
     //    std::cout << "label[" << i << "] = " << h_labels[i] << std::endl;
     //  }
-    // 
-// 
-    //}
+    //
+//
+//}
 #if 0
     timer.Start();
     std::vector<int> h_occ(N);
@@ -3076,8 +3069,8 @@ class VoxelGridCudaNaive::Impl {
 
     timer.Start();
     int h_end_iter = 0;
-    RunLabelPropagationOptimized(d_labels, &h_end_iter, d_occ8, vn.x, vn.y, vn.z, max_iter,
-                        neighbors_27);
+    RunLabelPropagationOptimized(d_labels, &h_end_iter, d_occ8, vn.x, vn.y,
+                                 vn.z, max_iter, neighbors_27);
     timer.End();
     std::cout << "Propagation: " << timer.elapsed_msec() << " [ms]"
               << std::endl;
@@ -3090,8 +3083,7 @@ class VoxelGridCudaNaive::Impl {
     timer.End();
     std::cout << "Re-assign: " << timer.elapsed_msec() << " [ms]" << std::endl;
 
-
-    #if 0
+#if 0
         timer.Start();
     {
       std::vector<int> labels_host(N);
@@ -3139,7 +3131,6 @@ class VoxelGridCudaNaive::Impl {
     std::cout << "Re-assign on CPU: " << timer.elapsed_msec() << " [ms]" << std::endl;
 #endif
 
-
     //{
     //
     //  std::vector<int> labels_host(N);
@@ -3160,10 +3151,10 @@ class VoxelGridCudaNaive::Impl {
     //}
 
     timer.Start();
-    //MakeValidMaskKernel<<<block, grid>>>(d_valid, d_labels, d_counts, vn,
-    //                                         min_connected_components_num);
-    //checkCudaErrors(cudaGetLastError());
-    //checkCudaErrors(cudaDeviceSynchronize());
+    // MakeValidMaskKernel<<<block, grid>>>(d_valid, d_labels, d_counts, vn,
+    //                                          min_connected_components_num);
+    // checkCudaErrors(cudaGetLastError());
+    // checkCudaErrors(cudaDeviceSynchronize());
     ////{
     ////  std::vector<int> h_valid(N);
     ////  cudaMemcpy(h_valid.data(), d_valid, sizeof(int) * N,
@@ -3175,17 +3166,18 @@ class VoxelGridCudaNaive::Impl {
     ////  }
     ////}
 
-    //constexpr float filter_sdf_val = 1.0f;
-    //VoxelFilterKernel<<<block, grid>>>(d_voxels_, d_valid, vn,
-    //                                       filter_sdf_val);
-    //checkCudaErrors(cudaGetLastError());
-    //checkCudaErrors(cudaDeviceSynchronize());
+    // constexpr float filter_sdf_val = 1.0f;
+    // VoxelFilterKernel<<<block, grid>>>(d_voxels_, d_valid, vn,
+    //                                        filter_sdf_val);
+    // checkCudaErrors(cudaGetLastError());
+    // checkCudaErrors(cudaDeviceSynchronize());
 
     constexpr float filter_sdf_val = 1.0f;
     VoxelFilterKernel<<<block, grid>>>(d_voxels_, d_labels, d_counts, vn,
-                      min_connected_components_num, filter_sdf_val);
-     checkCudaErrors(cudaGetLastError());
-     checkCudaErrors(cudaDeviceSynchronize());
+                                       min_connected_components_num,
+                                       filter_sdf_val);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
     cudaFree(d_valid);
     cudaFree(d_counts);
     cudaFree(d_occ8);
@@ -3258,15 +3250,49 @@ class VoxelGridCudaNaive::Impl {
     }
   }
 
+  void RemoveSmallConnectedComponents(int max_iter, int min_faces) {
+    if (num_faces_ < 1) {
+      return;
+    }
+
+    ugu::MeshDevice mesh_in, mesh_out;
+    mesh_in.d_vertices = d_vertices;
+    mesh_in.num_vertices_ = num_vertices_;
+    mesh_in.d_faces = d_faces;
+    mesh_in.d_face_normals = d_face_normals;
+    mesh_in.num_faces_ = num_faces_;
+    ugu::RemoveSmallConnectedComponents(mesh_in, max_iter, min_faces, mesh_out);
+    checkCudaErrors(cudaGetLastError());
+
+    num_vertices_ = mesh_out.num_vertices_;
+    num_faces_ = mesh_out.num_faces_;
+
+    cudaMemcpy(d_vertices, mesh_out.d_vertices, sizeof(float3) * num_vertices_,
+               cudaMemcpyDeviceToDevice);
+    checkCudaErrors(cudaGetLastError());
+    cudaMemcpy(d_faces, mesh_out.d_faces, sizeof(int) * num_faces_ * 3,
+               cudaMemcpyDeviceToDevice);
+    checkCudaErrors(cudaGetLastError());
+    if (mesh_in.d_face_normals) {
+      cudaMemcpy(d_face_normals, mesh_out.d_face_normals,
+                 sizeof(float3) * num_faces_, cudaMemcpyDeviceToDevice);
+    }
+    checkCudaErrors(cudaGetLastError());
+
+    cudaFree(mesh_out.d_faces);
+    cudaFree(mesh_out.d_vertices);
+    cudaFree(mesh_out.d_face_normals);
+    checkCudaErrors(cudaGetLastError());
+  }
+
   void ComputeVertexNormals() {
     // Zero clear for summation
 
     if (num_vertices_ < 3) {
       return;
     }
-
     cudaMemset(d_vertex_normals, 0, sizeof(float3) * num_vertices_);
-
+    checkCudaErrors(cudaGetLastError());
     const int THREADS = 256;
 
     int blocksF = std::max(1, (num_faces_ + THREADS - 1) / THREADS);
@@ -3613,15 +3639,21 @@ void VoxelGridCudaNaive::FuseDepthMulti(
                         h_cy, h_R, h_t, option, sync);
 }
 
-void VoxelGridCudaNaive::ReduceFlyingNoiseOnVoxels(
-    unsigned int min_connected_components_num, int min_update_num,
-    float min_sdf, int max_iter, bool neighbors_27) {
-  impl_->ReduceFlyingNoiseOnVoxels(min_connected_components_num, min_update_num,
-                                   min_sdf, max_iter, neighbors_27);
-}
+// void VoxelGridCudaNaive::ReduceFlyingNoiseOnVoxels(
+//     unsigned int min_connected_components_num, int min_update_num,
+//     float min_sdf, int max_iter, bool neighbors_27) {
+//   impl_->ReduceFlyingNoiseOnVoxels(min_connected_components_num,
+//   min_update_num,
+//                                    min_sdf, max_iter, neighbors_27);
+// }
 
 void VoxelGridCudaNaive::ExtractMesh(bool with_face_normals) {
   impl_->ExtractMesh(with_face_normals);
+}
+
+void VoxelGridCudaNaive::RemoveSmallConnectedComponents(int max_iter,
+                                                        int min_faces) {
+  impl_->RemoveSmallConnectedComponents(max_iter, min_faces);
 }
 
 void VoxelGridCudaNaive::ComputeVertexNormals() {
