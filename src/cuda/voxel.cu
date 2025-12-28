@@ -1,6 +1,8 @@
 ﻿#include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
+#include <cub/cub.cuh>
+
 #include "./helper_cuda.h"
 #include "./voxel.cuh"
 #include "ugu/cuda/voxel.h"
@@ -1221,6 +1223,426 @@ __global__ void FuseDepthMultiKernelNaive(const float* d_depth, int width,
   }
 }
 
+__global__ void MakeValidMaskKernel(int* d_valid, int* d_labels,
+                                    unsigned int* d_counts, const int3 vn,
+                                    unsigned int min_connect_components_num) {
+  const int ix = blockIdx.x * blockDim.x + threadIdx.x;
+  const int iy = blockIdx.y * blockDim.y + threadIdx.y;
+  const int iz = blockIdx.z * blockDim.z + threadIdx.z;
+  if (ix >= vn.x || iy >= vn.y || iz >= vn.z) {
+    return;
+  }
+  const int idx = ix + iy * vn.x + iz * vn.x * vn.y;
+  if (d_counts[d_labels[idx]] >= min_connect_components_num) {
+    d_valid[idx] = 1;
+  } else {
+    d_valid[idx] = 0;
+  }
+}
+
+__global__ void VoxelFilterKernel(VoxelCudaNaive* voxels, const int* d_valid,
+                                  const int3 vn, float sdf_val) {
+  const int ix = blockIdx.x * blockDim.x + threadIdx.x;
+  const int iy = blockIdx.y * blockDim.y + threadIdx.y;
+  const int iz = blockIdx.z * blockDim.z + threadIdx.z;
+  if (ix >= vn.x || iy >= vn.y || iz >= vn.z) {
+    return;
+  }
+  const int idx = ix + iy * vn.x + iz * vn.x * vn.y;
+
+  if (d_valid[idx]) {
+    return;
+  }
+
+  voxels[idx].sdf_sum = sdf_val;
+  voxels[idx].update_num = 1;
+}
+
+__global__ void BuildOccupiedKernel(int* occupied, const VoxelCudaNaive* voxels,
+                                    int3 vn, int min_voxel_update_num,
+                                    float min_sdf) {
+  const int ix = blockIdx.x * blockDim.x + threadIdx.x;
+  const int iy = blockIdx.y * blockDim.y + threadIdx.y;
+  const int iz = blockIdx.z * blockDim.z + threadIdx.z;
+  if (ix >= vn.x || iy >= vn.y || iz >= vn.z) {
+    return;
+  }
+  const int idx = ix + iy * vn.x + iz * vn.x * vn.y;
+
+  // const VoxelCudaNaive v = voxels[idx];
+  if (voxels[idx].update_num >= min_voxel_update_num &&
+      voxels[idx].sdf_sum / std::max(voxels[idx].update_num, 1) < min_sdf) {
+    occupied[idx] = 1;
+  } else {
+    occupied[idx] = 0;
+  }
+}
+
+// occ=0/1 → label=scan[i] or -1
+__global__ void LabelFromScanKernel(const int* occ, const int* scan,
+                                    int* labels, int N) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= N) return;
+  labels[i] = occ[i] ? scan[i] : -1;
+}
+
+//__global__ void LabelPropagationKernel(int* d_labels, int* d_labels_prev, int
+// N,
+//                                       int max_iter, bool neighbors_27) {
+//
+//  // IMPLEMENT HERE
+//
+//
+//}
+
+__global__ void LabelPropagationOneIter(int* next_labels,        // 書き出し
+                                        const int* prev_labels,  // 読み出し
+                                        const int* occupied,     // 0/1
+                                        int nx, int ny, int nz,
+                                        int neighbors_27,
+                                        int* d_changed)  // 変更総数（原子加算）
+{
+  const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  const int N = nx * ny * nz;
+  if (idx >= N) return;
+
+  if (!occupied[idx]) {  // 非占有は -1 のまま
+    next_labels[idx] = -1;
+    return;
+  }
+
+  // 自身の3Dインデックス
+  const int xys = nx * ny;
+  int z = idx / xys;
+  int rem = idx - z * xys;
+  int y = rem / nx;
+  int x = rem - y * nx;
+
+  int label = prev_labels[idx];  // 初期値は自分のラベル
+
+  if (neighbors_27) {
+    // 27近傍（中心を除く）
+#pragma unroll
+    for (int dz = -1; dz <= 1; ++dz) {
+      int zz = z + dz;
+      if ((unsigned)zz >= (unsigned)nz) continue;
+      for (int dy = -1; dy <= 1; ++dy) {
+        int yy = y + dy;
+        if ((unsigned)yy >= (unsigned)ny) continue;
+        for (int dx = -1; dx <= 1; ++dx) {
+          int xx = x + dx;
+          if ((unsigned)xx >= (unsigned)nx) continue;
+          if (dx == 0 && dy == 0 && dz == 0) continue;
+
+          int j = zz * xys + yy * nx + xx;
+          if (!occupied[j]) continue;
+          int nn = prev_labels[j];
+          if (nn >= 0 && nn < label) label = nn;
+        }
+      }
+    }
+  } else {
+    // 6近傍
+    // ±x
+    if (x > 0) {
+      int j = idx - 1;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    if (x + 1 < nx) {
+      int j = idx + 1;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    // ±y
+    if (y > 0) {
+      int j = idx - nx;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    if (y + 1 < ny) {
+      int j = idx + nx;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    // ±z
+    if (z > 0) {
+      int j = idx - xys;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+    if (z + 1 < nz) {
+      int j = idx + xys;
+      if (occupied[j]) {
+        int nn = prev_labels[j];
+        if (nn >= 0 && nn < label) label = nn;
+      }
+    }
+  }
+
+  next_labels[idx] = label;
+  if (label != prev_labels[idx]) {
+    atomicAdd(d_changed, 1);
+  }
+}
+
+void RunLabelPropagation(
+    int* d_labels,  // 入出力: 初期ラベル（占有は0..K-1, 非占有は-1）
+    const int* d_occupied,  // 0/1
+    int nx, int ny, int nz, int max_iter, bool neighbors_27) {
+  const int N = nx * ny * nz;
+
+  // バッファ確保：prev と next を分ける
+  int *d_prev = nullptr, *d_next = nullptr;
+  cudaMalloc(&d_prev, N * sizeof(int));
+  cudaMalloc(&d_next, N * sizeof(int));
+  cudaMemcpy(d_prev, d_labels, N * sizeof(int), cudaMemcpyDeviceToDevice);
+
+  int* d_changed = nullptr;
+  cudaMalloc(&d_changed, sizeof(int));
+
+  const int TPB = 256;
+  const int blocks = (N + TPB - 1) / TPB;
+
+  for (int it = 0; it <= max_iter; ++it) {
+    cudaMemset(d_changed, 0, sizeof(int));
+    LabelPropagationOneIter<<<blocks, TPB>>>(d_next, d_prev, d_occupied, nx, ny,
+                                             nz, neighbors_27 ? 1 : 0,
+                                             d_changed);
+    cudaDeviceSynchronize();
+    checkCudaErrors(cudaGetLastError());
+
+    int h_changed = 0;
+    cudaMemcpy(&h_changed, d_changed, sizeof(int), cudaMemcpyDeviceToHost);
+    if (h_changed == 0) {
+      // 収束：d_prev が最新なので d_labels に戻す
+      cudaMemcpy(d_labels, d_prev, N * sizeof(int), cudaMemcpyDeviceToDevice);
+      break;
+    }
+
+    // 反復継続：prev/next を入れ替え
+    std::swap(d_prev, d_next);
+
+    if (it == max_iter) {
+      // 最大反復に到達：最新の prev を返す
+      cudaMemcpy(d_labels, d_prev, N * sizeof(int), cudaMemcpyDeviceToDevice);
+    }
+  }
+
+  cudaFree(d_prev);
+  cudaFree(d_next);
+  cudaFree(d_changed);
+}
+
+__global__ void FillRunIdBySegments(int* runid_sorted, const int* offsets,
+                                    const int* counts, int U) {
+  int r = blockIdx.x;  // one block per run
+  int tid = threadIdx.x;
+  if (r >= U) return;
+  int start = offsets[r];
+  int len = counts[r];
+  for (int i = start + tid; i < start + len; i += blockDim.x) {
+    runid_sorted[i] = r;  // run id = unique index
+  }
+}
+
+// scatter: sorted→original
+__global__ void ScatterRelabeled(const int* sorted_keys,
+                                 const int* runid_sorted, const int* idx_sorted,
+                                 int shift, int* out_labels, int N) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= N) return;
+  int key = sorted_keys[i];
+  int rid = runid_sorted[i];
+  int newID = (key == -1) ? 0 : (rid + shift);
+  int dst = idx_sorted[i];
+  out_labels[dst] = newID;
+}
+
+__global__ void ArangeKernel(int* out, int n) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < n) out[i] = i;
+}
+
+void FinalizeLabelAndCount(int* d_labels, unsigned int** d_counts_new_, int N, int& labels_num) {
+  // 0) indices (0..N-1)
+  int *d_idx_in = nullptr, *d_idx_sorted = nullptr;
+  cudaMalloc(&d_idx_in, N * sizeof(int));
+  cudaMalloc(&d_idx_sorted, N * sizeof(int));
+  {
+    // arange kernel
+    int t = 256, b = (N + t - 1) / t;
+    ArangeKernel<<<b, t>>>(d_idx_in, N);
+  }
+
+  // 1) sort by label (key), keep original index (value)
+  int *d_keys_in = nullptr, *d_keys_sorted = nullptr;
+  cudaMalloc(&d_keys_in, N * sizeof(int));
+  cudaMalloc(&d_keys_sorted, N * sizeof(int));
+  cudaMemcpy(d_keys_in, d_labels, N * sizeof(int), cudaMemcpyDeviceToDevice);
+
+  void* d_tmp = nullptr;
+  size_t tmp_bytes = 0;
+  cub::DeviceRadixSort::SortPairs(d_tmp, tmp_bytes, d_keys_in, d_keys_sorted,
+                                  d_idx_in, d_idx_sorted, N);
+  cudaMalloc(&d_tmp, tmp_bytes);
+  cub::DeviceRadixSort::SortPairs(d_tmp, tmp_bytes, d_keys_in, d_keys_sorted,
+                                  d_idx_in, d_idx_sorted, N);
+  cudaFree(d_tmp);
+  cudaFree(d_keys_in);
+  cudaFree(d_idx_in);
+
+  // 2) run-length encode on sorted keys -> unique keys & counts
+  int* d_unique = nullptr;
+  cudaMalloc(&d_unique, N * sizeof(int));
+  int* d_counts = nullptr;
+  cudaMalloc(&d_counts, N * sizeof(int));
+  int* d_num_runs = nullptr;
+  cudaMalloc(&d_num_runs, sizeof(int));
+
+  d_tmp = nullptr;
+  tmp_bytes = 0;
+  cub::DeviceRunLengthEncode::Encode(d_tmp, tmp_bytes, d_keys_sorted, d_unique,
+                                     d_counts, d_num_runs, N);
+  cudaMalloc(&d_tmp, tmp_bytes);
+  cub::DeviceRunLengthEncode::Encode(d_tmp, tmp_bytes, d_keys_sorted, d_unique,
+                                     d_counts, d_num_runs, N);
+  cudaFree(d_tmp);
+
+  // U = number of unique labels (runs)
+  int U = 0;
+  cudaMemcpy(&U, d_num_runs, sizeof(int), cudaMemcpyDeviceToHost);
+
+  // 3) offsets of each run in the sorted array (exclusive scan of counts)
+  int* d_offsets = nullptr;
+  cudaMalloc(&d_offsets, U * sizeof(int));
+  d_tmp = nullptr;
+  tmp_bytes = 0;
+  cub::DeviceScan::ExclusiveSum(d_tmp, tmp_bytes, d_counts, d_offsets, U);
+  cudaMalloc(&d_tmp, tmp_bytes);
+  cub::DeviceScan::ExclusiveSum(d_tmp, tmp_bytes, d_counts, d_offsets, U);
+  cudaFree(d_tmp);
+
+  // 4) write "run id" per sorted position, then scatter back to original
+  // order with new IDs
+  int* d_runid_sorted = nullptr;
+  cudaMalloc(&d_runid_sorted, N * sizeof(int));
+
+  {
+    int threads = 256;
+    FillRunIdBySegments<<<U, threads>>>(d_runid_sorted, d_offsets, d_counts, U);
+  }
+  checkCudaErrors(cudaDeviceSynchronize());
+
+  // 5) decide mapping rule (CPUと同じ: -1→0, それ以外はユニーク順そのまま)
+  //    ※先頭ユニーク値が -1 なら new_id = runid、そうでなければ new_id =
+  //    runid+1（0 を空ラベルに確保）
+  int first_key = 0;
+  cudaMemcpy(&first_key, d_unique, sizeof(int), cudaMemcpyDeviceToHost);
+  const int shift = (first_key == -1) ? 0 : 1;
+  {
+    int t = 256, b = (N + t - 1) / t;
+    ScatterRelabeled<<<b, t>>>(d_keys_sorted, d_runid_sorted, d_idx_sorted,
+                               shift, d_labels, N);
+  }
+  checkCudaErrors(cudaDeviceSynchronize());
+
+  // 6) counts（新ラベル順）を作る
+  //    - 先頭が -1 のとき: counts_new[0..U-1] = d_counts[0..U-1]
+  //    - 先頭が -1 でないとき: counts_new のサイズを U+1 にして先頭0、以降に
+  //    d_counts をコピー
+  //unsigned int* d_counts_new = *d_counts_new_;
+  int counts_size = (shift == 0) ? U : (U + 1);
+  //std::cout << "counts_size: " << counts_size << std::endl;
+  //std::cout << "U: " << U << std::endl;
+  //std::cout << "shift: " << shift << std::endl;
+  cudaMalloc(d_counts_new_, counts_size * sizeof(unsigned int));
+  unsigned int* d_counts_new = *d_counts_new_;
+  if (shift == 0) {
+    cudaMemcpy(d_counts_new, d_counts, U * sizeof(int),
+               cudaMemcpyDeviceToDevice);
+  } else {
+    cudaMemset(d_counts_new, 0, sizeof(unsigned int));  // counts_new[0] = 0
+    cudaMemcpy(d_counts_new + 1, d_counts, U * sizeof(int),
+               cudaMemcpyDeviceToDevice);
+  }
+  //d_counts_new_ = d_counts_new;
+
+  //std::vector<int> labels_host(N);
+  //cudaMemcpy(labels_host.data(), d_labels, N * sizeof(int),
+  //           cudaMemcpyDeviceToHost);
+  //for (int i = 0; i < N; ++i) {
+  //  if (labels_host[i] > 1) {
+  //    printf("label[%d] = %d\n", i, labels_host[i]);
+  //  }
+  //}
+  //std::vector<unsigned int> counts_host(counts_size);
+  //cudaMemcpy(counts_host.data(), d_counts_new,
+  //           counts_size * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+  //for (int i = 0; i < counts_size; ++i) {
+  //  printf("counts_new[%d] = %u\n", i, counts_host[i]);
+  //}
+
+  labels_num = counts_size;
+
+  cudaFree(d_unique);
+  cudaFree(d_counts);
+  cudaFree(d_num_runs);
+  cudaFree(d_offsets);
+  cudaFree(d_runid_sorted);
+  // cudaFree(d_counts_new);
+  cudaFree(d_keys_sorted);
+  cudaFree(d_idx_sorted);
+}
+
+// void BuildOccupiedAndLabelsCUB(const VoxelCudaNaive* d_voxels, int3 vn,
+//                                int min_update_num, float min_sdf, int*
+//                                d_labels, int* out_num_occ = nullptr) {
+//   const int N = vn.x * vn.y * vn.z;
+//
+//   int *d_occ = nullptr, *d_scan = nullptr;
+//   cudaMalloc(&d_occ, N * sizeof(int));
+//   cudaMalloc(&d_scan, N * sizeof(int));
+//
+//   dim3 block(8, 8, 8);
+//   dim3 grid((vn.x + 7) / 8, (vn.y + 7) / 8, (vn.z + 7) / 8);
+//   BuildOccupiedKernel<<<grid, block>>>(d_occ, d_voxels, vn, min_update_num,
+//                                        min_sdf);
+//
+//   // --- CUB Exclusive Scan ---
+//   void* d_temp = nullptr;
+//   size_t temp_bytes = 0;
+//   cub::DeviceScan::ExclusiveSum(d_temp, temp_bytes, d_occ, d_scan, N);
+//   cudaMalloc(&d_temp, temp_bytes);
+//   cub::DeviceScan::ExclusiveSum(d_temp, temp_bytes, d_occ, d_scan, N);
+//   cudaFree(d_temp);
+//
+//   // --- 総占有数を取得 ---
+//   int last_scan, last_occ;
+//   cudaMemcpy(&last_scan, d_scan + N - 1, sizeof(int),
+//   cudaMemcpyDeviceToHost); cudaMemcpy(&last_occ, d_occ + N - 1, sizeof(int),
+//   cudaMemcpyDeviceToHost); int K = last_scan + last_occ; if (out_num_occ)
+//   *out_num_occ = K;
+//
+//   // --- ラベル付け ---
+//   int threads = 256;
+//   int blocks = (N + threads - 1) / threads;
+//   LabelFromScanKernel<<<blocks, threads>>>(d_occ, d_scan, d_labels, N);
+//
+//   cudaFree(d_occ);
+//   cudaFree(d_scan);
+// }
+
 __device__ float3 VertexInterp(float3 p1, float3 p2, float valp1, float valp2,
                                float iso_level = 0.f) {
   float diff = valp2 - valp1;
@@ -2170,6 +2592,120 @@ class VoxelGridCudaNaive::Impl {
     }
   }
 
+  void ReduceFlyingNoiseOnVoxels(unsigned int min_connected_components_num,
+                                 int min_update_num, float min_sdf,
+                                 int max_iter, bool neighbors_27) {
+    const int3 vn = voxel_num_;
+    const int N = vn.x * vn.y * vn.z;
+
+    int *d_occ = nullptr, *d_scan = nullptr;
+    int* d_labels = nullptr;
+    int* d_valid = nullptr;
+    // int* d_labels_prev = nullptr;
+
+    cudaMalloc(&d_occ, N * sizeof(int));
+    cudaMalloc(&d_scan, N * sizeof(int));
+    cudaMalloc(&d_labels, N * sizeof(int));
+    cudaMalloc(&d_valid, N * sizeof(int));
+    // cudaMalloc(&d_labels_prev, N * sizeof(int));
+
+    dim3 block(8, 8, 8);
+    dim3 grid((voxel_num_.x + block.x - 1) / block.x,
+              (voxel_num_.y + block.y - 1) / block.y,
+              (voxel_num_.z + block.z - 1) / block.z);
+    BuildOccupiedKernel<<<grid, block>>>(d_occ, d_voxels_, vn, min_update_num,
+                                         min_sdf);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+
+    // --- CUB Exclusive Scan ---
+    void* d_temp = nullptr;
+    size_t temp_bytes = 0;
+    cub::DeviceScan::ExclusiveSum(d_temp, temp_bytes, d_occ, d_scan, N);
+    cudaMalloc(&d_temp, temp_bytes);
+    cub::DeviceScan::ExclusiveSum(d_temp, temp_bytes, d_occ, d_scan, N);
+    cudaFree(d_temp);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+
+    // --- 総占有数を取得 ---
+    int last_scan, last_occ;
+    cudaMemcpy(&last_scan, d_scan + N - 1, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&last_occ, d_occ + N - 1, sizeof(int), cudaMemcpyDeviceToHost);
+    int K = last_scan + last_occ;
+    // if (out_num_occ) *out_num_occ = K;
+
+    // --- ラベル付け ---
+    int threads = 256;
+    int blocks = (N + threads - 1) / threads;
+    LabelFromScanKernel<<<blocks, threads>>>(d_occ, d_scan, d_labels, N);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+
+
+    //{ std::vector<int> h_labels(N);
+    //  cudaMemcpy(h_labels.data(), d_labels, sizeof(int) * N,
+    //             cudaMemcpyDeviceToHost);
+    //  for (int i = 0; i < N; ++i) {
+
+    //    std::cout << "label[" << i << "] = " << h_labels[i] << std::endl;
+    //  }
+    //}
+
+    RunLabelPropagation(d_labels, d_occ, vn.x, vn.y, vn.z, max_iter,
+                        neighbors_27);
+
+    unsigned int* d_counts = nullptr;
+    int labels_num = 0;
+    FinalizeLabelAndCount(d_labels, &d_counts, N, labels_num);
+    //{
+    //
+    //  std::vector<int> labels_host(N);
+    //  cudaMemcpy(labels_host.data(), d_labels, N * sizeof(int),
+    //             cudaMemcpyDeviceToHost);
+    //  for (int i = 0; i < N; ++i) {
+    //    if (labels_host[i] > 1) {
+    //      printf("label[%d] = %d\n", i, labels_host[i]);
+    //    }
+    //  }
+    //  std::cout << "labels_num = " << labels_num << std::endl;
+    //  std::vector<unsigned int> counts_host(labels_num);
+    //  cudaMemcpy(counts_host.data(), d_counts,
+    //             labels_num * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+    //  for (int i = 0; i < labels_num; ++i) {
+    //    printf("counts_new[%d] = %u\n", i, counts_host[i]);
+    //  }
+
+    //}
+
+    MakeValidMaskKernel<<<block, grid>>>(d_valid, d_labels, d_counts, vn,
+                                             min_connected_components_num);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+    //{
+    //  std::vector<int> h_valid(N);
+    //  cudaMemcpy(h_valid.data(), d_valid, sizeof(int) * N,
+    //             cudaMemcpyDeviceToHost);
+    //  for (int i = 0; i < N; ++i) {
+    //    if (h_valid[i]) {
+    //      std::cout << "valid[" << i << "] = " << h_valid[i] << std::endl;
+    //    }
+    //  }
+    //}
+
+    constexpr float filter_sdf_val = 1.0f;
+    VoxelFilterKernel<<<block, grid>>>(d_voxels_, d_valid, vn,
+                                           filter_sdf_val);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+
+    cudaFree(d_valid);
+    cudaFree(d_counts);
+    cudaFree(d_occ);
+    cudaFree(d_scan);
+    cudaFree(d_labels);
+  }
+
   void ExtractMesh(bool with_face_normals) {
     cudaMemset(d_vtxCounter, 0, sizeof(int));
     cudaMemset(d_edgeVertexIds, -1, sizeof(int) * numEdges);
@@ -2586,6 +3122,13 @@ void VoxelGridCudaNaive::FuseDepthMulti(
     const VoxelGridCudaNaiveFuseOption& option, bool sync) {
   impl_->FuseDepthMulti(h_depth, width, height, num_images, h_fx, h_fy, h_cx,
                         h_cy, h_R, h_t, option, sync);
+}
+
+void VoxelGridCudaNaive::ReduceFlyingNoiseOnVoxels(
+    unsigned int min_connected_components_num, int min_update_num,
+    float min_sdf, int max_iter, bool neighbors_27) {
+  impl_->ReduceFlyingNoiseOnVoxels(min_connected_components_num, min_update_num,
+                                   min_sdf, max_iter, neighbors_27);
 }
 
 void VoxelGridCudaNaive::ExtractMesh(bool with_face_normals) {

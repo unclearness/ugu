@@ -271,6 +271,32 @@ int main(int argc, char* argv[]) {
     out_mesh.CalcNormal();
     out_mesh.WriteObj("cuda_mc.obj");
 
+    timer.Start();
+    voxel_grid_naive.ReduceFlyingNoiseOnVoxels();
+    timer.End();
+    std::cout << "ReduceFlyingNoiseOnVoxels  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+    timer.Start();
+    voxel_grid_naive.ExtractMesh();
+    timer.End();
+    std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms" << std::endl;
+    timer.Start();
+    voxel_grid_naive.GetVerticesCpu(vertices);
+    timer.End();
+    std::cout << "GetVerticesCpu  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+    timer.Start();
+    voxel_grid_naive.GetFacesCpu(faces);
+    timer.End();
+    std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms" << std::endl;
+    out_mesh.set_vertices(vertices);
+    out_mesh.set_vertex_indices(faces);
+    out_mesh.set_default_material();
+    out_mesh.CalcNormal();
+    out_mesh.WriteObj("cuda_mc_cleaned.obj");
+
+    return 1;
+
     // ugu::VoxelGrid voxel_grid_cpu;
     // voxel_grid_cpu.Init(combined->stats().bb_max + offset,
     //                     combined->stats().bb_min - offset, resolution);

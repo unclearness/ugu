@@ -239,7 +239,7 @@ bool VoxelGrid::Init(const Eigen::Vector3f& bb_max,
 
 const Eigen::Vector3i& VoxelGrid::voxel_num() const { return voxel_num_; }
 
-const int VoxelGrid::xy_slice_num() const { return xy_slice_num_; }
+int VoxelGrid::xy_slice_num() const { return xy_slice_num_; }
 
 const Voxel& VoxelGrid::get(int x, int y, int z) const {
   return voxels_[z * xy_slice_num_ + (y * voxel_num_.x() + x)];
@@ -524,14 +524,18 @@ bool FusePoints(const std::vector<Eigen::Vector3f>& points,
 std::tuple<std::vector<int32_t>, std::vector<uint32_t>>
 ConnectedComponentLabelingVoxels(const VoxelGrid& voxel_grid,
                                  int32_t min_voxel_update_num,
-                                 uint32_t max_iter, bool neighbors_27) {
+                                 uint32_t max_iter, bool neighbors_27,
+                                 float min_sdf) {
   // Determine occupied voxels
   std::vector<bool> occupied_flags(voxel_grid.get_all().size(), false);
 
+  // Occupied means the voxel is likely to be "on" or "inside" the surface
   int64_t num_voxels = static_cast<int64_t>(voxel_grid.get_all().size());
   for (int64_t i = 0; i < num_voxels; i++) {
     const auto& voxel = voxel_grid.get_all()[i];
-    if (voxel.update_num >= min_voxel_update_num && voxel.sdf < 0) {
+    // The default min_sdf is 0.f
+    // Negative SDF means inside the surface
+    if (voxel.update_num >= min_voxel_update_num && voxel.sdf < min_sdf) {
       occupied_flags[i] = true;
     }
   }
@@ -628,7 +632,9 @@ ConnectedComponentLabelingVoxels(const VoxelGrid& voxel_grid,
   std::vector<int64_t> active;
   active.reserve(num_voxels);
   for (int64_t i = 0; i < num_voxels; ++i) {
-    if (occupied_flags[i]) active.push_back(i);
+    if (occupied_flags[i]) {
+      active.push_back(i);
+    }
   }
 
   const auto vnum = voxel_grid.voxel_num();
