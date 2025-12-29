@@ -2194,24 +2194,24 @@ void BuildFaceAdjacencyCSRParallel(const std::vector<Eigen::Vector3i>& faces,
   BuildFaceAdjacencyCSRParallel_TwoPass(faces, offsets, neighbors);
 }
 
-void RemoveSmallComponentsParallel(const std::vector<Eigen::Vector3f>& verts,
-                                   const std::vector<Eigen::Vector3i>& tris,
-                                   int K, int min_faces,
-                                   std::vector<Eigen::Vector3f>& out_verts,
-                                   std::vector<Eigen::Vector3i>& out_tris) {
+void RemoveSmallConnectedComponentsParallel(
+    const std::vector<Eigen::Vector3f>& verts,
+    const std::vector<Eigen::Vector3i>& tris, int K, int min_faces,
+    std::vector<Eigen::Vector3f>& out_verts,
+    std::vector<Eigen::Vector3i>& out_tris) {
   auto nbr = build_face_adjacency_by_shared_edge(tris);
   auto labels = approx_labels_k_iters(nbr, K);
   auto face_keep = build_face_keep_mask(labels, min_faces);
   compact_vertices_and_faces(verts, tris, face_keep, out_verts, out_tris);
 }
 
-void RemoveSmallComponentsParallel(const std::vector<Eigen::Vector3f>& verts,
-                                   const std::vector<Eigen::Vector3i>& tris,
-                                   const std::vector<Eigen::Vector3f>& fnormals,
-                                   int K, int min_faces,
-                                   std::vector<Eigen::Vector3f>& out_verts,
-                                   std::vector<Eigen::Vector3i>& out_tris,
-                                   std::vector<Eigen::Vector3f>& out_fnormals) {
+void RemoveSmallConnectedComponentsParallel(
+    const std::vector<Eigen::Vector3f>& verts,
+    const std::vector<Eigen::Vector3i>& tris,
+    const std::vector<Eigen::Vector3f>& fnormals, int K, int min_faces,
+    std::vector<Eigen::Vector3f>& out_verts,
+    std::vector<Eigen::Vector3i>& out_tris,
+    std::vector<Eigen::Vector3f>& out_fnormals) {
   auto nbr = build_face_adjacency_by_shared_edge(tris);
   auto labels = approx_labels_k_iters(nbr, K);
   auto face_keep = build_face_keep_mask(labels, min_faces);

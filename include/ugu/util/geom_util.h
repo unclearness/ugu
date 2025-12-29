@@ -150,6 +150,20 @@ bool CleanGeom(Mesh& mesh);
 bool RemoveSmallConnectedComponents(Mesh& mesh, size_t small_th,
                                     bool pre_clean);
 
+void RemoveSmallConnectedComponentsParallel(
+    const std::vector<Eigen::Vector3f>& verts,
+    const std::vector<Eigen::Vector3i>& tris, int K, int min_faces,
+    std::vector<Eigen::Vector3f>& out_verts,
+    std::vector<Eigen::Vector3i>& out_tris);
+
+void RemoveSmallConnectedComponentsParallel(
+    const std::vector<Eigen::Vector3f>& verts,
+    const std::vector<Eigen::Vector3i>& tris,
+    const std::vector<Eigen::Vector3f>& fnormals, int K, int min_faces,
+    std::vector<Eigen::Vector3f>& out_verts,
+    std::vector<Eigen::Vector3i>& out_tris,
+    std::vector<Eigen::Vector3f>& out_fnormals);
+
 // https://github.com/isl-org/Open3D/blob/ed30e3b61fbe031e106fa64030bec3f698b316b4/cpp/open3d/geometry/Geometry3D.cpp#L41
 template <typename T>
 T ComputeMinBound(const std::vector<T>& points) {
@@ -198,18 +212,4 @@ void BuildFaceAdjacencyCSR(const std::vector<Eigen::Vector3i>& faces,
 void BuildFaceAdjacencyCSRParallel(const std::vector<Eigen::Vector3i>& faces,
                                    std::vector<int>& offsets,
                                    std::vector<int>& neighbors);
-
-void RemoveSmallComponentsParallel(const std::vector<Eigen::Vector3f>& verts,
-                                   const std::vector<Eigen::Vector3i>& tris,
-                                   int K, int min_faces,
-                                   std::vector<Eigen::Vector3f>& out_verts,
-                                   std::vector<Eigen::Vector3i>& out_tris);
-
-void RemoveSmallComponentsParallel(const std::vector<Eigen::Vector3f>& verts,
-                                   const std::vector<Eigen::Vector3i>& tris,
-                                   const std::vector<Eigen::Vector3f>& fnormals,
-                                   int K, int min_faces,
-                                   std::vector<Eigen::Vector3f>& out_verts,
-                                   std::vector<Eigen::Vector3i>& out_tris,
-                                   std::vector<Eigen::Vector3f>& out_fnormals);
 }  // namespace ugu
