@@ -148,6 +148,51 @@ __global__ void assign_runlen_to_faces(const int* sorted_label,
   }
 }
 
+__global__ void make_run_head(const int* sorted_label, int F,
+                              int* head)  // int[F], 0/1
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= F) return;
+  int h = 0;
+  if (i == 0)
+    h = 1;
+  else
+    h = (sorted_label[i] != sorted_label[i - 1]) ? 1 : 0;
+  head[i] = h;
+}
+
+// head[i]==1 の位置だけ run_start[run_id[i]] = i を書く
+__global__ void write_run_start(const int* head, const int* run_id, int F,
+                                int* run_start)  // int[num_runs]
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= F) return;
+  if (head[i]) {
+    int r = run_id[i];
+    run_start[r] = i;
+  }
+}
+
+__global__ void compute_run_len(const int* run_start, int num_runs, int F,
+                                int* run_len) {
+  int r = blockIdx.x * blockDim.x + threadIdx.x;
+  if (r >= num_runs) return;
+  int s = run_start[r];
+  int e = (r + 1 < num_runs) ? run_start[r + 1] : F;
+  run_len[r] = e - s;
+}
+
+__global__ void scatter_run_len_to_faces(const int* run_id, const int* run_len,
+                                         const int* sorted_face, int F,
+                                         int* face_cc_size) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= F) return;
+  int r = run_id[i];
+  int len = run_len[r];
+  int f = sorted_face[i];
+  face_cc_size[f] = len;
+}
+
 // ---------------------------
 // (4) Face keep flag, face compaction, vertex mark, vertex compaction, remap
 // ---------------------------
@@ -407,7 +452,7 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
     }
   }
   CUDA_CHECK(cudaFree(d_changed));
-
+  // CUDA_CHECK(cudaStreamSynchronize(stream));
   timer.End();
   // std::cout << "label propagation : " << timer.elapsed_msec() << " ms"
   //           << std::endl;
@@ -417,6 +462,7 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   thrust::device_vector<int>& d_face_id = buf.d_face_id;
   thrust::sequence(thrust::cuda::par.on(stream), d_face_id.begin(),
                    d_face_id.end());
+  // CUDA_CHECK(cudaStreamSynchronize(stream));
   timer.End();
   // std::cout << "compute face_cc_sizee: " << timer.elapsed_msec() << " ms"
   //           << std::endl;
@@ -425,20 +471,94 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   // sort pairs by label
   thrust::sort_by_key(thrust::cuda::par.on(stream), d_label.begin(),
                       d_label.end(), d_face_id.begin());
+  // CUDA_CHECK(cudaStreamSynchronize(stream));
+  timer.End();
+  // std::cout << "sort pairs by label: " << timer.elapsed_msec() << " ms"
+  //           << std::endl;
 
+  timer.Start();
   thrust::device_vector<int>& d_face_cc_size = buf.d_face_cc_size;
   init_int_kernel<<<blocksF, threads, 0, stream>>>(
       thrust::raw_pointer_cast(d_face_cc_size.data()), F, 0);
   CUDA_CHECK(cudaGetLastError());
+  // CUDA_CHECK(cudaStreamSynchronize(stream));
 
+  // std::cout << "init_int_kernel: " << timer.elapsed_msec() << " ms"
+  //          << std::endl;
+
+  timer.Start();
+#if 0
   assign_runlen_to_faces<<<blocksF, threads, 0, stream>>>(
       thrust::raw_pointer_cast(d_label.data()),
       thrust::raw_pointer_cast(d_face_id.data()), F,
       thrust::raw_pointer_cast(d_face_cc_size.data()));
-  CUDA_CHECK(cudaGetLastError());
+#else
+  {
+    thrust::device_vector<int> d_head(F);
+    thrust::device_vector<int> d_run_id(F);
 
+    int threads = 256;
+    int blocksF = (F + threads - 1) / threads;
+
+    make_run_head<<<blocksF, threads, 0, stream>>>(
+        thrust::raw_pointer_cast(d_label.data()), F,
+        thrust::raw_pointer_cast(d_head.data()));
+    CUDA_CHECK(cudaGetLastError());
+
+    // run_id = exclusive_scan(head)
+    // thrust::exclusive_scan(thrust::cuda::par.on(stream), d_head.begin(),
+    //                       d_head.end(), d_run_id.begin(), 0);
+
+    // run_id = inclusive_scan(head) - 1
+    thrust::inclusive_scan(thrust::cuda::par.on(stream), d_head.begin(),
+                           d_head.end(), d_run_id.begin());
+
+    thrust::transform(thrust::cuda::par.on(stream), d_run_id.begin(),
+                      d_run_id.end(), d_run_id.begin(),
+                      [] __host__ __device__(int x) { return x - 1; });
+
+    // num_runs = run_id[last] + head[last]
+    // ※ここだけホストに戻すと同期になるので、フレーム用途なら
+    //   「上限Fで確保し、num_runsをdeviceに持つ」設計が理想。
+    //   ただ num_runs は最大でもFで、バッファはF確保してもOK。
+    int h_last_head = 0, h_last_run = 0;
+    CUDA_CHECK(cudaMemcpyAsync(
+        &h_last_head, thrust::raw_pointer_cast(d_head.data()) + (F - 1),
+        sizeof(int), cudaMemcpyDeviceToHost, stream));
+    CUDA_CHECK(cudaMemcpyAsync(
+        &h_last_run, thrust::raw_pointer_cast(d_run_id.data()) + (F - 1),
+        sizeof(int), cudaMemcpyDeviceToHost, stream));
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+    int num_runs = h_last_run + h_last_head;
+
+    // run_start/run_len を num_runs で使う
+    thrust::device_vector<int> d_run_start(num_runs);
+    thrust::device_vector<int> d_run_len(num_runs);
+
+    write_run_start<<<blocksF, threads, 0, stream>>>(
+        thrust::raw_pointer_cast(d_head.data()),
+        thrust::raw_pointer_cast(d_run_id.data()), F,
+        thrust::raw_pointer_cast(d_run_start.data()));
+    CUDA_CHECK(cudaGetLastError());
+
+    compute_run_len<<<(num_runs + threads - 1) / threads, threads, 0, stream>>>(
+        thrust::raw_pointer_cast(d_run_start.data()), num_runs, F,
+        thrust::raw_pointer_cast(d_run_len.data()));
+    CUDA_CHECK(cudaGetLastError());
+
+    scatter_run_len_to_faces<<<blocksF, threads, 0, stream>>>(
+        thrust::raw_pointer_cast(d_run_id.data()),
+        thrust::raw_pointer_cast(d_run_len.data()),
+        thrust::raw_pointer_cast(d_face_id.data()), F,
+        thrust::raw_pointer_cast(d_face_cc_size.data()));
+    CUDA_CHECK(cudaGetLastError());
+  }
+
+#endif
+  CUDA_CHECK(cudaGetLastError());
+  // CUDA_CHECK(cudaStreamSynchronize(stream));
   timer.End();
-  // std::cout << "sort pairs by label: " << timer.elapsed_msec() << " ms"
+  // std::cout << "assign_runlen_to_faces: " << timer.elapsed_msec() << " ms"
   //           << std::endl;
 
   // timer.Start();
@@ -453,15 +573,23 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
       thrust::raw_pointer_cast(d_face_cc_size.data()), F, min_faces,
       thrust::raw_pointer_cast(d_face_keep_i.data()));
   CUDA_CHECK(cudaGetLastError());
+  // CUDA_CHECK(cudaStreamSynchronize(stream));
   timer.End();
   // std::cout << "make_face_keep: " << timer.elapsed_msec() << " ms" <<
   // std::endl;
 
   timer.Start();
   thrust::device_vector<int>& d_face_scan = buf.d_face_scan;
+  // CUDA_CHECK(cudaStreamSynchronize(stream));
   timer.End();
   // std::cout << "thrust::device_vecto: " << timer.elapsed_msec() << " ms" <<
   // std::endl;
+
+  // timer.Start();
+  //  CUDA_CHECK(cudaStreamSynchronize(stream));
+  //  timer.End();
+  //  std::cout << "cudaStreamSynchronize: " << timer.elapsed_msec() << " ms"
+  //            << std::endl;
 
   timer.Start();
 
