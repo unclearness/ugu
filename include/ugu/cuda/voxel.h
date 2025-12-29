@@ -94,7 +94,8 @@ class VoxelGridCudaNaive {
                       const VoxelGridCudaNaiveFuseOption& option,
                       bool sync = true);
   void ExtractMesh(bool with_face_normals = true);
-  void RemoveSmallConnectedComponents(int max_iter, int min_faces);
+  void RemoveSmallConnectedComponents(int max_iter, int min_face,
+                                      int early_exit_check_interval = -1);
   void ComputeVertexNormals();
   void SmoothFaceNormalsWithVertexNormals();
   void GetVerticesCpu(std::vector<Eigen::Vector3f>& vertices);

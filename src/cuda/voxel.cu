@@ -3250,7 +3250,8 @@ class VoxelGridCudaNaive::Impl {
     }
   }
 
-  void RemoveSmallConnectedComponents(int max_iter, int min_faces) {
+  void RemoveSmallConnectedComponents(int max_iter, int min_faces,
+                                      int early_exit_check_interval) {
     if (num_faces_ < 1) {
       return;
     }
@@ -3261,37 +3262,44 @@ class VoxelGridCudaNaive::Impl {
     mesh_in.d_faces = d_faces;
     mesh_in.d_face_normals = d_face_normals;
     mesh_in.num_faces_ = num_faces_;
+
+    cudaStream_t stream = 0;
+
     Timer timer;
 
     timer.Start();
 
     d_mesh_process_buf_.EnsureCapacity(num_faces_, num_vertices_);
     timer.End();
-    std::cout << "EnsureCapacity: " << timer.elapsed_msec() << " ms"
-              << std::endl;
-    ugu::RemoveSmallConnectedComponents(mesh_in, max_iter, min_faces, mesh_out,
-                                        d_mesh_process_buf_);
+    // std::cout << "EnsureCapacity: " << timer.elapsed_msec() << " ms"
+    //           << std::endl;
+    ugu::RemoveSmallConnectedComponents(mesh_in, max_iter, min_faces,
+                                        early_exit_check_interval, mesh_out,
+                                        d_mesh_process_buf_, stream);
     checkCudaErrors(cudaGetLastError());
 
     num_vertices_ = mesh_out.num_vertices_;
     num_faces_ = mesh_out.num_faces_;
 
-    cudaMemcpy(d_vertices, mesh_out.d_vertices, sizeof(float3) * num_vertices_,
-               cudaMemcpyDeviceToDevice);
+    cudaMemcpyAsync(d_vertices, mesh_out.d_vertices,
+                    sizeof(float3) * num_vertices_, cudaMemcpyDeviceToDevice,
+                    stream);
     checkCudaErrors(cudaGetLastError());
-    cudaMemcpy(d_faces, mesh_out.d_faces, sizeof(int) * num_faces_ * 3,
-               cudaMemcpyDeviceToDevice);
+    cudaMemcpyAsync(d_faces, mesh_out.d_faces, sizeof(int) * num_faces_ * 3,
+                    cudaMemcpyDeviceToDevice, stream);
     checkCudaErrors(cudaGetLastError());
     if (mesh_in.d_face_normals) {
-      cudaMemcpy(d_face_normals, mesh_out.d_face_normals,
-                 sizeof(float3) * num_faces_, cudaMemcpyDeviceToDevice);
+      cudaMemcpyAsync(d_face_normals, mesh_out.d_face_normals,
+                      sizeof(float3) * num_faces_, cudaMemcpyDeviceToDevice,
+                      stream);
     }
+    checkCudaErrors(cudaStreamSynchronize(stream));
     checkCudaErrors(cudaGetLastError());
 
-    //cudaFree(mesh_out.d_faces);
-    //cudaFree(mesh_out.d_vertices);
-    //cudaFree(mesh_out.d_face_normals);
-    //checkCudaErrors(cudaGetLastError());
+    // cudaFree(mesh_out.d_faces);
+    // cudaFree(mesh_out.d_vertices);
+    // cudaFree(mesh_out.d_face_normals);
+    // checkCudaErrors(cudaGetLastError());
   }
 
   void ComputeVertexNormals() {
@@ -3664,9 +3672,10 @@ void VoxelGridCudaNaive::ExtractMesh(bool with_face_normals) {
   impl_->ExtractMesh(with_face_normals);
 }
 
-void VoxelGridCudaNaive::RemoveSmallConnectedComponents(int max_iter,
-                                                        int min_faces) {
-  impl_->RemoveSmallConnectedComponents(max_iter, min_faces);
+void VoxelGridCudaNaive::RemoveSmallConnectedComponents(
+    int max_iter, int min_faces, int early_exit_check_interval) {
+  impl_->RemoveSmallConnectedComponents(max_iter, min_faces,
+                                        early_exit_check_interval);
 }
 
 void VoxelGridCudaNaive::ComputeVertexNormals() {

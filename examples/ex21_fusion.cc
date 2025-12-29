@@ -282,10 +282,20 @@ int main(int argc, char* argv[]) {
     std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms" << std::endl;
 
     timer.Start();
-    voxel_grid_naive.RemoveSmallConnectedComponents(1000, 100);
+    voxel_grid_naive.RemoveSmallConnectedComponents(50, 100);
     timer.End();
     std::cout << "RemoveSmallConnectedComponents  " << timer.elapsed_msec()
               << " ms" << std::endl;
+    //timer.Start();
+    //voxel_grid_naive.RemoveSmallConnectedComponents(100, 100, 10);
+    //timer.End();
+    //std::cout << "RemoveSmallConnectedComponents  " << timer.elapsed_msec()
+    //          << " ms" << std::endl;
+    //timer.Start();
+    //voxel_grid_naive.RemoveSmallConnectedComponents(100, 100, 10);
+    //timer.End();
+    //std::cout << "RemoveSmallConnectedComponents  " << timer.elapsed_msec()
+    //          << " ms" << std::endl;
     timer.Start();
     voxel_grid_naive.ComputeVertexNormals();
     timer.End();

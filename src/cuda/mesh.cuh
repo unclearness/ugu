@@ -39,6 +39,7 @@ class RemoveSmallConnectedComponentsBuf {
 
   thrust::device_vector<int> d_v_used;
   thrust::device_vector<int> d_v_scan;
+  thrust::device_vector<int> d_v_new_id;
 
   int* d_faces2 = nullptr;
   float3* d_face_normals2 = nullptr;
@@ -52,19 +53,35 @@ class RemoveSmallConnectedComponentsBuf {
 
   void EnsureCapacity(int num_faces, int num_vertices) {
     if (num_faces_ < num_faces || num_vertices_ < num_vertices) {
+      // Reallocate memory
       Free();
       Malloc(num_faces, num_vertices);
       num_faces_ = num_faces;
       num_vertices_ = num_vertices;
+    } else {
+      // Resize only
+      Resize(num_faces, num_vertices);
     }
   }
 
   void Malloc(int num_faces, int num_vertices) {
+    Resize(num_faces, num_vertices);
+
+    cudaFree(d_faces2);
+    cudaFree(d_face_normals2);
+    cudaFree(d_vertices2);
+
+    cudaMalloc(&d_faces2, sizeof(int) * 3 * num_faces);
+    cudaMalloc(&d_face_normals2, sizeof(float3) * num_faces);
+    cudaMalloc(&d_vertices2, sizeof(float3) * num_vertices);
+  }
+
+  void Resize(int num_faces, int num_vertices) {
     const int E = 3 * num_faces;
 
     d_edge_key.resize(E);
     d_edge_face.resize(E);
-    d_nbr.resize(3 * num_faces);
+    d_nbr.resize(E);
     d_label.resize(num_faces);
     d_next.resize(num_faces);
     d_face_id.resize(num_faces);
@@ -75,14 +92,7 @@ class RemoveSmallConnectedComponentsBuf {
 
     d_v_used.resize(num_vertices);
     d_v_scan.resize(num_vertices);
-
-    cudaFree(d_faces2);
-    cudaFree(d_face_normals2);
-    cudaFree(d_vertices2);
-
-    cudaMalloc(&d_faces2, sizeof(int) * 3 * num_faces);
-    cudaMalloc(&d_face_normals2, sizeof(float3) * num_faces);
-    cudaMalloc(&d_vertices2, sizeof(float3) * num_vertices);
+    d_v_new_id.resize(num_vertices);
   }
 
   void Free() {
@@ -105,6 +115,7 @@ class RemoveSmallConnectedComponentsBuf {
 };
 
 void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
+                                    int early_exit_check_interval,
                                     MeshDevice& out,
                                     RemoveSmallConnectedComponentsBuf& buf,
                                     cudaStream_t stream = 0);
