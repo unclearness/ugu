@@ -93,8 +93,9 @@ class VoxelGridCudaNaive {
                       const float* h_t,
                       const VoxelGridCudaNaiveFuseOption& option,
                       bool sync = true);
-
   void ExtractMesh(bool with_face_normals = true);
+  void RemoveSmallConnectedComponents(int max_iter, int min_face,
+                                      int early_exit_check_interval = -1);
   void ComputeVertexNormals();
   void SmoothFaceNormalsWithVertexNormals();
   void GetVerticesCpu(std::vector<Eigen::Vector3f>& vertices);
@@ -111,6 +112,10 @@ class VoxelGridCudaNaive {
   const float3* GetSmoothFaceNormalsGpu() const;
   const int* GetVerticesNumGpu() const;
   const int* GetFacesNumGpu() const;
+
+  void SetVerticesGpu(const std::vector<Eigen::Vector3f>& vertices);
+  void SetFacesGpu(const std::vector<Eigen::Vector3i>& faces);
+  void SetFaceNormalsGpu(const std::vector<Eigen::Vector3f>& face_normals);
 
   void Clear();
 

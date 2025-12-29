@@ -117,7 +117,7 @@ int main(int argc, char* argv[]) {
 
     Eigen::Affine3d c2w = (Eigen::Translation3f(pos) * R).cast<double>();
     ugu::PinholeCameraPtr camera =
-        std::make_shared<ugu::PinholeCamera>(640, 480, fov_y_deg);
+        std::make_shared<ugu::PinholeCamera>(320, 240, fov_y_deg);
     renderer->set_camera(camera);
     camera->set_c2w(c2w);
 
@@ -264,70 +264,119 @@ int main(int argc, char* argv[]) {
     timer.Start();
     voxel_grid_naive.GetFacesCpu(faces);
     timer.End();
-    std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms"
-              << std::endl;
+    std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms" << std::endl;
     out_mesh.set_vertices(vertices);
     out_mesh.set_vertex_indices(faces);
     out_mesh.set_default_material();
     out_mesh.CalcNormal();
     out_mesh.WriteObj("cuda_mc.obj");
 
-    ugu::VoxelGrid voxel_grid_cpu;
-    voxel_grid_cpu.Init(combined->stats().bb_max + offset,
-                        combined->stats().bb_min - offset, resolution);
-    voxel_grid_naive.GetVoxelGridCpu(voxel_grid_cpu);
-    ugu::MarchingCubes(voxel_grid_cpu, &out_mesh);
+    //timer.Start();
+    //voxel_grid_naive.ReduceFlyingNoiseOnVoxels(30, 1, 0.f, 150, false);
+    //timer.End();
+    //std::cout << "ReduceFlyingNoiseOnVoxels  " << timer.elapsed_msec() << " ms"
+    //          << std::endl;
+    timer.Start();
+    voxel_grid_naive.ExtractMesh();
+    timer.End();
+    std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms" << std::endl;
+
+    timer.Start();
+    voxel_grid_naive.RemoveSmallConnectedComponents(50, 100);
+    timer.End();
+    std::cout << "RemoveSmallConnectedComponents  " << timer.elapsed_msec()
+              << " ms" << std::endl;
+    //timer.Start();
+    //voxel_grid_naive.RemoveSmallConnectedComponents(100, 100, 10);
+    //timer.End();
+    //std::cout << "RemoveSmallConnectedComponents  " << timer.elapsed_msec()
+    //          << " ms" << std::endl;
+    //timer.Start();
+    //voxel_grid_naive.RemoveSmallConnectedComponents(100, 100, 10);
+    //timer.End();
+    //std::cout << "RemoveSmallConnectedComponents  " << timer.elapsed_msec()
+    //          << " ms" << std::endl;
+    timer.Start();
+    voxel_grid_naive.ComputeVertexNormals();
+    timer.End();
+    std::cout << "ComputeVertexNormals  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+    timer.Start();
+    voxel_grid_naive.GetVerticesCpu(vertices);
+    timer.End();
+    std::cout << "GetVerticesCpu  " << timer.elapsed_msec() << " ms"
+              << std::endl;
+    timer.Start();
+    voxel_grid_naive.GetFacesCpu(faces);
+    timer.End();
+    std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms" << std::endl;
+    out_mesh.set_vertices(vertices);
+    out_mesh.set_vertex_indices(faces);
     out_mesh.set_default_material();
     out_mesh.CalcNormal();
-    out_mesh.WriteObj("cpu_mc.obj");
+    out_mesh.WriteObj("cuda_mc_cleaned.obj");
 
-    {
-      ugu::VoxelGridCudaNaive voxel_grid_naive2;
-      voxel_grid_naive2.Init(combined->stats().bb_max + offset,
-                             combined->stats().bb_min - offset, resolution);
+   // return 1;
 
-      timer.Start();
-      voxel_grid_naive2.FuseDepthMulti(
-          h_depths_pinned, width, height, num_images, h_fx_vec.data(),
-          h_fy_vec.data(), h_cx_vec.data(), h_cy_vec.data(), h_R_vec.data(),
-          h_t_vec.data(), fusion_option, true);
-      timer.End();
-      std::cout << "FuseDepthMulti  " << timer.elapsed_msec() << " ms"
-                << std::endl;
+    // ugu::VoxelGrid voxel_grid_cpu;
+    // voxel_grid_cpu.Init(combined->stats().bb_max + offset,
+    //                     combined->stats().bb_min - offset, resolution);
+    // voxel_grid_naive.GetVoxelGridCpu(voxel_grid_cpu);
+    // ugu::MarchingCubes(voxel_grid_cpu, &out_mesh);
+    // out_mesh.set_default_material();
+    // out_mesh.CalcNormal();
+    // out_mesh.WriteObj("cpu_mc.obj");
 
-      ugu::Mesh out_mesh;
-      std::vector<Eigen::Vector3f> vertices;
-      std::vector<Eigen::Vector3i> faces;
-      timer.Start();
-      voxel_grid_naive2.ExtractMesh();
-      timer.End();
-      std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms"
-                << std::endl;
-      timer.Start();
-      voxel_grid_naive2.GetVerticesCpu(vertices);
-      timer.End();
-      std::cout << "GetVerticesCpu  " << timer.elapsed_msec() << " ms"
-                << std::endl;
-      timer.Start();
-      voxel_grid_naive2.GetFacesCpu(faces);
-      timer.End();
-      std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms"
-                << std::endl;
-      out_mesh.set_vertices(vertices);
-      out_mesh.set_vertex_indices(faces);
-      out_mesh.set_default_material();
-      out_mesh.CalcNormal();
-      out_mesh.WriteObj("cuda_mc2.obj");
+    // std::cout << "diff: " << std::endl;
+    // std::cout << vertices[10] - out_mesh.vertices()[10] << std::endl;
 
-      ugu::VoxelGrid voxel_grid_cpu;
-      voxel_grid_cpu.Init(combined->stats().bb_max + offset,
-                          combined->stats().bb_min - offset, resolution);
-      voxel_grid_naive2.GetVoxelGridCpu(voxel_grid_cpu);
-      ugu::MarchingCubes(voxel_grid_cpu, &out_mesh);
-      out_mesh.set_default_material();
-      out_mesh.CalcNormal();
-      out_mesh.WriteObj("cpu_mc2.obj");
-    }
+    //  {
+    //    ugu::VoxelGridCudaNaive voxel_grid_naive2;
+    //    voxel_grid_naive2.Init(combined->stats().bb_max + offset,
+    //                           combined->stats().bb_min - offset, resolution);
+
+    //    timer.Start();
+    //    voxel_grid_naive2.FuseDepthMulti(
+    //        h_depths_pinned, width, height, num_images, h_fx_vec.data(),
+    //        h_fy_vec.data(), h_cx_vec.data(), h_cy_vec.data(), h_R_vec.data(),
+    //        h_t_vec.data(), fusion_option, true);
+    //    timer.End();
+    //    std::cout << "FuseDepthMulti  " << timer.elapsed_msec() << " ms"
+    //              << std::endl;
+
+    //    ugu::Mesh out_mesh;
+    //    std::vector<Eigen::Vector3f> vertices;
+    //    std::vector<Eigen::Vector3i> faces;
+    //    timer.Start();
+    //    voxel_grid_naive2.ExtractMesh();
+    //    timer.End();
+    //    std::cout << "ExtractMesh  " << timer.elapsed_msec() << " ms"
+    //              << std::endl;
+    //    timer.Start();
+    //    voxel_grid_naive2.GetVerticesCpu(vertices);
+    //    timer.End();
+    //    std::cout << "GetVerticesCpu  " << timer.elapsed_msec() << " ms"
+    //              << std::endl;
+    //    timer.Start();
+    //    voxel_grid_naive2.GetFacesCpu(faces);
+    //    timer.End();
+    //    std::cout << "GetFacesCpu  " << timer.elapsed_msec() << " ms"
+    //              << std::endl;
+    //    out_mesh.set_vertices(vertices);
+    //    out_mesh.set_vertex_indices(faces);
+    //    out_mesh.set_default_material();
+    //    out_mesh.CalcNormal();
+    //    out_mesh.WriteObj("cuda_mc2.obj");
+
+    //    ugu::VoxelGrid voxel_grid_cpu;
+    //    voxel_grid_cpu.Init(combined->stats().bb_max + offset,
+    //                        combined->stats().bb_min - offset, resolution);
+    //    voxel_grid_naive2.GetVoxelGridCpu(voxel_grid_cpu);
+    //    ugu::MarchingCubes(voxel_grid_cpu, &out_mesh);
+    //    out_mesh.set_default_material();
+    //    out_mesh.CalcNormal();
+    //    out_mesh.WriteObj("cpu_mc2.obj");
+    //  }
   }
 #endif
 
@@ -349,12 +398,147 @@ int main(int argc, char* argv[]) {
 
       ugu::FuseDepth(*cameras[i], depths[i], option, voxel_grid);
     }
+    timer.Start();
+    const auto [labels, counts] =
+        ugu::ConnectedComponentLabelingVoxels(voxel_grid, 1, 100, false, 0.f);
+    //const auto [labels, counts] =
+    //    ugu::ConnectedComponentLabelingVoxelsZeroCrossing(voxel_grid, 1000, 1);
+    timer.End();
+    ugu::LOGI("ConnectedComponentLabelingVoxels %f ms\n", timer.elapsed_msec());
+
+    std::vector<Eigen::Vector3f> points;
+    std::vector<Eigen::Vector3f> colors;
+    std::vector<Eigen::Vector3f> label_colors;
+
+    for (size_t i = 0; i < counts.size(); i++) {
+      label_colors.push_back(122.5f *(Eigen::Vector3f::Random() +
+                             Eigen::Vector3f::Constant(1.f)));
+    }
+
+    for (size_t i = 0; i < voxel_grid.get_all().size(); i++) {
+      if (labels[i] > 0) {
+        const auto& voxel = voxel_grid.get_all()[i];
+        points.push_back(voxel.pos);
+        colors.push_back(label_colors[labels[i]]);
+      }
+    }
+
+    ugu::Mesh pc;
+    pc.set_vertices(points);
+    pc.set_vertex_colors(colors);
+    pc.set_default_material();
+    pc.WritePly(data_dir + "voxel_cc_label.ply");
 
     ugu::MarchingCubes(voxel_grid, depth_fused.get());
     depth_fused->set_default_material();
     depth_fused->CalcNormal();
     depth_fused->WriteObj(data_dir, "depthfuse");
+
+
+    std::vector<Eigen::Vector3f> verts;
+    std::vector<Eigen::Vector3i> tris;
+    timer.Start();
+    ugu::RemoveSmallComponentsParallel(depth_fused->vertices(),
+                                       depth_fused->vertex_indices(), 1000,
+                                       100, verts, tris);
+    timer.End();
+    ugu::LOGI("RemoveSmallComponentsParallel %f ms\n", timer.elapsed_msec());
+    depth_fused->Clear();
+    depth_fused->set_vertices(verts);
+    depth_fused->set_vertex_indices(tris);
+    depth_fused->set_default_material();
+    depth_fused->CalcNormal();
+    depth_fused->WriteObj(data_dir, "depthfuse_removedpara");
+    depth_fused->Clear();
+
+    const std::vector<Eigen::Vector3i> neighbor6_offsets = {
+          Eigen::Vector3i(-1, 0, 0), Eigen::Vector3i(1, 0, 0),
+          Eigen::Vector3i(0, -1, 0), Eigen::Vector3i(0, 1, 0),
+          Eigen::Vector3i(0, 0, -1), Eigen::Vector3i(0, 0, 1)};
+
+  const std::vector<Eigen::Vector3i> neighbor27_offsets = {
+        Eigen::Vector3i(-1, -1, -1), Eigen::Vector3i(0, -1, -1),
+        Eigen::Vector3i(1, -1, -1),  Eigen::Vector3i(-1, 0, -1),
+        Eigen::Vector3i(0, 0, -1),   Eigen::Vector3i(1, 0, -1),
+        Eigen::Vector3i(-1, 1, -1),  Eigen::Vector3i(0, 1, -1),
+        Eigen::Vector3i(1, 1, -1),   Eigen::Vector3i(-1, -1, 0),
+        Eigen::Vector3i(0, -1, 0),   Eigen::Vector3i(1, -1, 0),
+        Eigen::Vector3i(-1, 0, 0),   Eigen::Vector3i(0, 0, 0),
+        Eigen::Vector3i(1, 0, 0),    Eigen::Vector3i(-1, 1, 0),
+        Eigen::Vector3i(0, 1, 0),    Eigen::Vector3i(1, 1, 0),
+        Eigen::Vector3i(-1, -1, 1),  Eigen::Vector3i(0, -1, 1),
+        Eigen::Vector3i(1, -1, 1),   Eigen::Vector3i(-1, 0, 1),
+        Eigen::Vector3i(0, 0, 1),    Eigen::Vector3i(1, 0, 1),
+        Eigen::Vector3i(-1, 1, 1),   Eigen::Vector3i(0, 1, 1),
+        Eigen::Vector3i(1, 1, 1)};
+    const std::vector<Eigen::Vector3i> neighbor8_offsets = {
+        Eigen::Vector3i(-1, -1, -1), Eigen::Vector3i(0, -1, -1),
+        Eigen::Vector3i(-1, 0, -1),  Eigen::Vector3i(-1, 1, -1),
+
+        Eigen::Vector3i(-1, -1, 0),  Eigen::Vector3i(0, -1, 0),
+        Eigen::Vector3i(1, -1, 0),   Eigen::Vector3i(-1, 0, 0)};
+
+    for (size_t i = 0; i < voxel_grid.get_all().size(); i++) {
+      if (labels[i] > 0 && counts[labels[i]] < 10) {
+        std::cout << i << " label " << labels[i] << " count "
+                  << counts[labels[i]] << std::endl;
+        auto& voxel = voxel_grid.get_all()[i];
+
+        //bool all_good = true;
+        //for (const auto& neighbor : neighbor27_offsets) {
+        //  Eigen::Vector3i neighbor_index =
+        //      voxel_grid.get_index(voxel.pos) + neighbor;
+
+        //  if (neighbor_index.x() < 0 ||
+        //      neighbor_index.x() >= voxel_grid.resolution().x() ||
+        //      neighbor_index.y() < 0 ||
+        //      neighbor_index.y() >= voxel_grid.resolution().y() ||
+        //      neighbor_index.z() < 0 ||
+        //      neighbor_index.z() >= voxel_grid.resolution().z()) {
+        //    continue;
+        //  }
+
+        //  size_t neighbor_flat_index =
+        //      neighbor_index.x() +
+        //      neighbor_index.y() * voxel_grid.resolution().x() +
+        //      neighbor_index.z() * voxel_grid.resolution().x() *
+        //          voxel_grid.resolution().y();
+        //  //voxel_grid.get_all()[neighbor_flat_index].sdf = 1.f;
+        //  //voxel_grid.get_all()[neighbor_flat_index].update_num = 0.f;
+        //  
+        //  if (labels[neighbor_flat_index] == 0 ||
+        //      counts[labels[neighbor_flat_index]] < 10) {
+        //    all_good = false;
+        //    break;
+        //  }
+        //}
+        voxel.sdf = 1.f;
+        voxel.update_num = 0;
+        
+        //if (!all_good) {
+        //  voxel.sdf = 1.f;
+        //  //ugu::InvalidSdf::kVal;
+        //  voxel.update_num = 0;
+        //}
+
+        //voxel.sdf = ugu::InvalidSdf::kVal;
+        //voxel.update_num = 0;
+
+      }
+    }
+
+     for (size_t i = 0; i < counts.size(); ++i) {
+       std::cout << "  Label " << i << ": " << counts[i] << " voxels."
+                 << std::endl;
+     }
+
+    ugu::MarchingCubes(voxel_grid, depth_fused.get());
+    depth_fused->set_default_material();
+    depth_fused->CalcNormal();
+    depth_fused->WriteObj(data_dir, "depthfuse_cleaned");
   }
+
+  return 1;
 
 #if 0
   // Merge naive
