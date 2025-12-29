@@ -64,10 +64,9 @@ class RemoveSmallConnectedComponentsBuf {
   }
 
   void Malloc(int num_faces, int num_vertices) {
-    Resize(num_faces, num_vertices);
-
     Free();
 
+    Resize(num_faces, num_vertices);
     cudaMalloc(&d_faces2, sizeof(int) * 3 * num_faces);
     cudaMalloc(&d_face_normals2, sizeof(float3) * num_faces);
     cudaMalloc(&d_vertices2, sizeof(float3) * num_vertices);
@@ -93,18 +92,22 @@ class RemoveSmallConnectedComponentsBuf {
   }
 
   void Free() {
-    // d_edge_key.clear();
-    // d_edge_face.clear();
-    // d_nbr.clear();
-    // d_label.clear();
-    // d_next.clear();
-    // d_face_id.clear();
-    // d_face_cc_size.clear();
-    // d_face_keep.clear();
-    // d_face_keep_i.clear();
-    // d_face_scan.clear();
-    // d_v_used.clear();
-    // d_v_scan.clear();
+    num_faces_ = 0;
+    num_vertices_ = 0;
+
+    d_edge_key.clear();
+    d_edge_face.clear();
+    d_nbr.clear();
+    d_label.clear();
+    d_next.clear();
+    d_face_id.clear();
+    d_face_cc_size.clear();
+    d_face_keep.clear();
+    d_face_keep_i.clear();
+    d_face_scan.clear();
+    d_v_used.clear();
+    d_v_scan.clear();
+    d_v_new_id.clear();
     if (nullptr != d_faces2) {
       cudaFree(d_faces2);
       d_faces2 = nullptr;
