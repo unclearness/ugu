@@ -438,11 +438,11 @@ int main(int argc, char* argv[]) {
     std::vector<Eigen::Vector3f> verts;
     std::vector<Eigen::Vector3i> tris;
     timer.Start();
-    ugu::RemoveSmallComponentsParallel(depth_fused->vertices(),
+    ugu::RemoveSmallConnectedComponentsParallel(depth_fused->vertices(),
                                        depth_fused->vertex_indices(), 1000,
                                        100, verts, tris);
     timer.End();
-    ugu::LOGI("RemoveSmallComponentsParallel %f ms\n", timer.elapsed_msec());
+    ugu::LOGI("RemoveSmallConnectedComponentsParallel %f ms\n", timer.elapsed_msec());
     depth_fused->Clear();
     depth_fused->set_vertices(verts);
     depth_fused->set_vertex_indices(tris);
