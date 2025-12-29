@@ -3479,6 +3479,84 @@ class VoxelGridCudaNaive::Impl {
 
   const int* GetFacesNumGpu() const { return d_idxCounter; }
 
+  void SetVerticesGpu(const std::vector<Eigen::Vector3f>& vertices) {
+    num_vertices_ = static_cast<int>(vertices.size());
+
+    EnsureTriangleVertexMemory(num_vertices_);
+
+    cudaMemcpy(d_vtxCounter, &num_vertices_, sizeof(int),
+               cudaMemcpyHostToDevice);
+
+    if (num_vertices_ < 1) {
+      return;
+    }
+
+    for (int i = 0; i < num_vertices_; ++i) {
+      h_vertices_pinned[i].x = vertices[i].x();
+      h_vertices_pinned[i].y = vertices[i].y();
+      h_vertices_pinned[i].z = vertices[i].z();
+    }
+    // Send data to GPU
+    cudaMemcpy(d_vertices, h_vertices_pinned, sizeof(float3) * num_vertices_,
+               cudaMemcpyHostToDevice);
+
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+  }
+
+  void SetFacesGpu(const std::vector<Eigen::Vector3i>& faces) {
+    num_faces_ = static_cast<int>(faces.size());
+
+    EnsureTriangleMemory(num_faces_ * 3);
+
+    int h_idxCounter = num_faces_ * 3;
+    cudaMemcpy(d_idxCounter, &h_idxCounter, sizeof(int),
+               cudaMemcpyHostToDevice);
+
+    if (num_faces_ < 1) {
+      return;
+    }
+
+    for (int i = 0; i < num_faces_; ++i) {
+      h_faces_pinned[i * 3 + 0] = faces[i].x();
+      h_faces_pinned[i * 3 + 1] = faces[i].y();
+      h_faces_pinned[i * 3 + 2] = faces[i].z();
+    }
+    // Send data to GPU
+    cudaMemcpy(d_faces, h_faces_pinned, sizeof(int) * 3 * num_faces_,
+               cudaMemcpyHostToDevice);
+
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+  }
+
+  void SetFaceNormalsGpu(const std::vector<Eigen::Vector3f>& face_normals) {
+    // num_faces_ = static_cast<int>(faces.size());
+
+    // EnsureTriangleMemory(num_faces_ * 3);
+
+    // int h_idxCounter = num_faces_ * 3;
+    // cudaMemcpy(d_idxCounter, &h_idxCounter, sizeof(int),
+    //            cudaMemcpyHostToDevice);
+
+    // if (num_faces_ < 1) {
+    //   return;
+    // }
+
+    for (int i = 0; i < num_faces_; ++i) {
+      h_face_normals_pinned[i].x = face_normals[i].x();
+      h_face_normals_pinned[i].y = face_normals[i].y();
+      h_face_normals_pinned[i].z = face_normals[i].z();
+    }
+
+    // Send data to GPU
+    cudaMemcpy(d_face_normals, h_face_normals_pinned,
+               sizeof(float3) * num_faces_, cudaMemcpyHostToDevice);
+
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+  }
+
   void Clear() {
     int total_voxel_num = voxel_num_.x * voxel_num_.y * voxel_num_.z;
     cudaMemset(d_voxels_, 0, sizeof(VoxelCudaNaive) * total_voxel_num);
@@ -3735,6 +3813,21 @@ const int* VoxelGridCudaNaive::GetVerticesNumGpu() const {
 
 const int* VoxelGridCudaNaive::GetFacesNumGpu() const {
   return impl_->GetFacesNumGpu();
+}
+
+void VoxelGridCudaNaive::SetVerticesGpu(
+    const std::vector<Eigen::Vector3f>& vertices) {
+  impl_->SetVerticesGpu(vertices);
+}
+
+void VoxelGridCudaNaive::SetFacesGpu(
+    const std::vector<Eigen::Vector3i>& faces) {
+  impl_->SetFacesGpu(faces);
+}
+
+void VoxelGridCudaNaive::SetFaceNormalsGpu(
+    const std::vector<Eigen::Vector3f>& face_normals) {
+  impl_->SetFaceNormalsGpu(face_normals);
 }
 
 void VoxelGridCudaNaive::Clear() { impl_->Clear(); }

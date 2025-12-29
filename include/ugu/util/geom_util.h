@@ -204,4 +204,12 @@ void RemoveSmallComponentsParallel(const std::vector<Eigen::Vector3f>& verts,
                                    int K, int min_faces,
                                    std::vector<Eigen::Vector3f>& out_verts,
                                    std::vector<Eigen::Vector3i>& out_tris);
+
+void RemoveSmallComponentsParallel(const std::vector<Eigen::Vector3f>& verts,
+                                   const std::vector<Eigen::Vector3i>& tris,
+                                   const std::vector<Eigen::Vector3f>& fnormals,
+                                   int K, int min_faces,
+                                   std::vector<Eigen::Vector3f>& out_verts,
+                                   std::vector<Eigen::Vector3i>& out_tris,
+                                   std::vector<Eigen::Vector3f>& out_fnormals);
 }  // namespace ugu

@@ -3,7 +3,6 @@
 #include <thrust/device_vector.h>
 
 namespace ugu {
-
 struct MeshDevice {
   float3* d_vertices{nullptr};
   int* d_faces{nullptr};  // length = 3*num_faces
@@ -56,20 +55,18 @@ class RemoveSmallConnectedComponentsBuf {
       // Reallocate memory
       Free();
       Malloc(num_faces, num_vertices);
-      num_faces_ = num_faces;
-      num_vertices_ = num_vertices;
     } else {
       // Resize only
       Resize(num_faces, num_vertices);
     }
+    num_faces_ = num_faces;
+    num_vertices_ = num_vertices;
   }
 
   void Malloc(int num_faces, int num_vertices) {
     Resize(num_faces, num_vertices);
 
-    cudaFree(d_faces2);
-    cudaFree(d_face_normals2);
-    cudaFree(d_vertices2);
+    Free();
 
     cudaMalloc(&d_faces2, sizeof(int) * 3 * num_faces);
     cudaMalloc(&d_face_normals2, sizeof(float3) * num_faces);
@@ -96,21 +93,30 @@ class RemoveSmallConnectedComponentsBuf {
   }
 
   void Free() {
-    d_edge_key.clear();
-    d_edge_face.clear();
-    d_nbr.clear();
-    d_label.clear();
-    d_next.clear();
-    d_face_id.clear();
-    d_face_cc_size.clear();
-    d_face_keep.clear();
-    d_face_keep_i.clear();
-    d_face_scan.clear();
-    d_v_used.clear();
-    d_v_scan.clear();
-    cudaFree(d_faces2);
-    cudaFree(d_face_normals2);
-    cudaFree(d_vertices2);
+    // d_edge_key.clear();
+    // d_edge_face.clear();
+    // d_nbr.clear();
+    // d_label.clear();
+    // d_next.clear();
+    // d_face_id.clear();
+    // d_face_cc_size.clear();
+    // d_face_keep.clear();
+    // d_face_keep_i.clear();
+    // d_face_scan.clear();
+    // d_v_used.clear();
+    // d_v_scan.clear();
+    if (nullptr != d_faces2) {
+      cudaFree(d_faces2);
+      d_faces2 = nullptr;
+    }
+    if (nullptr != d_face_normals2) {
+      cudaFree(d_face_normals2);
+      d_face_normals2 = nullptr;
+    }
+    if (nullptr != d_vertices2) {
+      cudaFree(d_vertices2);
+      d_vertices2 = nullptr;
+    }
   }
 };
 

@@ -113,6 +113,10 @@ class VoxelGridCudaNaive {
   const int* GetVerticesNumGpu() const;
   const int* GetFacesNumGpu() const;
 
+  void SetVerticesGpu(const std::vector<Eigen::Vector3f>& vertices);
+  void SetFacesGpu(const std::vector<Eigen::Vector3i>& faces);
+  void SetFaceNormalsGpu(const std::vector<Eigen::Vector3f>& face_normals);
+
   void Clear();
 
  private:

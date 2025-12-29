@@ -568,6 +568,51 @@ static void compact_vertices_and_faces(
   }
 }
 
+static void compact_vertices_and_faces_and_facenormals(
+    const std::vector<Eigen::Vector3f>& verts,
+    const std::vector<Eigen::Vector3i>& tris,
+    const std::vector<Eigen::Vector3f>& fnormals,
+    const std::vector<uint8_t>& face_keep,
+    std::vector<Eigen::Vector3f>& out_verts,
+    std::vector<Eigen::Vector3i>& out_tris,
+    std::vector<Eigen::Vector3f>& out_fnormals) {
+  const int V = (int)verts.size();
+  const int F = (int)tris.size();
+
+  std::vector<uint8_t> v_used(V, 0);
+
+#pragma omp parallel for
+  for (int f = 0; f < F; ++f) {
+    if (!face_keep[f]) continue;
+    const auto& t = tris[f];
+    v_used[t[0]] = 1;
+    v_used[t[1]] = 1;
+    v_used[t[2]] = 1;
+  }
+
+  // 新しい頂点ID
+  std::vector<int> v_new_id(V, -1);
+  int newV = 0;
+  for (int i = 0; i < V; ++i)
+    if (v_used[i]) v_new_id[i] = newV++;
+
+  // 頂点コピー
+  out_verts.resize(newV);
+#pragma omp parallel for
+  for (int i = 0; i < V; ++i)
+    if (v_new_id[i] >= 0) out_verts[v_new_id[i]] = verts[i];
+
+  // 面コピー
+  out_tris.reserve(F);
+  out_fnormals.reserve(F);
+  for (int f = 0; f < F; ++f) {
+    if (!face_keep[f]) continue;
+    const auto& t = tris[f];
+    out_tris.emplace_back(v_new_id[t[0]], v_new_id[t[1]], v_new_id[t[2]]);
+    out_fnormals.push_back(fnormals[f]);
+  }
+}
+
 }  // namespace
 
 namespace ugu {
@@ -2158,6 +2203,20 @@ void RemoveSmallComponentsParallel(const std::vector<Eigen::Vector3f>& verts,
   auto labels = approx_labels_k_iters(nbr, K);
   auto face_keep = build_face_keep_mask(labels, min_faces);
   compact_vertices_and_faces(verts, tris, face_keep, out_verts, out_tris);
+}
+
+void RemoveSmallComponentsParallel(const std::vector<Eigen::Vector3f>& verts,
+                                   const std::vector<Eigen::Vector3i>& tris,
+                                   const std::vector<Eigen::Vector3f>& fnormals,
+                                   int K, int min_faces,
+                                   std::vector<Eigen::Vector3f>& out_verts,
+                                   std::vector<Eigen::Vector3i>& out_tris,
+                                   std::vector<Eigen::Vector3f>& out_fnormals) {
+  auto nbr = build_face_adjacency_by_shared_edge(tris);
+  auto labels = approx_labels_k_iters(nbr, K);
+  auto face_keep = build_face_keep_mask(labels, min_faces);
+  compact_vertices_and_faces_and_facenormals(verts, tris, fnormals, face_keep,
+                                             out_verts, out_tris, out_fnormals);
 }
 
 }  // namespace ugu

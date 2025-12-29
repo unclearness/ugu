@@ -307,9 +307,9 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   Timer timer;
 
   timer.Start();
-
+  CUDA_CHECK(cudaGetLastError());
   buf.EnsureCapacity(F, V);
-
+  CUDA_CHECK(cudaGetLastError());
   timer.End();
   // std::cout << "EnsureCapacity: " << timer.elapsed_msec() << " ms"
   //           << std::endl;
@@ -323,6 +323,8 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   const int E = 3 * F;
   thrust::device_vector<uint64_t>& d_edge_key = buf.d_edge_key;
   thrust::device_vector<int>& d_edge_face = buf.d_edge_face;
+  // thrust::device_vector<uint64_t> d_edge_key(E);
+  // thrust::device_vector<int> d_edge_face(E);
 
   build_edges_from_faces<<<blocksF, threads, 0, stream>>>(
       in.d_faces, F, thrust::raw_pointer_cast(d_edge_key.data()),
