@@ -522,16 +522,17 @@ bool FusePoints(const std::vector<Eigen::Vector3f>& points,
 }
 
 std::tuple<std::vector<int32_t>, std::vector<uint32_t>>
-ConnectedComponentLabelingVoxelsZeroCrossing(const VoxelGrid& voxel_grid, uint32_t max_iter,
-                                 uint32_t min_update_num) {
+ConnectedComponentLabelingVoxelsZeroCrossing(const VoxelGrid& voxel_grid,
+                                             uint32_t max_iter,
+                                             uint32_t min_update_num) {
   const int64_t num_voxels = static_cast<int64_t>(voxel_grid.get_all().size());
 
   std::vector<int32_t> labels(num_voxels, -1);
 
-  //const std::vector<Eigen::Vector3i> neighbor6_offsets = {
-  //    Eigen::Vector3i(-1, 0, 0), Eigen::Vector3i(1, 0, 0),
-  //    Eigen::Vector3i(0, -1, 0), Eigen::Vector3i(0, 1, 0),
-  //    Eigen::Vector3i(0, 0, -1), Eigen::Vector3i(0, 0, 1)};
+  // const std::vector<Eigen::Vector3i> neighbor6_offsets = {
+  //     Eigen::Vector3i(-1, 0, 0), Eigen::Vector3i(1, 0, 0),
+  //     Eigen::Vector3i(0, -1, 0), Eigen::Vector3i(0, 1, 0),
+  //     Eigen::Vector3i(0, 0, -1), Eigen::Vector3i(0, 0, 1)};
   const std::vector<Eigen::Vector3i> neighbor8_offsets = {
       Eigen::Vector3i(-1, -1, -1), Eigen::Vector3i(0, -1, -1),
       Eigen::Vector3i(-1, 0, -1),  Eigen::Vector3i(0, 0, -1),
@@ -580,12 +581,12 @@ ConnectedComponentLabelingVoxelsZeroCrossing(const VoxelGrid& voxel_grid, uint32
         has_pos = true;
       }
 
-      //if (voxel.sdf * neighbor_voxel.sdf < 0.f) {
-      //  occupied_flags[i] = true;
-      //}
-      //if (voxel.sdf < 0.5f) {
-      //  edges[i][j] = neighbor_flat_idx;
-      //}
+      // if (voxel.sdf * neighbor_voxel.sdf < 0.f) {
+      //   occupied_flags[i] = true;
+      // }
+      // if (voxel.sdf < 0.5f) {
+      //   edges[i][j] = neighbor_flat_idx;
+      // }
       edges[i][j] = neighbor_flat_idx;
     }
     if (has_pos && has_neg) {
@@ -611,8 +612,8 @@ ConnectedComponentLabelingVoxelsZeroCrossing(const VoxelGrid& voxel_grid, uint32
   const int64_t active_size = static_cast<int64_t>(active.size());
 
   const auto vnum = voxel_grid.voxel_num();
-  const int64_t nx = vnum.x(), ny = vnum.y(), nz = vnum.z();
-  const int64_t xys = voxel_grid.xy_slice_num();
+  // const int64_t nx = vnum.x(), ny = vnum.y(), nz = vnum.z();
+  // const int64_t xys = voxel_grid.xy_slice_num();
   const auto* voxels = voxel_grid.get_all().data();
 
   std::vector<int32_t> prev_labels = labels;
@@ -627,7 +628,7 @@ ConnectedComponentLabelingVoxelsZeroCrossing(const VoxelGrid& voxel_grid, uint32
       const int64_t i = active[t];
 
       int32_t label = prev_labels[i];
-      const auto& voxel = voxels[i];
+      // const auto& voxel = voxels[i];
 
       for (const auto& j : edges[i]) {
         if (j < 0) {
@@ -653,8 +654,8 @@ ConnectedComponentLabelingVoxelsZeroCrossing(const VoxelGrid& voxel_grid, uint32
 
     prev_labels.swap(labels);
 
-    //std::cout << "Connected Component Labeling iteration " << iter
-    //          << " changed voxels: " << changed_sum << std::endl;
+    // std::cout << "Connected Component Labeling iteration " << iter
+    //           << " changed voxels: " << changed_sum << std::endl;
   }
 
   // Reassign labels
@@ -684,12 +685,13 @@ ConnectedComponentLabelingVoxelsZeroCrossing(const VoxelGrid& voxel_grid, uint32
     counts[l]++;
   }
 
-  //std::cout << "Connected Component Labeling found " << unique_labels.size() + 1
-  //          << " components." << std::endl;
-  //for (size_t i = 0; i < counts.size(); ++i) {
-  //  std::cout << "  Label " << i << ": " << counts[i] << " voxels."
-  //            << std::endl;
-  //}
+  // std::cout << "Connected Component Labeling found " << unique_labels.size()
+  // + 1
+  //           << " components." << std::endl;
+  // for (size_t i = 0; i < counts.size(); ++i) {
+  //   std::cout << "  Label " << i << ": " << counts[i] << " voxels."
+  //             << std::endl;
+  // }
 
   return std::make_tuple(labels, counts);
 }
@@ -751,9 +753,6 @@ ConnectedComponentLabelingVoxels(const VoxelGrid& voxel_grid,
 
       Eigen::Vector3i(-1, -1, 0),  Eigen::Vector3i(0, -1, 0),
       Eigen::Vector3i(-1, 0, 0)};
-
-
-
 
   std::vector<Eigen::Vector3i> neighbor_offsets;
   if (neighbors_27) {
@@ -828,7 +827,7 @@ ConnectedComponentLabelingVoxels(const VoxelGrid& voxel_grid,
   for (; iter <= max_iter; ++iter) {
     int changed_sum = 0;
 
-//#pragma omp parallel for reduction(+ : changed_sum)
+    // #pragma omp parallel for reduction(+ : changed_sum)
     for (int64_t t = 0; t < active_size; ++t) {
       const int64_t i = active[t];
 
@@ -864,9 +863,9 @@ ConnectedComponentLabelingVoxels(const VoxelGrid& voxel_grid,
   }
 #endif
 
-   std::cout << "Connected Component Labeling converged at iter: " << iter
-             << " / " << max_iter << ", initial num_labels: " << num_labels
-             << std::endl;
+  std::cout << "Connected Component Labeling converged at iter: " << iter
+            << " / " << max_iter << ", initial num_labels: " << num_labels
+            << std::endl;
 
   // Reassign labels
   std::vector<int32_t> unique_labels = labels;

@@ -104,7 +104,7 @@ class VoxelGrid {
   const Voxel& get(int x, int y, int z) const;
   Voxel* get_ptr(int x, int y, int z);
   std::vector<Voxel>& get_all();
-  const std::vector<Voxel>& VoxelGrid::get_all() const;
+  const std::vector<Voxel>& get_all() const;
   Eigen::Vector3f resolution() const;
   void ResetOnSurface();
   bool initialized() const;
