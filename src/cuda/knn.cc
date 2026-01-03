@@ -1,5 +1,7 @@
 #include "ugu/cuda/knn.h"
 
+#include <cassert>
+
 #ifdef UGU_USE_CUDA
 #include <cuda_runtime.h>
 

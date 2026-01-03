@@ -28,7 +28,7 @@ void my_umeyama(const Eigen::MatrixBase<Derived>& src,
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
 
   enum {
-    Dimension = EIGEN_SIZE_MIN_PREFER_DYNAMIC(Derived::RowsAtCompileTime,
+    Dimension = internal::min_size_prefer_dynamic(Derived::RowsAtCompileTime,
                                               OtherDerived::RowsAtCompileTime)
   };
 

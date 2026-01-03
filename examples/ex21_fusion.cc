@@ -12,6 +12,8 @@
 #include "ugu/cuda/voxel.h"
 #endif
 
+#include "ugu/external/external.h"
+
 #include "ugu/image_io.h"
 #include "ugu/image_proc.h"
 #include "ugu/plane.h"
