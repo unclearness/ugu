@@ -296,7 +296,7 @@ inline uint64_t MakeEdgeKey(int a, int b) {
   return (static_cast<uint64_t>(v0) << 32) | v1;
 }
 
-void BuildFaceAdjacencyCSRParallel_TwoPass(
+void BuildFaceAdjacencyCSRParallelTwoPass(
     const std::vector<Eigen::Vector3i>& faces, std::vector<int>& offsets,
     std::vector<int>& neighbors) {
   int num_faces = static_cast<int>(faces.size());
@@ -393,7 +393,7 @@ struct EdgeRec {
   int face;
 };
 
-static std::vector<std::array<int, 3>> build_face_adjacency_by_shared_edge(
+static std::vector<std::array<int, 3>> BuildFaceAdjacencyBySharedEdge(
     const std::vector<Eigen::Vector3i>& tris) {
   const int F = (int)tris.size();
   std::vector<EdgeRec> edges;
@@ -461,7 +461,7 @@ static std::vector<int> approx_labels_k_iters(
   return label;
 }
 #else
-static std::vector<int> approx_labels_k_iters(
+static std::vector<int> PropagateLabels(
     const std::vector<std::array<int, 3>>& nbr, int K) {
   const int F = (int)nbr.size();
   std::vector<int> label(F), next(F);
@@ -500,8 +500,8 @@ static std::vector<int> approx_labels_k_iters(
 // 小さい成分の面を落とす
 // =======================
 
-static std::vector<uint8_t> build_face_keep_mask(const std::vector<int>& label,
-                                                 int min_faces) {
+static std::vector<uint8_t> BuildFaceKeepMask(const std::vector<int>& label,
+                                              int min_faces) {
   const int F = (int)label.size();
   std::vector<int> order(F);
   std::iota(order.begin(), order.end(), 0);
@@ -527,12 +527,11 @@ static std::vector<uint8_t> build_face_keep_mask(const std::vector<int>& label,
 // 頂点削除 + インデックス詰め
 // =======================
 
-static void compact_vertices_and_faces(
-    const std::vector<Eigen::Vector3f>& verts,
-    const std::vector<Eigen::Vector3i>& tris,
-    const std::vector<uint8_t>& face_keep,
-    std::vector<Eigen::Vector3f>& out_verts,
-    std::vector<Eigen::Vector3i>& out_tris) {
+static void CompactVerticesAndFaces(const std::vector<Eigen::Vector3f>& verts,
+                                    const std::vector<Eigen::Vector3i>& tris,
+                                    const std::vector<uint8_t>& face_keep,
+                                    std::vector<Eigen::Vector3f>& out_verts,
+                                    std::vector<Eigen::Vector3i>& out_tris) {
   const int V = (int)verts.size();
   const int F = (int)tris.size();
 
@@ -568,7 +567,7 @@ static void compact_vertices_and_faces(
   }
 }
 
-static void compact_vertices_and_faces_and_facenormals(
+static void CompactVerticesAndFacesAndFacenormals(
     const std::vector<Eigen::Vector3f>& verts,
     const std::vector<Eigen::Vector3i>& tris,
     const std::vector<Eigen::Vector3f>& fnormals,
@@ -2191,7 +2190,7 @@ void BuildFaceAdjacencyCSR(const std::vector<Eigen::Vector3i>& faces,
 void BuildFaceAdjacencyCSRParallel(const std::vector<Eigen::Vector3i>& faces,
                                    std::vector<int>& offsets,
                                    std::vector<int>& neighbors) {
-  BuildFaceAdjacencyCSRParallel_TwoPass(faces, offsets, neighbors);
+  BuildFaceAdjacencyCSRParallelTwoPass(faces, offsets, neighbors);
 }
 
 void RemoveSmallConnectedComponentsParallel(
@@ -2199,10 +2198,10 @@ void RemoveSmallConnectedComponentsParallel(
     const std::vector<Eigen::Vector3i>& tris, int K, int min_faces,
     std::vector<Eigen::Vector3f>& out_verts,
     std::vector<Eigen::Vector3i>& out_tris) {
-  auto nbr = build_face_adjacency_by_shared_edge(tris);
-  auto labels = approx_labels_k_iters(nbr, K);
-  auto face_keep = build_face_keep_mask(labels, min_faces);
-  compact_vertices_and_faces(verts, tris, face_keep, out_verts, out_tris);
+  auto nbr = BuildFaceAdjacencyBySharedEdge(tris);
+  auto labels = PropagateLabels(nbr, K);
+  auto face_keep = BuildFaceKeepMask(labels, min_faces);
+  CompactVerticesAndFaces(verts, tris, face_keep, out_verts, out_tris);
 }
 
 void RemoveSmallConnectedComponentsParallel(
@@ -2212,11 +2211,11 @@ void RemoveSmallConnectedComponentsParallel(
     std::vector<Eigen::Vector3f>& out_verts,
     std::vector<Eigen::Vector3i>& out_tris,
     std::vector<Eigen::Vector3f>& out_fnormals) {
-  auto nbr = build_face_adjacency_by_shared_edge(tris);
-  auto labels = approx_labels_k_iters(nbr, K);
-  auto face_keep = build_face_keep_mask(labels, min_faces);
-  compact_vertices_and_faces_and_facenormals(verts, tris, fnormals, face_keep,
-                                             out_verts, out_tris, out_fnormals);
+  auto nbr = BuildFaceAdjacencyBySharedEdge(tris);
+  auto labels = PropagateLabels(nbr, K);
+  auto face_keep = BuildFaceKeepMask(labels, min_faces);
+  CompactVerticesAndFacesAndFacenormals(verts, tris, fnormals, face_keep,
+                                        out_verts, out_tris, out_fnormals);
 }
 
 }  // namespace ugu

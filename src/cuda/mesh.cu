@@ -370,9 +370,9 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   thrust::sort_by_key(thrust::cuda::par.on(stream), d_edge_key.begin(),
                       d_edge_key.end(), d_edge_face.begin());
 #else
-  static thrust::device_vector<uint64_t> d_edge_key_tmp;
-  static thrust::device_vector<int> d_edge_face_tmp;
-  static thrust::device_vector<uint8_t> d_sort_tmp_storage;
+  thrust::device_vector<uint64_t> d_edge_key_tmp;
+  thrust::device_vector<int> d_edge_face_tmp;
+  thrust::device_vector<uint8_t> d_sort_tmp_storage;
 
   sort_edges_by_key_cub(d_edge_key, d_edge_face, d_edge_key_tmp,
                         d_edge_face_tmp, d_sort_tmp_storage, stream);
