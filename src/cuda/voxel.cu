@@ -419,8 +419,8 @@ struct VoxelCudaNaive {
   // float3 col{0.0f, 0.0f, 0.0f};
   float sdf_sum{0.f};  // Signed Distance Function (SDF) value
   int update_num{0};
-  VoxelCudaNaive(){};
-  ~VoxelCudaNaive(){};
+  VoxelCudaNaive() {};
+  ~VoxelCudaNaive() {};
 };
 
 //
@@ -1310,8 +1310,8 @@ __global__ void LabelFromScanKernel(const uint8_t* occ, const int* scan,
   labels[i] = occ[i] ? scan[i] : -1;
 }
 
-__global__ void LabelPropagationOneIter(int* next_labels,        // 書き出し
-                                        const int* prev_labels,  // 読み出し
+__global__ void LabelPropagationOneIter(int* next_labels,         // 書き出し
+                                        const int* prev_labels,   // 読み出し
                                         const uint8_t* occupied,  // 0/1
                                         int nx, int ny, int nz,
                                         int neighbors_27,
@@ -2572,7 +2572,7 @@ void MeshHostDevice::Reseave(int max_vertex_count_, int max_index_count_) {
 
 class VoxelGridCudaHashing::Impl {
  public:
-  Impl(){};
+  Impl() {};
 
   // コンストラクタ：ハッシュテーブルサイズ、VoxelBlock配列の最大個数、トランケーション幅mu、1ボクセルの大きさを指定
   Impl(int hashTableSize, int voxelBlockCount, float mu, float voxelSize)
@@ -3252,7 +3252,7 @@ class VoxelGridCudaNaive::Impl {
 
   void RemoveSmallConnectedComponents(int max_iter, int min_faces,
                                       int early_exit_check_interval) {
-    if (num_faces_ < 1) {
+    if (num_faces_ < 1 || num_vertices_ < 3) {
       return;
     }
 
@@ -3265,14 +3265,8 @@ class VoxelGridCudaNaive::Impl {
 
     cudaStream_t stream = 0;
 
-    Timer timer;
-
-    timer.Start();
-
     d_mesh_process_buf_.EnsureCapacity(num_faces_, num_vertices_);
-    timer.End();
-    // std::cout << "EnsureCapacity: " << timer.elapsed_msec() << " ms"
-    //           << std::endl;
+
     ugu::RemoveSmallConnectedComponents(mesh_in, max_iter, min_faces,
                                         early_exit_check_interval, mesh_out,
                                         d_mesh_process_buf_, stream);
@@ -3295,17 +3289,12 @@ class VoxelGridCudaNaive::Impl {
     }
     checkCudaErrors(cudaStreamSynchronize(stream));
     checkCudaErrors(cudaGetLastError());
-
-    // cudaFree(mesh_out.d_faces);
-    // cudaFree(mesh_out.d_vertices);
-    // cudaFree(mesh_out.d_face_normals);
-    // checkCudaErrors(cudaGetLastError());
   }
 
   void ComputeVertexNormals() {
     // Zero clear for summation
 
-    if (num_vertices_ < 3) {
+    if (num_faces_ < 1 || num_vertices_ < 3) {
       return;
     }
     cudaMemset(d_vertex_normals, 0, sizeof(float3) * num_vertices_);
@@ -3327,7 +3316,7 @@ class VoxelGridCudaNaive::Impl {
 
   void SmoothFaceNormalsWithVertexNormals() {
     // Return if no faces
-    if (num_faces_ < 1) {
+    if (num_faces_ < 1 || num_vertices_ < 3) {
       return;
     }
 
@@ -3531,17 +3520,12 @@ class VoxelGridCudaNaive::Impl {
   }
 
   void SetFaceNormalsGpu(const std::vector<Eigen::Vector3f>& face_normals) {
-    // num_faces_ = static_cast<int>(faces.size());
+    // SetFacesGpu() must be called before this fuction to ensure #faces
+    assert(num_faces_ == static_cast<int>(face_normals.size()));
 
-    // EnsureTriangleMemory(num_faces_ * 3);
-
-    // int h_idxCounter = num_faces_ * 3;
-    // cudaMemcpy(d_idxCounter, &h_idxCounter, sizeof(int),
-    //            cudaMemcpyHostToDevice);
-
-    // if (num_faces_ < 1) {
-    //   return;
-    // }
+    if (num_faces_ < 1) {
+      return;
+    }
 
     for (int i = 0; i < num_faces_; ++i) {
       h_face_normals_pinned[i].x = face_normals[i].x();

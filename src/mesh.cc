@@ -25,6 +25,8 @@
 #ifdef _WIN32
 #pragma warning(pop)
 #endif
+#else
+#include "./obj_loader_simple.hpp"
 #endif
 
 namespace {
@@ -79,6 +81,102 @@ bool WriteTexture(const std::vector<ugu::ObjMaterial>& materials) {
 
   return ret;
 }
+
+void ConvertObjToEigen(const std::vector<std::array<float, 3>>& verts,
+                       const std::vector<std::array<float, 2>>& uvs,
+                       const std::vector<std::array<float, 3>>& normals,
+                       const std::vector<std::array<float, 3>>& vert_colors,
+                       const std::vector<std::vector<int>>& indices,
+                       const std::vector<std::vector<int>>& uv_indices,
+                       const std::vector<std::vector<int>>& normal_indices,
+
+                       std::vector<Eigen::Vector3f>& vertices_,
+                       std::vector<Eigen::Vector3f>& vertex_colors_,
+                       std::vector<Eigen::Vector3i>& vertex_indices_,
+
+                       std::vector<Eigen::Vector3f>& normals_,
+                       std::vector<Eigen::Vector3f>& face_normals_,
+                       std::vector<Eigen::Vector3i>& normal_indices_,
+
+                       std::vector<Eigen::Vector2f>& uv_,
+                       std::vector<Eigen::Vector3i>& uv_indices_) {
+  /* -----------------------------
+   * vertices / colors
+   * ----------------------------- */
+  vertices_.reserve(verts.size());
+  for (const auto& v : verts) {
+    vertices_.emplace_back(v[0], v[1], v[2]);
+  }
+
+  if (!vert_colors.empty()) {
+    vertex_colors_.reserve(vert_colors.size());
+    for (const auto& c : vert_colors) {
+      vertex_colors_.emplace_back(c[0], c[1], c[2]);
+    }
+  }
+
+  /* -----------------------------
+   * normals (per vertex)
+   * ----------------------------- */
+  normals_.reserve(normals.size());
+  for (const auto& n : normals) {
+    normals_.emplace_back(n[0], n[1], n[2]);
+  }
+
+  /* -----------------------------
+   * uvs
+   * ----------------------------- */
+  uv_.reserve(uvs.size());
+  for (const auto& t : uvs) {
+    uv_.emplace_back(t[0], t[1]);
+  }
+
+  /* -----------------------------
+   * faces (fan triangulation)
+   * ----------------------------- */
+  const size_t face_count = indices.size();
+
+  for (size_t f = 0; f < face_count; ++f) {
+    const auto& face = indices[f];
+    if (face.size() < 3) continue;
+
+    const bool has_uv =
+        (f < uv_indices.size() && uv_indices[f].size() == face.size());
+    const bool has_n =
+        (f < normal_indices.size() && normal_indices[f].size() == face.size());
+
+    // fan triangulation: (0, i, i+1)
+    for (size_t i = 1; i + 1 < face.size(); ++i) {
+      Eigen::Vector3i tri_v(face[0], face[i], face[i + 1]);
+      vertex_indices_.push_back(tri_v);
+
+      if (has_uv) {
+        const auto& uvf = uv_indices[f];
+        uv_indices_.emplace_back(uvf[0], uvf[i], uvf[i + 1]);
+      }
+
+      if (has_n) {
+        const auto& nf = normal_indices[f];
+        normal_indices_.emplace_back(nf[0], nf[i], nf[i + 1]);
+      }
+
+      /* -----------------------------
+       * face normal
+       * ----------------------------- */
+      const Eigen::Vector3f& v0 = vertices_[tri_v[0]];
+      const Eigen::Vector3f& v1 = vertices_[tri_v[1]];
+      const Eigen::Vector3f& v2 = vertices_[tri_v[2]];
+
+      Eigen::Vector3f fn = (v1 - v0).cross(v2 - v0);
+
+      if (fn.norm() > 1e-12f) {
+        fn.normalize();
+      }
+      face_normals_.push_back(fn);
+    }
+  }
+}
+
 }  // namespace
 
 namespace ugu {
@@ -735,10 +833,76 @@ bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
 }
 #else
 bool Mesh::LoadObj(const std::string& obj_path, const std::string& mtl_dir) {
-  (void)obj_path;
-  (void)mtl_dir;
-  LOGE("can't load obj with this configuration\n");
-  return false;
+  Clear();
+  std::string mtl_dir_ = mtl_dir;
+  if (mtl_dir_.empty()) {
+    mtl_dir_ = ExtractDir(obj_path);
+  }
+  auto obj_data = obj_loader_simple::LoadObjSimple(obj_path, mtl_dir_);
+
+  ConvertObjToEigen(obj_data.verts, obj_data.uvs, obj_data.normals,
+                    obj_data.vert_colors, obj_data.indices, obj_data.uv_indices,
+                    obj_data.normal_indices, vertices_, vertex_colors_,
+                    vertex_indices_, normals_, face_normals_, normal_indices_,
+                    uv_, uv_indices_);
+
+  std::unordered_map<std::string, int> mtl_name2id;
+  int mat_id = 0;
+  for (const auto& mtl : obj_data.mtls) {
+    ObjMaterial mat;
+    mat.name = mtl.name;
+    mat.diffuse[0] = mtl.Kd[0];
+    mat.diffuse[1] = mtl.Kd[1];
+    mat.diffuse[2] = mtl.Kd[2];
+
+    mat.ambient[0] = mtl.Ka[0];
+    mat.ambient[1] = mtl.Ka[1];
+    mat.ambient[2] = mtl.Ka[2];
+
+    mat.specular[0] = mtl.Ks[0];
+    mat.specular[1] = mtl.Ks[1];
+    mat.specular[2] = mtl.Ks[2];
+
+    mat.illum = mtl.illum;
+    mat.shininess = mtl.Ns;
+    mat.dissolve = 1.f - mtl.Tr;
+    mat.diffuse_texname = mtl.map_Kd;
+    if (mat.diffuse_texname != "") {
+      mat.diffuse_texpath = mtl_dir_ + mat.diffuse_texname;
+      std::ifstream ifs(mat.diffuse_texpath);
+      if (ifs.is_open()) {
+#if defined(UGU_USE_STB) || defined(UGU_USE_OPENCV)
+        // todo: force convert to Image3b
+        materials_[i].diffuse_tex =
+            Imread<Image3b>(materials_[i].diffuse_texpath);
+        ret = !materials_[i].diffuse_tex.empty();
+#else
+        LOGW("define UGU_USE_STB to load diffuse texture.\n");
+#endif
+      } else {
+        LOGW("diffuse texture doesn't exist %s\n", mat.diffuse_texpath.c_str());
+      }
+    }
+    materials_.push_back(mat);
+    mtl_name2id[mat.name] = mat_id;
+    mat_id++;
+  }
+
+  face_indices_per_material_.resize(materials_.size());
+  for (const auto& mtl_per_face : obj_data.mtl_per_faces) {
+    const int mat_id_ = mtl_name2id[mtl_per_face.first];
+    face_indices_per_material_[mat_id_] = mtl_per_face.second;
+  }
+
+  material_ids_.resize(vertex_indices_.size());
+  for (int i = 0; i < static_cast<int>(face_indices_per_material_.size());
+       i++) {
+    for (size_t j = 0; j < face_indices_per_material_[i].size(); j++) {
+      material_ids_[face_indices_per_material_[i][j]] = i;
+    }
+  }
+
+  return true;
 }
 #endif
 

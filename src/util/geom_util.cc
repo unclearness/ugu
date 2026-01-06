@@ -393,7 +393,7 @@ struct EdgeRec {
   int face;
 };
 
-static std::vector<std::array<int, 3>> BuildFaceAdjacencyBySharedEdge(
+std::vector<std::array<int, 3>> BuildFaceAdjacencyBySharedEdge(
     const std::vector<Eigen::Vector3i>& tris) {
   const int F = (int)tris.size();
   std::vector<EdgeRec> edges;
@@ -439,7 +439,7 @@ static std::vector<std::array<int, 3>> BuildFaceAdjacencyBySharedEdge(
 // K 回ラベル伝播（近似 CC）
 // =======================
 #if 0
-static std::vector<int> approx_labels_k_iters(
+ std::vector<int> approx_labels_k_iters(
     const std::vector<std::array<int, 3>>& nbr, int K) {
   const int F = (int)nbr.size();
   std::vector<int> label(F), next(F);
@@ -461,8 +461,8 @@ static std::vector<int> approx_labels_k_iters(
   return label;
 }
 #else
-static std::vector<int> PropagateLabels(
-    const std::vector<std::array<int, 3>>& nbr, int K) {
+std::vector<int> PropagateLabels(const std::vector<std::array<int, 3>>& nbr,
+                                 int K) {
   const int F = (int)nbr.size();
   std::vector<int> label(F), next(F);
   std::iota(label.begin(), label.end(), 0);
@@ -499,9 +499,8 @@ static std::vector<int> PropagateLabels(
 // =======================
 // 小さい成分の面を落とす
 // =======================
-
-static std::vector<uint8_t> BuildFaceKeepMask(const std::vector<int>& label,
-                                              int min_faces) {
+std::vector<uint8_t> BuildFaceKeepMask(const std::vector<int>& label,
+                                       int min_faces) {
   const int F = (int)label.size();
   std::vector<int> order(F);
   std::iota(order.begin(), order.end(), 0);
@@ -527,11 +526,11 @@ static std::vector<uint8_t> BuildFaceKeepMask(const std::vector<int>& label,
 // 頂点削除 + インデックス詰め
 // =======================
 
-static void CompactVerticesAndFaces(const std::vector<Eigen::Vector3f>& verts,
-                                    const std::vector<Eigen::Vector3i>& tris,
-                                    const std::vector<uint8_t>& face_keep,
-                                    std::vector<Eigen::Vector3f>& out_verts,
-                                    std::vector<Eigen::Vector3i>& out_tris) {
+void CompactVerticesAndFaces(const std::vector<Eigen::Vector3f>& verts,
+                             const std::vector<Eigen::Vector3i>& tris,
+                             const std::vector<uint8_t>& face_keep,
+                             std::vector<Eigen::Vector3f>& out_verts,
+                             std::vector<Eigen::Vector3i>& out_tris) {
   const int V = (int)verts.size();
   const int F = (int)tris.size();
 
