@@ -26,6 +26,10 @@ __constant__ float d_cy[MAX_IMAGES];
 __constant__ float d_R[MAX_IMAGES * 9];
 __constant__ float d_t[MAX_IMAGES * 3];
 
+// world to camera transformation
+__constant__ float d_R_inv[MAX_IMAGES * 9];
+__constant__ float d_t_inv[MAX_IMAGES * 3];
+
 // 定数
 #define BLOCK_SIZE 8  // 各VoxelBlockは BLOCK_SIZE^3 個のVoxelを持つ
 
@@ -1031,6 +1035,90 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
   }
 }
 #endif
+
+__global__ void FuseDepthMultiKernelNaiveVoxelBased(
+    const float* d_depth, int width, int height, int num_images,
+    VoxelCudaNaive* d_voxel_, float3 voxel_size, float3 bb_max, float3 bb_min,
+    int3 voxel_num, float truncation_band, float weight) {
+  int x_index = blockIdx.x * blockDim.x + threadIdx.x;
+  int y_index = blockIdx.y * blockDim.y + threadIdx.y;
+  int z_index = blockIdx.z * blockDim.z + threadIdx.z;
+
+  if (x_index < 0 || voxel_num.x <= x_index || y_index < 0 ||
+      voxel_num.y <= y_index || z_index < 0 || voxel_num.z <= z_index) {
+    return;
+  }
+
+  float3 voxel_pos;
+  voxel_pos.x = bb_min.x + x_index * voxel_size.x;
+  voxel_pos.y = bb_min.y + y_index * voxel_size.y;
+  voxel_pos.z = bb_min.z + z_index * voxel_size.z;
+
+  int vidx =
+      x_index + y_index * voxel_num.x + z_index * voxel_num.x * voxel_num.y;
+  VoxelCudaNaive* voxel = &d_voxel_[vidx];
+
+  for (int n = 0; n < num_images; n++) {
+    const float* R_inv = &d_R_inv[n * 9];
+    const float* t_inv = &d_t_inv[n * 3];
+
+    float3 voxel_pos_cam;
+    voxel_pos_cam.z = voxel_pos.x * R_inv[6] + voxel_pos.y * R_inv[7] +
+                      voxel_pos.z * R_inv[8] + t_inv[2];
+
+    voxel_pos_cam.x = voxel_pos.x * R_inv[0] + voxel_pos.y * R_inv[1] +
+                      voxel_pos.z * R_inv[2] + t_inv[0];
+
+    // int x = roundf(voxel_pos_cam.x);
+
+    voxel_pos_cam.y = voxel_pos.x * R_inv[3] + voxel_pos.y * R_inv[4] +
+                      voxel_pos.z * R_inv[5] + t_inv[1];
+    // int y = roundf(voxel_pos_cam.y);
+
+    const float fx = d_fx[n];
+    const float fy = d_fy[n];
+    const float cx = d_cx[n];
+    const float cy = d_cy[n];
+
+    float u_f = voxel_pos_cam.x * fx / voxel_pos_cam.z + cx + 0.5f;
+    float v_f = voxel_pos_cam.y * fy / voxel_pos_cam.z + cy + 0.5f;
+
+    int x = roundf(u_f);
+    int y = roundf(v_f);
+
+    if (voxel_pos_cam.z < 0 || x < 0 || width <= x || y < 0 || height <= y) {
+      continue;
+    }
+
+    int img_idx = (n * height + y) * width + x;
+
+    float d = d_depth[img_idx];
+
+    if (d <= 0) {
+      continue;
+    }
+
+    float sdf_cam = d - voxel_pos_cam.z;
+    float xn = (x - cx) / fx;
+    float yn = (y - cy) / fy;
+    float sdf = sdf_cam * sqrtf(xn * xn + yn * yn + 1.f);
+
+#if 0
+    // TODO: With normal
+    float d_dot_n = dot(diff, normal);
+    float dist = d_dot_n;
+#endif
+
+    if (sdf >= -truncation_band) {
+      sdf = fminf(1.0f, sdf / truncation_band);
+    } else {
+      continue;
+    }
+
+    voxel->sdf_sum += sdf * weight;
+    voxel->update_num += 1;
+  }
+}
 
 __global__ void FuseDepthMultiKernelNaive(const float* d_depth, int width,
                                           int height, int num_images,
@@ -2929,8 +3017,35 @@ class VoxelGridCudaNaive::Impl {
     cudaMemcpyToSymbol(d_cx, h_cx, num_images * sizeof(float));
     cudaMemcpyToSymbol(d_cy, h_cy, num_images * sizeof(float));
 
+    std::vector<float> h_R_inv(num_images * 9);
+    std::vector<float> h_t_inv(num_images * 3);
+
+    for (int n = 0; n < num_images; n++) {
+      const float* R = &h_R[n * 9];
+      float* R_inv = &h_R_inv.data()[n * 9];
+      // Inverse rotation matrix
+      R_inv[0] = R[0];
+      R_inv[1] = R[3];
+      R_inv[2] = R[6];
+      R_inv[3] = R[1];
+      R_inv[4] = R[4];
+      R_inv[5] = R[7];
+      R_inv[6] = R[2];
+      R_inv[7] = R[5];
+      R_inv[8] = R[8];
+
+      const float* t = &h_t[n * 3];
+      float* t_inv = &h_t_inv.data()[n * 3];
+      // Inverse translation vector
+      t_inv[0] = -(R_inv[0] * t[0] + R_inv[1] * t[1] + R_inv[2] * t[2]);
+      t_inv[1] = -(R_inv[3] * t[0] + R_inv[4] * t[1] + R_inv[5] * t[2]);
+      t_inv[2] = -(R_inv[6] * t[0] + R_inv[7] * t[1] + R_inv[8] * t[2]);
+    }
+
     if (h_R != nullptr) {
       cudaMemcpyToSymbol(d_R, h_R, num_images * 9 * sizeof(float));
+      cudaMemcpyToSymbol(d_R_inv, h_R_inv.data(),
+                         num_images * 9 * sizeof(float));
     } else {
       std::vector<float> h_R_vec(num_images * 9, 0.0f);
       for (int i = 0; i < num_images; ++i) {
@@ -2940,13 +3055,19 @@ class VoxelGridCudaNaive::Impl {
       }
       // Identity matrix
       cudaMemcpyToSymbol(d_R, h_R_vec.data(), num_images * 9 * sizeof(float));
+      cudaMemcpyToSymbol(d_R_inv, h_R_vec.data(),
+                         num_images * 9 * sizeof(float));
     }
     if (h_t != nullptr) {
       cudaMemcpyToSymbol(d_t, h_t, num_images * 3 * sizeof(float));
+      cudaMemcpyToSymbol(d_t_inv, h_t_inv.data(),
+                         num_images * 3 * sizeof(float));
     } else {
       // Zero vector
       std::vector<float> h_t_vec(num_images * 3, 0.0f);
       cudaMemcpyToSymbol(d_t, h_t_vec.data(), num_images * 3 * sizeof(float));
+      cudaMemcpyToSymbol(d_t_inv, h_t_vec.data(),
+                         num_images * 3 * sizeof(float));
     }
 
     // TODO: Size/Num reset API
@@ -2956,6 +3077,7 @@ class VoxelGridCudaNaive::Impl {
     cudaMemcpy(d_depth, h_depth, sizeof(float) * width * height * num_images,
                cudaMemcpyHostToDevice);
 
+#if 0
     dim3 block(16, 16, 1);
     dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y,
               num_images);
@@ -2963,7 +3085,15 @@ class VoxelGridCudaNaive::Impl {
         d_depth, width, height, num_images, d_voxels_, resolution_, bb_max_,
         bb_min_, voxel_num_, option.truncation_band, option.weight,
         option.sample_num, option.nn_range);
-
+#else
+    dim3 block(8, 8, 2);
+    dim3 grid((voxel_num_.x + block.x - 1) / block.x,
+              (voxel_num_.y + block.y - 1) / block.y,
+              (voxel_num_.z + block.z - 1) / block.z);
+    FuseDepthMultiKernelNaiveVoxelBased<<<grid, block>>>(
+        d_depth, width, height, num_images, d_voxels_, resolution_, bb_max_,
+        bb_min_, voxel_num_, option.truncation_band, option.weight);
+#endif
     checkCudaErrors(cudaGetLastError());
     if (sync) {
       checkCudaErrors(cudaDeviceSynchronize());
