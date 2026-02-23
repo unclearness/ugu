@@ -2418,11 +2418,10 @@ __device__ const int edgeCorners[12][2] = {
 };
 
 __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
-                                    float3 resolution,
-                                    int3 vn,  // voxel_num
-                                    float iso_level, int* d_edgeVertexIds,
-                                    int* d_vtxCounter, float3* d_vertices,
-                                    float weight, int max_vertices_num) {
+                                    float3 resolution, int3 vn, float iso_level,
+                                    int* d_edgeVertexIds, int* d_vtxCounter,
+                                    float3* d_vertices, float weight,
+                                    int max_vertices_num, int* d_overflow) {
   int ix = blockIdx.x * blockDim.x + threadIdx.x;
   int iy = blockIdx.y * blockDim.y + threadIdx.y;
   int iz = blockIdx.z * blockDim.z + threadIdx.z;
@@ -2434,31 +2433,31 @@ __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
   int edges = d_edgeTable[cubeIndex];
   if (edges == 0) return;
 
-  // ベースとなる flat インデックス
-  // int baseFlat = iz * vn.y * vn.x + iy * vn.x + ix;
-
   for (int e = 0; e < 12; e++) {
     if (!(edges & (1 << e))) continue;
 
-    // 1) エッジキーを計算して頂点IDテーブルを予約
     int key = computeEdgeKey(ix, iy, iz, e, vn.x, vn.y, vn.z);
-    int old = atomicCAS(&d_edgeVertexIds[key], -1, 0);
-    if (old != -1) continue;  // 既に誰かが生成済み
 
-    // 2) 新しい頂点ID を確保
+    // Acquire ownership of this edge.
+    int old = atomicCAS(&d_edgeVertexIds[key], -1, 0);
+    if (old != -1) continue;  // someone else already owns or created it
+
     int vid = atomicAdd(d_vtxCounter, 1);
 
-    if (max_vertices_num < vid) {
+    // IMPORTANT: bounds check must be vid >= max_vertices_num (0-based).
+    if (vid >= max_vertices_num) {
+      // Roll back the lock so future retries won't see a stale 0.
+      atomicExch(&d_edgeVertexIds[key], -1);
+      atomicExch(d_overflow, 1);
       return;
     }
 
+    // Publish the vertex id.
     atomicExch(&d_edgeVertexIds[key], vid);
 
-    // 3) エッジに対応する 2 つのコーナー番号
     int c0_id = edgeCorners[e][0];
     int c1_id = edgeCorners[e][1];
 
-    // 4) それぞれのコーナーのグリッド座標 (gx,gy,gz) を計算
     int gx0 = ix + cornerOffset[c0_id][0];
     int gy0 = iy + cornerOffset[c0_id][1];
     int gz0 = iz + cornerOffset[c0_id][2];
@@ -2466,19 +2465,25 @@ __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
     int gy1 = iy + cornerOffset[c1_id][1];
     int gz1 = iz + cornerOffset[c1_id][2];
 
-    // 5) flat index に戻す（必要なら使わずに直接 sdf 参照も可）
     int flat0 = gz0 * vn.y * vn.x + gy0 * vn.x + gx0;
     int flat1 = gz1 * vn.y * vn.x + gy1 * vn.x + gx1;
 
-    // 6) 実ワールド座標を計算
+    // Optional safety: avoid division by zero if update_num can be 0.
+    int u0 = voxels[flat0].update_num;
+    int u1 = voxels[flat1].update_num;
+    if (u0 <= 0 || u1 <= 0 || weight == 0.0f) {
+      // Invalidate this edge entry and signal failure (safe fallback).
+      atomicExch(&d_edgeVertexIds[key], -1);
+      atomicExch(d_overflow, 1);
+      return;
+    }
+
     float3 p1 = voxel_idx2pos(make_int3(gx0, gy0, gz0), bb_min, resolution);
     float3 p2 = voxel_idx2pos(make_int3(gx1, gy1, gz1), bb_min, resolution);
 
-    // 7) SDF 値を取得
-    float v1 = voxels[flat0].sdf_sum / float(voxels[flat0].update_num * weight);
-    float v2 = voxels[flat1].sdf_sum / float(voxels[flat1].update_num * weight);
+    float v1 = voxels[flat0].sdf_sum / float(u0 * weight);
+    float v2 = voxels[flat1].sdf_sum / float(u1 * weight);
 
-    // 8) 線形補間で頂点位置を求めて書き込み
     d_vertices[vid] = VertexInterp(p1, p2, v1, v2, iso_level);
   }
 }
@@ -2487,36 +2492,53 @@ __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
 __global__ void BuildFacesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
                                  float3 resolution, int3 vn, float iso_level,
                                  int* d_edgeVertexIds, int* d_idxCounter,
-                                 int* d_faces, int max_faces) {
+                                 int* d_faces, int max_faces, int* d_overflow) {
   int ix = blockIdx.x * blockDim.x + threadIdx.x;
   int iy = blockIdx.y * blockDim.y + threadIdx.y;
   int iz = blockIdx.z * blockDim.z + threadIdx.z;
   if (ix >= vn.x - 1 || iy >= vn.y - 1 || iz >= vn.z - 1) return;
+
   int cubeIndex =
       calcCubeIndex(voxels, ix, iy, iz, vn, bb_min, resolution, iso_level);
   if (cubeIndex < 0) return;
+
   int* tri = (int*)(&d_triTable[cubeIndex][0]);
   for (int i = 0; tri[i] != -1; i += 3) {
     int e0 = tri[i], e1 = tri[i + 1], e2 = tri[i + 2];
+
     int k0 = computeEdgeKey(ix, iy, iz, e0, vn.x, vn.y, vn.z);
     int k1 = computeEdgeKey(ix, iy, iz, e1, vn.x, vn.y, vn.z);
     int k2 = computeEdgeKey(ix, iy, iz, e2, vn.x, vn.y, vn.z);
+
     int v0 = d_edgeVertexIds[k0];
     int v1 = d_edgeVertexIds[k1];
     int v2 = d_edgeVertexIds[k2];
-    int idx = atomicAdd(d_idxCounter, 3);
-    if (max_faces < idx) {
+
+    // Optional safety: if any edge is missing/locked, fail fast.
+    if (v0 < 0 || v1 < 0 || v2 < 0) {
+      atomicExch(d_overflow, 1);
       return;
     }
+
+    int idx = atomicAdd(d_idxCounter, 3);
+
+    // IMPORTANT: idx writes idx, idx+1, idx+2 (0-based).
+    if (idx + 2 >= max_faces) {
+      atomicExch(d_overflow, 1);
+      return;
+    }
+
     d_faces[idx + 0] = v2;
     d_faces[idx + 1] = v1;
     d_faces[idx + 2] = v0;
   }
 }
+
 __global__ void BuildFacesKernelWithNormal(
     const VoxelCudaNaive* voxels, float3 bb_min, float3 resolution, int3 vn,
     float iso_level, int* d_edgeVertexIds, int* d_idxCounter, int* d_faces,
-    float3* d_vertices, float3* d_face_normals, int max_faces) {
+    float3* d_vertices, float3* d_face_normals, int max_faces,
+    int* d_overflow) {
   int ix = blockIdx.x * blockDim.x + threadIdx.x;
   int iy = blockIdx.y * blockDim.y + threadIdx.y;
   int iz = blockIdx.z * blockDim.z + threadIdx.z;
@@ -2534,7 +2556,8 @@ __global__ void BuildFacesKernelWithNormal(
     int v1 = d_edgeVertexIds[k1];
     int v2 = d_edgeVertexIds[k2];
     int idx = atomicAdd(d_idxCounter, 3);
-    if (max_faces < idx) {
+    if (idx + 2 >= max_faces) {
+      atomicExch(d_overflow, 1);
       return;
     }
     d_faces[idx + 0] = v2;
@@ -2959,6 +2982,9 @@ class VoxelGridCudaNaive::Impl {
     cudaMemcpyToSymbol(c_voxel_num, &voxel_num_, sizeof(int3));
     cudaMemcpyToSymbol(c_trunc, &option_.truncation_band, sizeof(float));
 
+    cudaMalloc(&d_overflow_, sizeof(int));
+    cudaMemset(d_overflow_, 0, sizeof(int));
+
     return true;
   }
 
@@ -3331,18 +3357,28 @@ class VoxelGridCudaNaive::Impl {
     constexpr float iso_level = 0.f;
     constexpr int tri_ratio = 2;
     while (true) {
+      cudaMemset(d_overflow_, 0, sizeof(int));
+
       BuildVerticesKernel<<<grid, block>>>(
           d_voxels_, bb_min_, resolution_, voxel_num_, iso_level,
-          d_edgeVertexIds, d_vtxCounter, d_vertices, option_.weight, max_tris_);
+          d_edgeVertexIds, d_vtxCounter, d_vertices, option_.weight, max_tris_,
+          d_overflow_);
+
       checkCudaErrors(cudaGetLastError());
       checkCudaErrors(cudaDeviceSynchronize());
+
+      int h_overflow = 0;
+      cudaMemcpy(&h_overflow, d_overflow_, sizeof(int), cudaMemcpyDeviceToHost);
+
       int h_vcount = 0;
       cudaMemcpy(&h_vcount, d_vtxCounter, sizeof(int), cudaMemcpyDeviceToHost);
-      if (h_vcount < max_tris_) {
+
+      if (h_overflow == 0 && h_vcount <= max_tris_) {
         num_vertices_ = h_vcount;
         break;
       }
-      // If memory is not enough, reallocate
+
+      // Retry (buffer insufficient or kernel signaled overflow)
       cudaMemset(d_vtxCounter, 0, sizeof(int));
       cudaMemset(d_edgeVertexIds, -1, sizeof(int) * numEdges);
       EnsureTriangleVertexMemory(h_vcount * tri_ratio);
@@ -3355,22 +3391,28 @@ class VoxelGridCudaNaive::Impl {
     }
 
     while (true) {
+
+       cudaMemset(d_overflow_, 0, sizeof(int));
+
       if (with_face_normals) {
         BuildFacesKernelWithNormal<<<grid, block>>>(
             d_voxels_, bb_min_, resolution_, voxel_num_, iso_level,
             d_edgeVertexIds, d_idxCounter, d_faces, d_vertices, d_face_normals,
-            max_faces_);
+            max_faces_, d_overflow_);
       } else {
         BuildFacesKernel<<<grid, block>>>(
             d_voxels_, bb_min_, resolution_, voxel_num_, iso_level,
-            d_edgeVertexIds, d_idxCounter, d_faces, max_faces_);
+            d_edgeVertexIds, d_idxCounter, d_faces, max_faces_, d_overflow_);
       }
       checkCudaErrors(cudaGetLastError());
       checkCudaErrors(cudaDeviceSynchronize());
 
+      int h_overflow = 0;
+      cudaMemcpy(&h_overflow, d_overflow_, sizeof(int), cudaMemcpyDeviceToHost);
+
       int h_icount = 0;
       cudaMemcpy(&h_icount, d_idxCounter, sizeof(int), cudaMemcpyDeviceToHost);
-      if (h_icount < max_faces_) {
+      if (h_overflow == 0 && h_icount < max_faces_) {
         num_faces_ = h_icount / 3;
         break;
       }
@@ -3746,6 +3788,11 @@ class VoxelGridCudaNaive::Impl {
     max_tris_ = 0;
 
     d_mesh_process_buf_.Free();
+
+    if (d_overflow_) {
+      cudaFree(d_overflow_);
+      d_overflow_ = nullptr;
+    }
   }
 
   void EnsureTriangleVertexMemory(int tris_num) {
@@ -3815,6 +3862,8 @@ class VoxelGridCudaNaive::Impl {
 
   int num_faces_{0};
   int num_vertices_{0};
+
+  int* d_overflow_ = nullptr;  // device flag: 0 ok, 1 overflow/invalid
 
   ugu::RemoveSmallConnectedComponentsBuf d_mesh_process_buf_;
 };
