@@ -47,7 +47,7 @@ class RemoveSmallConnectedComponentsBuf {
   int num_faces_ = 0;
   int num_vertices_ = 0;
 
-  RemoveSmallConnectedComponentsBuf(){};
+  RemoveSmallConnectedComponentsBuf() {};
   ~RemoveSmallConnectedComponentsBuf() { Free(); }
 
   void EnsureCapacity(int num_faces, int num_vertices) {
@@ -128,4 +128,10 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
                                     MeshDevice& out,
                                     RemoveSmallConnectedComponentsBuf& buf,
                                     cudaStream_t stream = 0);
+
+void BuildFaceAdjacencyNbr3(const int* d_faces, int num_faces,
+                            // workspace (device)
+                            uint64_t* d_edge_key, int* d_edge_face,
+                            // output
+                            int* d_nbr3 /* int[3*num_faces] */);
 }  // namespace ugu

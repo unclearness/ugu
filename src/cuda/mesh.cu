@@ -628,4 +628,46 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   out.num_faces_ = kept_faces;
 }
 
+void BuildFaceAdjacencyNbr3(const int* d_faces, int num_faces,
+                            // workspace (device)
+                            uint64_t* d_edge_key, int* d_edge_face,
+                            // output
+                            int* d_nbr3 /* int[3*num_faces] */) {
+  const int F = num_faces;
+  const int E = 3 * F;
+  const int threads = 256;
+
+  // 1) Edge list
+  {
+    int blocks = (F + threads - 1) / threads;
+    build_edges_from_faces<<<blocks, threads>>>(d_faces, F, d_edge_key,
+                                                d_edge_face);
+    CUDA_CHECK(cudaGetLastError());
+  }
+
+  // 2) Init neighbors to -1
+  {
+    int blocks = (3 * F + threads - 1) / threads;
+    init_int_kernel<<<blocks, threads>>>(d_nbr3, 3 * F, -1);
+    CUDA_CHECK(cudaGetLastError());
+  }
+
+  // 3) Sort by edge_key
+  {
+    auto keys = thrust::device_pointer_cast(d_edge_key);
+    auto faces = thrust::device_pointer_cast(d_edge_face);
+    thrust::sort_by_key(keys, keys + E, faces);
+  }
+
+  // 4) Build adjacency from sorted edges
+  {
+    int blocks = (E + threads - 1) / threads;
+    build_adjacency_from_sorted_edges<<<blocks, threads>>>(
+        d_edge_key, d_edge_face, E, d_nbr3, F);
+    CUDA_CHECK(cudaGetLastError());
+  }
+
+  CUDA_CHECK(cudaDeviceSynchronize());
+}
+
 }  // namespace ugu
