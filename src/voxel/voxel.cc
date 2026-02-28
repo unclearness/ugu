@@ -174,7 +174,8 @@ bool VoxelGrid::Init(const Eigen::Vector3f& bb_max,
   Eigen::Vector3f diff = bb_max_ - bb_min_;
 
   for (int i = 0; i < 3; i++) {
-    voxel_num_[i] = static_cast<int>(diff[i] / resolution_[i]);
+    //voxel_num_[i] = static_cast<int>(diff[i] / resolution_[i]);
+    voxel_num_[i] = static_cast<int>(std::ceil(diff[i] / resolution_[i]));
   }
 
   if (voxel_num_.x() * voxel_num_.y() * voxel_num_.z() >
@@ -198,21 +199,25 @@ bool VoxelGrid::Init(const Eigen::Vector3f& bb_max,
 #pragma omp parallel for schedule(dynamic, 1)
 #endif
   for (int z = 0; z < voxel_num_.z(); z++) {
-    float z_pos = diff.z() * (static_cast<float>(z) /
-                              static_cast<float>(voxel_num_.z())) +
-                  bb_min_.z() + offset.z();
+    //float z_pos = diff.z() * (static_cast<float>(z) /
+    //                          static_cast<float>(voxel_num_.z())) +
+    //              bb_min_.z() + offset.z();
+    float z_pos = bb_min_.z() + (z + 0.5f) * resolution_.z();
     z_pos_list[z] = z_pos;
     for (int y = 0; y < voxel_num_.y(); y++) {
-      float y_pos = diff.y() * (static_cast<float>(y) /
-                                static_cast<float>(voxel_num_.y())) +
-                    bb_min_.y() + offset.y();
+      //float y_pos = diff.y() * (static_cast<float>(y) /
+      //                          static_cast<float>(voxel_num_.y())) +
+      //              bb_min_.y() + offset.y();
+      float y_pos = bb_min_.y() + (y + 0.5f) * resolution_.y();
+
       if (z == 0) {
         y_pos_list[y] = y_pos;
       }
       for (int x = 0; x < voxel_num_.x(); x++) {
-        float x_pos = diff.x() * (static_cast<float>(x) /
-                                  static_cast<float>(voxel_num_.x())) +
-                      bb_min_.x() + offset.x();
+        //float x_pos = diff.x() * (static_cast<float>(x) /
+        //                          static_cast<float>(voxel_num_.x())) +
+        //              bb_min_.x() + offset.x();
+        float x_pos =  bb_min_.x() + (x + 0.5f) * resolution_.x();
 
         if (z == 0 && y == 0) {
           x_pos_list[x] = x_pos;

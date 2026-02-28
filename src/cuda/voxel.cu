@@ -1050,9 +1050,13 @@ __global__ void FuseDepthMultiKernelNaiveVoxelBased(
   }
 
   float3 voxel_pos;
-  voxel_pos.x = bb_min.x + x_index * voxel_size.x;
-  voxel_pos.y = bb_min.y + y_index * voxel_size.y;
-  voxel_pos.z = bb_min.z + z_index * voxel_size.z;
+  //voxel_pos.x = bb_min.x + x_index * voxel_size.x;
+  //voxel_pos.y = bb_min.y + y_index * voxel_size.y;
+  //voxel_pos.z = bb_min.z + z_index * voxel_size.z;
+
+  voxel_pos.x = bb_min.x + (x_index + 0.5f) * voxel_size.x;
+  voxel_pos.y = bb_min.y + (y_index + 0.5f) * voxel_size.y;
+  voxel_pos.z = bb_min.z + (z_index + 0.5f) * voxel_size.z;
 
   int vidx =
       x_index + y_index * voxel_num.x + z_index * voxel_num.x * voxel_num.y;
