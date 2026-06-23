@@ -26,11 +26,14 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /EHsc /MP /bigobj")
 
 add_definitions(-DNOMINMAX)
 
+add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/Zc:preprocessor>)
+
 else()
 # g++/clang option for *nix
 set(CMAKE_CXX_EXTENSIONS OFF) #Set this to ON if you want to use GNU++
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -O2")
 endif()
+
 
 get_directory_property(hasParent PARENT_DIRECTORY)
 if(hasParent)
@@ -296,6 +299,9 @@ if(UGU_USE_CUDA)
   if (NOT DEFINED CMAKE_CUDA_STANDARD)
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+  endif()
+  if(CMAKE_CUDA_COMPILER)
+      add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/Zc:preprocessor>)
   endif()
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
   set(cuda_flags --expt-relaxed-constexpr)

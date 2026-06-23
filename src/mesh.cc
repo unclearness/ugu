@@ -429,7 +429,7 @@ void Mesh::CalcNormal() {
     } else {
       // for unreferenced vertices, set (0, 0, 0)
       normals_[i].setZero();
-      LOGW("vertex %d has invalid normal\n", i);
+      //LOGW("vertex %d has invalid normal\n", i);
     }
   }
 }
