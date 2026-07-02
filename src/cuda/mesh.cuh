@@ -134,4 +134,12 @@ void BuildFaceAdjacencyNbr3(const int* d_faces, int num_faces,
                             uint64_t* d_edge_key, int* d_edge_face,
                             // output
                             int* d_nbr3 /* int[3*num_faces] */);
+
+void BuildFaceAdjacencyNbr3WithLocalEdges(
+    const int* d_faces, int num_faces,
+    // workspace (device)
+    uint64_t* d_edge_key, int* d_edge_face_local,
+    // output
+    int* d_nbr3 /* int[3*num_faces] */,
+    int* d_nbr_local_edge3 /* int[3*num_faces] */);
 }  // namespace ugu

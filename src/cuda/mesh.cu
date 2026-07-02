@@ -63,6 +63,25 @@ __global__ void build_edges_from_faces(const int* faces, int F,
   edge_key[base + 2] = pack_edge_u64(i2, i0);
   edge_face[base + 2] = f;
 }
+__global__ void build_edges_from_faces_with_local_edges(
+    const int* faces, int F, uint64_t* edge_key, int* edge_face_local) {
+  int f = blockIdx.x * blockDim.x + threadIdx.x;
+  if (f >= F) return;
+
+  int i0 = faces[3 * f + 0];
+  int i1 = faces[3 * f + 1];
+  int i2 = faces[3 * f + 2];
+
+  int base = 3 * f;
+  edge_key[base + 0] = pack_edge_u64(i0, i1);
+  edge_face_local[base + 0] = (f << 2) | 0;
+
+  edge_key[base + 1] = pack_edge_u64(i1, i2);
+  edge_face_local[base + 1] = (f << 2) | 1;
+
+  edge_key[base + 2] = pack_edge_u64(i2, i0);
+  edge_face_local[base + 2] = (f << 2) | 2;
+}
 
 // neighbors is int[3*F], -1 init.
 // safely put a neighbor into one of 3 slots using atomicCAS
@@ -93,6 +112,35 @@ __global__ void build_adjacency_from_sorted_edges(const uint64_t* edge_key,
     if ((unsigned)f0 < (unsigned)F && (unsigned)f1 < (unsigned)F && f0 != f1) {
       try_set_neighbor3(&nbr[3 * f0], f1);
       try_set_neighbor3(&nbr[3 * f1], f0);
+    }
+  }
+}
+__global__ void build_adjacency_with_local_edges_from_sorted_edges(
+    const uint64_t* edge_key, const int* edge_face_local, int E, int* nbr,
+    int* nbr_local_edge, int F) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= E) return;
+
+  bool is_head = (i == 0) || (edge_key[i] != edge_key[i - 1]);
+  if (!is_head) return;
+
+  uint64_t key = edge_key[i];
+  int j = i + 1;
+  while (j < E && edge_key[j] == key) ++j;
+
+  if (j - i >= 2) {
+    const int p0 = edge_face_local[i];
+    const int p1 = edge_face_local[i + 1];
+    const int f0 = p0 >> 2;
+    const int f1 = p1 >> 2;
+    const int e0 = p0 & 3;
+    const int e1 = p1 & 3;
+    if ((unsigned)f0 < (unsigned)F && (unsigned)f1 < (unsigned)F && f0 != f1 &&
+        e0 < 3 && e1 < 3) {
+      nbr[3 * f0 + e0] = f1;
+      nbr_local_edge[3 * f0 + e0] = e1;
+      nbr[3 * f1 + e1] = f0;
+      nbr_local_edge[3 * f1 + e1] = e0;
     }
   }
 }
@@ -664,6 +712,48 @@ void BuildFaceAdjacencyNbr3(const int* d_faces, int num_faces,
     int blocks = (E + threads - 1) / threads;
     build_adjacency_from_sorted_edges<<<blocks, threads>>>(
         d_edge_key, d_edge_face, E, d_nbr3, F);
+    CUDA_CHECK(cudaGetLastError());
+  }
+
+  CUDA_CHECK(cudaDeviceSynchronize());
+}
+
+void BuildFaceAdjacencyNbr3WithLocalEdges(
+    const int* d_faces, int num_faces,
+    // workspace (device)
+    uint64_t* d_edge_key, int* d_edge_face_local,
+    // output
+    int* d_nbr3 /* int[3*num_faces] */,
+    int* d_nbr_local_edge3 /* int[3*num_faces] */) {
+  const int F = num_faces;
+  const int E = 3 * F;
+  const int threads = 256;
+
+  {
+    int blocks = (F + threads - 1) / threads;
+    build_edges_from_faces_with_local_edges<<<blocks, threads>>>(
+        d_faces, F, d_edge_key, d_edge_face_local);
+    CUDA_CHECK(cudaGetLastError());
+  }
+
+  {
+    int blocks = (3 * F + threads - 1) / threads;
+    init_int_kernel<<<blocks, threads>>>(d_nbr3, 3 * F, -1);
+    CUDA_CHECK(cudaGetLastError());
+    init_int_kernel<<<blocks, threads>>>(d_nbr_local_edge3, 3 * F, -1);
+    CUDA_CHECK(cudaGetLastError());
+  }
+
+  {
+    auto keys = thrust::device_pointer_cast(d_edge_key);
+    auto face_local = thrust::device_pointer_cast(d_edge_face_local);
+    thrust::sort_by_key(keys, keys + E, face_local);
+  }
+
+  {
+    int blocks = (E + threads - 1) / threads;
+    build_adjacency_with_local_edges_from_sorted_edges<<<blocks, threads>>>(
+        d_edge_key, d_edge_face_local, E, d_nbr3, d_nbr_local_edge3, F);
     CUDA_CHECK(cudaGetLastError());
   }
 
