@@ -11,13 +11,13 @@
 
 namespace ugu {
 
-// Marching Cubes 用の頂点構造体
+// Vertex structure for Marching Cubes
 struct VertexHostDevice {
   float3 position;
   float3 normal;
 };
 
-// メッシュ構造体（ホスト側）
+// Mesh structure (host side)
 struct MeshHostDevice {
   VertexHostDevice* vertices{nullptr};
   int vertex_count{0};

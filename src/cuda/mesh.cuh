@@ -40,6 +40,17 @@ class RemoveSmallConnectedComponentsBuf {
   thrust::device_vector<int> d_v_scan;
   thrust::device_vector<int> d_v_new_id;
 
+  // Scratch reused across calls (previously reallocated per call)
+  thrust::device_vector<uint64_t> d_edge_key_tmp;
+  thrust::device_vector<int> d_edge_face_tmp;
+  thrust::device_vector<uint8_t> d_sort_tmp_storage;  // grow-only
+  thrust::device_vector<int> d_head;
+  thrust::device_vector<int> d_run_id;
+  // num_runs <= num_faces, so these are sized at num_faces
+  thrust::device_vector<int> d_run_start;
+  thrust::device_vector<int> d_run_len;
+  int* d_changed = nullptr;
+
   int* d_faces2 = nullptr;
   float3* d_face_normals2 = nullptr;
   float3* d_vertices2 = nullptr;
@@ -70,6 +81,7 @@ class RemoveSmallConnectedComponentsBuf {
     cudaMalloc(&d_faces2, sizeof(int) * 3 * num_faces);
     cudaMalloc(&d_face_normals2, sizeof(float3) * num_faces);
     cudaMalloc(&d_vertices2, sizeof(float3) * num_vertices);
+    cudaMalloc(&d_changed, sizeof(int));
   }
 
   void Resize(int num_faces, int num_vertices) {
@@ -89,6 +101,13 @@ class RemoveSmallConnectedComponentsBuf {
     d_v_used.resize(num_vertices);
     d_v_scan.resize(num_vertices);
     d_v_new_id.resize(num_vertices);
+
+    d_edge_key_tmp.resize(E);
+    d_edge_face_tmp.resize(E);
+    d_head.resize(num_faces);
+    d_run_id.resize(num_faces);
+    d_run_start.resize(num_faces);
+    d_run_len.resize(num_faces);
   }
 
   void Free() {
@@ -108,6 +127,17 @@ class RemoveSmallConnectedComponentsBuf {
     d_v_used.clear();
     d_v_scan.clear();
     d_v_new_id.clear();
+    d_edge_key_tmp.clear();
+    d_edge_face_tmp.clear();
+    d_sort_tmp_storage.clear();
+    d_head.clear();
+    d_run_id.clear();
+    d_run_start.clear();
+    d_run_len.clear();
+    if (nullptr != d_changed) {
+      cudaFree(d_changed);
+      d_changed = nullptr;
+    }
     if (nullptr != d_faces2) {
       cudaFree(d_faces2);
       d_faces2 = nullptr;

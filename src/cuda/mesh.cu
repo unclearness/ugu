@@ -165,7 +165,7 @@ __global__ void label_propagation_one_iter(const int* nbr, int F,
   if (n1 >= 0) m = min(m, label_in[n1]);
   if (n2 >= 0) m = min(m, label_in[n2]);
 
-  // pointer jumping (OpenMP版の m = min(m, label[m]) と同等)
+  // pointer jumping (same as m = min(m, label[m]) in the OpenMP version)
   m = min(m, label_in[m]);
 
   label_out[f] = m;
@@ -209,7 +209,7 @@ __global__ void make_run_head(const int* sorted_label, int F,
   head[i] = h;
 }
 
-// head[i]==1 の位置だけ run_start[run_id[i]] = i を書く
+// Where head[i]==1, write run_start[run_id[i]] = i
 __global__ void write_run_start(const int* head, const int* run_id, int F,
                                 int* run_start)  // int[num_runs]
 {
@@ -293,7 +293,7 @@ __global__ void mark_used_vertices(const int* faces, int F2, uint8_t* v_used) {
   int i0 = faces[3 * f + 0];
   int i1 = faces[3 * f + 1];
   int i2 = faces[3 * f + 2];
-  // atomicExchでOK（1を書くだけ）
+  // atomicExch is fine here (it only ever writes the constant 1)
   atomicExch((unsigned int*)&v_used[i0], 1u);
   atomicExch((unsigned int*)&v_used[i1], 1u);
   atomicExch((unsigned int*)&v_used[i2], 1u);
@@ -309,13 +309,13 @@ __global__ void mark_used_vertices_i32(const int* faces, int F, int V,
   int i1 = faces[3 * f + 1];
   int i2 = faces[3 * f + 2];
 
-  // 範囲外を潰す（デバッグにもなる）
+  // Reject out-of-range indices (also serves as a debug check)
   if ((unsigned)i0 < (unsigned)V) atomicExch(&v_used[i0], 1);
   if ((unsigned)i1 < (unsigned)V) atomicExch(&v_used[i1], 1);
   if ((unsigned)i2 < (unsigned)V) atomicExch(&v_used[i2], 1);
 }
 
-// v_used(uint8) -> v_scan_excl(int) を使って new_id を作る
+// Build new_id from v_used(uint8) -> v_scan_excl(int)
 __global__ void build_vertex_new_id(
     const int* v_used, const int* v_scan_excl, int V,
     int* v_new_id)  // -1 for unused, else new index
@@ -345,14 +345,14 @@ __global__ void remap_faces_vertices(int* faces, int F2, const int* v_new_id) {
 static void sort_edges_by_key_cub(
     thrust::device_vector<uint64_t>& d_edge_key,
     thrust::device_vector<int>& d_edge_face,
-    // 再利用用バッファ（呼び出し側で保持して毎回渡すと速い）
+    // Reusable buffers (kept by the caller and passed in every call)
     thrust::device_vector<uint64_t>& d_edge_key_tmp,
     thrust::device_vector<int>& d_edge_face_tmp,
     thrust::device_vector<uint8_t>& d_temp_storage, cudaStream_t stream) {
   const int E = (int)d_edge_key.size();
   if ((int)d_edge_face.size() != E) std::exit(1);
 
-  // tmp を確保（サイズが違うときだけリサイズ）
+  // Allocate tmp (resize only when the size differs)
   if ((int)d_edge_key_tmp.size() != E) d_edge_key_tmp.resize(E);
   if ((int)d_edge_face_tmp.size() != E) d_edge_face_tmp.resize(E);
 
@@ -418,12 +418,9 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   thrust::sort_by_key(thrust::cuda::par.on(stream), d_edge_key.begin(),
                       d_edge_key.end(), d_edge_face.begin());
 #else
-  thrust::device_vector<uint64_t> d_edge_key_tmp;
-  thrust::device_vector<int> d_edge_face_tmp;
-  thrust::device_vector<uint8_t> d_sort_tmp_storage;
-
-  sort_edges_by_key_cub(d_edge_key, d_edge_face, d_edge_key_tmp,
-                        d_edge_face_tmp, d_sort_tmp_storage, stream);
+  // Scratch lives in buf so repeated calls do not reallocate it
+  sort_edges_by_key_cub(d_edge_key, d_edge_face, buf.d_edge_key_tmp,
+                        buf.d_edge_face_tmp, buf.d_sort_tmp_storage, stream);
 #endif
 
   thrust::device_vector<int>& d_nbr = buf.d_nbr;
@@ -444,8 +441,15 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
   thrust::sequence(thrust::cuda::par.on(stream), d_label.begin(),
                    d_label.end());
 
-  int* d_changed = nullptr;
-  CUDA_CHECK(cudaMalloc(&d_changed, sizeof(int)));
+  int* d_changed = buf.d_changed;
+
+  // Label propagation reaches a fixed point long before a generous K in
+  // practice; checking d_changed periodically costs one 4-byte sync but
+  // saves the remaining no-op iterations. 0 or negative used to mean "no
+  // early exit"; results at the fixed point are identical either way.
+  if (early_exit_check_interval <= 0) {
+    early_exit_check_interval = 8;
+  }
 
   int end_iter = 0;
   for (int it = 0; it < K; ++it) {
@@ -471,7 +475,6 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
       }
     }
   }
-  CUDA_CHECK(cudaFree(d_changed));
 
   // ---- compute face_cc_size[f] from sorted (label, faceId) ----
   thrust::device_vector<int>& d_face_id = buf.d_face_id;
@@ -495,8 +498,8 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
     CUDA_CHECK(cudaGetLastError());
 #else
   {
-    thrust::device_vector<int> d_head(F);
-    thrust::device_vector<int> d_run_id(F);
+    thrust::device_vector<int>& d_head = buf.d_head;
+    thrust::device_vector<int>& d_run_id = buf.d_run_id;
 
     int threads = 256;
     int blocksF = (F + threads - 1) / threads;
@@ -540,7 +543,7 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
                       d_run_id.end(), d_run_id.begin(),
                       [] __host__ __device__(int x) { return x - 1; });
 
-    // num_runs = max(run_id) + 1 = run_id[last] + 1 （head[last] は要らない）
+    // num_runs = max(run_id) + 1 = run_id[last] + 1 (head[last] not needed)
     int h_last_run = 0;
     CUDA_CHECK(cudaMemcpyAsync(
         &h_last_run, thrust::raw_pointer_cast(d_run_id.data()) + (F - 1),
@@ -551,9 +554,9 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
 #endif
 
     if (0 < num_runs) {
-      // Use run_start/run_len at num_runs
-      thrust::device_vector<int> d_run_start(num_runs);
-      thrust::device_vector<int> d_run_len(num_runs);
+      // Sized at F in buf; only the first num_runs entries are used
+      thrust::device_vector<int>& d_run_start = buf.d_run_start;
+      thrust::device_vector<int>& d_run_len = buf.d_run_len;
 
       write_run_start<<<blocksF, threads, 0, stream>>>(
           thrust::raw_pointer_cast(d_head.data()),

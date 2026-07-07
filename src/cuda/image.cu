@@ -11,7 +11,7 @@ namespace {
 
 #define MAX_IMAGES 32
 
-// 定数メモリ領域
+// Constant memory
 __constant__ int d_width;
 __constant__ int d_height;
 __constant__ int d_num_images;
@@ -20,7 +20,7 @@ __constant__ int d_step;
 __constant__ bool d_gl_coord;
 __constant__ bool d_central_difference;
 
-// カメラパラメータ（画像ごとに異なるが枚数は少ないと仮定）
+// Camera intrinsics (differ per image; the image count is assumed small)
 __constant__ float d_fx[MAX_IMAGES];
 __constant__ float d_fy[MAX_IMAGES];
 __constant__ float d_cx[MAX_IMAGES];
@@ -97,7 +97,7 @@ __global__ void BoxFilterShared(const uint8_t* d_in, uint8_t* d_out, int width,
     return;
   }
 
-  // box filter 計算
+  // box filter computation
   float outVal[3] = {0.0f, 0.0f, 0.0f};
   int count = 0;
   // Loop window
@@ -217,18 +217,18 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
                                               float* normals) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
-  int n = blockIdx.z * blockDim.z + threadIdx.z;  // 画像インデックス
+  int n = blockIdx.z * blockDim.z + threadIdx.z;  // image index
 
-  // 画像枚数と境界チェック（境界は単純に処理せずゼロ出力）
+  // Image-count and border check (border pixels are left as zero)
   if (n >= d_num_images || x <= d_step - 1 || y <= d_step - 1 ||
       x >= d_width - d_step || y >= d_height - d_step) {
     return;
   }
 
-  // 全体の1次元インデックス計算（画像 n の (y, x)）
+  // Flattened 1D index (pixel (y, x) of image n)
   int idx = n * d_width * d_height + y * d_width + x;
 
-  // 各画像固有のカメラパラメータを取得
+  // Per-image camera parameters
   float fx_val = d_fx[n];
   float fy_val = d_fy[n];
   float cx_val = d_cx[n];
@@ -237,7 +237,7 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
   float inv_fx = 1.0f / fx_val;
   float inv_fy = 1.0f / fy_val;
 
-  // Layered テクスチャから現在の画素の深度値を取得
+  // Fetch the current pixel depth from the layered texture
   float d = tex2DLayered<float>(texDepth, x, y, n);
   if (d <= 0.0f) {
     normals[3 * idx + 0] = 0.0f;
@@ -246,7 +246,7 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
     return;
   }
 
-  // 隣接画素（右および下）の深度も取得
+  // Fetch neighbor (right and bottom) depths
   float d_right = tex2DLayered<float>(texDepth, x + d_step, y, n);
   float d_bottom = tex2DLayered<float>(texDepth, x, y + d_step, n);
   if (d_right <= 0.0f || d_bottom <= 0.0f) {
@@ -256,11 +256,11 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
     return;
   }
 
-  // 画素座標 (u, v)
+  // Pixel coordinates (u, v)
   float u = (float)x;
   float v = (float)y;
 
-  // 現在の画素の3次元座標計算
+  // 3D position of the current pixel
   float X = (u - cx_val) * d * inv_fx;
   float Y = (v - cy_val) * d * inv_fy;
   float Z = d;
@@ -272,12 +272,12 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
   float dy_y;
   float dy_z;
 
-  // 右隣の画素の3次元座標計算
+  // 3D position of the right neighbor
   float Xr = ((u + d_step) - cx_val) * d_right * inv_fx;
   float Yr = (v - cy_val) * d_right * inv_fy;
   float Zr = d_right;
 
-  // 下隣の画素の3次元座標計算
+  // 3D position of the bottom neighbor
   float Xb = (u - cx_val) * d_bottom * inv_fx;
   float Yb = ((v + d_step) - cy_val) * d_bottom * inv_fy;
   float Zb = d_bottom;
@@ -293,12 +293,12 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
       return;
     }
 
-    // 右隣の画素の3次元座標計算
+    // 3D position of the left neighbor
     float Xl = ((u - d_step) - cx_val) * d_left * inv_fx;
     float Yl = (v - cy_val) * d_left * inv_fy;
     float Zl = d_left;
 
-    // 下隣の画素の3次元座標計算
+    // 3D position of the top neighbor
     float Xt = (u - cx_val) * d_top * inv_fx;
     float Yt = ((v - d_step) - cy_val) * d_top * inv_fy;
     float Zt = d_top;
@@ -354,12 +354,12 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
   dy_z = Zb - Z;
 #endif
 
-  // クロスプロダクトで法線を計算
+  // Normal by cross product
   float nx = dx_y * dy_z - dx_z * dy_y;
   float ny = dx_z * dy_x - dx_x * dy_z;
   float nz = dx_x * dy_y - dx_y * dy_x;
 
-  // 正規化
+  // Normalize
   float norm = sqrtf(nx * nx + ny * ny + nz * nz);
   if (norm > 1e-6f) {
     nx /= norm;
@@ -382,71 +382,71 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
 
 __global__ void ComputeNormalsTextureMultiCam_Shared(
     cudaTextureObject_t texDepth, float* normals, float* points) {
-  // 各ブロックは 1 枚の画像を担当
+  // Each block handles one image
   int n = blockIdx.z;
   if (n >= d_num_images) return;
 
-  // 2D タイル内のピクセル
+  // Pixel within the 2D tile
   int tx = threadIdx.x;
   int ty = threadIdx.y;
   int x = blockIdx.x * BLOCK_W + tx;
   int y = blockIdx.y * BLOCK_H + ty;
   if (x >= d_width || y >= d_height) return;
 
-  // 共有メモリ：タイル＋境界分
+  // Shared memory: tile + apron
   extern __shared__ float s_depth[];
   const int S_W = BLOCK_W + 2 * d_step;
   // const int S_H = BLOCK_H + 2 * d_step;
 
-  // 共有メモリ上の座標
+  // Coordinates in shared memory
   int sx = tx + d_step;
   int sy = ty + d_step;
   int sidx = sy * S_W + sx;
 
-  // (1) 中心画素の深度をロード
+  // (1) Load the center pixel depth
   float d_center = tex2DLayered<float>(texDepth, x, y, n);
   s_depth[sidx] = d_center;
 
-  // (2) 境界ピクセルもロード
-  //    各スレッドが自分の周辺 step 分の境界を担当します
+  // (2) Load apron pixels:
+  //     threads near the tile edge also load the step-wide border
   if (tx < d_step) {
-    // 左境界
+    // Left edge
     s_depth[sy * S_W + (sx - d_step)] =
         tex2DLayered<float>(texDepth, x - d_step, y, n);
   }
   if (tx >= BLOCK_W - d_step) {
-    // 右境界
+    // Right edge
     s_depth[sy * S_W + (sx + d_step)] =
         tex2DLayered<float>(texDepth, x + d_step, y, n);
   }
   if (ty < d_step) {
-    // 上境界
+    // Top edge
     s_depth[(sy - d_step) * S_W + sx] =
         tex2DLayered<float>(texDepth, x, y - d_step, n);
   }
   if (ty >= BLOCK_H - d_step) {
-    // 下境界
+    // Bottom edge
     s_depth[(sy + d_step) * S_W + sx] =
         tex2DLayered<float>(texDepth, x, y + d_step, n);
   }
 
-  // 角も必要なら同様に...
+  // Corners would be handled the same way if needed...
   __syncthreads();
 
-  // 以降は shared メモリから読み出し
+  // From here on, read only from shared memory
   if (d_center <= 0.0f) {
-    // 無効深度
+    // Invalid depth
     int idx = n * d_width * d_height + y * d_width + x;
     normals[3 * idx + 0] = normals[3 * idx + 1] = normals[3 * idx + 2] = 0.0f;
     points[3 * idx + 0] = points[3 * idx + 1] = points[3 * idx + 2] = 0.0f;
     return;
   }
 
-  // 共有メモリから右・下を読み出し
+  // Read the right and bottom neighbors from shared memory
   float d_r = s_depth[sidx + d_step];
   float d_b = s_depth[(sidx + S_W * d_step)];
 
-  // 3D 点の計算（中心）
+  // Compute the 3D point (center)
   float u = float(x), v = float(y);
   float fx_val = d_fx[n], fy_val = d_fy[n], cx_val = d_cx[n], cy_val = d_cy[n];
   float inv_fx = 1.0f / fx_val, inv_fy = 1.0f / fy_val;
@@ -460,16 +460,16 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
     Z = -Z;
   }
 
-  // (3) 定数メモリから Extrinsics を読み出し
-  const float* R = &d_R[n * 9];  // R[0]..R[8] が 3×3 行列
-  const float* t = &d_t[n * 3];  // t[0]..t[2] が並進ベクトル
+  // (3) Read extrinsics from constant memory
+  const float* R = &d_R[n * 9];  // R[0]..R[8] is a 3x3 matrix
+  const float* t = &d_t[n * 3];  // t[0]..t[2] translation vector
 
-  // (4) ワールド座標変換：点 (X,Y,Z) → (Xw,Yw,Zw)
+  // (4) World transform: point (X,Y,Z) -> (Xw,Yw,Zw)
   float Xw = R[0] * X + R[1] * Y + R[2] * Z + t[0];
   float Yw = R[3] * X + R[4] * Y + R[5] * Z + t[1];
   float Zw = R[6] * X + R[7] * Y + R[8] * Z + t[2];
 
-  // (6) 出力バッファへ書き込み
+  // (6) Write to the output buffer
   points[3 * idx + 0] = Xw;
   points[3 * idx + 1] = Yw;
   points[3 * idx + 2] = Zw;
@@ -479,7 +479,7 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
     return;
   }
 
-  // 隣接ピクセルの３次元座標
+  // 3D positions of the neighbor pixels
   float Xr = ((u + d_step) - cx_val) * d_r * inv_fx;
   float Yr = (v - cy_val) * d_r * inv_fy;
   float Zr = d_r;
@@ -488,7 +488,7 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
   float Zb = d_b;
 
 #if 0
-  // 法線計算（前進差分）
+  // Normal computation (forward difference)
   float dx_x = Xr - X, dx_y = Yr - Y, dx_z = Zr - Z;
   float dy_x = Xb - X, dy_y = Yb - Y, dy_z = Zb - Z;
   //float nx = dx_y * dy_z - dx_z * dy_y;
@@ -533,7 +533,7 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
     nz = -nz;
   }
 
-  // (5) 法線ベクトルは並進成分が効かないので回転のみ
+  // (5) The normal is a direction, so rotate only (no translation)
   float nxw = R[0] * nx + R[1] * ny + R[2] * nz;
   float nyw = R[3] * nx + R[4] * ny + R[5] * nz;
   float nzw = R[6] * nx + R[7] * ny + R[8] * nz;
@@ -547,113 +547,138 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
 
 namespace ugu {
 
+namespace {
+
+// Grow-only device workspace reused across calls so that per-call
+// cudaMalloc/cudaFree does not dominate the filter cost.
+// Buffers are intentionally not freed at process exit: the CUDA context may
+// already be destroyed when static destructors run.
+struct BoxFilterWorkspace {
+  uint8_t* d_in = nullptr;
+  uint8_t* d_temp = nullptr;
+  uint8_t* d_out = nullptr;
+  size_t capacity = 0;
+
+  void Ensure(size_t size) {
+    if (size <= capacity) {
+      return;
+    }
+    if (d_in != nullptr) {
+      checkCudaErrors(cudaFree(d_in));
+      checkCudaErrors(cudaFree(d_temp));
+      checkCudaErrors(cudaFree(d_out));
+    }
+    checkCudaErrors(cudaMalloc(&d_in, size));
+    checkCudaErrors(cudaMalloc(&d_temp, size));
+    checkCudaErrors(cudaMalloc(&d_out, size));
+    capacity = size;
+  }
+};
+
+}  // namespace
+
 void BoxFilterCuda3b(int width, int height, void* data, int k) {
-#if 1
-  uint8_t *d_in, *d_out;
+  // Not thread-safe, matching the rest of this API (default stream, shared
+  // constant memory).
+  static BoxFilterWorkspace ws;
+
   size_t totalSize = sizeof(uint8_t) * 3 * width * height;
-  checkCudaErrors(cudaMalloc(&d_in, totalSize));
-  cudaMalloc(&d_out, totalSize);
+  ws.Ensure(totalSize);
 
-  cudaMemcpy(d_in, data, totalSize, cudaMemcpyHostToDevice);
-
-  // int N = 1 << 20;
-  int blocksize = 32;
-
-  dim3 block(blocksize, blocksize);  // 32x32 = 1024 threads
-  dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y);
-
-#if 0
-  BoxFilterNaive<<<grid, block>>>(d_in, d_out, width, height, k);
-#endif
-
-#if 0
-  size_t sharedMemSize = block.x * block.y * 3 * sizeof(float);
-
-  BoxFilterShared<<<grid, block, sharedMemSize>>>(d_in, d_out, width, height,
-                                                  k);
-#endif
-
-#if 1
-  uint8_t* d_temp;
-  cudaMalloc(&d_temp, totalSize);
-
-  BoxFilterRow<<<grid, block>>>(d_in, d_temp, width, height, k);
-  cudaDeviceSynchronize();
-
-  BoxFilterCol<<<grid, block>>>(d_temp, d_out, width, height, k);
-#endif
-
-  checkCudaErrors(cudaDeviceSynchronize());
-
-  checkCudaErrors(cudaMemcpy(data, d_out, totalSize, cudaMemcpyDeviceToHost));
-
-  cudaFree(d_in);
-  cudaFree(d_out);
-#if 1
-  cudaFree(d_temp);
-#endif
-#else
-
-  uint8_t *d_in, *d_temp, *d_transposed, *d_out_transposed, *d_final_out;
-  size_t totalSize = sizeof(uint8_t) * 3 * width * height;
-
-  cudaMalloc(&d_in, totalSize);
-  cudaMalloc(&d_temp, totalSize);
-  cudaMalloc(&d_transposed, totalSize);
-  cudaMalloc(&d_out_transposed, totalSize);
-  cudaMalloc(&d_final_out, totalSize);
-
-  cudaMemcpy(d_in, data, totalSize, cudaMemcpyHostToDevice);
+  checkCudaErrors(
+      cudaMemcpy(ws.d_in, data, totalSize, cudaMemcpyHostToDevice));
 
   dim3 block(32, 32);
   dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y);
 
-  // 1st Pass: Row filtering
-  BoxFilterRow<<<grid, block>>>(d_in, d_temp, width, height, k);
-  cudaDeviceSynchronize();
+  // Separable two-pass filter. Both kernels run on the default stream, so
+  // no synchronization is needed between them; the blocking D2H copy below
+  // waits for completion.
+  BoxFilterRow<<<grid, block>>>(ws.d_in, ws.d_temp, width, height, k);
+  BoxFilterCol<<<grid, block>>>(ws.d_temp, ws.d_out, width, height, k);
+  checkCudaErrors(cudaGetLastError());
 
-  dim3 transposeBlock(16, 16);
-  dim3 transposeGrid((width + transposeBlock.x - 1) / transposeBlock.x,
-                     (height + transposeBlock.y - 1) / transposeBlock.y);
-
-  size_t sharedMemSize = block.x * block.y * 3 * sizeof(float);
-
-  // Transpose
-  Transpose<<<transposeGrid, transposeBlock, sharedMemSize>>>(
-      d_temp, d_transposed, width, height);
-  cudaDeviceSynchronize();
-
-  // 2nd Pass: Row filtering for transposed image
-  dim3 grid2((height + block.x - 1) / block.x, (width + block.y - 1) / block.y);
-
-  BoxFilterRow<<<grid2, block>>>(d_transposed, d_out_transposed, height, width,
-                                 k);
-  cudaDeviceSynchronize();
-
-  // Transpose again（d_out_transposed -> d_final_out）
-  dim3 transposeGridDim2((height + transposeBlock.y - 1) / transposeBlock.y,
-                         (width + transposeBlock.x - 1) / transposeBlock.x);
-
-  Transpose<<<transposeGridDim2, transposeBlock, sharedMemSize>>>(
-      d_out_transposed, d_final_out, height, width);
-  cudaDeviceSynchronize();
-
-  cudaMemcpy(data, d_final_out, totalSize, cudaMemcpyDeviceToHost);
-
-  cudaFree(d_in);
-  cudaFree(d_temp);
-  cudaFree(d_transposed);
-  cudaFree(d_out_transposed);
-  cudaFree(d_final_out);
-#endif
+  checkCudaErrors(
+      cudaMemcpy(data, ws.d_out, totalSize, cudaMemcpyDeviceToHost));
 }
+
+namespace {
+
+// Persistent depth texture + output buffer for the free-function normals
+// path, so repeated calls do not pay cudaMalloc3DArray / texture-object
+// creation / cudaMalloc / cudaFree every time. Reallocated only when the
+// image dimensions change. Buffers are intentionally not freed at process
+// exit (see BoxFilterWorkspace).
+struct NormalsWorkspace {
+  cudaArray* d_depthArray = nullptr;
+  cudaTextureObject_t texDepth = 0;
+  float* d_normals = nullptr;
+  cudaExtent extent = {};
+  int width = 0;
+  int height = 0;
+  int num_images = 0;
+
+  void Ensure(int width_, int height_, int num_images_) {
+    if (width == width_ && height == height_ && num_images == num_images_) {
+      return;
+    }
+    if (texDepth != 0) {
+      checkCudaErrors(cudaDestroyTextureObject(texDepth));
+      texDepth = 0;
+    }
+    if (d_depthArray != nullptr) {
+      checkCudaErrors(cudaFreeArray(d_depthArray));
+      d_depthArray = nullptr;
+    }
+    if (d_normals != nullptr) {
+      checkCudaErrors(cudaFree(d_normals));
+      d_normals = nullptr;
+    }
+
+    width = width_;
+    height = height_;
+    num_images = num_images_;
+
+    // Layered CUDA array for the depth image stack
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
+    extent = make_cudaExtent(width, height, num_images);
+    checkCudaErrors(cudaMalloc3DArray(&d_depthArray, &channelDesc, extent,
+                                      cudaArrayLayered));
+
+    cudaResourceDesc resDesc;
+    memset(&resDesc, 0, sizeof(resDesc));
+    resDesc.resType = cudaResourceTypeArray;
+    resDesc.res.array.array = d_depthArray;
+
+    cudaTextureDesc texDesc;
+    memset(&texDesc, 0, sizeof(texDesc));
+    texDesc.addressMode[0] = cudaAddressModeClamp;
+    texDesc.addressMode[1] = cudaAddressModeClamp;
+    texDesc.filterMode = cudaFilterModePoint;
+    texDesc.readMode = cudaReadModeElementType;
+    texDesc.normalizedCoords = 0;
+    checkCudaErrors(
+        cudaCreateTextureObject(&texDepth, &resDesc, &texDesc, NULL));
+
+    size_t num_pixels = static_cast<size_t>(width) * height * num_images;
+    checkCudaErrors(cudaMalloc(&d_normals, 3 * num_pixels * sizeof(float)));
+  }
+};
+
+}  // namespace
 
 void ComputeNormalsCudaImpl(int width, int height, float* h_depths,
                             int num_images, const float* h_fx,
                             const float* h_fy, const float* h_cx,
                             const float* h_cy, float* h_normals,
                             float max_connect_z_diff, int step, bool gl_coord) {
-  size_t num_pixels = width * height * num_images;
+  // Not thread-safe, matching the rest of this API (default stream, shared
+  // constant memory).
+  static NormalsWorkspace ws;
+
+  size_t num_pixels = static_cast<size_t>(width) * height * num_images;
+  // The parameter constants are tiny; upload them every call so that
+  // changing parameters between calls stays correct.
   cudaMemcpyToSymbol(d_height, &height, sizeof(int));
   cudaMemcpyToSymbol(d_width, &width, sizeof(int));
   cudaMemcpyToSymbol(d_num_images, &num_images, sizeof(int));
@@ -668,73 +693,34 @@ void ComputeNormalsCudaImpl(int width, int height, float* h_depths,
   cudaMemcpyToSymbol(d_cx, h_cx, num_images * sizeof(float));
   cudaMemcpyToSymbol(d_cy, h_cy, num_images * sizeof(float));
 
-  // (4) デバイス側：Layered CUDA Array の確保（深度画像用）
-  cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
-  cudaExtent extent = make_cudaExtent(width, height, num_images);
-  cudaArray* d_depthArray = nullptr;
-  checkCudaErrors(
-      cudaMalloc3DArray(&d_depthArray, &channelDesc, extent, cudaArrayLayered));
+  ws.Ensure(width, height, num_images);
 
-  // (5) cudaMemcpy3D を用いてホストの深度画像データを CUDA Array へ転送
+  // Upload the depth stack into the persistent layered array
   cudaMemcpy3DParms copyParams = {0};
   copyParams.srcPtr =
       make_cudaPitchedPtr(h_depths, width * sizeof(float), width, height);
-  copyParams.dstArray = d_depthArray;
-  copyParams.extent = extent;
+  copyParams.dstArray = ws.d_depthArray;
+  copyParams.extent = ws.extent;
   copyParams.kind = cudaMemcpyHostToDevice;
   checkCudaErrors(cudaMemcpy3D(&copyParams));
 
-  // (6) テクスチャオブジェクトの設定（Layered 2D テクスチャ）
-  cudaResourceDesc resDesc;
-  memset(&resDesc, 0, sizeof(resDesc));
-  resDesc.resType = cudaResourceTypeArray;
-  resDesc.res.array.array = d_depthArray;
+  // The kernel does not write pixels within `step` of the image border, so
+  // clear the output first; otherwise stale/garbage values leak into the
+  // result there.
+  checkCudaErrors(
+      cudaMemsetAsync(ws.d_normals, 0, 3 * num_pixels * sizeof(float)));
 
-  cudaTextureDesc texDesc;
-  memset(&texDesc, 0, sizeof(texDesc));
-  texDesc.addressMode[0] = cudaAddressModeClamp;
-  texDesc.addressMode[1] = cudaAddressModeClamp;
-  texDesc.filterMode = cudaFilterModePoint;  // 補間不要の場合はポイントフィルタ
-  texDesc.readMode = cudaReadModeElementType;
-  texDesc.normalizedCoords = 0;  // 非正規化座標でアクセス
-
-  cudaTextureObject_t texDepth = 0;
-  checkCudaErrors(cudaCreateTextureObject(&texDepth, &resDesc, &texDesc, NULL));
-
-  // (7) 出力法線用のデバイスメモリ確保（各画素3要素）
-  float* d_normals;
-  checkCudaErrors(cudaMalloc(&d_normals, 3 * num_pixels * sizeof(float)));
-
-  // (8) カーネル呼び出し設定：ブロックは
-  // (16,16,1)、グリッドは画像サイズと枚数に合わせる
   dim3 block(16, 16, 1);
   dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y,
             num_images);
 
-  // std::cout << block.x << " " << block.y << " " << block.z << std::endl;
-  // std::cout << grid.x << " " << grid.y << " " << grid.z << std::endl;
-  ComputeNormalsTextureMultiCam<<<grid, block>>>(texDepth, d_normals);
+  ComputeNormalsTextureMultiCam<<<grid, block>>>(ws.texDepth, ws.d_normals);
   checkCudaErrors(cudaGetLastError());
-  checkCudaErrors(cudaDeviceSynchronize());
 
-  checkCudaErrors(cudaMemcpy(h_normals, d_normals,
+  // The blocking D2H copy below also serializes against the kernel
+  checkCudaErrors(cudaMemcpy(h_normals, ws.d_normals,
                              3 * num_pixels * sizeof(float),
                              cudaMemcpyDeviceToHost));
-
-  // (11) 後始末：テクスチャオブジェクト、CUDA Array、各種メモリの解放
-  checkCudaErrors(cudaDestroyTextureObject(texDepth));
-  checkCudaErrors(cudaFreeArray(d_depthArray));
-  checkCudaErrors(cudaFree(d_normals));
-  // checkCudaErrors(cudaFree(d_fx));
-  // checkCudaErrors(cudaFree(d_fy));
-  // checkCudaErrors(cudaFree(d_cx));
-  // checkCudaErrors(cudaFree(d_cy));
-  //  free(h_depth);
-  //  free(h_fx);
-  //  free(h_fy);
-  //  free(h_cx);
-  //  free(h_cy);
-  //  free(h_normals);
 }
 
 class NormalComputerCuda::Impl {
@@ -771,6 +757,24 @@ class NormalComputerCuda::Impl {
       std::cerr << "Error: num_images (" << num_images_
                 << ") exceeds MAX_IMAGES (" << MAX_IMAGES << ")" << std::endl;
       return;
+    }
+
+    // Release resources from a previous Init()
+    if (texDepth != 0) {
+      checkCudaErrors(cudaDestroyTextureObject(texDepth));
+      texDepth = 0;
+    }
+    if (d_depthArray != nullptr) {
+      checkCudaErrors(cudaFreeArray(d_depthArray));
+      d_depthArray = nullptr;
+    }
+    if (d_normals != nullptr) {
+      checkCudaErrors(cudaFree(d_normals));
+      d_normals = nullptr;
+    }
+    if (d_points != nullptr) {
+      checkCudaErrors(cudaFree(d_points));
+      d_points = nullptr;
     }
 
     width = width_;
@@ -815,7 +819,7 @@ class NormalComputerCuda::Impl {
       cudaMemcpyToSymbol(d_t, h_t_vec.data(), num_images * 3 * sizeof(float));
     }
 
-    // (4) デバイス側：Layered CUDA Array の確保（深度画像用）
+    // Layered CUDA array for the depth image stack
     channelDesc = cudaCreateChannelDesc<float>();
     extent = make_cudaExtent(width, height, num_images);
     checkCudaErrors(cudaMalloc3DArray(&d_depthArray, &channelDesc, extent,
@@ -829,16 +833,22 @@ class NormalComputerCuda::Impl {
     texDesc.addressMode[0] = cudaAddressModeClamp;
     texDesc.addressMode[1] = cudaAddressModeClamp;
     texDesc.filterMode =
-        cudaFilterModePoint;  // 補間不要の場合はポイントフィルタ
+        cudaFilterModePoint;  // point sampling; no interpolation needed
     texDesc.readMode = cudaReadModeElementType;
-    texDesc.normalizedCoords = 0;  // 非正規化座標でアクセス
+    texDesc.normalizedCoords = 0;  // access with unnormalized coordinates
+
+    // The depth array is persistent, so the texture object over it can be
+    // created once here instead of per ComputeNormals call (the previous
+    // per-call creation also leaked the old texture object every call).
+    checkCudaErrors(
+        cudaCreateTextureObject(&texDepth, &resDesc, &texDesc, NULL));
 
     checkCudaErrors(cudaMalloc(&d_normals, 3 * num_pixels * sizeof(float)));
     checkCudaErrors(cudaMalloc(&d_points, 3 * num_pixels * sizeof(float)));
   }
 
   void ComputeNormals(const float* h_depths) {
-    // (5) cudaMemcpy3D を用いてホストの深度画像データを CUDA Array へ転送
+    // Upload the host depth stack into the CUDA array via cudaMemcpy3D
     cudaMemcpy3DParms copyParams = {0};
     copyParams.srcPtr = make_cudaPitchedPtr(
         const_cast<float*>(h_depths), width * sizeof(float), width, height);
@@ -847,9 +857,13 @@ class NormalComputerCuda::Impl {
     copyParams.kind = cudaMemcpyHostToDevice;
     checkCudaErrors(cudaMemcpy3D(&copyParams));
 
-    texDepth = 0;
+    // The kernel does not write pixels within `step` of the image border,
+    // so clear the outputs first to avoid stale values there.
+    size_t num_pixels = static_cast<size_t>(width) * height * num_images;
     checkCudaErrors(
-        cudaCreateTextureObject(&texDepth, &resDesc, &texDesc, NULL));
+        cudaMemsetAsync(d_normals, 0, 3 * num_pixels * sizeof(float)));
+    checkCudaErrors(
+        cudaMemsetAsync(d_points, 0, 3 * num_pixels * sizeof(float)));
 
     dim3 block(16, 16, 1);
     dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y,
