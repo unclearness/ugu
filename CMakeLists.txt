@@ -287,15 +287,42 @@ endif()
 option(UGU_USE_CUDA "Use CUDA" OFF)
 message("UGU_USE_CUDA: ${UGU_USE_CUDA}")
 if(UGU_USE_CUDA)
+  # Detect whether the user chose the architectures BEFORE enable_language:
+  # CMake itself caches a detected default during enable_language, so a
+  # "NOT DEFINED" check afterwards never fires.
+  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND NOT DEFINED ENV{CUDAARCHS})
+    set(UGU_SET_DEFAULT_CUDA_ARCHS TRUE)
+  else()
+    set(UGU_SET_DEFAULT_CUDA_ARCHS FALSE)
+  endif()
+
   include(CheckLanguage)
   check_language(CUDA)
   enable_language(CUDA)
   find_package(CUDAToolkit REQUIRED)
 
-  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    set(CMAKE_CUDA_ARCHITECTURES 50 52 60 61 70 72 75 80 86 87 89 90 100)
+  if(UGU_SET_DEFAULT_CUDA_ARCHS)
+    # Keep this list valid for both CUDA 12.x and 13.x:
+    # - CUDA 13 removed Maxwell/Pascal/Volta (< sm_75)
+    # - sm_100 (Blackwell datacenter) and sm_120 (Blackwell RTX) need >= 12.8
+    if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 13.0)
+      set(UGU_DEFAULT_CUDA_ARCHS 75 80 86 87 89 90 100 120)
+    elseif(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.8)
+      set(UGU_DEFAULT_CUDA_ARCHS 50 52 60 61 70 72 75 80 86 87 89 90 100 120)
+    else()
+      set(UGU_DEFAULT_CUDA_ARCHS 50 52 60 61 70 72 75 80 86 87 89 90)
+    endif()
+    set(CMAKE_CUDA_ARCHITECTURES ${UGU_DEFAULT_CUDA_ARCHS}
+        CACHE STRING "CUDA architectures" FORCE)
   endif()
+  message("CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-deprecated-gpu-targets")
+  # CUDA 12.x nvcc rejects host compilers newer than it knows (e.g. VS2026);
+  # allow the combination instead of hard-failing.
+  if(MSVC AND MSVC_VERSION GREATER_EQUAL 1950
+     AND CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 13.0)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler")
+  endif()
   if (NOT DEFINED CMAKE_CUDA_STANDARD)
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)

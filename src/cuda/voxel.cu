@@ -3499,10 +3499,11 @@ class VoxelGridCudaNaive::Impl {
     int blocksF = std::max(size_t(1), (num_faces_ + THREADS - 1) / THREADS);
     int blocksV = std::max(size_t(1), (num_vertices_ + THREADS - 1) / THREADS);
 
+    // Both kernels run on the default stream, so the dependent normalize
+    // pass needs no host-side synchronization in between.
     ComputeVertexNormalsKernel<<<blocksF, THREADS>>>(
         d_face_normals, d_faces, d_vertex_normals, num_faces_);
     checkCudaErrors(cudaGetLastError());
-    checkCudaErrors(cudaDeviceSynchronize());
     NormalizeVertexNormalsKernel<<<blocksV, THREADS>>>(d_vertex_normals,
                                                        num_vertices_);
     checkCudaErrors(cudaGetLastError());

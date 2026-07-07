@@ -11,7 +11,7 @@ namespace {
 
 #define MAX_IMAGES 32
 
-// ’è”ƒƒ‚ƒŠ—Ìˆæ
+// ãƒ»ï½½é—œè²»ï½¿ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾ŒèŒ¨ï½¿ï½½
 __constant__ int d_width;
 __constant__ int d_height;
 __constant__ int d_num_images;
@@ -20,7 +20,7 @@ __constant__ int d_step;
 __constant__ bool d_gl_coord;
 __constant__ bool d_central_difference;
 
-// ƒJƒƒ‰ƒpƒ‰ƒ[ƒ^i‰æ‘œ‚²‚Æ‚ÉˆÙ‚È‚é‚ª–‡”‚Í­‚È‚¢‚Æ‰¼’èj
+// ãƒ»ï½½Jãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½pãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½[ãƒ»ï½½^ãƒ»ï½½iãƒ»ï½½é«æ‡¶ï½¿ï½½ãƒ»ï½½ãƒ»ï½½ï¾†ã«ç•°ãªã‚‹ãŒãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾æ“¾ï½¿ï½½ãƒ»ï½½ï¾ˆã‚‘ï½¿ï½½ãƒ»ï½½ï¾†ä¼šï½¿ï½½ãƒ»ï½½ãƒ»ï½½j
 __constant__ float d_fx[MAX_IMAGES];
 __constant__ float d_fy[MAX_IMAGES];
 __constant__ float d_cx[MAX_IMAGES];
@@ -97,7 +97,7 @@ __global__ void BoxFilterShared(const uint8_t* d_in, uint8_t* d_out, int width,
     return;
   }
 
-  // box filter ŒvZ
+  // box filter ãƒ»ï½½vãƒ»ï½½Z
   float outVal[3] = {0.0f, 0.0f, 0.0f};
   int count = 0;
   // Loop window
@@ -217,18 +217,18 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
                                               float* normals) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
-  int n = blockIdx.z * blockDim.z + threadIdx.z;  // ‰æ‘œƒCƒ“ƒfƒbƒNƒX
+  int n = blockIdx.z * blockDim.z + threadIdx.z;  // ãƒ»ï½½é«æ‡¶ï½¿ï½½Cãƒ»ï½½ãƒ»ï½½ãƒ»ï½½fãƒ»ï½½bãƒ»ï½½Nãƒ»ï½½X
 
-  // ‰æ‘œ–‡”‚Æ‹«ŠEƒ`ƒFƒbƒNi‹«ŠE‚Í’Pƒ‚Éˆ—‚¹‚¸ƒ[ƒo—Íj
+  // ãƒ»ï½½é«æ‡¶ï½¿ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾†å…·ï½¿ï½½ãƒ»ï½½Eãƒ»ï½½`ãƒ»ï½½Fãƒ»ï½½bãƒ»ï½½Nãƒ»ï½½iãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Eãƒ»ï½½ï¾å˜ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾‰æ“¾ï½¿ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½[ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½oãƒ»ï½½ï¾ï¼‰
   if (n >= d_num_images || x <= d_step - 1 || y <= d_step - 1 ||
       x >= d_width - d_step || y >= d_height - d_step) {
     return;
   }
 
-  // ‘S‘Ì‚Ì1ŸŒ³ƒCƒ“ƒfƒbƒNƒXŒvZi‰æ‘œ n ‚Ì (y, x)j
+  // ãƒ»ï½½Sãƒ»ï½½ï¾Œã‚‘ï½¿ï½½1ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Cãƒ»ï½½ãƒ»ï½½ãƒ»ï½½fãƒ»ï½½bãƒ»ï½½Nãƒ»ï½½Xãƒ»ï½½vãƒ»ï½½Zãƒ»ï½½iãƒ»ï½½é«ãƒ»n ãƒ»ï½½ãƒ»ï½½ (y, x)ãƒ»ï½½j
   int idx = n * d_width * d_height + y * d_width + x;
 
-  // Še‰æ‘œŒÅ—L‚ÌƒJƒƒ‰ƒpƒ‰ƒ[ƒ^‚ğæ“¾
+  // ãƒ»ï½½eãƒ»ï½½é«æ‡¶ï½¿ï½½ï¾…æœ‰ãƒ»ï½½ï¾Œã‚«ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½pãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½[ãƒ»ï½½^ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½è¬«ï½¾
   float fx_val = d_fx[n];
   float fy_val = d_fy[n];
   float cx_val = d_cx[n];
@@ -237,7 +237,7 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
   float inv_fx = 1.0f / fx_val;
   float inv_fy = 1.0f / fy_val;
 
-  // Layered ƒeƒNƒXƒ`ƒƒ‚©‚çŒ»İ‚Ì‰æ‘f‚Ì[“x’l‚ğæ“¾
+  // Layered ãƒ»ï½½eãƒ»ï½½Nãƒ»ï½½Xãƒ»ï½½`ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½è¿ªï½»ãƒ»ï½½ï¾ã®ä¼šï½¿ï½½fãƒ»ï½½ï¾Œæ·±ãƒ»ï½½xãƒ»ï½½lãƒ»ï½½ãƒ»ï½½ãƒ»ï½½è¬«ï½¾
   float d = tex2DLayered<float>(texDepth, x, y, n);
   if (d <= 0.0f) {
     normals[3 * idx + 0] = 0.0f;
@@ -246,7 +246,7 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
     return;
   }
 
-  // —×Ú‰æ‘fi‰E‚¨‚æ‚Ñ‰ºj‚Ì[“x‚àæ“¾
+  // ãƒ»ï½½ï¾—æ¥ä¼šï½¿ï½½fãƒ»ï½½iãƒ»ï½½Eãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾‘ä¼šï½¿ï½½ãƒ»ï½½jãƒ»ï½½ï¾Œæ·±ãƒ»ï½½xãƒ»ï½½ãƒ»ï½½ãƒ»ï½½è¬«ï½¾
   float d_right = tex2DLayered<float>(texDepth, x + d_step, y, n);
   float d_bottom = tex2DLayered<float>(texDepth, x, y + d_step, n);
   if (d_right <= 0.0f || d_bottom <= 0.0f) {
@@ -256,11 +256,11 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
     return;
   }
 
-  // ‰æ‘fÀ•W (u, v)
+  // ãƒ»ï½½ãƒ»ï½½fãƒ»ï½½ãƒ»ï½½ãƒ»ï½½W (u, v)
   float u = (float)x;
   float v = (float)y;
 
-  // Œ»İ‚Ì‰æ‘f‚Ì3ŸŒ³À•WŒvZ
+  // ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾ã®ä¼šï½¿ï½½fãƒ»ï½½ãƒ»ï½½3ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Wãƒ»ï½½vãƒ»ï½½Z
   float X = (u - cx_val) * d * inv_fx;
   float Y = (v - cy_val) * d * inv_fy;
   float Z = d;
@@ -272,12 +272,12 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
   float dy_y;
   float dy_z;
 
-  // ‰E—×‚Ì‰æ‘f‚Ì3ŸŒ³À•WŒvZ
+  // ãƒ»ï½½Eãƒ»ï½½ï¾—ã®ä¼šï½¿ï½½fãƒ»ï½½ãƒ»ï½½3ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Wãƒ»ï½½vãƒ»ï½½Z
   float Xr = ((u + d_step) - cx_val) * d_right * inv_fx;
   float Yr = (v - cy_val) * d_right * inv_fy;
   float Zr = d_right;
 
-  // ‰º—×‚Ì‰æ‘f‚Ì3ŸŒ³À•WŒvZ
+  // ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾—ã®ä¼šï½¿ï½½fãƒ»ï½½ãƒ»ï½½3ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Wãƒ»ï½½vãƒ»ï½½Z
   float Xb = (u - cx_val) * d_bottom * inv_fx;
   float Yb = ((v + d_step) - cy_val) * d_bottom * inv_fy;
   float Zb = d_bottom;
@@ -293,12 +293,12 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
       return;
     }
 
-    // ‰E—×‚Ì‰æ‘f‚Ì3ŸŒ³À•WŒvZ
+    // ãƒ»ï½½Eãƒ»ï½½ï¾—ã®ä¼šï½¿ï½½fãƒ»ï½½ãƒ»ï½½3ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Wãƒ»ï½½vãƒ»ï½½Z
     float Xl = ((u - d_step) - cx_val) * d_left * inv_fx;
     float Yl = (v - cy_val) * d_left * inv_fy;
     float Zl = d_left;
 
-    // ‰º—×‚Ì‰æ‘f‚Ì3ŸŒ³À•WŒvZ
+    // ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾—ã®ä¼šï½¿ï½½fãƒ»ï½½ãƒ»ï½½3ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Wãƒ»ï½½vãƒ»ï½½Z
     float Xt = (u - cx_val) * d_top * inv_fx;
     float Yt = ((v - d_step) - cy_val) * d_top * inv_fy;
     float Zt = d_top;
@@ -354,12 +354,12 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
   dy_z = Zb - Z;
 #endif
 
-  // ƒNƒƒXƒvƒƒ_ƒNƒg‚Å–@ü‚ğŒvZ
+  // ãƒ»ï½½Nãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Xãƒ»ï½½vãƒ»ï½½ãƒ»ï½½ãƒ»ï½½_ãƒ»ï½½Nãƒ»ï½½gãƒ»ï½½ï¾…æ³•ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½vãƒ»ï½½Z
   float nx = dx_y * dy_z - dx_z * dy_y;
   float ny = dx_z * dy_x - dx_x * dy_z;
   float nz = dx_x * dy_y - dx_y * dy_x;
 
-  // ³‹K‰»
+  // ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Kãƒ»ï½½ãƒ»ï½½
   float norm = sqrtf(nx * nx + ny * ny + nz * nz);
   if (norm > 1e-6f) {
     nx /= norm;
@@ -382,71 +382,71 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
 
 __global__ void ComputeNormalsTextureMultiCam_Shared(
     cudaTextureObject_t texDepth, float* normals, float* points) {
-  // ŠeƒuƒƒbƒN‚Í 1 –‡‚Ì‰æ‘œ‚ğ’S“–
+  // ãƒ»ï½½eãƒ»ï½½uãƒ»ï½½ãƒ»ï½½ãƒ»ï½½bãƒ»ï½½Nãƒ»ï½½ãƒ»ï½½ 1 ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾Œç”»åƒãƒ»ï½½ãƒ»ï½½Sãƒ»ï½½ãƒ»ï½½
   int n = blockIdx.z;
   if (n >= d_num_images) return;
 
-  // 2D ƒ^ƒCƒ‹“à‚ÌƒsƒNƒZƒ‹
+  // 2D ãƒ»ï½½^ãƒ»ï½½Cãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾Œãƒ”ãƒ»ï½½Nãƒ»ï½½Zãƒ»ï½½ãƒ»ï½½
   int tx = threadIdx.x;
   int ty = threadIdx.y;
   int x = blockIdx.x * BLOCK_W + tx;
   int y = blockIdx.y * BLOCK_H + ty;
   if (x >= d_width || y >= d_height) return;
 
-  // ‹¤—Lƒƒ‚ƒŠFƒ^ƒCƒ‹{‹«ŠE•ª
+  // ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Lãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Fãƒ»ï½½^ãƒ»ï½½Cãƒ»ï½½ãƒ»ï½½ãƒ»ï½½{ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Eãƒ»ï½½ãƒ»ï½½
   extern __shared__ float s_depth[];
   const int S_W = BLOCK_W + 2 * d_step;
   // const int S_H = BLOCK_H + 2 * d_step;
 
-  // ‹¤—Lƒƒ‚ƒŠã‚ÌÀ•W
+  // ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Lãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾Œæ¾ï½¿ï½½ãƒ»ï½½W
   int sx = tx + d_step;
   int sy = ty + d_step;
   int sidx = sy * S_W + sx;
 
-  // (1) ’†S‰æ‘f‚Ì[“x‚ğƒ[ƒh
+  // (1) ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Sãƒ»ï½½ãƒ»ï½½fãƒ»ï½½ï¾Œæ·±ãƒ»ï½½xãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½[ãƒ»ï½½h
   float d_center = tex2DLayered<float>(texDepth, x, y, n);
   s_depth[sidx] = d_center;
 
-  // (2) ‹«ŠEƒsƒNƒZƒ‹‚àƒ[ƒh
-  //    ŠeƒXƒŒƒbƒh‚ª©•ª‚Ìü•Ó step •ª‚Ì‹«ŠE‚ğ’S“–‚µ‚Ü‚·
+  // (2) ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Eãƒ»ï½½sãƒ»ï½½Nãƒ»ï½½Zãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½[ãƒ»ï½½h
+  //    ãƒ»ï½½eãƒ»ï½½Xãƒ»ï½½ãƒ»ï½½ãƒ»ï½½bãƒ»ï½½hãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾Œè¶£ï½¿ï½½ãƒ»ï½½ãƒ»ï½½ step ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾Œå…·ï½¿ï½½ãƒ»ï½½Eãƒ»ï½½ãƒ»ï½½Sãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾œã‚‘ï½¿ï½½
   if (tx < d_step) {
-    // ¶‹«ŠE
+    // ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½E
     s_depth[sy * S_W + (sx - d_step)] =
         tex2DLayered<float>(texDepth, x - d_step, y, n);
   }
   if (tx >= BLOCK_W - d_step) {
-    // ‰E‹«ŠE
+    // ãƒ»ï½½Eãƒ»ï½½ãƒ»ï½½ãƒ»ï½½E
     s_depth[sy * S_W + (sx + d_step)] =
         tex2DLayered<float>(texDepth, x + d_step, y, n);
   }
   if (ty < d_step) {
-    // ã‹«ŠE
+    // ãƒ»ï½½ç¹¼ï½«ãƒ»ï½½E
     s_depth[(sy - d_step) * S_W + sx] =
         tex2DLayered<float>(texDepth, x, y - d_step, n);
   }
   if (ty >= BLOCK_H - d_step) {
-    // ‰º‹«ŠE
+    // ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½E
     s_depth[(sy + d_step) * S_W + sx] =
         tex2DLayered<float>(texDepth, x, y + d_step, n);
   }
 
-  // Šp‚à•K—v‚È‚ç“¯—l‚É...
+  // ãƒ»ï½½pãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Kãƒ»ï½½vãƒ»ï½½ï¾ˆã‚‰åŒãƒ»ï½½lãƒ»ï½½ãƒ»ï½½...
   __syncthreads();
 
-  // ˆÈ~‚Í shared ƒƒ‚ƒŠ‚©‚ç“Ç‚İo‚µ
+  // ãƒ»ï½½ï¾ˆé™ãƒ»ï½½ãƒ»ï½½ shared ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾‡ã¿å‡ºãƒ»ï½½ãƒ»ï½½
   if (d_center <= 0.0f) {
-    // –³Œø[“x
+    // ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½[ãƒ»ï½½x
     int idx = n * d_width * d_height + y * d_width + x;
     normals[3 * idx + 0] = normals[3 * idx + 1] = normals[3 * idx + 2] = 0.0f;
     points[3 * idx + 0] = points[3 * idx + 1] = points[3 * idx + 2] = 0.0f;
     return;
   }
 
-  // ‹¤—Lƒƒ‚ƒŠ‚©‚ç‰EE‰º‚ğ“Ç‚İo‚µ
+  // ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Lãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Eãƒ»ï½½Eãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾‡ã¿å‡ºãƒ»ï½½ãƒ»ï½½
   float d_r = s_depth[sidx + d_step];
   float d_b = s_depth[(sidx + S_W * d_step)];
 
-  // 3D “_‚ÌŒvZi’†Sj
+  // 3D ãƒ»ï½½_ãƒ»ï½½ï¾Œè¨ˆãƒ»ï½½Zãƒ»ï½½iãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Sãƒ»ï½½j
   float u = float(x), v = float(y);
   float fx_val = d_fx[n], fy_val = d_fy[n], cx_val = d_cx[n], cy_val = d_cy[n];
   float inv_fx = 1.0f / fx_val, inv_fy = 1.0f / fy_val;
@@ -460,16 +460,16 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
     Z = -Z;
   }
 
-  // (3) ’è”ƒƒ‚ƒŠ‚©‚ç Extrinsics ‚ğ“Ç‚İo‚µ
-  const float* R = &d_R[n * 9];  // R[0]..R[8] ‚ª 3~3 s—ñ
-  const float* t = &d_t[n * 3];  // t[0]..t[2] ‚ª•ÀiƒxƒNƒgƒ‹
+  // (3) ãƒ»ï½½é—œè²»ï½¿ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ Extrinsics ãƒ»ï½½ãƒ»ï½½ï¾‡ã¿å‡ºãƒ»ï½½ãƒ»ï½½
+  const float* R = &d_R[n * 9];  // R[0]..R[8] ãƒ»ï½½ãƒ»ï½½ 3ãƒ»ï½½~3 ãƒ»ï½½sãƒ»ï½½ãƒ»ï½½
+  const float* t = &d_t[n * 3];  // t[0]..t[2] ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½iãƒ»ï½½xãƒ»ï½½Nãƒ»ï½½gãƒ»ï½½ãƒ»ï½½
 
-  // (4) ƒ[ƒ‹ƒhÀ•W•ÏŠ·F“_ (X,Y,Z) ¨ (Xw,Yw,Zw)
+  // (4) ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½[ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½hãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Wãƒ»ï½½ï¾å¥‡ï½¿ï½½ãƒ»ï½½Fãƒ»ï½½_ (X,Y,Z) ãƒ»ï½½ãƒ»ï½½ (Xw,Yw,Zw)
   float Xw = R[0] * X + R[1] * Y + R[2] * Z + t[0];
   float Yw = R[3] * X + R[4] * Y + R[5] * Z + t[1];
   float Zw = R[6] * X + R[7] * Y + R[8] * Z + t[2];
 
-  // (6) o—Íƒoƒbƒtƒ@‚Ö‘‚«‚İ
+  // (6) ãƒ»ï½½oãƒ»ï½½ï¾ãƒãƒ»ï½½bãƒ»ï½½tãƒ»ï½½@ãƒ»ï½½ï¾–æ“¾ï½¿ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½
   points[3 * idx + 0] = Xw;
   points[3 * idx + 1] = Yw;
   points[3 * idx + 2] = Zw;
@@ -479,7 +479,7 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
     return;
   }
 
-  // —×ÚƒsƒNƒZƒ‹‚Ì‚RŸŒ³À•W
+  // ãƒ»ï½½ï¾—æ¥ãƒ”ãƒ»ï½½Nãƒ»ï½½Zãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾Œï¼“ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½W
   float Xr = ((u + d_step) - cx_val) * d_r * inv_fx;
   float Yr = (v - cy_val) * d_r * inv_fy;
   float Zr = d_r;
@@ -488,7 +488,7 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
   float Zb = d_b;
 
 #if 0
-  // –@üŒvZi‘Oi·•ªj
+  // ãƒ»ï½½@ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½vãƒ»ï½½Zãƒ»ï½½iãƒ»ï½½Oãƒ»ï½½iãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½j
   float dx_x = Xr - X, dx_y = Yr - Y, dx_z = Zr - Z;
   float dy_x = Xb - X, dy_y = Yb - Y, dy_z = Zb - Z;
   //float nx = dx_y * dy_z - dx_z * dy_y;
@@ -533,7 +533,7 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
     nz = -nz;
   }
 
-  // (5) –@üƒxƒNƒgƒ‹‚Í•Ài¬•ª‚ªŒø‚©‚È‚¢‚Ì‚Å‰ñ“]‚Ì‚İ
+  // (5) ãƒ»ï½½@ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½xãƒ»ï½½Nãƒ»ï½½gãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾åŒ…ï½¿ï½½ãƒ»ï½½iãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾ˆã‚‘ï½¿ï½½ãƒ»ï½½ï¾Œã§ä¼šï½¿ï½½]ãƒ»ï½½ï¾Œã‚‘ï½¿ï½½
   float nxw = R[0] * nx + R[1] * ny + R[2] * nz;
   float nyw = R[3] * nx + R[4] * ny + R[5] * nz;
   float nzw = R[6] * nx + R[7] * ny + R[8] * nz;
@@ -547,113 +547,138 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
 
 namespace ugu {
 
+namespace {
+
+// Grow-only device workspace reused across calls so that per-call
+// cudaMalloc/cudaFree does not dominate the filter cost.
+// Buffers are intentionally not freed at process exit: the CUDA context may
+// already be destroyed when static destructors run.
+struct BoxFilterWorkspace {
+  uint8_t* d_in = nullptr;
+  uint8_t* d_temp = nullptr;
+  uint8_t* d_out = nullptr;
+  size_t capacity = 0;
+
+  void Ensure(size_t size) {
+    if (size <= capacity) {
+      return;
+    }
+    if (d_in != nullptr) {
+      checkCudaErrors(cudaFree(d_in));
+      checkCudaErrors(cudaFree(d_temp));
+      checkCudaErrors(cudaFree(d_out));
+    }
+    checkCudaErrors(cudaMalloc(&d_in, size));
+    checkCudaErrors(cudaMalloc(&d_temp, size));
+    checkCudaErrors(cudaMalloc(&d_out, size));
+    capacity = size;
+  }
+};
+
+}  // namespace
+
 void BoxFilterCuda3b(int width, int height, void* data, int k) {
-#if 1
-  uint8_t *d_in, *d_out;
+  // Not thread-safe, matching the rest of this API (default stream, shared
+  // constant memory).
+  static BoxFilterWorkspace ws;
+
   size_t totalSize = sizeof(uint8_t) * 3 * width * height;
-  checkCudaErrors(cudaMalloc(&d_in, totalSize));
-  cudaMalloc(&d_out, totalSize);
+  ws.Ensure(totalSize);
 
-  cudaMemcpy(d_in, data, totalSize, cudaMemcpyHostToDevice);
-
-  // int N = 1 << 20;
-  int blocksize = 32;
-
-  dim3 block(blocksize, blocksize);  // 32x32 = 1024 threads
-  dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y);
-
-#if 0
-  BoxFilterNaive<<<grid, block>>>(d_in, d_out, width, height, k);
-#endif
-
-#if 0
-  size_t sharedMemSize = block.x * block.y * 3 * sizeof(float);
-
-  BoxFilterShared<<<grid, block, sharedMemSize>>>(d_in, d_out, width, height,
-                                                  k);
-#endif
-
-#if 1
-  uint8_t* d_temp;
-  cudaMalloc(&d_temp, totalSize);
-
-  BoxFilterRow<<<grid, block>>>(d_in, d_temp, width, height, k);
-  cudaDeviceSynchronize();
-
-  BoxFilterCol<<<grid, block>>>(d_temp, d_out, width, height, k);
-#endif
-
-  checkCudaErrors(cudaDeviceSynchronize());
-
-  checkCudaErrors(cudaMemcpy(data, d_out, totalSize, cudaMemcpyDeviceToHost));
-
-  cudaFree(d_in);
-  cudaFree(d_out);
-#if 1
-  cudaFree(d_temp);
-#endif
-#else
-
-  uint8_t *d_in, *d_temp, *d_transposed, *d_out_transposed, *d_final_out;
-  size_t totalSize = sizeof(uint8_t) * 3 * width * height;
-
-  cudaMalloc(&d_in, totalSize);
-  cudaMalloc(&d_temp, totalSize);
-  cudaMalloc(&d_transposed, totalSize);
-  cudaMalloc(&d_out_transposed, totalSize);
-  cudaMalloc(&d_final_out, totalSize);
-
-  cudaMemcpy(d_in, data, totalSize, cudaMemcpyHostToDevice);
+  checkCudaErrors(
+      cudaMemcpy(ws.d_in, data, totalSize, cudaMemcpyHostToDevice));
 
   dim3 block(32, 32);
   dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y);
 
-  // 1st Pass: Row filtering
-  BoxFilterRow<<<grid, block>>>(d_in, d_temp, width, height, k);
-  cudaDeviceSynchronize();
+  // Separable two-pass filter. Both kernels run on the default stream, so
+  // no synchronization is needed between them; the blocking D2H copy below
+  // waits for completion.
+  BoxFilterRow<<<grid, block>>>(ws.d_in, ws.d_temp, width, height, k);
+  BoxFilterCol<<<grid, block>>>(ws.d_temp, ws.d_out, width, height, k);
+  checkCudaErrors(cudaGetLastError());
 
-  dim3 transposeBlock(16, 16);
-  dim3 transposeGrid((width + transposeBlock.x - 1) / transposeBlock.x,
-                     (height + transposeBlock.y - 1) / transposeBlock.y);
-
-  size_t sharedMemSize = block.x * block.y * 3 * sizeof(float);
-
-  // Transpose
-  Transpose<<<transposeGrid, transposeBlock, sharedMemSize>>>(
-      d_temp, d_transposed, width, height);
-  cudaDeviceSynchronize();
-
-  // 2nd Pass: Row filtering for transposed image
-  dim3 grid2((height + block.x - 1) / block.x, (width + block.y - 1) / block.y);
-
-  BoxFilterRow<<<grid2, block>>>(d_transposed, d_out_transposed, height, width,
-                                 k);
-  cudaDeviceSynchronize();
-
-  // Transpose againid_out_transposed -> d_final_outj
-  dim3 transposeGridDim2((height + transposeBlock.y - 1) / transposeBlock.y,
-                         (width + transposeBlock.x - 1) / transposeBlock.x);
-
-  Transpose<<<transposeGridDim2, transposeBlock, sharedMemSize>>>(
-      d_out_transposed, d_final_out, height, width);
-  cudaDeviceSynchronize();
-
-  cudaMemcpy(data, d_final_out, totalSize, cudaMemcpyDeviceToHost);
-
-  cudaFree(d_in);
-  cudaFree(d_temp);
-  cudaFree(d_transposed);
-  cudaFree(d_out_transposed);
-  cudaFree(d_final_out);
-#endif
+  checkCudaErrors(
+      cudaMemcpy(data, ws.d_out, totalSize, cudaMemcpyDeviceToHost));
 }
+
+namespace {
+
+// Persistent depth texture + output buffer for the free-function normals
+// path, so repeated calls do not pay cudaMalloc3DArray / texture-object
+// creation / cudaMalloc / cudaFree every time. Reallocated only when the
+// image dimensions change. Buffers are intentionally not freed at process
+// exit (see BoxFilterWorkspace).
+struct NormalsWorkspace {
+  cudaArray* d_depthArray = nullptr;
+  cudaTextureObject_t texDepth = 0;
+  float* d_normals = nullptr;
+  cudaExtent extent = {};
+  int width = 0;
+  int height = 0;
+  int num_images = 0;
+
+  void Ensure(int width_, int height_, int num_images_) {
+    if (width == width_ && height == height_ && num_images == num_images_) {
+      return;
+    }
+    if (texDepth != 0) {
+      checkCudaErrors(cudaDestroyTextureObject(texDepth));
+      texDepth = 0;
+    }
+    if (d_depthArray != nullptr) {
+      checkCudaErrors(cudaFreeArray(d_depthArray));
+      d_depthArray = nullptr;
+    }
+    if (d_normals != nullptr) {
+      checkCudaErrors(cudaFree(d_normals));
+      d_normals = nullptr;
+    }
+
+    width = width_;
+    height = height_;
+    num_images = num_images_;
+
+    // Layered CUDA array for the depth image stack
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
+    extent = make_cudaExtent(width, height, num_images);
+    checkCudaErrors(cudaMalloc3DArray(&d_depthArray, &channelDesc, extent,
+                                      cudaArrayLayered));
+
+    cudaResourceDesc resDesc;
+    memset(&resDesc, 0, sizeof(resDesc));
+    resDesc.resType = cudaResourceTypeArray;
+    resDesc.res.array.array = d_depthArray;
+
+    cudaTextureDesc texDesc;
+    memset(&texDesc, 0, sizeof(texDesc));
+    texDesc.addressMode[0] = cudaAddressModeClamp;
+    texDesc.addressMode[1] = cudaAddressModeClamp;
+    texDesc.filterMode = cudaFilterModePoint;
+    texDesc.readMode = cudaReadModeElementType;
+    texDesc.normalizedCoords = 0;
+    checkCudaErrors(
+        cudaCreateTextureObject(&texDepth, &resDesc, &texDesc, NULL));
+
+    size_t num_pixels = static_cast<size_t>(width) * height * num_images;
+    checkCudaErrors(cudaMalloc(&d_normals, 3 * num_pixels * sizeof(float)));
+  }
+};
+
+}  // namespace
 
 void ComputeNormalsCudaImpl(int width, int height, float* h_depths,
                             int num_images, const float* h_fx,
                             const float* h_fy, const float* h_cx,
                             const float* h_cy, float* h_normals,
                             float max_connect_z_diff, int step, bool gl_coord) {
-  size_t num_pixels = width * height * num_images;
+  // Not thread-safe, matching the rest of this API (default stream, shared
+  // constant memory).
+  static NormalsWorkspace ws;
+
+  size_t num_pixels = static_cast<size_t>(width) * height * num_images;
+  // The parameter constants are tiny; upload them every call so that
+  // changing parameters between calls stays correct.
   cudaMemcpyToSymbol(d_height, &height, sizeof(int));
   cudaMemcpyToSymbol(d_width, &width, sizeof(int));
   cudaMemcpyToSymbol(d_num_images, &num_images, sizeof(int));
@@ -668,73 +693,34 @@ void ComputeNormalsCudaImpl(int width, int height, float* h_depths,
   cudaMemcpyToSymbol(d_cx, h_cx, num_images * sizeof(float));
   cudaMemcpyToSymbol(d_cy, h_cy, num_images * sizeof(float));
 
-  // (4) ƒfƒoƒCƒX‘¤FLayered CUDA Array ‚ÌŠm•Ûi[“x‰æ‘œ—pj
-  cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
-  cudaExtent extent = make_cudaExtent(width, height, num_images);
-  cudaArray* d_depthArray = nullptr;
-  checkCudaErrors(
-      cudaMalloc3DArray(&d_depthArray, &channelDesc, extent, cudaArrayLayered));
+  ws.Ensure(width, height, num_images);
 
-  // (5) cudaMemcpy3D ‚ğ—p‚¢‚ÄƒzƒXƒg‚Ì[“x‰æ‘œƒf[ƒ^‚ğ CUDA Array ‚Ö“]‘—
+  // Upload the depth stack into the persistent layered array
   cudaMemcpy3DParms copyParams = {0};
   copyParams.srcPtr =
       make_cudaPitchedPtr(h_depths, width * sizeof(float), width, height);
-  copyParams.dstArray = d_depthArray;
-  copyParams.extent = extent;
+  copyParams.dstArray = ws.d_depthArray;
+  copyParams.extent = ws.extent;
   copyParams.kind = cudaMemcpyHostToDevice;
   checkCudaErrors(cudaMemcpy3D(&copyParams));
 
-  // (6) ƒeƒNƒXƒ`ƒƒƒIƒuƒWƒFƒNƒg‚Ìİ’èiLayered 2D ƒeƒNƒXƒ`ƒƒj
-  cudaResourceDesc resDesc;
-  memset(&resDesc, 0, sizeof(resDesc));
-  resDesc.resType = cudaResourceTypeArray;
-  resDesc.res.array.array = d_depthArray;
+  // The kernel does not write pixels within `step` of the image border, so
+  // clear the output first; otherwise stale/garbage values leak into the
+  // result there.
+  checkCudaErrors(
+      cudaMemsetAsync(ws.d_normals, 0, 3 * num_pixels * sizeof(float)));
 
-  cudaTextureDesc texDesc;
-  memset(&texDesc, 0, sizeof(texDesc));
-  texDesc.addressMode[0] = cudaAddressModeClamp;
-  texDesc.addressMode[1] = cudaAddressModeClamp;
-  texDesc.filterMode = cudaFilterModePoint;  // •âŠÔ•s—v‚Ìê‡‚Íƒ|ƒCƒ“ƒgƒtƒBƒ‹ƒ^
-  texDesc.readMode = cudaReadModeElementType;
-  texDesc.normalizedCoords = 0;  // ”ñ³‹K‰»À•W‚ÅƒAƒNƒZƒX
-
-  cudaTextureObject_t texDepth = 0;
-  checkCudaErrors(cudaCreateTextureObject(&texDepth, &resDesc, &texDesc, NULL));
-
-  // (7) o—Í–@ü—p‚ÌƒfƒoƒCƒXƒƒ‚ƒŠŠm•ÛiŠe‰æ‘f3—v‘fj
-  float* d_normals;
-  checkCudaErrors(cudaMalloc(&d_normals, 3 * num_pixels * sizeof(float)));
-
-  // (8) ƒJ[ƒlƒ‹ŒÄ‚Ño‚µİ’èFƒuƒƒbƒN‚Í
-  // (16,16,1)AƒOƒŠƒbƒh‚Í‰æ‘œƒTƒCƒY‚Æ–‡”‚É‡‚í‚¹‚é
   dim3 block(16, 16, 1);
   dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y,
             num_images);
 
-  // std::cout << block.x << " " << block.y << " " << block.z << std::endl;
-  // std::cout << grid.x << " " << grid.y << " " << grid.z << std::endl;
-  ComputeNormalsTextureMultiCam<<<grid, block>>>(texDepth, d_normals);
+  ComputeNormalsTextureMultiCam<<<grid, block>>>(ws.texDepth, ws.d_normals);
   checkCudaErrors(cudaGetLastError());
-  checkCudaErrors(cudaDeviceSynchronize());
 
-  checkCudaErrors(cudaMemcpy(h_normals, d_normals,
+  // The blocking D2H copy below also serializes against the kernel
+  checkCudaErrors(cudaMemcpy(h_normals, ws.d_normals,
                              3 * num_pixels * sizeof(float),
                              cudaMemcpyDeviceToHost));
-
-  // (11) Œãn––FƒeƒNƒXƒ`ƒƒƒIƒuƒWƒFƒNƒgACUDA ArrayAŠeíƒƒ‚ƒŠ‚Ì‰ğ•ú
-  checkCudaErrors(cudaDestroyTextureObject(texDepth));
-  checkCudaErrors(cudaFreeArray(d_depthArray));
-  checkCudaErrors(cudaFree(d_normals));
-  // checkCudaErrors(cudaFree(d_fx));
-  // checkCudaErrors(cudaFree(d_fy));
-  // checkCudaErrors(cudaFree(d_cx));
-  // checkCudaErrors(cudaFree(d_cy));
-  //  free(h_depth);
-  //  free(h_fx);
-  //  free(h_fy);
-  //  free(h_cx);
-  //  free(h_cy);
-  //  free(h_normals);
 }
 
 class NormalComputerCuda::Impl {
@@ -771,6 +757,24 @@ class NormalComputerCuda::Impl {
       std::cerr << "Error: num_images (" << num_images_
                 << ") exceeds MAX_IMAGES (" << MAX_IMAGES << ")" << std::endl;
       return;
+    }
+
+    // Release resources from a previous Init()
+    if (texDepth != 0) {
+      checkCudaErrors(cudaDestroyTextureObject(texDepth));
+      texDepth = 0;
+    }
+    if (d_depthArray != nullptr) {
+      checkCudaErrors(cudaFreeArray(d_depthArray));
+      d_depthArray = nullptr;
+    }
+    if (d_normals != nullptr) {
+      checkCudaErrors(cudaFree(d_normals));
+      d_normals = nullptr;
+    }
+    if (d_points != nullptr) {
+      checkCudaErrors(cudaFree(d_points));
+      d_points = nullptr;
     }
 
     width = width_;
@@ -815,7 +819,7 @@ class NormalComputerCuda::Impl {
       cudaMemcpyToSymbol(d_t, h_t_vec.data(), num_images * 3 * sizeof(float));
     }
 
-    // (4) ƒfƒoƒCƒX‘¤FLayered CUDA Array ‚ÌŠm•Ûi[“x‰æ‘œ—pj
+    // (4) ãƒ»ï½½fãƒ»ï½½oãƒ»ï½½Cãƒ»ï½½Xãƒ»ï½½ãƒ»ï½½ãƒ»ï½½FLayered CUDA Array ãƒ»ï½½ï¾Œç¢ºãƒ»ï½½ï¾›ï¼ˆãƒ»ï½½[ãƒ»ï½½xãƒ»ï½½é«æ‡¶ï½¿ï½½pãƒ»ï½½j
     channelDesc = cudaCreateChannelDesc<float>();
     extent = make_cudaExtent(width, height, num_images);
     checkCudaErrors(cudaMalloc3DArray(&d_depthArray, &channelDesc, extent,
@@ -829,16 +833,22 @@ class NormalComputerCuda::Impl {
     texDesc.addressMode[0] = cudaAddressModeClamp;
     texDesc.addressMode[1] = cudaAddressModeClamp;
     texDesc.filterMode =
-        cudaFilterModePoint;  // •âŠÔ•s—v‚Ìê‡‚Íƒ|ƒCƒ“ƒgƒtƒBƒ‹ƒ^
+        cudaFilterModePoint;  // ãƒ»ï½½ãƒ»ï½½ï¾”ä¸ãƒ»ï½½vãƒ»ï½½ï¾Œå ´åˆãƒ»ï½½ï¾ãƒãƒ»ï½½Cãƒ»ï½½ãƒ»ï½½ãƒ»ï½½gãƒ»ï½½tãƒ»ï½½Bãƒ»ï½½ãƒ»ï½½ãƒ»ï½½^
     texDesc.readMode = cudaReadModeElementType;
-    texDesc.normalizedCoords = 0;  // ”ñ³‹K‰»À•W‚ÅƒAƒNƒZƒX
+    texDesc.normalizedCoords = 0;  // ãƒ»ï½½î„‹ï½³è¦ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ãƒ»ï½½Wãƒ»ï½½ï¾…ã‚¢ãƒ»ï½½Nãƒ»ï½½Zãƒ»ï½½X
+
+    // The depth array is persistent, so the texture object over it can be
+    // created once here instead of per ComputeNormals call (the previous
+    // per-call creation also leaked the old texture object every call).
+    checkCudaErrors(
+        cudaCreateTextureObject(&texDepth, &resDesc, &texDesc, NULL));
 
     checkCudaErrors(cudaMalloc(&d_normals, 3 * num_pixels * sizeof(float)));
     checkCudaErrors(cudaMalloc(&d_points, 3 * num_pixels * sizeof(float)));
   }
 
   void ComputeNormals(const float* h_depths) {
-    // (5) cudaMemcpy3D ‚ğ—p‚¢‚ÄƒzƒXƒg‚Ì[“x‰æ‘œƒf[ƒ^‚ğ CUDA Array ‚Ö“]‘—
+    // (5) cudaMemcpy3D ãƒ»ï½½ãƒ»ï½½pãƒ»ï½½ãƒ»ï½½ãƒ»ï½½ï¾„ãƒ›ãƒ»ï½½Xãƒ»ï½½gãƒ»ï½½ï¾Œæ·±ãƒ»ï½½xãƒ»ï½½é«æ‡¶ï½¿ï½½fãƒ»ï½½[ãƒ»ï½½^ãƒ»ï½½ãƒ»ï½½ CUDA Array ãƒ»ï½½ï¾–è»¢ãƒ»ï½½ãƒ»ï½½
     cudaMemcpy3DParms copyParams = {0};
     copyParams.srcPtr = make_cudaPitchedPtr(
         const_cast<float*>(h_depths), width * sizeof(float), width, height);
@@ -847,9 +857,13 @@ class NormalComputerCuda::Impl {
     copyParams.kind = cudaMemcpyHostToDevice;
     checkCudaErrors(cudaMemcpy3D(&copyParams));
 
-    texDepth = 0;
+    // The kernel does not write pixels within `step` of the image border,
+    // so clear the outputs first to avoid stale values there.
+    size_t num_pixels = static_cast<size_t>(width) * height * num_images;
     checkCudaErrors(
-        cudaCreateTextureObject(&texDepth, &resDesc, &texDesc, NULL));
+        cudaMemsetAsync(d_normals, 0, 3 * num_pixels * sizeof(float)));
+    checkCudaErrors(
+        cudaMemsetAsync(d_points, 0, 3 * num_pixels * sizeof(float)));
 
     dim3 block(16, 16, 1);
     dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y,

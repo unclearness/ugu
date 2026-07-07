@@ -68,6 +68,20 @@ bool KNnGridCuda::Impl::Build() {
     return false;
   }
 
+  // Release buffers from a previous Build()
+  if (m_d_data) {
+    cudaFree(m_d_data);
+    m_d_data = nullptr;
+  }
+  if (m_d_voxel_start_indices) {
+    cudaFree(m_d_voxel_start_indices);
+    m_d_voxel_start_indices = nullptr;
+  }
+  if (m_d_voxel_point_indices) {
+    cudaFree(m_d_voxel_point_indices);
+    m_d_voxel_point_indices = nullptr;
+  }
+
   // Compute bounds
   m_min_bound = m_h_data[0];
   m_max_bound = m_h_data[0];
@@ -112,14 +126,17 @@ bool KNnGridCuda::Impl::Build() {
     voxel_counts[voxel_index]++;
   }
 
-  // Compute the start index of each voxel
-  m_h_voxel_start_indices = std::vector<uint32_t>(m_voxel_num, 0);
+  // Compute the start index of each voxel.
+  // One extra sentinel entry holds the total count so that the kernel can
+  // read offsets[voxel + 1] unconditionally.
+  m_h_voxel_start_indices = std::vector<uint32_t>(m_voxel_num + 1, 0);
 
   uint32_t sum = 0;
   for (size_t i = 0; i < m_voxel_num; ++i) {
     m_h_voxel_start_indices[i] = sum;
     sum += voxel_counts[i];
   }
+  m_h_voxel_start_indices[m_voxel_num] = sum;
 
   assert(sum == m_h_data.size());
 
@@ -141,11 +158,12 @@ bool KNnGridCuda::Impl::Build() {
                              sizeof(Eigen::Vector3f) * m_h_data.size(),
                              cudaMemcpyHostToDevice));
 
-  checkCudaErrors(
-      cudaMalloc(&m_d_voxel_start_indices, sizeof(uint32_t) * m_voxel_num));
-  checkCudaErrors(
-      cudaMemcpy(m_d_voxel_start_indices, m_h_voxel_start_indices.data(),
-                 sizeof(uint32_t) * m_voxel_num, cudaMemcpyHostToDevice));
+  checkCudaErrors(cudaMalloc(&m_d_voxel_start_indices,
+                             sizeof(uint32_t) * (m_voxel_num + 1)));
+  checkCudaErrors(cudaMemcpy(m_d_voxel_start_indices,
+                             m_h_voxel_start_indices.data(),
+                             sizeof(uint32_t) * (m_voxel_num + 1),
+                             cudaMemcpyHostToDevice));
 
   checkCudaErrors(cudaMalloc(&m_d_voxel_point_indices, sizeof(uint32_t) * sum));
   checkCudaErrors(cudaMemcpy(m_d_voxel_point_indices,
@@ -178,11 +196,13 @@ std::vector<std::vector<KNnGridSearchResult>> KNnGridCuda::Impl::SearchKnn(
   uint32_t* d_knn_indices;
   checkCudaErrors(
       cudaMalloc(&d_knn_indices, sizeof(uint32_t) * queries_num * k));
-  checkCudaErrors(cudaMemset(d_knn_indices, -1, sizeof(int) * queries_num * k));
+  checkCudaErrors(
+      cudaMemset(d_knn_indices, -1, sizeof(uint32_t) * queries_num * k));
 
   float* d_knn_dists;
   checkCudaErrors(cudaMalloc(&d_knn_dists, sizeof(float) * queries_num * k));
-  checkCudaErrors(cudaMemset(d_knn_dists, -1, sizeof(int) * queries_num * k));
+  checkCudaErrors(
+      cudaMemset(d_knn_dists, -1, sizeof(float) * queries_num * k));
 
   // Execute kernel
   SearchKnnCuda(m_d_data, m_d_voxel_start_indices, m_d_voxel_point_indices,
