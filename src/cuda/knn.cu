@@ -129,8 +129,9 @@ __device__ inline void kNNSearchBody(
 // This thread's slice of the output buffers is the working list. Never
 // allocate device heap memory inside a kernel: it serializes on the heap
 // allocator and easily exhausts the (default 8MB) heap.
-// (A fixed-size local-memory variant was measured slower here — register
-// pressure/occupancy — so the output-slice approach is used for all k.)
+// (A fixed-size local-memory variant was measured slower here due to
+// register pressure/occupancy, so the output-slice approach is used for
+// all k.)
 __global__ void kNNKernel(const Eigen::Vector3f* d_points,
                           const uint32_t* d_voxel_start_indices,
                           const uint32_t* d_voxel_point_indices,

@@ -165,7 +165,7 @@ __global__ void label_propagation_one_iter(const int* nbr, int F,
   if (n1 >= 0) m = min(m, label_in[n1]);
   if (n2 >= 0) m = min(m, label_in[n2]);
 
-  // pointer jumping (OpenMP�ł� m = min(m, label[m]) �Ɠ���)
+  // pointer jumping (same as m = min(m, label[m]) in the OpenMP version)
   m = min(m, label_in[m]);
 
   label_out[f] = m;
@@ -209,7 +209,7 @@ __global__ void make_run_head(const int* sorted_label, int F,
   head[i] = h;
 }
 
-// head[i]==1 �̈ʒu���� run_start[run_id[i]] = i ������
+// Where head[i]==1, write run_start[run_id[i]] = i
 __global__ void write_run_start(const int* head, const int* run_id, int F,
                                 int* run_start)  // int[num_runs]
 {
@@ -293,7 +293,7 @@ __global__ void mark_used_vertices(const int* faces, int F2, uint8_t* v_used) {
   int i0 = faces[3 * f + 0];
   int i1 = faces[3 * f + 1];
   int i2 = faces[3 * f + 2];
-  // atomicExch��OK�i1�����������j
+  // atomicExch is fine here (it only ever writes the constant 1)
   atomicExch((unsigned int*)&v_used[i0], 1u);
   atomicExch((unsigned int*)&v_used[i1], 1u);
   atomicExch((unsigned int*)&v_used[i2], 1u);
@@ -309,13 +309,13 @@ __global__ void mark_used_vertices_i32(const int* faces, int F, int V,
   int i1 = faces[3 * f + 1];
   int i2 = faces[3 * f + 2];
 
-  // �͈͊O��ׂ��i�f�o�b�O�ɂ��Ȃ�j
+  // Reject out-of-range indices (also serves as a debug check)
   if ((unsigned)i0 < (unsigned)V) atomicExch(&v_used[i0], 1);
   if ((unsigned)i1 < (unsigned)V) atomicExch(&v_used[i1], 1);
   if ((unsigned)i2 < (unsigned)V) atomicExch(&v_used[i2], 1);
 }
 
-// v_used(uint8) -> v_scan_excl(int) ���g���� new_id �����
+// Build new_id from v_used(uint8) -> v_scan_excl(int)
 __global__ void build_vertex_new_id(
     const int* v_used, const int* v_scan_excl, int V,
     int* v_new_id)  // -1 for unused, else new index
@@ -345,14 +345,14 @@ __global__ void remap_faces_vertices(int* faces, int F2, const int* v_new_id) {
 static void sort_edges_by_key_cub(
     thrust::device_vector<uint64_t>& d_edge_key,
     thrust::device_vector<int>& d_edge_face,
-    // �ė��p�p�o�b�t�@�i�Ăяo�����ŕێ����Ė���n���Ƒ����j
+    // Reusable buffers (kept by the caller and passed in every call)
     thrust::device_vector<uint64_t>& d_edge_key_tmp,
     thrust::device_vector<int>& d_edge_face_tmp,
     thrust::device_vector<uint8_t>& d_temp_storage, cudaStream_t stream) {
   const int E = (int)d_edge_key.size();
   if ((int)d_edge_face.size() != E) std::exit(1);
 
-  // tmp ���m�ہi�T�C�Y���Ⴄ�Ƃ��������T�C�Y�j
+  // Allocate tmp (resize only when the size differs)
   if ((int)d_edge_key_tmp.size() != E) d_edge_key_tmp.resize(E);
   if ((int)d_edge_face_tmp.size() != E) d_edge_face_tmp.resize(E);
 
@@ -543,7 +543,7 @@ void RemoveSmallConnectedComponents(const MeshDevice& in, int K, int min_faces,
                       d_run_id.end(), d_run_id.begin(),
                       [] __host__ __device__(int x) { return x - 1; });
 
-    // num_runs = max(run_id) + 1 = run_id[last] + 1 �ihead[last] �͗v��Ȃ��j
+    // num_runs = max(run_id) + 1 = run_id[last] + 1 (head[last] not needed)
     int h_last_run = 0;
     CUDA_CHECK(cudaMemcpyAsync(
         &h_last_run, thrust::raw_pointer_cast(d_run_id.data()) + (F - 1),

@@ -11,7 +11,7 @@ namespace {
 
 #define MAX_IMAGES 32
 
-// ・ｽ關費ｿｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽﾌ茨ｿｽ
+// Constant memory
 __constant__ int d_width;
 __constant__ int d_height;
 __constant__ int d_num_images;
@@ -20,7 +20,7 @@ __constant__ int d_step;
 __constant__ bool d_gl_coord;
 __constant__ bool d_central_difference;
 
-// ・ｽJ・ｽ・ｽ・ｽ・ｽ・ｽp・ｽ・ｽ・ｽ・ｽ・ｽ[・ｽ^・ｽi・ｽ鞫懶ｿｽ・ｽ・ｽﾆに異なるが・ｽ・ｽ・ｽ・ｽ・ｽﾍ擾ｿｽ・ｽﾈゑｿｽ・ｽﾆ会ｿｽ・ｽ・ｽj
+// Camera intrinsics (differ per image; the image count is assumed small)
 __constant__ float d_fx[MAX_IMAGES];
 __constant__ float d_fy[MAX_IMAGES];
 __constant__ float d_cx[MAX_IMAGES];
@@ -97,7 +97,7 @@ __global__ void BoxFilterShared(const uint8_t* d_in, uint8_t* d_out, int width,
     return;
   }
 
-  // box filter ・ｽv・ｽZ
+  // box filter computation
   float outVal[3] = {0.0f, 0.0f, 0.0f};
   int count = 0;
   // Loop window
@@ -217,18 +217,18 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
                                               float* normals) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
-  int n = blockIdx.z * blockDim.z + threadIdx.z;  // ・ｽ鞫懶ｿｽC・ｽ・ｽ・ｽf・ｽb・ｽN・ｽX
+  int n = blockIdx.z * blockDim.z + threadIdx.z;  // image index
 
-  // ・ｽ鞫懶ｿｽ・ｽ・ｽ・ｽ・ｽﾆ具ｿｽ・ｽE・ｽ`・ｽF・ｽb・ｽN・ｽi・ｽ・ｽ・ｽE・ｽﾍ単・ｽ・ｽ・ｽﾉ擾ｿｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ[・ｽ・ｽ・ｽo・ｽﾍ）
+  // Image-count and border check (border pixels are left as zero)
   if (n >= d_num_images || x <= d_step - 1 || y <= d_step - 1 ||
       x >= d_width - d_step || y >= d_height - d_step) {
     return;
   }
 
-  // ・ｽS・ｽﾌゑｿｽ1・ｽ・ｽ・ｽ・ｽ・ｽC・ｽ・ｽ・ｽf・ｽb・ｽN・ｽX・ｽv・ｽZ・ｽi・ｽ鞫・n ・ｽ・ｽ (y, x)・ｽj
+  // Flattened 1D index (pixel (y, x) of image n)
   int idx = n * d_width * d_height + y * d_width + x;
 
-  // ・ｽe・ｽ鞫懶ｿｽﾅ有・ｽﾌカ・ｽ・ｽ・ｽ・ｽ・ｽp・ｽ・ｽ・ｽ・ｽ・ｽ[・ｽ^・ｽ・ｽ・ｽ謫ｾ
+  // Per-image camera parameters
   float fx_val = d_fx[n];
   float fy_val = d_fy[n];
   float cx_val = d_cx[n];
@@ -237,7 +237,7 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
   float inv_fx = 1.0f / fx_val;
   float inv_fy = 1.0f / fy_val;
 
-  // Layered ・ｽe・ｽN・ｽX・ｽ`・ｽ・ｽ・ｽ・ｽ・ｽ迪ｻ・ｽﾝの会ｿｽf・ｽﾌ深・ｽx・ｽl・ｽ・ｽ・ｽ謫ｾ
+  // Fetch the current pixel depth from the layered texture
   float d = tex2DLayered<float>(texDepth, x, y, n);
   if (d <= 0.0f) {
     normals[3 * idx + 0] = 0.0f;
@@ -246,7 +246,7 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
     return;
   }
 
-  // ・ｽﾗ接会ｿｽf・ｽi・ｽE・ｽ・ｽ・ｽ・ｽﾑ会ｿｽ・ｽj・ｽﾌ深・ｽx・ｽ・ｽ・ｽ謫ｾ
+  // Fetch neighbor (right and bottom) depths
   float d_right = tex2DLayered<float>(texDepth, x + d_step, y, n);
   float d_bottom = tex2DLayered<float>(texDepth, x, y + d_step, n);
   if (d_right <= 0.0f || d_bottom <= 0.0f) {
@@ -256,11 +256,11 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
     return;
   }
 
-  // ・ｽ・ｽf・ｽ・ｽ・ｽW (u, v)
+  // Pixel coordinates (u, v)
   float u = (float)x;
   float v = (float)y;
 
-  // ・ｽ・ｽ・ｽﾝの会ｿｽf・ｽ・ｽ3・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽW・ｽv・ｽZ
+  // 3D position of the current pixel
   float X = (u - cx_val) * d * inv_fx;
   float Y = (v - cy_val) * d * inv_fy;
   float Z = d;
@@ -272,12 +272,12 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
   float dy_y;
   float dy_z;
 
-  // ・ｽE・ｽﾗの会ｿｽf・ｽ・ｽ3・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽW・ｽv・ｽZ
+  // 3D position of the right neighbor
   float Xr = ((u + d_step) - cx_val) * d_right * inv_fx;
   float Yr = (v - cy_val) * d_right * inv_fy;
   float Zr = d_right;
 
-  // ・ｽ・ｽ・ｽﾗの会ｿｽf・ｽ・ｽ3・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽW・ｽv・ｽZ
+  // 3D position of the bottom neighbor
   float Xb = (u - cx_val) * d_bottom * inv_fx;
   float Yb = ((v + d_step) - cy_val) * d_bottom * inv_fy;
   float Zb = d_bottom;
@@ -293,12 +293,12 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
       return;
     }
 
-    // ・ｽE・ｽﾗの会ｿｽf・ｽ・ｽ3・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽW・ｽv・ｽZ
+    // 3D position of the left neighbor
     float Xl = ((u - d_step) - cx_val) * d_left * inv_fx;
     float Yl = (v - cy_val) * d_left * inv_fy;
     float Zl = d_left;
 
-    // ・ｽ・ｽ・ｽﾗの会ｿｽf・ｽ・ｽ3・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽW・ｽv・ｽZ
+    // 3D position of the top neighbor
     float Xt = (u - cx_val) * d_top * inv_fx;
     float Yt = ((v - d_step) - cy_val) * d_top * inv_fy;
     float Zt = d_top;
@@ -354,12 +354,12 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
   dy_z = Zb - Z;
 #endif
 
-  // ・ｽN・ｽ・ｽ・ｽX・ｽv・ｽ・ｽ・ｽ_・ｽN・ｽg・ｽﾅ法・ｽ・ｽ・ｽ・ｽ・ｽv・ｽZ
+  // Normal by cross product
   float nx = dx_y * dy_z - dx_z * dy_y;
   float ny = dx_z * dy_x - dx_x * dy_z;
   float nz = dx_x * dy_y - dx_y * dy_x;
 
-  // ・ｽ・ｽ・ｽK・ｽ・ｽ
+  // Normalize
   float norm = sqrtf(nx * nx + ny * ny + nz * nz);
   if (norm > 1e-6f) {
     nx /= norm;
@@ -382,71 +382,71 @@ __global__ void ComputeNormalsTextureMultiCam(cudaTextureObject_t texDepth,
 
 __global__ void ComputeNormalsTextureMultiCam_Shared(
     cudaTextureObject_t texDepth, float* normals, float* points) {
-  // ・ｽe・ｽu・ｽ・ｽ・ｽb・ｽN・ｽ・ｽ 1 ・ｽ・ｽ・ｽﾌ画像・ｽ・ｽS・ｽ・ｽ
+  // Each block handles one image
   int n = blockIdx.z;
   if (n >= d_num_images) return;
 
-  // 2D ・ｽ^・ｽC・ｽ・ｽ・ｽ・ｽ・ｽﾌピ・ｽN・ｽZ・ｽ・ｽ
+  // Pixel within the 2D tile
   int tx = threadIdx.x;
   int ty = threadIdx.y;
   int x = blockIdx.x * BLOCK_W + tx;
   int y = blockIdx.y * BLOCK_H + ty;
   if (x >= d_width || y >= d_height) return;
 
-  // ・ｽ・ｽ・ｽL・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽF・ｽ^・ｽC・ｽ・ｽ・ｽ{・ｽ・ｽ・ｽE・ｽ・ｽ
+  // Shared memory: tile + apron
   extern __shared__ float s_depth[];
   const int S_W = BLOCK_W + 2 * d_step;
   // const int S_H = BLOCK_H + 2 * d_step;
 
-  // ・ｽ・ｽ・ｽL・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽﾌ搾ｿｽ・ｽW
+  // Coordinates in shared memory
   int sx = tx + d_step;
   int sy = ty + d_step;
   int sidx = sy * S_W + sx;
 
-  // (1) ・ｽ・ｽ・ｽS・ｽ・ｽf・ｽﾌ深・ｽx・ｽ・ｽ・ｽ・ｽ・ｽ[・ｽh
+  // (1) Load the center pixel depth
   float d_center = tex2DLayered<float>(texDepth, x, y, n);
   s_depth[sidx] = d_center;
 
-  // (2) ・ｽ・ｽ・ｽE・ｽs・ｽN・ｽZ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ[・ｽh
-  //    ・ｽe・ｽX・ｽ・ｽ・ｽb・ｽh・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽﾌ趣ｿｽ・ｽ・ｽ step ・ｽ・ｽ・ｽﾌ具ｿｽ・ｽE・ｽ・ｽS・ｽ・ｽ・ｽ・ｽ・ｽﾜゑｿｽ
+  // (2) Load apron pixels:
+  //     threads near the tile edge also load the step-wide border
   if (tx < d_step) {
-    // ・ｽ・ｽ・ｽ・ｽ・ｽE
+    // Left edge
     s_depth[sy * S_W + (sx - d_step)] =
         tex2DLayered<float>(texDepth, x - d_step, y, n);
   }
   if (tx >= BLOCK_W - d_step) {
-    // ・ｽE・ｽ・ｽ・ｽE
+    // Right edge
     s_depth[sy * S_W + (sx + d_step)] =
         tex2DLayered<float>(texDepth, x + d_step, y, n);
   }
   if (ty < d_step) {
-    // ・ｽ繼ｫ・ｽE
+    // Top edge
     s_depth[(sy - d_step) * S_W + sx] =
         tex2DLayered<float>(texDepth, x, y - d_step, n);
   }
   if (ty >= BLOCK_H - d_step) {
-    // ・ｽ・ｽ・ｽ・ｽ・ｽE
+    // Bottom edge
     s_depth[(sy + d_step) * S_W + sx] =
         tex2DLayered<float>(texDepth, x, y + d_step, n);
   }
 
-  // ・ｽp・ｽ・ｽ・ｽK・ｽv・ｽﾈら同・ｽl・ｽ・ｽ...
+  // Corners would be handled the same way if needed...
   __syncthreads();
 
-  // ・ｽﾈ降・ｽ・ｽ shared ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽﾇみ出・ｽ・ｽ
+  // From here on, read only from shared memory
   if (d_center <= 0.0f) {
-    // ・ｽ・ｽ・ｽ・ｽ・ｽ[・ｽx
+    // Invalid depth
     int idx = n * d_width * d_height + y * d_width + x;
     normals[3 * idx + 0] = normals[3 * idx + 1] = normals[3 * idx + 2] = 0.0f;
     points[3 * idx + 0] = points[3 * idx + 1] = points[3 * idx + 2] = 0.0f;
     return;
   }
 
-  // ・ｽ・ｽ・ｽL・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽE・ｽE・ｽ・ｽ・ｽ・ｽﾇみ出・ｽ・ｽ
+  // Read the right and bottom neighbors from shared memory
   float d_r = s_depth[sidx + d_step];
   float d_b = s_depth[(sidx + S_W * d_step)];
 
-  // 3D ・ｽ_・ｽﾌ計・ｽZ・ｽi・ｽ・ｽ・ｽS・ｽj
+  // Compute the 3D point (center)
   float u = float(x), v = float(y);
   float fx_val = d_fx[n], fy_val = d_fy[n], cx_val = d_cx[n], cy_val = d_cy[n];
   float inv_fx = 1.0f / fx_val, inv_fy = 1.0f / fy_val;
@@ -460,16 +460,16 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
     Z = -Z;
   }
 
-  // (3) ・ｽ關費ｿｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ Extrinsics ・ｽ・ｽﾇみ出・ｽ・ｽ
-  const float* R = &d_R[n * 9];  // R[0]..R[8] ・ｽ・ｽ 3・ｽ~3 ・ｽs・ｽ・ｽ
-  const float* t = &d_t[n * 3];  // t[0]..t[2] ・ｽ・ｽ・ｽ・ｽ・ｽi・ｽx・ｽN・ｽg・ｽ・ｽ
+  // (3) Read extrinsics from constant memory
+  const float* R = &d_R[n * 9];  // R[0]..R[8] is a 3x3 matrix
+  const float* t = &d_t[n * 3];  // t[0]..t[2] translation vector
 
-  // (4) ・ｽ・ｽ・ｽ[・ｽ・ｽ・ｽh・ｽ・ｽ・ｽW・ｽﾏ奇ｿｽ・ｽF・ｽ_ (X,Y,Z) ・ｽ・ｽ (Xw,Yw,Zw)
+  // (4) World transform: point (X,Y,Z) -> (Xw,Yw,Zw)
   float Xw = R[0] * X + R[1] * Y + R[2] * Z + t[0];
   float Yw = R[3] * X + R[4] * Y + R[5] * Z + t[1];
   float Zw = R[6] * X + R[7] * Y + R[8] * Z + t[2];
 
-  // (6) ・ｽo・ｽﾍバ・ｽb・ｽt・ｽ@・ｽﾖ擾ｿｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ
+  // (6) Write to the output buffer
   points[3 * idx + 0] = Xw;
   points[3 * idx + 1] = Yw;
   points[3 * idx + 2] = Zw;
@@ -479,7 +479,7 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
     return;
   }
 
-  // ・ｽﾗ接ピ・ｽN・ｽZ・ｽ・ｽ・ｽﾌ３・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽW
+  // 3D positions of the neighbor pixels
   float Xr = ((u + d_step) - cx_val) * d_r * inv_fx;
   float Yr = (v - cy_val) * d_r * inv_fy;
   float Zr = d_r;
@@ -488,7 +488,7 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
   float Zb = d_b;
 
 #if 0
-  // ・ｽ@・ｽ・ｽ・ｽv・ｽZ・ｽi・ｽO・ｽi・ｽ・ｽ・ｽ・ｽ・ｽj
+  // Normal computation (forward difference)
   float dx_x = Xr - X, dx_y = Yr - Y, dx_z = Zr - Z;
   float dy_x = Xb - X, dy_y = Yb - Y, dy_z = Zb - Z;
   //float nx = dx_y * dy_z - dx_z * dy_y;
@@ -533,7 +533,7 @@ __global__ void ComputeNormalsTextureMultiCam_Shared(
     nz = -nz;
   }
 
-  // (5) ・ｽ@・ｽ・ｽ・ｽx・ｽN・ｽg・ｽ・ｽ・ｽﾍ包ｿｽ・ｽi・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽ・ｽﾈゑｿｽ・ｽﾌで会ｿｽ]・ｽﾌゑｿｽ
+  // (5) The normal is a direction, so rotate only (no translation)
   float nxw = R[0] * nx + R[1] * ny + R[2] * nz;
   float nyw = R[3] * nx + R[4] * ny + R[5] * nz;
   float nzw = R[6] * nx + R[7] * ny + R[8] * nz;
@@ -819,7 +819,7 @@ class NormalComputerCuda::Impl {
       cudaMemcpyToSymbol(d_t, h_t_vec.data(), num_images * 3 * sizeof(float));
     }
 
-    // (4) ・ｽf・ｽo・ｽC・ｽX・ｽ・ｽ・ｽFLayered CUDA Array ・ｽﾌ確・ｽﾛ（・ｽ[・ｽx・ｽ鞫懶ｿｽp・ｽj
+    // Layered CUDA array for the depth image stack
     channelDesc = cudaCreateChannelDesc<float>();
     extent = make_cudaExtent(width, height, num_images);
     checkCudaErrors(cudaMalloc3DArray(&d_depthArray, &channelDesc, extent,
@@ -833,9 +833,9 @@ class NormalComputerCuda::Impl {
     texDesc.addressMode[0] = cudaAddressModeClamp;
     texDesc.addressMode[1] = cudaAddressModeClamp;
     texDesc.filterMode =
-        cudaFilterModePoint;  // ・ｽ・ｽﾔ不・ｽv・ｽﾌ場合・ｽﾍポ・ｽC・ｽ・ｽ・ｽg・ｽt・ｽB・ｽ・ｽ・ｽ^
+        cudaFilterModePoint;  // point sampling; no interpolation needed
     texDesc.readMode = cudaReadModeElementType;
-    texDesc.normalizedCoords = 0;  // ・ｽｳ規・ｽ・ｽ・ｽ・ｽ・ｽW・ｽﾅア・ｽN・ｽZ・ｽX
+    texDesc.normalizedCoords = 0;  // access with unnormalized coordinates
 
     // The depth array is persistent, so the texture object over it can be
     // created once here instead of per ComputeNormals call (the previous
@@ -848,7 +848,7 @@ class NormalComputerCuda::Impl {
   }
 
   void ComputeNormals(const float* h_depths) {
-    // (5) cudaMemcpy3D ・ｽ・ｽp・ｽ・ｽ・ｽﾄホ・ｽX・ｽg・ｽﾌ深・ｽx・ｽ鞫懶ｿｽf・ｽ[・ｽ^・ｽ・ｽ CUDA Array ・ｽﾖ転・ｽ・ｽ
+    // Upload the host depth stack into the CUDA array via cudaMemcpy3D
     cudaMemcpy3DParms copyParams = {0};
     copyParams.srcPtr = make_cudaPitchedPtr(
         const_cast<float*>(h_depths), width * sizeof(float), width, height);
