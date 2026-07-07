@@ -7,6 +7,7 @@
 
 #include <fstream>
 
+#include "example_utils.h"
 #include "ugu/geodesic/geodesic.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/timer.h"
@@ -15,7 +16,7 @@
 
 namespace {
 
-void SaveGeodesicDistance(const std::string& data_dir,
+void SaveGeodesicDistance(const std::string& out_dir,
                           const std::string& prefix, ugu::Mesh& mesh,
                           std::vector<double>& dists) {
   auto max_dist = *std::max_element(dists.begin(), dists.end());
@@ -55,7 +56,7 @@ void SaveGeodesicDistance(const std::string& data_dir,
                  dist2color);
 
   mesh.set_vertex_colors(vertex_colors);
-  mesh.WritePly(data_dir + prefix + "bunny_geodesic_distance_vertex.ply");
+  mesh.WritePly(out_dir + prefix + "bunny_geodesic_distance_vertex.ply");
 
   ugu::ObjMaterial distance_mat;
   distance_mat.diffuse_texname = prefix + "geodesic_distance.png";
@@ -77,7 +78,7 @@ void SaveGeodesicDistance(const std::string& data_dir,
   distance_mat.diffuse_texname =
       prefix + "geodesic_distance_vertex_rasterized.png";
   mesh.set_materials({distance_mat});
-  mesh.WriteObj(data_dir, prefix + "bunny_geodesic_distance_vertex_rasterized");
+  mesh.WriteObj(out_dir, prefix + "bunny_geodesic_distance_vertex_rasterized");
 
   distance_mat.diffuse_texname = prefix + "geodesic_distance.png";
   distance_mat.diffuse_tex = ugu::Image3b::zeros(tex_len, tex_len);
@@ -116,7 +117,7 @@ void SaveGeodesicDistance(const std::string& data_dir,
   ugu::Inpaint(inpaint_mask, geodesic_tex);
 
   mesh.set_materials({distance_mat});
-  mesh.WriteObj(data_dir, prefix + "bunny_geodesic_distance");
+  mesh.WriteObj(out_dir, prefix + "bunny_geodesic_distance");
 }
 
 }  // namespace
@@ -125,7 +126,8 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::string data_dir = "../data/bunny/";
+  std::string data_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex05_geodesic");
   std::string in_obj_path = data_dir + "bunny.obj";
 
   ugu::Mesh mesh;
@@ -142,7 +144,7 @@ int main(int argc, char* argv[]) {
                                ugu::GeodesicComputeMethod::DIJKSTRA);
   timer.End();
   ugu::LOGI("dijsktra %f\n", timer.elapsed_msec());
-  SaveGeodesicDistance(data_dir, "dijsktra_", mesh, dists);
+  SaveGeodesicDistance(out_dir, "dijsktra_", mesh, dists);
 
   mesh.LoadObj(in_obj_path, data_dir);
   timer.Start();
@@ -151,7 +153,7 @@ int main(int argc, char* argv[]) {
       ugu::GeodesicComputeMethod::FAST_MARCHING_METHOD);
   timer.End();
   ugu::LOGI("fmm %f\n", timer.elapsed_msec());
-  SaveGeodesicDistance(data_dir, "fmm_", mesh, dists);
+  SaveGeodesicDistance(out_dir, "fmm_", mesh, dists);
 
   mesh.LoadObj(in_obj_path, data_dir);
   timer.Start();
@@ -163,7 +165,7 @@ int main(int argc, char* argv[]) {
       ugu::GeodesicComputeMethod::FAST_MARCHING_METHOD);
   timer.End();
   ugu::LOGI("fmm multiple src_vids %f\n", timer.elapsed_msec());
-  SaveGeodesicDistance(data_dir, "fmm_multi_", mesh, dists);
+  SaveGeodesicDistance(out_dir, "fmm_multi_", mesh, dists);
 
   return 0;
 }

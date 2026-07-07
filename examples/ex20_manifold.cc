@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#include "example_utils.h"
 #include "ugu/face_adjacency.h"
 #include "ugu/util/geom_util.h"
 
@@ -10,7 +11,7 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::string data_dir = "../data/";
+  std::string out_dir = ugu_example::GetOutDir("ex20_manifold");
 
   auto nonmanifold_mesh = ugu::MakePlane(1.f);
   std::vector<Eigen::Vector3f> vertices = nonmanifold_mesh->vertices();
@@ -36,7 +37,7 @@ int main(int argc, char* argv[]) {
 
   nonmanifold_mesh->CalcStats();
 
-  nonmanifold_mesh->WriteObj(data_dir, "nonmanifold");
+  nonmanifold_mesh->WriteObj(out_dir, "nonmanifold");
 
   ugu::FaceAdjacency fa;
   fa.Init(static_cast<int>(nonmanifold_mesh->vertices().size()),
@@ -68,7 +69,7 @@ int main(int argc, char* argv[]) {
     ugu::LOGI("nonmanifold vid %d\n", v);
   }
 
-  clean_mesh->WriteObj(data_dir, "nonmanifold_cleaned");
+  clean_mesh->WriteObj(out_dir, "nonmanifold_cleaned");
 
   return 0;
 }

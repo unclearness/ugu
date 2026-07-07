@@ -5,6 +5,7 @@
 
 #include <random>
 
+#include "example_utils.h"
 #include "ugu/clustering/clustering.h"
 #include "ugu/mesh.h"
 #include "ugu/timer.h"
@@ -101,7 +102,9 @@ void KMeansTest() {
               100, 1.f, false, 0, -1);
   timer.End();
   ugu::LOGI("KMeans naive %f ms\n", timer.elapsed_msec());
-  SavePoints("kmeans_naive.ply", points, num_clusters, labels, centroids);
+  std::string out_dir = ugu_example::GetOutDir("ex13_clustering");
+  SavePoints(out_dir + "kmeans_naive.ply", points, num_clusters, labels,
+             centroids);
 
   timer.Start();
   ugu::KMeans(points, num_clusters, labels, centroids, dists, clustered_points,
@@ -109,7 +112,8 @@ void KMeansTest() {
   timer.End();
   ugu::LOGI("KMeans++ %f ms\n", timer.elapsed_msec());
 
-  SavePoints("kmeans_plusplus.ply", points, num_clusters, labels, centroids);
+  SavePoints(out_dir + "kmeans_plusplus.ply", points, num_clusters, labels,
+             centroids);
 }
 
 void MeanShiftTest() {
@@ -202,7 +206,8 @@ void MeanShiftTest() {
   ugu::LOGI("#Clusters MeanShiftClustering %d\n", num_clusters);
   std::vector<Eigen::VectorXf> centroids;
   ugu::CalcCentroids(points, labels, centroids, num_clusters);
-  SavePoints("mean_shift.ply", points, num_clusters, labels, centroids);
+  SavePoints(ugu_example::GetOutDir("ex13_clustering") + "mean_shift.ply",
+             points, num_clusters, labels, centroids);
 }
 
 void DBSCANTest() {
@@ -285,15 +290,19 @@ void DBSCANTest() {
   std::transform(labels.begin(), labels.end(), std::back_inserter(labels_),
                  [](const auto& l) { return static_cast<size_t>(l); });
   ugu::CalcCentroids(points, labels_, centroids, num_clusters);
-  SavePoints("dbscan.ply", points, num_clusters, labels_, centroids);
+  SavePoints(ugu_example::GetOutDir("ex13_clustering") + "dbscan.ply", points,
+             num_clusters, labels_, centroids);
 }
 
 void SegmentMeshTest() {
-  std::vector<std::string> data_dirs{"../data/blendshape/", "../data/sphere/",
-                                     "../data/sphere/", "../data/bunny/"};
+  std::vector<std::string> data_dirs{
+      ugu_example::GetDataDir("blendshape"), ugu_example::GetDataDir("sphere"),
+      ugu_example::GetDataDir("sphere"), ugu_example::GetDataDir("bunny")};
 
   std::vector<std::string> names{"cube", "icosphere3_smart_uv",
                                  "icosphere5_smart_uv", "bunny"};
+
+  std::string out_dir = ugu_example::GetOutDir("ex13_clustering");
 
   for (size_t i = 0; i < data_dirs.size(); i++) {
     std::string data_dir = data_dirs[i];
@@ -343,8 +352,8 @@ void SegmentMeshTest() {
       random_colors.push_back(random_color);
       std::vector<Eigen::Vector3f> vertex_colors(vertices.size(), random_color);
       output_mesh->set_vertex_colors(vertex_colors);
-      output_mesh->WritePly(data_dir + name + "_segmented_" +
-                            std::to_string(i) + ".ply");
+      output_mesh->WritePly(out_dir + name + "_segmented_" + std::to_string(i) +
+                            ".ply");
     }
 
     ugu::MeshPtr output_mesh = ugu::Mesh::Create();
@@ -374,7 +383,7 @@ void SegmentMeshTest() {
     output_mesh->set_material_ids(material_ids);
     output_mesh->set_materials(materials);
 
-    output_mesh->WriteObj(data_dir, name + "_segmented");
+    output_mesh->WriteObj(out_dir, name + "_segmented");
   }
 }
 }  // namespace

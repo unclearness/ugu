@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#include "example_utils.h"
 #include "ugu/curvature/curvature.h"
 #include "ugu/mesh.h"
 #include "ugu/timer.h"
@@ -13,8 +14,12 @@ using namespace ugu;
 int main() {
   Timer<> timer;
 
+  std::string data_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex28_curvature");
+  std::string obj_path = data_dir + "bunny.obj";
+
   MeshPtr mesh = Mesh::Create();
-  mesh->LoadObj("../data/bunny/bunny.obj");
+  mesh->LoadObj(obj_path);
 
   std::vector<float> curvature;
   std::vector<Eigen::Vector3f> internal_angles;
@@ -52,7 +57,7 @@ int main() {
 
   mesh->set_vertex_colors(colors);
 
-  mesh->WriteObj("../data_out/ex28.obj");
+  mesh->WriteObj(out_dir + "ex28.obj");
 
   return 0;
 }

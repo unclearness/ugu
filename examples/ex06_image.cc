@@ -8,6 +8,7 @@
 #include <fstream>
 #include <random>
 
+#include "example_utils.h"
 #include "ugu/cuda/image.h"
 #include "ugu/image.h"
 #include "ugu/image_io.h"
@@ -26,7 +27,17 @@ void TestNormal() {
   std::vector<ugu::Image3f> normals;
   std::vector<ugu::PinholeCameraPtr> cameras;
 
-  ugu::Image1w imgw = ugu::imread("../data/bunny/00000_depth.png");
+  std::string rendered_dir = ugu_example::GetEx02RenderedBunnyDir();
+  std::string out_dir = ugu_example::GetOutDir("ex06_image");
+
+  std::string depth_path = rendered_dir + "00000_depth.png";
+  if (!ugu::FileExists(depth_path)) {
+    printf("Please run ex02_renderer first to generate %s\n",
+           depth_path.c_str());
+    return;
+  }
+
+  ugu::Image1w imgw = ugu::imread(depth_path);
   int target_width = 640;
   float r = static_cast<float>(target_width) / static_cast<float>(imgw.cols);
   int target_height = static_cast<int>(imgw.rows * r);
@@ -47,7 +58,7 @@ void TestNormal() {
 
   for (int i = 0; i < 6; i++) {
     ugu::Image1w imgw =
-        ugu::imread("../data/bunny/0000" + std::to_string(i) + "_depth.png");
+        ugu::imread(rendered_dir + "0000" + std::to_string(i) + "_depth.png");
     if (imgw.empty()) {
       std::cerr << "Failed to load image" << std::endl;
       return;
@@ -77,7 +88,8 @@ void TestNormal() {
   for (int i = 0; i < 6; i++) {
     ugu::Image3b vis;
     ugu::Normal2Color(normals[i], &vis, true);
-    ugu::imwrite("0000" + std::to_string(i) + "_normal_cudaugu.png", vis);
+    ugu::imwrite(out_dir + "0000" + std::to_string(i) + "_normal_cudaugu.png",
+                 vis);
   }
 
   const int num_images = static_cast<int>(depths.size());
@@ -128,7 +140,8 @@ void TestNormal() {
   for (int i = 0; i < 6; i++) {
     ugu::Image3b vis;
     ugu::Normal2Color(normals[i], &vis, true);
-    ugu::imwrite("0000" + std::to_string(i) + "_normal_cuda.png", vis);
+    ugu::imwrite(out_dir + "0000" + std::to_string(i) + "_normal_cuda.png",
+                 vis);
   }
 
   {
@@ -154,7 +167,8 @@ void TestNormal() {
     for (int i = 0; i < 6; i++) {
       ugu::Image3b vis;
       ugu::Normal2Color(normals[i], &vis, true);
-      ugu::imwrite("0000" + std::to_string(i) + "_normal_cudaclass.png", vis);
+      ugu::imwrite(
+          out_dir + "0000" + std::to_string(i) + "_normal_cudaclass.png", vis);
     }
   }
 
@@ -189,7 +203,8 @@ void TestNormal() {
     for (int i = 0; i < 6; i++) {
       ugu::Image3b vis;
       ugu::Normal2Color(normals[i], &vis, true);
-      ugu::imwrite("0000" + std::to_string(i) + "_normal_cudaclass_pinned.png",
+      ugu::imwrite(out_dir + "0000" + std::to_string(i) +
+                       "_normal_cudaclass_pinned.png",
                    vis);
     }
     cudaFreeHost(h_depths_pinned);
@@ -261,7 +276,8 @@ void TestNormal() {
     for (int i = 0; i < 6; i++) {
       ugu::Image3b vis;
       ugu::Normal2Color(normals[i], &vis, true);
-      ugu::imwrite("0000" + std::to_string(i) + "_normal_cudaclass_pinned.png",
+      ugu::imwrite(out_dir + "0000" + std::to_string(i) +
+                       "_normal_cudaclass_pinned.png",
                    vis);
     }
     std::vector<ugu::Image3f> points(6);
@@ -276,7 +292,8 @@ void TestNormal() {
     Eigen::Vector3f pos_max{350.f, 350.f, 350.f};
     for (int i = 0; i < 6; i++) {
       ugu::Image3b vis = ugu::ColorizePosMap(points[i], pos_min, pos_max);
-      ugu::imwrite("0000" + std::to_string(i) + "_points_cudaclass_pinned.png",
+      ugu::imwrite(out_dir + "0000" + std::to_string(i) +
+                       "_points_cudaclass_pinned.png",
                    vis);
     }
     cudaFreeHost(h_depths_pinned);
@@ -298,7 +315,7 @@ void TestNormal() {
   for (int i = 0; i < 6; i++) {
     ugu::Image3b vis;
     ugu::Normal2Color(normals[i], &vis, true);
-    ugu::imwrite("0000" + std::to_string(i) + "_normal_cpu.png", vis);
+    ugu::imwrite(out_dir + "0000" + std::to_string(i) + "_normal_cpu.png", vis);
   }
 }
 
@@ -308,15 +325,19 @@ int main(int argc, char *argv[]) {
   (void)argc;
   (void)argv;
 
+  std::string out_dir = ugu_example::GetOutDir("ex06_image");
+
   TestNormal();
 
   {
-    ugu::Image3b img = ugu::imread("../data/color_transfer/reference_00.jpg");
+    ugu::Image3b img =
+        ugu::imread(ugu_example::GetDataDir("color_transfer") +
+                    "reference_00.jpg");
     ugu::Image3b img_org = img.clone();
     ugu::Timer timer;
     int kernel = 51;
     ugu::BoxFilterCuda(img, kernel);
-    ugu::imwrite("box_blur_cuda.jpg", img);
+    ugu::imwrite(out_dir + "box_blur_cuda.jpg", img);
     img = img_org.clone();
     timer.Start();
     for (size_t i = 0; i < 1000; i++) {
@@ -328,7 +349,7 @@ int main(int argc, char *argv[]) {
 
     img = img_org.clone();
     ugu::BoxFilter(img.clone(), &img, kernel);
-    ugu::imwrite("box_blur_cpu.jpg", img);
+    ugu::imwrite(out_dir + "box_blur_cpu.jpg", img);
     img = img_org.clone();
     timer.Start();
     for (size_t i = 0; i < 1000; i++) {
@@ -339,46 +360,52 @@ int main(int argc, char *argv[]) {
               << timer.elapsed_msec() / 1000 << std::endl;
   }
 
-  std::string data_dir = "../data/bunny/";
-  std::string mask_path = data_dir + "00000_mask.png";
+  std::string mask_path =
+      ugu_example::GetEx02RenderedBunnyDir() + "00000_mask.png";
+  if (ugu::FileExists(mask_path)) {
+    ugu::Image1b mask = ugu::Imread<ugu::Image1b>(mask_path, -1);
 
-  ugu::Image1b mask = ugu::Imread<ugu::Image1b>(mask_path, -1);
+    // 2D SDF
+    ugu::Image1f sdf;
+    ugu::MakeSignedDistanceField(mask, &sdf, true, false, -1.0f);
+    ugu::Image3b vis_sdf;
+    ugu::SignedDistance2Color(sdf, &vis_sdf, -1.0f, 1.0f);
+    ugu::imwrite(out_dir + "00000_sdf.png", vis_sdf);
 
-  // 2D SDF
-  ugu::Image1f sdf;
-  ugu::MakeSignedDistanceField(mask, &sdf, true, false, -1.0f);
-  ugu::Image3b vis_sdf;
-  ugu::SignedDistance2Color(sdf, &vis_sdf, -1.0f, 1.0f);
-  ugu::imwrite(data_dir + "00000_sdf.png", vis_sdf);
-
-  ugu::circle(vis_sdf, {200, 200}, 20, {255, 0, 255}, 3);
-  ugu::circle(vis_sdf, {100, 100}, 10, {0, 0, 0}, -1);
-  ugu::line(vis_sdf, {0, 0}, {50, 50}, {255, 0, 0}, 1);
-  ugu::line(vis_sdf, {10, 200}, {100, 200}, {0, 0, 255}, 5);
-  ugu::imwrite(data_dir + "00000_sdf_circle.png", vis_sdf);
+    ugu::circle(vis_sdf, {200, 200}, 20, {255, 0, 255}, 3);
+    ugu::circle(vis_sdf, {100, 100}, 10, {0, 0, 0}, -1);
+    ugu::line(vis_sdf, {0, 0}, {50, 50}, {255, 0, 0}, 1);
+    ugu::line(vis_sdf, {10, 200}, {100, 200}, {0, 0, 255}, 5);
+    ugu::imwrite(out_dir + "00000_sdf_circle.png", vis_sdf);
+  } else {
+    printf("Please run ex02_renderer first to generate %s\n",
+           mask_path.c_str());
+  }
 
   // GIF load
-  auto [images, delays] = ugu::LoadGif("../data/gif/dancing.gif");
+  auto [images, delays] =
+      ugu::LoadGif(ugu_example::GetDataDir("gif") + "dancing.gif");
   for (size_t i = 0; i < images.size(); i++) {
-    ugu::imwrite("../data/gif/" + std::to_string(i) + "_" +
+    ugu::imwrite(out_dir + std::to_string(i) + "_" +
                      std::to_string(delays[i]) + "ms.png",
                  images[i]);
   }
 
   {
-    ugu::ImageBase refer =
-        ugu::imread("../data/color_transfer/reference_00.jpg");
-    ugu::ImageBase target = ugu::imread("../data/color_transfer/target_00.jpg");
+    std::string data_dir = ugu_example::GetDataDir("color_transfer");
+    ugu::ImageBase refer = ugu::imread(data_dir + "reference_00.jpg");
+    ugu::ImageBase target = ugu::imread(data_dir + "target_00.jpg");
     ugu::Image3b res = ugu::ColorTransfer(refer, target);
-    ugu::imwrite("../data/color_transfer/result_00.jpg", res);
+    ugu::imwrite(out_dir + "color_transfer_result_00.jpg", res);
   }
 
   {
-    ugu::ImageBase source = ugu::imread("../data/poisson_blending/source.png");
-    ugu::ImageBase target = ugu::imread("../data/poisson_blending/target.png");
-    ugu::ImageBase mask_ = ugu::imread("../data/poisson_blending/mask.png", 0);
+    std::string data_dir = ugu_example::GetDataDir("poisson_blending");
+    ugu::ImageBase source = ugu::imread(data_dir + "source.png");
+    ugu::ImageBase target = ugu::imread(data_dir + "target.png");
+    ugu::ImageBase mask_ = ugu::imread(data_dir + "mask.png", 0);
     ugu::Image3b res = ugu::PoissonBlend(mask_, source, target, -35, 35);
-    ugu::imwrite("../data/poisson_blending/result.png", res);
+    ugu::imwrite(out_dir + "poisson_blending_result.png", res);
   }
 
   return 0;

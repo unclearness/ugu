@@ -19,7 +19,7 @@ cmake --build win_build --config Release  # build
 - CI (`.github/workflows/cmake.yml`) builds Debug on Ubuntu with both clang and gcc; keep both MSVC and clang/gcc compiling. MSVC builds with `/W4`.
 - Test data (bunny, buddha) is auto-downloaded and unzipped into `data/` during CMake configure.
 
-There is no unit test suite. The executables in `examples/` (ex01–ex29, one per module) are the de facto smoke tests; run the relevant `bin/exNN_*` binary from the repo root so it can find `data/`.
+There is no unit test suite. The executables in `examples/` (ex01–ex29, one per module) are the de facto smoke tests; run them from inside `bin/` — paths are relative to the CWD (inputs `../data/...`, outputs `../out/<example_name>/`, shared path helpers in `examples/example_utils.h`). ex01, ex06, ex10 and ex12 consume bunny renderings that ex02_renderer produces into `out/ex02_renderer/`, so run ex02_renderer first.
 
 ## CMake options and the feature-flag pattern
 

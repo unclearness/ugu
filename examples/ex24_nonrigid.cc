@@ -7,6 +7,7 @@
 #include <iostream>
 #include <random>
 
+#include "example_utils.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/registration/nonrigid.h"
 #include "ugu/textrans/texture_transfer.h"
@@ -19,18 +20,17 @@
 namespace {
 
 void TestObject() {
-  std::string src_dir = "../data/sphere/";
+  std::string src_dir = ugu_example::GetDataDir("sphere");
   std::string src_obj_path = src_dir + "icosphere5_smart_uv.obj";
   ugu::Mesh src_mesh;
   src_mesh.LoadObj(src_obj_path, src_dir);
 
-  std::string dst_dir = "../data/spot/";
+  std::string dst_dir = ugu_example::GetDataDir("spot");
   std::string dst_obj_path = dst_dir + "spot_triangulated.obj";
   ugu::Mesh dst_mesh;
   dst_mesh.LoadObj(dst_obj_path, dst_dir);
 
-  std::string out_dir = "../out/ex24/object";
-  ugu::EnsureDirExists(out_dir);
+  std::string out_dir = ugu_example::GetOutDir("ex24_nonrigid", "object");
 
   // Roughly align scale
   src_mesh.CalcStats();
@@ -101,7 +101,7 @@ void TestObject() {
 }
 
 void TestFace() {
-  std::string src_dir = "../data/face/";
+  std::string src_dir = ugu_example::GetDataDir("face");
   std::string src_obj_path = src_dir + "mediapipe_face.obj";
   ugu::Mesh src_mesh;
   src_mesh.LoadObj(src_obj_path, src_dir);
@@ -117,7 +117,7 @@ void TestFace() {
     src_landmark_positions.push_back(pos);
   }
 
-  std::string dst_dir = "../data/face/lpshead/";
+  std::string dst_dir = ugu_example::GetDataDir("face/lpshead");
   std::string dst_obj_path = dst_dir + "head_triangulated.obj";
   ugu::Mesh dst_mesh;
   dst_mesh.LoadObj(dst_obj_path, dst_dir);
@@ -137,8 +137,7 @@ void TestFace() {
   Eigen::Affine3d transform = ugu::FindSimilarityTransformFrom3dCorrespondences(
       src_landmark_positions, dst_landmark_positions);
 
-  std::string out_dir = "../out/ex24/face/";
-  ugu::EnsureDirExists(out_dir);
+  std::string out_dir = ugu_example::GetOutDir("ex24_nonrigid", "face");
 
   src_mesh.WriteObj(out_dir, "0_init_src");
   dst_mesh.WriteObj(out_dir, "0_init_dst");
@@ -208,7 +207,7 @@ void TestFace() {
 }
 
 void TestFace2() {
-  std::string src_dir = "../data/face/";
+  std::string src_dir = ugu_example::GetDataDir("face");
   std::string src_obj_path = src_dir + "ict-facekit_tri.obj";
   ugu::Mesh src_mesh;
   src_mesh.LoadObj(src_obj_path, src_dir);
@@ -236,7 +235,7 @@ void TestFace2() {
     src_landmark_positions.push_back(pos);
   }
 
-  std::string dst_dir = "../data/face/";
+  std::string dst_dir = ugu_example::GetDataDir("face");
   std::string dst_obj_path = dst_dir + "max-planck.obj";
   ugu::Mesh dst_mesh;
   dst_mesh.LoadObj(dst_obj_path, dst_dir);
@@ -256,8 +255,7 @@ void TestFace2() {
   Eigen::Affine3d transform = ugu::FindSimilarityTransformFrom3dCorrespondences(
       src_landmark_positions, dst_landmark_positions);
 
-  std::string out_dir = "../out/ex24/face2/";
-  ugu::EnsureDirExists(out_dir);
+  std::string out_dir = ugu_example::GetOutDir("ex24_nonrigid", "face2");
 
   src_mesh.WriteObj(out_dir, "0_init_src");
   dst_mesh.WriteObj(out_dir, "0_init_dst");
@@ -335,9 +333,6 @@ void TestFace2() {
 }  // namespace
 
 int main() {
-  ugu::EnsureDirExists("../out/");
-  ugu::EnsureDirExists("../out/ex24");
-
   TestObject();
 
   TestFace();

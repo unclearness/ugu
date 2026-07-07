@@ -7,6 +7,7 @@
 #include <random>
 #include <unordered_set>
 
+#include "example_utils.h"
 #include "ugu/accel/kdtree.h"
 #include "ugu/image.h"
 #include "ugu/image_io.h"
@@ -96,6 +97,7 @@ ugu::MeshPtr VisualizeResult3d(const T& query3d, const std::vector<T>& points3d,
 }
 
 void Test2D() {
+  std::string out_dir = ugu_example::GetOutDir("ex17_kdtree");
   std::default_random_engine engine;
   // 2D case
   std::uniform_real_distribution<double> dist2d(0.0, 1.0);
@@ -122,7 +124,8 @@ void Test2D() {
   res = kdtree.SearchKnn(query2d, k);
   timer.End();
   ugu::LOGI("KdTree.SearchKnn(): %f msec\n", timer.elapsed_msec());
-  ugu::imwrite("kdtree2d_knn.png", DrawResult2d(query2d, points2d, res));
+  ugu::imwrite(out_dir + "kdtree2d_knn.png",
+               DrawResult2d(query2d, points2d, res));
 
   timer.Start();
   {
@@ -150,11 +153,12 @@ void Test2D() {
   res = kdtree.SearchRadius(query2d, r);
   timer.End();
   ugu::LOGI("KdTree.SearchRadius(): %f msec\n", timer.elapsed_msec());
-  ugu::imwrite("kdtree2d_radius.png",
+  ugu::imwrite(out_dir + "kdtree2d_radius.png",
                DrawResult2d(query2d, points2d, res, static_cast<int>(r * 480)));
 }
 
 void Test3D() {
+  std::string out_dir = ugu_example::GetOutDir("ex17_kdtree");
 #if 1
   std::default_random_engine engine;
   // 3D case
@@ -166,12 +170,12 @@ void Test3D() {
 
   Eigen::IOFormat my_format(Eigen::StreamPrecision, Eigen::DontAlignCols, " ",
                             " ", "", "", "", "");
-  std::ofstream ofs("tmp.txt");
+  std::ofstream ofs(out_dir + "tmp.txt");
   for (const auto& p : points3d) {
     ofs << p.format(my_format) << std::endl;
   }
 #else
-  std::string path = "tmp.txt";
+  std::string path = out_dir + "tmp.txt";
   std::vector<Eigen::Vector3f> points3d =
       ugu::LoadTxtAsEigenVec<Eigen::Vector3f>(path);
 #endif
@@ -219,7 +223,7 @@ void Test3D() {
 
   {
     auto pc = VisualizeResult3d(query3d, points3d, res);
-    pc->WritePly("kdtree3d_knn.ply");
+    pc->WritePly(out_dir + "kdtree3d_knn.ply");
   }
 
   timer.Start();
@@ -229,12 +233,13 @@ void Test3D() {
   ugu::LOGI("KdTree.SearchRadius(): %f msec\n", timer.elapsed_msec());
   {
     auto pc = VisualizeResult3d(query3d, points3d, res, r);
-    pc->WritePly("kdtree3d_radius.ply");
+    pc->WritePly(out_dir + "kdtree3d_radius.ply");
   }
 }
 
 #if UGU_USE_CUDA
 void TestGrid() {
+  std::string out_dir = ugu_example::GetOutDir("ex17_kdtree");
   std::default_random_engine engine;
   std::uniform_real_distribution<float> dist3d(0.0, 1.0);
   std::vector<Eigen::Vector3f> points3f;
@@ -291,7 +296,7 @@ void TestGrid() {
   ugu::MeshPtr pc = ugu::Mesh::Create();
   pc->set_vertices(vertices);
   pc->set_vertex_colors(vertex_colors);
-  pc->WritePly("knngrid.ply");
+  pc->WritePly(out_dir + "knngrid.ply");
 }
 #endif
 

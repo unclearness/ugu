@@ -5,6 +5,7 @@
 
 #include <random>
 
+#include "example_utils.h"
 #include "ugu/clustering/clustering.h"
 #include "ugu/cuda/image.h"
 
@@ -53,17 +54,18 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::string data_dir = "../data/";
+  std::string bunny_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex21_fusion");
 
   ugu::Timer timer;
   auto object = ugu::Mesh::Create();
-  object->LoadObj(data_dir + "/bunny/bunny.obj", data_dir + "bunny/");
+  object->LoadObj(bunny_dir + "bunny.obj", bunny_dir);
 
   const float bb_len_max =
       (object->stats().bb_max - object->stats().bb_min).maxCoeff();
   const float plane_len = bb_len_max * 1.3f;
-  ugu::Image3b plane_texture =
-      ugu::Imread<ugu::Image3b>("../data/inpaint/fruits.jpg");
+  ugu::Image3b plane_texture = ugu::Imread<ugu::Image3b>(
+      ugu_example::GetDataDir("inpaint") + "fruits.jpg");
   auto plane = ugu::MakeTexturedPlane(plane_texture, plane_len);
   plane->Rotate(
       Eigen::AngleAxisf(ugu::radians(-90.f), Eigen::Vector3f(1.f, 0.f, 0.f))
@@ -73,7 +75,7 @@ int main(int argc, char* argv[]) {
   auto combined = ugu::Mesh::Create();
   ugu::MergeMeshes({object, plane}, combined.get());
 
-  combined->WriteObj(data_dir, "object_and_plane");
+  combined->WriteObj(out_dir, "object_and_plane");
 
   size_t view_num = 12;
   ugu::RendererCpuOption renderer_option;
@@ -208,9 +210,9 @@ int main(int argc, char* argv[]) {
       for (int i = 0; i < num_images; i++) {
         ugu::Image3b vis;
         ugu::Normal2Color(normals[i], &vis, true);
-        ugu::imwrite(
-            "0000" + std::to_string(i) + "_normal_cudaclass_pinned_fuse.png",
-            vis);
+        ugu::imwrite(out_dir + "0000" + std::to_string(i) +
+                         "_normal_cudaclass_pinned_fuse.png",
+                     vis);
       }
       for (int i = 0; i < num_images; ++i) {
         if (points[i].cols != width || points[i].rows != height) {
@@ -221,9 +223,9 @@ int main(int argc, char* argv[]) {
       }
       for (int i = 0; i < num_images; i++) {
         ugu::Image3b vis = ugu::ColorizePosMap(points[i]);
-        ugu::imwrite(
-            "0000" + std::to_string(i) + "_points_cudaclass_pinned_fuse.png",
-            vis);
+        ugu::imwrite(out_dir + "0000" + std::to_string(i) +
+                         "_points_cudaclass_pinned_fuse.png",
+                     vis);
       }
     }
 
@@ -269,7 +271,7 @@ int main(int argc, char* argv[]) {
     out_mesh.set_vertex_indices(faces);
     out_mesh.set_default_material();
     out_mesh.CalcNormal();
-    out_mesh.WriteObj("cuda_mc.obj");
+    out_mesh.WriteObj(out_dir + "cuda_mc.obj");
 
     //timer.Start();
     //voxel_grid_naive.ReduceFlyingNoiseOnVoxels(30, 1, 0.f, 150, false);
@@ -314,7 +316,7 @@ int main(int argc, char* argv[]) {
     out_mesh.set_vertex_indices(faces);
     out_mesh.set_default_material();
     out_mesh.CalcNormal();
-    out_mesh.WriteObj("cuda_mc_cleaned.obj");
+    out_mesh.WriteObj(out_dir + "cuda_mc_cleaned.obj");
 
    // return 1;
 
@@ -393,7 +395,7 @@ int main(int argc, char* argv[]) {
       ugu::Mesh pc;
       ugu::Depth2PointCloud(depths[i], *cameras[i], &pc);
       pc.Transform(cameras[i]->c2w().cast<float>());
-      pc.WritePly(data_dir + "pc" + std::to_string(i) + ".ply");
+      pc.WritePly(out_dir + "pc" + std::to_string(i) + ".ply");
 #endif
 
       ugu::FuseDepth(*cameras[i], depths[i], option, voxel_grid);
@@ -427,12 +429,12 @@ int main(int argc, char* argv[]) {
     pc.set_vertices(points);
     pc.set_vertex_colors(colors);
     pc.set_default_material();
-    pc.WritePly(data_dir + "voxel_cc_label.ply");
+    pc.WritePly(out_dir + "voxel_cc_label.ply");
 
     ugu::MarchingCubes(voxel_grid, depth_fused.get());
     depth_fused->set_default_material();
     depth_fused->CalcNormal();
-    depth_fused->WriteObj(data_dir, "depthfuse");
+    depth_fused->WriteObj(out_dir, "depthfuse");
 
 
     std::vector<Eigen::Vector3f> verts;
@@ -448,7 +450,7 @@ int main(int argc, char* argv[]) {
     depth_fused->set_vertex_indices(tris);
     depth_fused->set_default_material();
     depth_fused->CalcNormal();
-    depth_fused->WriteObj(data_dir, "depthfuse_removedpara");
+    depth_fused->WriteObj(out_dir, "depthfuse_removedpara");
     depth_fused->Clear();
 
     const std::vector<Eigen::Vector3i> neighbor6_offsets = {
@@ -535,7 +537,7 @@ int main(int argc, char* argv[]) {
     ugu::MarchingCubes(voxel_grid, depth_fused.get());
     depth_fused->set_default_material();
     depth_fused->CalcNormal();
-    depth_fused->WriteObj(data_dir, "depthfuse_cleaned");
+    depth_fused->WriteObj(out_dir, "depthfuse_cleaned");
   }
 
   return 1;
@@ -553,10 +555,10 @@ int main(int argc, char* argv[]) {
 
       depth_meshes.push_back(depth_mesh);
 
-      depth_mesh->WriteObj(data_dir, "depthmesh" + std::to_string(i));
+      depth_mesh->WriteObj(out_dir, "depthmesh" + std::to_string(i));
     }
     ugu::MergeMeshes(depth_meshes, depth_merged.get());
-    depth_merged->WriteObj(data_dir, "depthmesh");
+    depth_merged->WriteObj(out_dir, "depthmesh");
   }
 #endif
 
@@ -597,8 +599,8 @@ int main(int argc, char* argv[]) {
                                   others_vids, boundary_vids, plane_mesh,
                                   others_mesh, param.inlier_angle_th * 2, true);
 
-    plane_mesh.WriteObj(data_dir, "depthfuse_plane");
-    others_mesh.WriteObj(data_dir, "depthfuse_others");
+    plane_mesh.WriteObj(out_dir, "depthfuse_plane");
+    others_mesh.WriteObj(out_dir, "depthfuse_others");
 
 #ifdef UGU_USE_LIBIGL
     {
@@ -612,10 +614,10 @@ int main(int argc, char* argv[]) {
 
       merged.set_materials(object->materials());
 
-      merged.WriteObj(data_dir, "merged_plane_disconnect");
+      merged.WriteObj(out_dir, "merged_plane_disconnect");
       auto uv_img = ugu::DrawUv(merged.uv(), merged.uv_indices(),
                                 {255, 255, 255}, {0, 0, 0});
-      ugu::imwrite(data_dir + "merged_plane_disconnect.jpg", uv_img);
+      ugu::imwrite(out_dir + "merged_plane_disconnect.jpg", uv_img);
     }
 #endif
   }
@@ -629,7 +631,7 @@ int main(int argc, char* argv[]) {
 
   ugu::RemoveSmallConnectedComponents(*depth_fused, 100, true);
 
-  depth_fused->WriteObj(data_dir, "depthmesh_remove_plane");
+  depth_fused->WriteObj(out_dir, "depthmesh_remove_plane");
 
   return 0;
 }

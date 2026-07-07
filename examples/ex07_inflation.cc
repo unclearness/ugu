@@ -5,6 +5,7 @@
 
 #include <fstream>
 
+#include "example_utils.h"
 #include "ugu/image_io.h"
 #include "ugu/image_proc.h"
 #include "ugu/inflation/inflation.h"
@@ -18,7 +19,8 @@ int main(int argc, char* argv[]) {
   (void)argv;
 
   // https://www.bandainamco-mirai.com/images/miraikomachi/miraikomachi_pose_neon03.png
-  std::string data_dir = "../data/character/";
+  std::string data_dir = ugu_example::GetDataDir("character");
+  std::string out_dir = ugu_example::GetOutDir("ex07_inflation");
   std::string img_path = data_dir + "miraikomachi_pose_neon03.png";
   ugu::EnsureDirExists(data_dir);
   if (!ugu::FileExists(img_path)) {
@@ -53,20 +55,20 @@ int main(int argc, char* argv[]) {
   ugu::Inflation(mask, height, mesh);
   ugu::Image1b vis_height;
   ugu::Depth2Gray(height, &vis_height, 0.f, 300.f);
-  ugu::imwrite(data_dir + "00000_height.png", vis_height);
+  ugu::imwrite(out_dir + "00000_height.png", vis_height);
 
-  mesh.WritePly(data_dir + "00000_height.ply");
+  mesh.WritePly(out_dir + "00000_height.ply");
 
   ugu::Image3b color = ugu::Merge(planes[0], planes[1], planes[2]);
   ugu::InflationParams params;
   params.texture = &color;
   ugu::Inflation(mask, height, mesh, params);
-  mesh.WriteObj(data_dir, "00000_height_single");
+  mesh.WriteObj(out_dir, "00000_height_single");
 
   params.generate_back = true;
   params.back_texture_type = ugu::InflationBackTextureType::INPAINT;
   ugu::Inflation(mask, height, mesh, params);
-  mesh.WriteObj(data_dir, "00000_height_double");
+  mesh.WriteObj(out_dir, "00000_height_double");
 
   return 0;
 }

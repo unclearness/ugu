@@ -7,6 +7,7 @@
 
 #include <fstream>
 
+#include "example_utils.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/util/image_util.h"
 #include "ugu/image_io.h"
@@ -17,7 +18,8 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::string data_dir = "../data/inpaint/";
+  std::string data_dir = ugu_example::GetDataDir("inpaint");
+  std::string out_dir = ugu_example::GetOutDir("ex08_inpaint");
   std::string color_path = data_dir + "fruits.jpg";
   std::string mask_path = data_dir + "fruits_scrabble.png";
 
@@ -31,7 +33,7 @@ int main(int argc, char* argv[]) {
   ugu::FastMarchingMethod(mask, fmm_dist);
   ugu::Image1b vis_fmm_dist;
   ugu::Depth2Gray(fmm_dist, &vis_fmm_dist, 0.f, 10.f);
-  ugu::imwrite(data_dir + "00000_fmm_dist.png", vis_fmm_dist);
+  ugu::imwrite(out_dir + "00000_fmm_dist.png", vis_fmm_dist);
 
   for (int j = 0; j < color.rows; j++) {
     for (int i = 0; i < color.cols; i++) {
@@ -44,14 +46,14 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  ugu::imwrite(data_dir + "fruits_scrabbled.png", color_scrabbled);
+  ugu::imwrite(out_dir + "fruits_scrabbled.png", color_scrabbled);
   ugu::Image3b tmp = color_scrabbled.clone();
   ugu::Inpaint(mask, tmp, 5.f, ugu::InpaintMethod::TELEA);
-  ugu::imwrite(data_dir + "fruits_inpainted_telea.png", tmp);
+  ugu::imwrite(out_dir + "fruits_inpainted_telea.png", tmp);
 
   tmp = color_scrabbled.clone();
   ugu::Inpaint(mask, color, 5.f, ugu::InpaintMethod::NAIVE);
-  ugu::imwrite(data_dir + "fruits_inpainted_naive.png", color);
+  ugu::imwrite(out_dir + "fruits_inpainted_naive.png", color);
 
   // Inpaint float
   ugu::Image3f color_scrabbled_f;
@@ -61,13 +63,13 @@ int main(int argc, char* argv[]) {
 
   ugu::Inpaint(mask, tmp_f, 5.f, ugu::InpaintMethod::NAIVE);
   ugu::ConvertTo(tmp_f, &color_scrabbled_f_vis, 255.f);
-  ugu::imwrite(data_dir + "fruits_inpainted_naive_f.png",
+  ugu::imwrite(out_dir + "fruits_inpainted_naive_f.png",
                color_scrabbled_f_vis);
 
   tmp_f = color_scrabbled_f.clone();
   ugu::Inpaint(mask, tmp_f, 5.f, ugu::InpaintMethod::TELEA);
   ugu::ConvertTo(tmp_f, &color_scrabbled_f_vis, 255.f);
-  ugu::imwrite(data_dir + "fruits_inpainted_telea_f.png",
+  ugu::imwrite(out_dir + "fruits_inpainted_telea_f.png",
                color_scrabbled_f_vis);
 
   return 0;

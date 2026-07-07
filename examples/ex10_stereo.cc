@@ -2,6 +2,7 @@
 
 #include <fstream>
 
+#include "example_utils.h"
 #include "ugu/camera.h"
 #include "ugu/stereo/base.h"
 #include "ugu/timer.h"
@@ -15,7 +16,8 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
   ugu::Timer<> timer;
-  std::string data_dir = "../data/bunny/";
+  std::string rendered_dir = ugu_example::GetEx02RenderedBunnyDir();
+  std::string out_dir = ugu_example::GetOutDir("ex10_stereo");
 
   // Make PinholeCamera
   // borrow KinectV1 intrinsics of Freiburg 1 RGB
@@ -37,11 +39,17 @@ int main(int argc, char* argv[]) {
   param.maxd = 1000.0f;
 
   ugu::Image3b left_c, right_c;
-  left_c = ugu::Imread<ugu::Image3b>(data_dir + "00000_color.png");
-  right_c = ugu::Imread<ugu::Image3b>(data_dir + "r_00000_color.png");
+  std::string left_path = rendered_dir + "00000_color.png";
+  if (!ugu::FileExists(left_path)) {
+    printf("Please run ex02_renderer first to generate %s\n",
+           left_path.c_str());
+    return -1;
+  }
+  left_c = ugu::Imread<ugu::Image3b>(left_path);
+  right_c = ugu::Imread<ugu::Image3b>(rendered_dir + "r_00000_color.png");
 
 #if 0
-  data_dir = "../data/scenes2005/Art/";
+  std::string data_dir = ugu_example::GetDataDir("scenes2005/Art");
   left_c = ugu::Imread<ugu::Image3b>(data_dir + "view1.png");
   right_c = ugu::Imread<ugu::Image3b>(data_dir + "view5.png");
 #endif
@@ -61,9 +69,9 @@ int main(int argc, char* argv[]) {
 
   ugu::Image1b lcensus, rcensus;
   ugu::CensusTransform8u(left, &lcensus);
-  ugu::imwrite("lcensus.png", lcensus);
+  ugu::imwrite(out_dir + "lcensus.png", lcensus);
   ugu::CensusTransform8u(right, &rcensus);
-  ugu::imwrite("rcensus.png", rcensus);
+  ugu::imwrite(out_dir + "rcensus.png", rcensus);
 
 #if 1
   {
@@ -78,13 +86,13 @@ int main(int argc, char* argv[]) {
     ugu::LOGI("ComputeStereoBruteForceCensus: %f ms\n", timer.elapsed_msec());
 
     ugu::Depth2Gray(depth, &vis_depth);
-    ugu::imwrite(data_dir + "naivecensus_vis_depth.png", vis_depth);
+    ugu::imwrite(out_dir + "naivecensus_vis_depth.png", vis_depth);
 
     ugu::Mesh view_mesh, view_point_cloud;
     ugu::Depth2Mesh(depth, left_c, *camera, &view_mesh, kMaxConnectZDiff);
     ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
-    view_point_cloud.WritePly(data_dir + "naivecensus_mesh.ply");
-    view_mesh.WriteObj(data_dir, "naivecensus_mesh");
+    view_point_cloud.WritePly(out_dir + "naivecensus_mesh.ply");
+    view_mesh.WriteObj(out_dir, "naivecensus_mesh");
   }
 #endif
 
@@ -99,13 +107,13 @@ int main(int argc, char* argv[]) {
     ugu::LOGI("ComputeStereoSgm: %f ms\n", timer.elapsed_msec());
 
     ugu::Depth2Gray(depth, &vis_depth);
-    ugu::imwrite(data_dir + "sgm_vis_depth.png", vis_depth);
+    ugu::imwrite(out_dir + "sgm_vis_depth.png", vis_depth);
 
     ugu::Mesh view_mesh, view_point_cloud;
     ugu::Depth2Mesh(depth, left_c, *camera, &view_mesh, kMaxConnectZDiff);
     ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
-    view_point_cloud.WritePly(data_dir + "sgm_mesh.ply");
-    view_mesh.WriteObj(data_dir, "sgm_mesh");
+    view_point_cloud.WritePly(out_dir + "sgm_mesh.ply");
+    view_mesh.WriteObj(out_dir, "sgm_mesh");
   }
 #endif
 
@@ -121,19 +129,21 @@ int main(int argc, char* argv[]) {
     ugu::LOGI("ComputeStereoBruteForce: %f ms\n", timer.elapsed_msec());
 
     ugu::Depth2Gray(depth, &vis_depth);
-    ugu::imwrite(data_dir + "naivesad_vis_depth.png", vis_depth);
+    ugu::imwrite(out_dir + "naivesad_vis_depth.png", vis_depth);
 
     ugu::Mesh view_mesh, view_point_cloud;
     ugu::Depth2Mesh(depth, left_c, *camera, &view_mesh, kMaxConnectZDiff);
     ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
-    view_point_cloud.WritePly(data_dir + "naivesad_mesh.ply");
-    view_mesh.WriteObj(data_dir, "naivesad_mesh");
+    view_point_cloud.WritePly(out_dir + "naivesad_mesh.ply");
+    view_mesh.WriteObj(out_dir, "naivesad_mesh");
   }
 #endif
 
   ugu::PatchMatchStereoParam pmparam;
   pmparam.base_param = param;
   pmparam.patch_size = 35;
+  // The library dumps debug images to the CWD when enabled
+  pmparam.debug = false;
   ugu::Image1f rdisparity, rcost;
 
   timer.Start();
@@ -143,14 +153,14 @@ int main(int argc, char* argv[]) {
   timer.End();
   ugu::LOGI("ComputePatchMatchStereo: %f ms\n", timer.elapsed_msec());
   ugu::Depth2Gray(depth, &vis_depth);
-  ugu::imwrite(data_dir + "pmstereo_vis_depth.png", vis_depth);
+  ugu::imwrite(out_dir + "pmstereo_vis_depth.png", vis_depth);
 
   {
     ugu::Mesh view_mesh, view_point_cloud;
     ugu::Depth2Mesh(depth, left_c, *camera, &view_mesh, kMaxConnectZDiff);
     ugu::Depth2PointCloud(depth, left_c, *camera, &view_point_cloud);
-    view_point_cloud.WritePly(data_dir + "pmstereo_mesh.ply");
-    view_mesh.WriteObj(data_dir, "pmstereo_mesh");
+    view_point_cloud.WritePly(out_dir + "pmstereo_mesh.ply");
+    view_mesh.WriteObj(out_dir, "pmstereo_mesh");
   }
 
   return 0;

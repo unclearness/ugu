@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#include "example_utils.h"
 #include "ugu/external/external.h"
 #include "ugu/image_io.h"
 #include "ugu/inpaint/inpaint.h"
@@ -18,8 +19,9 @@ int main(int argc, char* argv[]) {
   // std::string data_dir = "../data/sphere/";
   // std::string obj_path = data_dir + "icosphere3_smart_uv.obj";
 
-  std::string data_dir = "../data/bunny/";
+  std::string data_dir = ugu_example::GetDataDir("bunny");
   std::string obj_path = data_dir + "bunny.obj";
+  std::string out_dir = ugu_example::GetOutDir("ex19_parameterize");
 
   ugu::Timer<> timer;
 
@@ -51,10 +53,10 @@ int main(int argc, char* argv[]) {
 
     out_mesh.set_uv(uvs);
     out_mesh.set_uv_indices(uv_indices);
-    out_mesh.WriteObj(data_dir, "bunny_lscm_single");
+    out_mesh.WriteObj(out_dir, "bunny_lscm_single");
 
     auto uv_img = ugu::DrawUv(uvs, uv_indices, {255, 255, 255}, {0, 0, 0});
-    ugu::imwrite(data_dir + "lscm_single_uv.jpg", uv_img);
+    ugu::imwrite(out_dir + "lscm_single_uv.jpg", uv_img);
   }
 #endif
   {
@@ -75,10 +77,10 @@ int main(int argc, char* argv[]) {
 
     out_mesh.set_uv(uvs);
     out_mesh.set_uv_indices(uv_indices);
-    out_mesh.WriteObj(data_dir, "bunny_lscm");
+    out_mesh.WriteObj(out_dir, "bunny_lscm");
 
     auto uv_img = ugu::DrawUv(uvs, uv_indices, {255, 255, 255}, {0, 0, 0});
-    ugu::imwrite(data_dir + "lscm_uv.jpg", uv_img);
+    ugu::imwrite(out_dir + "lscm_uv.jpg", uv_img);
   }
   // return 0;
 #endif
@@ -115,7 +117,7 @@ int main(int argc, char* argv[]) {
 
   auto uv = ugu::DrawUv(input_mesh->uv(), input_mesh->uv_indices(),
                         {255, 255, 255}, {0, 0, 0});
-  ugu::imwrite(data_dir + "uv.jpg", uv);
+  ugu::imwrite(out_dir + "uv.jpg", uv);
 
   auto [clusters, non_orphans, orphans, clusters_f] =
       ugu::ClusterByConnectivity(input_mesh->uv_indices(),
@@ -166,7 +168,7 @@ int main(int argc, char* argv[]) {
   input_mesh->set_material_ids(material_ids);
   input_mesh->set_materials(materials);
 
-  input_mesh->WriteObj(data_dir, "bunny_my_uv_mat");
+  input_mesh->WriteObj(out_dir, "bunny_my_uv_mat");
 
   {
     std::vector<Eigen::Vector2f> points_2d;
@@ -181,7 +183,7 @@ int main(int argc, char* argv[]) {
     auto out_mesh = ugu::Mesh(*input_mesh);
 
     out_mesh.set_vertices(points_3d);
-    out_mesh.WriteObj(data_dir, "bunny_projected_xy");
+    out_mesh.WriteObj(out_dir, "bunny_projected_xy");
   }
 
   return 0;

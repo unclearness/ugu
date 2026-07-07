@@ -5,6 +5,7 @@
 
 #include <iostream>
 
+#include "example_utils.h"
 #include "ugu/image_io.h"
 #include "ugu/image_proc.h"
 #include "ugu/inpaint/inpaint.h"
@@ -17,7 +18,8 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::string data_dir = "../data/spot/";
+  std::string data_dir = ugu_example::GetDataDir("spot");
+  std::string out_dir = ugu_example::GetOutDir("ex16_textrans");
   std::string src_obj_path = data_dir + "spot_triangulated.obj";
   std::string dst_obj_path = data_dir + "spot_remesh.obj";
   ugu::Timer<> timer;
@@ -35,7 +37,7 @@ int main(int argc, char* argv[]) {
   timer.End();
   ugu::LOGI("TexTransNoCorresp: %f ms", timer.elapsed_msec());
 
-  std::string out_basename = data_dir + "spot_remesh_texture";
+  std::string out_basename = out_dir + "spot_remesh_texture";
   ugu::Image3b dst_tex_vis;
   ugu::ConvertTo(output.dst_tex, &dst_tex_vis);
   ugu::imwrite(out_basename + "_org.png", dst_tex_vis);

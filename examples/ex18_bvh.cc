@@ -7,6 +7,7 @@
 #include <random>
 #include <unordered_set>
 
+#include "example_utils.h"
 #include "ugu/accel/bvh.h"
 #include "ugu/accel/bvh_nanort.h"
 #include "ugu/image.h"
@@ -18,8 +19,12 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
+  std::string data_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex18_bvh");
+  std::string obj_path = data_dir + "bunny.obj";
+
   ugu::MeshPtr mesh = ugu::Mesh::Create();
-  mesh->LoadObj("../data/bunny/bunny.obj", "../data/bunny/");
+  mesh->LoadObj(obj_path, data_dir);
 
   ugu::Timer timer;
   Eigen::Vector3f origin(0.f, 0.f, 700.f);
@@ -46,7 +51,7 @@ int main(int argc, char* argv[]) {
 
     auto tmp = ugu::Mesh::Create();
     tmp->set_vertices(intersected_points);
-    tmp->WritePly("intersected_raw.ply");
+    tmp->WritePly(out_dir + "intersected_raw.ply");
   }
 
   {
@@ -63,7 +68,7 @@ int main(int argc, char* argv[]) {
     auto meshes = bvh.Visualize(3);
     ugu::Mesh merged;
     ugu::MergeMeshes(meshes, &merged);
-    merged.WriteObj("../data/bunny/", "bunny_bvh");
+    merged.WriteObj(out_dir, "bunny_bvh");
     timer.Start();
     ugu::Ray ray;
     ray.org = origin;
@@ -86,7 +91,7 @@ int main(int argc, char* argv[]) {
 
     auto tmp = ugu::Mesh::Create();
     tmp->set_vertices(intersected_points);
-    tmp->WritePly("intersected_bvh.ply");
+    tmp->WritePly(out_dir + "intersected_bvh.ply");
   }
 
   {
@@ -102,7 +107,7 @@ int main(int argc, char* argv[]) {
     auto meshes = bvh.Visualize(3);
     ugu::Mesh merged;
     ugu::MergeMeshes(meshes, &merged);
-    merged.WriteObj("../data/bunny/", "bunny_bvh");
+    merged.WriteObj(out_dir, "bunny_bvh");
 #endif
 
     timer.Start();
@@ -127,7 +132,7 @@ int main(int argc, char* argv[]) {
 
     auto tmp = ugu::Mesh::Create();
     tmp->set_vertices(intersected_points);
-    tmp->WritePly("intersected_bvh.ply");
+    tmp->WritePly(out_dir + "intersected_bvh.ply");
   }
 
   return 0;

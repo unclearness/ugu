@@ -7,6 +7,7 @@
 #include <iostream>
 #include <random>
 
+#include "example_utils.h"
 #include "ugu/decimation/decimation.h"
 #include "ugu/external/external.h"
 #include "ugu/image_io.h"
@@ -43,7 +44,8 @@ bool GetFileNames(std::string folderPath,
 }
 
 void TestBlendshapes() {
-  std::string data_dir = "../data/blendshape/";
+  std::string data_dir = ugu_example::GetDataDir("blendshape");
+  std::string out_dir = ugu_example::GetOutDir("ex01_mesh");
   std::vector<std::string> file_names;
   GetFileNames(data_dir, file_names);
   std::string base_name = "cube.obj";
@@ -86,12 +88,13 @@ void TestBlendshapes() {
   }
   base_mesh.set_blendshapes(blendshapes);
 
-  base_mesh.WriteGltfSeparate(data_dir, "blendshape");
-  base_mesh.WriteGlb(data_dir, "blendshape.glb");
+  base_mesh.WriteGltfSeparate(out_dir, "blendshape");
+  base_mesh.WriteGlb(out_dir, "blendshape.glb");
 }
 
 void TestIO() {
-  std::string data_dir = "../data/bunny/";
+  std::string data_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex01_mesh");
   std::string in_obj_path = data_dir + "bunny.obj";
 
   ugu::Mesh src, dst;
@@ -99,19 +102,20 @@ void TestIO() {
   src.LoadObj(in_obj_path, data_dir);
 
   src.SplitMultipleUvVertices();
-  src.WriteGltfSeparate(data_dir, "bunny");
+  src.WriteGltfSeparate(out_dir, "bunny");
 
-  src.WriteGlb(data_dir, "bunny.glb");
+  src.WriteGlb(out_dir, "bunny.glb");
 
   dst = ugu::Mesh(src);
 
   dst.FlipFaces();
 
-  dst.WriteObj(data_dir, "bunny2");
+  dst.WriteObj(out_dir, "bunny2");
 }
 
 void TestMerge() {
-  std::string data1_dir = "../data/bunny/";
+  std::string data1_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex01_mesh");
   std::string in_obj_path1 = data1_dir + "bunny.obj";
   ugu::Mesh bunny, bunny_moved, dst;
   bunny.LoadObj(in_obj_path1, data1_dir);
@@ -119,26 +123,27 @@ void TestMerge() {
   bunny_moved.Translate(bunny.stats().bb_max);
   bunny_moved.FlipFaces();  // Flip face for moved bunny
 
-  std::string data2_dir = "../data/buddha/";
+  std::string data2_dir = ugu_example::GetDataDir("buddha");
   std::string in_obj_path2 = data2_dir + "buddha.obj";
   ugu::Mesh buddha;
   buddha.LoadObj(in_obj_path2, data2_dir);
 
   buddha.SplitMultipleUvVertices();
-  buddha.WriteGlb(data2_dir, "buddha.glb");
+  buddha.WriteGlb(out_dir, "buddha.glb");
 
   ugu::MergeMeshes(bunny, buddha, &dst);
-  dst.WriteObj(data1_dir, "bunny_and_buddha");
+  dst.WriteObj(out_dir, "bunny_and_buddha");
 
   ugu::MergeMeshes(bunny, bunny_moved, &dst, true);
-  dst.WriteObj(data1_dir, "bunny_twin");
+  dst.WriteObj(out_dir, "bunny_twin");
 
   ugu::MergeMeshes(bunny, bunny_moved, &dst);
-  dst.WriteObj(data1_dir, "bunny_twin_2materials");
+  dst.WriteObj(out_dir, "bunny_twin_2materials");
 }
 
 void TestRemove() {
-  std::string data1_dir = "../data/bunny/";
+  std::string data1_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex01_mesh");
   std::string in_obj_path1 = data1_dir + "bunny.obj";
   ugu::Mesh bunny;
   bunny.LoadObj(in_obj_path1, data1_dir);
@@ -156,11 +161,12 @@ void TestRemove() {
 
   bunny.RemoveFaces(valid_face_table);
 
-  bunny.WriteObj(data1_dir, "bunny_removed_back");
+  bunny.WriteObj(out_dir, "bunny_removed_back");
 }
 
 void TestTexture() {
-  std::string data_dir = "../data/bunny/";
+  std::string data_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex01_mesh");
   std::string in_obj_path = data_dir + "bunny.obj";
   ugu::Mesh bunny;
   bunny.LoadObj(in_obj_path, data_dir);
@@ -181,7 +187,7 @@ void TestTexture() {
 
   bunny.set_vertex_colors(vertex_colors);
 
-  bunny.WritePly(data_dir + "fetched_vertex_color.ply");
+  bunny.WritePly(out_dir + "fetched_vertex_color.ply");
 
   ugu::Parameterize(bunny, 1024, 0124,
                     ugu::ParameterizeUvType::kSimpleTriangles);
@@ -200,11 +206,12 @@ void TestTexture() {
 
   bunny.set_materials(mat);
 
-  bunny.WriteObj(data_dir, "rerasterized");
+  bunny.WriteObj(out_dir, "rerasterized");
 }
 
 void TestCut() {
-  std::string data_dir = "../data/bunny/";
+  std::string data_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex01_mesh");
   std::string in_obj_path = data_dir + "bunny.obj";
   auto bunny = ugu::Mesh::Create();
   bunny->LoadObj(in_obj_path, data_dir);
@@ -214,13 +221,14 @@ void TestCut() {
   ugu::Planef plane(n, 50.f);
   ugu::CutByPlane(bunny, plane);
 
-  bunny->WritePly(data_dir + "cut_by_plane.ply");
-  bunny->WriteObj(data_dir, "cut_by_plane");
+  bunny->WritePly(out_dir + "cut_by_plane.ply");
+  bunny->WriteObj(out_dir, "cut_by_plane");
 }
 
 void TestDecimation() {
+  std::string out_dir = ugu_example::GetOutDir("ex01_mesh");
   {
-    std::string data_dir = "../data/plane/";
+    std::string data_dir = ugu_example::GetDataDir("plane");
     std::string in_obj_path = data_dir + "plane.obj";
     ugu::MeshPtr src = ugu::Mesh::Create();
     ugu::Mesh dst;
@@ -228,11 +236,11 @@ void TestDecimation() {
     ugu::QSlim(src, ugu::QSlimType::XYZ_UV,
                static_cast<int32_t>(src->vertex_indices().size() * 0.1), -1);
 
-    src->WriteObj(data_dir, "plane_qslim");
+    src->WriteObj(out_dir, "plane_qslim");
   }
 
   {
-    std::string data_dir = "../data/spot/";
+    std::string data_dir = ugu_example::GetDataDir("spot");
     std::string in_obj_path = data_dir + "spot_triangulated.obj";
     ugu::MeshPtr src = ugu::Mesh::Create();
     ugu::Mesh dst;
@@ -241,11 +249,11 @@ void TestDecimation() {
     ugu::QSlim(src, ugu::QSlimType::XYZ_UV,
                static_cast<int32_t>(src->vertex_indices().size() * 0.1), -1);
 
-    src->WriteObj(data_dir, "spot_qslim");
+    src->WriteObj(out_dir, "spot_qslim");
   }
 
   {
-    std::string data_dir = "../data/bunny/";
+    std::string data_dir = ugu_example::GetDataDir("bunny");
     std::string in_obj_path = data_dir + "bunny.obj";
     ugu::MeshPtr src = ugu::Mesh::Create();
     ugu::Mesh dst;
@@ -254,16 +262,17 @@ void TestDecimation() {
     auto targe_face_num = static_cast<int>(src->vertex_indices().size() * 0.02);
 
     ugu::FastQuadricMeshSimplification(*src, targe_face_num, &dst);
-    dst.WritePly(data_dir + "bunny_fast_decimated.ply");
+    dst.WritePly(out_dir + "bunny_fast_decimated.ply");
 
     ugu::QSlim(src, ugu::QSlimType::XYZ_UV, targe_face_num, -1);
 
-    src->WriteObj(data_dir, "bunny_qslim");
+    src->WriteObj(out_dir, "bunny_qslim");
   }
 }
 
 void TestRayInteresection() {
-  std::string data_dir = "../data/bunny/";
+  std::string data_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex01_mesh");
   std::string in_obj_path = data_dir + "bunny.obj";
   auto bunny = ugu::Mesh::Create();
   bunny->LoadObj(in_obj_path, data_dir);
@@ -291,41 +300,49 @@ void TestRayInteresection() {
 
   auto tmp = ugu::Mesh::Create();
   tmp->set_vertices(intersected_points);
-  tmp->WritePly("intersected.ply");
+  tmp->WritePly(out_dir + "intersected.ply");
 }
 
 void TestMakeGeom() {
-  std::string data_dir = "../data/";
+  std::string out_dir = ugu_example::GetOutDir("ex01_mesh");
   auto cone = ugu::MakeCone(0.5f, 1.f);
-  cone->WriteObj(data_dir, "cone");
+  cone->WriteObj(out_dir, "cone");
 
   auto cylinder = ugu::MakeCylinder(0.5f, 1.f);
-  cylinder->WriteObj(data_dir, "cylinder");
+  cylinder->WriteObj(out_dir, "cylinder");
 
   ugu::ObjMaterial cylinder_mat, cone_mat;
   cylinder_mat.diffuse = {0.f, 1.f, 0.f};
   cone_mat.diffuse = {1.f, 0.f, 1.f};
   auto arrow =
       ugu::MakeArrow(0.1f, 1.f, 0.2f, 0.2f, 30, 30, cylinder_mat, cone_mat);
-  arrow->WriteObj(data_dir, "arrow");
+  arrow->WriteObj(out_dir, "arrow");
 
   auto origin = ugu::MakeOrigin(1.f);
-  origin->WriteObj(data_dir, "origin");
+  origin->WriteObj(out_dir, "origin");
+
+  std::string rendered_dir = ugu_example::GetEx02RenderedBunnyDir();
+  std::string tumpose_path = rendered_dir + "tumpose.txt";
+  if (!ugu::FileExists(tumpose_path)) {
+    printf("Please run ex02_renderer first to generate %s\n",
+           tumpose_path.c_str());
+    return;
+  }
 
   std::vector<Eigen::Affine3d> poses;
-  ugu::LoadTumFormat("../data/bunny/tumpose.txt", &poses);
+  ugu::LoadTumFormat(tumpose_path, &poses);
   auto trajectory = ugu::MakeTrajectoryGeom(poses, 100.f);
-  trajectory->WriteObj(data_dir, "tumpose");
+  trajectory->WriteObj(out_dir, "tumpose");
 
   auto frustum = ugu::MakeFrustum(1.f, 0.8f, 0.5f, 0.4f, 1.f);
-  frustum->WriteObj(data_dir, "frustum");
+  frustum->WriteObj(out_dir, "frustum");
 
   ugu::Image3b view0_image =
-      ugu::Imread<ugu::Image3b>("../data/bunny/00000_color.png");
+      ugu::Imread<ugu::Image3b>(rendered_dir + "00000_color.png");
   auto view_frustum =
       ugu::MakeViewFrustum(ugu::radians(30.f), poses[0].cast<float>(), 200.f,
                            view0_image, ugu::CoordinateType::OpenCV, 10.f);
-  view_frustum->WriteObj(data_dir, "view_frustum");
+  view_frustum->WriteObj(out_dir, "view_frustum");
 }
 
 }  // namespace

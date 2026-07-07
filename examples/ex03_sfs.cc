@@ -7,6 +7,7 @@
 
 #include <fstream>
 
+#include "example_utils.h"
 #include "ugu/camera.h"
 #include "ugu/image_io.h"
 #include "ugu/sfs/voxel_carver.h"
@@ -18,7 +19,8 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::string data_dir{"../data/sfs/"};
+  std::string data_dir = ugu_example::GetDataDir("sfs");
+  std::string out_dir = ugu_example::GetOutDir("ex03_sfs");
   std::vector<Eigen::Affine3d> poses;
   ugu::LoadTumFormat(data_dir + "tumpose.txt", &poses);
 
@@ -70,18 +72,18 @@ int main(int argc, char* argv[]) {
     // save SDF visualization
     ugu::Image3b vis_sdf;
     ugu::SignedDistance2Color(sdf, &vis_sdf, -1.0f, 1.0f);
-    ugu::imwrite(data_dir + "/sdf_" + num + ".png", vis_sdf);
+    ugu::imwrite(out_dir + "sdf_" + num + ".png", vis_sdf);
 
     ugu::Mesh mesh;
     // voxel extraction
     // slow for algorithm itself and saving to disk
     carver.ExtractVoxel(&mesh);
-    // mesh.WritePly(data_dir + "/voxel_" + num + ".ply");
+    // mesh.WritePly(out_dir + "voxel_" + num + ".ply");
 
     // marching cubes
     // smoother and faster
     carver.ExtractIsoSurface(&mesh, 0.0);
-    mesh.WritePly(data_dir + "/surface_" + num + ".ply");
+    mesh.WritePly(out_dir + "surface_" + num + ".ply");
   }
 
   return 0;

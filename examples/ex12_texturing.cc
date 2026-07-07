@@ -7,6 +7,7 @@
 
 #include <fstream>
 
+#include "example_utils.h"
 #include "ugu/camera.h"
 #include "ugu/external/external.h"
 #include "ugu/image_io.h"
@@ -23,9 +24,11 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::string data_dir = "../data/bunny/";
+  std::string data_dir = ugu_example::GetDataDir("bunny");
+  std::string rendered_dir = ugu_example::GetEx02RenderedBunnyDir();
+  std::string out_dir = ugu_example::GetOutDir("ex12_texturing");
   std::string obj_path = data_dir + "bunny.obj";
-  std::string tumpose_path = data_dir + "tumpose.txt";
+  std::string tumpose_path = rendered_dir + "tumpose.txt";
 
   {
     std::ifstream ifs(obj_path);
@@ -43,7 +46,8 @@ int main(int argc, char* argv[]) {
   {
     std::ifstream ifs(tumpose_path);
     if (!ifs.is_open()) {
-      printf("Please run test_renderer to generate tumpose.txt\n");
+      printf("Please run ex02_renderer first to generate %s\n",
+             tumpose_path.c_str());
       return -1;
     }
   }
@@ -76,7 +80,7 @@ int main(int argc, char* argv[]) {
         width, height, poses[i].second, principal_point, focal_length);
 
     std::string color_path =
-        data_dir + ugu::zfill(poses[i].first) + "_color.png";
+        rendered_dir + ugu::zfill(poses[i].first) + "_color.png";
     keyframes[i]->color_path = color_path;
     keyframes[i]->color = ugu::Imread<ugu::Image3b>(keyframes[i]->color_path);
   }
@@ -91,7 +95,7 @@ int main(int argc, char* argv[]) {
   tester.Test(keyframes, &info);
 
   {
-    std::ofstream ofs("./keyframe_info.json");
+    std::ofstream ofs(out_dir + "keyframe_info.json");
     ofs << info.SerializeAsJson();
   }
 
@@ -102,7 +106,7 @@ int main(int argc, char* argv[]) {
 
   ugu::VertexColorizer vertex_colorizer;
   vertex_colorizer.Colorize(info, output_mesh.get());
-  std::string output_ply_path = data_dir + "bunny_vertex_color.ply";
+  std::string output_ply_path = out_dir + "bunny_vertex_color.ply";
   output_mesh->WritePly(output_ply_path);
 
   {
@@ -126,7 +130,7 @@ int main(int argc, char* argv[]) {
     ugu::Inpaint(mask, mats[0].diffuse_tex);
 
     output_mesh->set_materials(mats);
-    output_mesh->WriteObj(data_dir, "bunny_vc_rasterized_orguv");
+    output_mesh->WriteObj(out_dir, "bunny_vc_rasterized_orguv");
 
     mats = output_mesh->materials();
     mats[0].diffuse_texname = org_texname;
@@ -140,35 +144,35 @@ int main(int argc, char* argv[]) {
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   timer.End();
   ugu::LOGI("kUseOriginalMeshUv %f ms\n", timer.elapsed_msec());
-  output_mesh->WriteObj(data_dir, "bunny_textured_orguv");
+  output_mesh->WriteObj(out_dir, "bunny_textured_orguv");
 
   tmoption.uv_type = ugu::TexturingOutputUvType::kGenerateSimpleTile;
   timer.Start();
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   timer.End();
   ugu::LOGI("kGenerateSimpleTile %f ms\n", timer.elapsed_msec());
-  output_mesh->WriteObj(data_dir, "bunny_textured_tileuv");
+  output_mesh->WriteObj(out_dir, "bunny_textured_tileuv");
 
   tmoption.uv_type = ugu::TexturingOutputUvType::kConcatHorizontally;
   timer.Start();
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   timer.End();
   ugu::LOGI("kConcatHorizontally %f ms\n", timer.elapsed_msec());
-  output_mesh->WriteObj(data_dir, "bunny_textured_horizontaluv");
+  output_mesh->WriteObj(out_dir, "bunny_textured_horizontaluv");
 
   tmoption.uv_type = ugu::TexturingOutputUvType::kConcatVertically;
   timer.Start();
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   timer.End();
   ugu::LOGI("kConcatVertically %f ms\n", timer.elapsed_msec());
-  output_mesh->WriteObj(data_dir, "bunny_textured_verticaluv");
+  output_mesh->WriteObj(out_dir, "bunny_textured_verticaluv");
 
   tmoption.uv_type = ugu::TexturingOutputUvType::kGenerateSimpleTriangles;
   timer.Start();
   ugu::TextureMapping(keyframes, info, output_mesh.get(), tmoption);
   timer.End();
   ugu::LOGI("kGenerateSimpleTriangles %f ms\n", timer.elapsed_msec());
-  output_mesh->WriteObj(data_dir, "bunny_textured_triuv");
+  output_mesh->WriteObj(out_dir, "bunny_textured_triuv");
 
   {
     tmoption.uv_type = ugu::TexturingOutputUvType::kGenerateSimpleCharts;
@@ -189,18 +193,18 @@ int main(int argc, char* argv[]) {
     ugu::Inpaint(mask, mat[0].diffuse_tex);
     // ugu::imwrite("mask2.png", mask);
     output_mesh->set_materials(mat);
-    output_mesh->WriteObj(data_dir, "bunny_textured_charts");
+    output_mesh->WriteObj(out_dir, "bunny_textured_charts");
   }
 
 #ifdef UGU_USE_MVS_TEXTURING
   // mvs-texturing
   ugu::Mesh debug_mesh;
   bool ret = ugu::MvsTexturing(keyframes, output_mesh.get(), &debug_mesh,
-                               data_dir + "bunny_mvs_texturing_native",
-                               data_dir + "bunny_mvs_texturing_debug_native");
+                               out_dir + "bunny_mvs_texturing_native",
+                               out_dir + "bunny_mvs_texturing_debug_native");
   if (ret) {
-    output_mesh->WriteObj(data_dir, "bunny_mvs_texturing");
-    debug_mesh.WriteObj(data_dir, "bunny_mvs_texturing_debug");
+    output_mesh->WriteObj(out_dir, "bunny_mvs_texturing");
+    debug_mesh.WriteObj(out_dir, "bunny_mvs_texturing_debug");
   }
 #endif
 

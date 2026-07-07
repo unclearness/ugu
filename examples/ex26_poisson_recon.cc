@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#include "example_utils.h"
 #include "ugu/external/external.h"
 #include "ugu/inpaint/inpaint.h"
 #include "ugu/parameterize/parameterize.h"
@@ -50,8 +51,12 @@ void Textrans(MeshPtr src, MeshPtr recon) {
 int main() {
   Timer<> timer;
 
+  std::string data_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex26_poisson_recon");
+  std::string obj_path = data_dir + "bunny.obj";
+
   MeshPtr src = Mesh::Create();
-  src->LoadObj("../data/bunny/bunny.obj");
+  src->LoadObj(obj_path);
 
   std::vector<Eigen::Vector3f> colors;
   src->SplitMultipleUvVertices();
@@ -67,7 +72,7 @@ int main() {
   Textrans(src, recon);
 
   if (recon != nullptr) {
-    recon->WriteObj("../data/bunny/", "bunny_spr");
+    recon->WriteObj(out_dir, "bunny_spr");
   }
 
   {
@@ -86,7 +91,7 @@ int main() {
     EstimateNormalsFromPoints(src.get());
     timer.End();
     ugu::LOGI("Normal estimation %f ms\n", timer.elapsed_msec());
-    // src->WriteObj("../data/bunny/bunny_tmp.obj");
+    // src->WriteObj(out_dir + "bunny_tmp.obj");
 
     timer.Start();
     ugu::FusePoints(src->vertices(), src->normals(), option, voxel_grid,
@@ -102,7 +107,7 @@ int main() {
 
     Textrans(src, pc_fused);
 
-    pc_fused->WriteObj("../data/bunny/bunny_mc.obj");
+    pc_fused->WriteObj(out_dir + "bunny_mc.obj");
   }
 
   return 0;

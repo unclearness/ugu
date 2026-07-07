@@ -9,6 +9,7 @@
 #include <iostream>
 #include <vector>
 
+#include "example_utils.h"
 #include "ugu/image_io.h"
 #include "ugu/image_proc.h"
 #include "ugu/renderer/cpu/rasterizer.h"
@@ -224,8 +225,10 @@ int main(int argc, char* argv[]) {
    *  Transactions on Graphics", volume = "24", number = "3", year="2005", pages
    *  = "1148-1155"
    */
-  std::string data_dir = "../data/bunny/";
+  std::string data_dir = ugu_example::GetDataDir("bunny");
   std::string obj_path = data_dir + "bunny.obj";
+  // ex01, ex06, ex10 and ex12 read the rendered images and poses from here
+  std::string out_dir = ugu_example::GetOutDir("ex02_renderer");
 
   std::ifstream ifs(obj_path);
   if (!ifs.is_open()) {
@@ -275,7 +278,7 @@ int main(int argc, char* argv[]) {
   renderer->set_camera(camera);
 
   // test
-  Test(data_dir, mesh, camera, *renderer);
+  Test(out_dir, mesh, camera, *renderer);
 
   return 0;
 }

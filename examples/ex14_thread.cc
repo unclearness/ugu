@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#include "example_utils.h"
 #include "ugu/image.h"
 #include "ugu/image_io.h"
 #include "ugu/timer.h"
@@ -11,8 +12,9 @@
 namespace {
 
 void ForSpeedTest() {
-  const ugu::Image3b color_org =
-      ugu::Imread<ugu::Image3b>("../data/inpaint/fruits.jpg");
+  std::string out_dir = ugu_example::GetOutDir("ex14_thread");
+  const ugu::Image3b color_org = ugu::Imread<ugu::Image3b>(
+      ugu_example::GetDataDir("inpaint") + "fruits.jpg");
   ugu::Image3b color;
   const int ksize = 31;
   const int hksize = ksize / 2;
@@ -59,7 +61,7 @@ void ForSpeedTest() {
   }
   timer.End();
   ugu::LOGI("Naive: %f ms\n", timer.elapsed_msec());
-  ugu::imwrite("fruits_blur_naive.jpg", color);
+  ugu::imwrite(out_dir + "fruits_blur_naive.jpg", color);
 
   // OpenMP
   color = color_org.clone();
@@ -70,7 +72,7 @@ void ForSpeedTest() {
   }
   timer.End();
   ugu::LOGI("OpenMP: %f ms\n", timer.elapsed_msec());
-  ugu::imwrite("fruits_blur_omp.jpg", color);
+  ugu::imwrite(out_dir + "fruits_blur_omp.jpg", color);
 
   // ugu::parallel_for
   color = color_org.clone();
@@ -78,7 +80,7 @@ void ForSpeedTest() {
   ugu::parallel_for(0, color.rows, loop_body);
   timer.End();
   ugu::LOGI("ugu::parallel_for: %f ms\n", timer.elapsed_msec());
-  ugu::imwrite("fruits_blur_ugu.jpg", color);
+  ugu::imwrite(out_dir + "fruits_blur_ugu.jpg", color);
 }
 
 }  // namespace

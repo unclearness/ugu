@@ -4,6 +4,7 @@
  */
 
 #if defined(UGU_USE_OPENCV) && __has_include("opencv2/ximgproc.hpp")
+#include "example_utils.h"
 #include "ugu/image_io.h"
 #include "ugu/superpixel/superpixel.h"
 #include "ugu/util/image_util.h"
@@ -30,8 +31,7 @@ void MeanColorPerLabel(const Image3b& img, const Image1i& labels, int label_num,
 }  // namespace
 
 int main() {
-  std::string out_dir = "../out/ex25/";
-  EnsureDirExists(out_dir);
+  std::string out_dir = ugu_example::GetOutDir("ex25_superpixel");
 
   ImageBase img, bgr;
   Image1i labels;
@@ -41,8 +41,8 @@ int main() {
   Image3b mean_color;
   int sp_num;
 
-  std::string data_path = "../data/inpaint/fruits.jpg";
-  // data_path = "../data/spot/spot_texture.png";
+  std::string data_path = ugu_example::GetDataDir("inpaint") + "fruits.jpg";
+  // data_path = ugu_example::GetDataDir("spot") + "spot_texture.png";
   img = imread(data_path);
   bgr = img.clone();
 

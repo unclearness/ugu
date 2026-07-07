@@ -7,6 +7,7 @@
 #include <iostream>
 #include <random>
 
+#include "example_utils.h"
 #include "ugu/registration/rigid.h"
 #include "ugu/timer.h"
 #include "ugu/util/path_util.h"
@@ -68,11 +69,10 @@ auto AddNoise(ugu::Mesh& mesh) {
 }
 
 void TestAlignmentWithCorresp() {
-  std::string data1_dir = "../data/bunny/";
+  std::string data1_dir = ugu_example::GetDataDir("bunny");
   std::string in_obj_path1 = data1_dir + "bunny.obj";
   ugu::Mesh bunny;
-  std::string out_dir = "../out/ex23/corresp/";
-  ugu::EnsureDirExists(out_dir);
+  std::string out_dir = ugu_example::GetOutDir("ex23_rigid", "corresp");
   bunny.LoadObj(in_obj_path1, data1_dir);
 
   // Add noise
@@ -141,10 +141,9 @@ void TestAlignmentWithCorresp() {
 }
 
 void TestAlignmentWithoutCorresp() {
-  std::string data1_dir = "../data/bunny/";
+  std::string data1_dir = ugu_example::GetDataDir("bunny");
 
-  std::string out_dir = "../out/ex23/icp/";
-  ugu::EnsureDirExists(out_dir);
+  std::string out_dir = ugu_example::GetOutDir("ex23_rigid", "icp");
   std::string in_obj_path1 = data1_dir + "bunny.obj";
   ugu::Mesh bunny;
   bunny.LoadObj(in_obj_path1, data1_dir);
@@ -266,9 +265,6 @@ void TestAlignmentWithoutCorresp() {
 }  // namespace
 
 int main() {
-  ugu::EnsureDirExists("../out/");
-  ugu::EnsureDirExists("../out/ex23/");
-
   TestAlignmentWithCorresp();
 
   TestAlignmentWithoutCorresp();

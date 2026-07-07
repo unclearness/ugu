@@ -5,6 +5,7 @@
 
 #include <fstream>
 
+#include "example_utils.h"
 #include "ugu/face_adjacency.h"
 #include "ugu/mesh.h"
 #include "ugu/util/geom_util.h"
@@ -15,7 +16,8 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::string data_dir = "../data/bunny/";
+  std::string data_dir = ugu_example::GetDataDir("bunny");
+  std::string out_dir = ugu_example::GetOutDir("ex04_adjacency");
   std::string obj_path = data_dir + "bunny.obj";
 
   {
@@ -51,7 +53,7 @@ int main(int argc, char* argv[]) {
   }
 
   cluster_colored.set_vertex_colors(colors);
-  cluster_colored.WritePly(data_dir + "bunny_uv_cluster.ply");
+  cluster_colored.WritePly(out_dir + "bunny_uv_cluster.ply");
   auto [boundary_edges_list, boundary_vertex_ids_list] = ugu::FindBoundaryLoops(
       mesh->vertex_indices(), static_cast<int32_t>(mesh->vertices().size()));
 
@@ -65,7 +67,7 @@ int main(int argc, char* argv[]) {
     }
     ugu::Mesh tmp;
     tmp.set_vertices(boundary_vertices);
-    tmp.WritePly(data_dir + "bunny_boundary_" + std::to_string(i) + ".ply");
+    tmp.WritePly(out_dir + "bunny_boundary_" + std::to_string(i) + ".ply");
   }
 
   ugu::FaceAdjacency face_adjacency;
@@ -91,7 +93,7 @@ int main(int argc, char* argv[]) {
   }
 
   mesh->RemoveVertices(valid_vertex_table);
-  mesh->WritePly(data_dir + "bunny_boundary_removed.ply");
+  mesh->WritePly(out_dir + "bunny_boundary_removed.ply");
 
   return 0;
 }

@@ -5,6 +5,7 @@
 
 #include <random>
 
+#include "example_utils.h"
 #include "ugu/line.h"
 #include "ugu/mesh.h"
 #include "ugu/timer.h"
@@ -42,6 +43,8 @@ void SavePoints(const std::vector<ugu::Line3d>& lines,
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
+
+  std::string out_dir = ugu_example::GetOutDir("ex22_line");
 
   int num = 1000;
 
@@ -93,7 +96,7 @@ int main(int argc, char* argv[]) {
     clean.push_back(l);
   }
 
-  SavePoints(clean, "clean.ply");
+  SavePoints(clean, out_dir + "clean.ply");
 
   std::vector<ugu::Line3d> unclean;
   for (size_t i = 0; i < clean.size(); i++) {
@@ -108,7 +111,7 @@ int main(int argc, char* argv[]) {
       unclean.push_back(l);
     }
   }
-  SavePoints(unclean, "unclean.ply");
+  SavePoints(unclean, out_dir + "unclean.ply");
 
   ugu::Timer<> timer;
   std::vector<ugu::Line3d> fused;
@@ -121,7 +124,7 @@ int main(int argc, char* argv[]) {
   ugu::LineClustering(unclean, fused, tau_s, r_nei, sigma_p, sigma_d);
   timer.End();
   ugu::LOGI("LineClustering: %f ms\n", timer.elapsed_msec());
-  SavePoints(fused, "fused.ply");
+  SavePoints(fused, out_dir + "fused.ply");
 
   double s = 0.1;
   double tau_r = 0.1;
@@ -140,7 +143,7 @@ int main(int argc, char* argv[]) {
     }
     colors.push_back(single);
   }
-  ugu::WriteObjLine(strands, "fused.obj", colors);
+  ugu::WriteObjLine(strands, out_dir + "fused.obj", colors);
 
   return 0;
 }
