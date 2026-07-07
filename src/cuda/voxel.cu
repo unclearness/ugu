@@ -1,4 +1,4 @@
-﻿#include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
 #include <algorithm>
@@ -17,7 +17,7 @@ namespace {
 
 #define MAX_IMAGES 32
 
-// カメラパラメータ（画像ごとに異なるが枚数は少ないと仮定）
+// Camera parameters (differ per image; the image count is assumed small)
 __constant__ float d_fx[MAX_IMAGES];
 __constant__ float d_fy[MAX_IMAGES];
 __constant__ float d_cx[MAX_IMAGES];
@@ -31,32 +31,32 @@ __constant__ float d_t[MAX_IMAGES * 3];
 __constant__ float d_R_inv[MAX_IMAGES * 9];
 __constant__ float d_t_inv[MAX_IMAGES * 3];
 
-// 定数
-#define BLOCK_SIZE 8  // 各VoxelBlockは BLOCK_SIZE^3 個のVoxelを持つ
+// Constants
+#define BLOCK_SIZE 8  // each VoxelBlock holds BLOCK_SIZE^3 voxels
 
-// Voxel構造体：SDF、重み、法線を保持
+// Voxel structure: holds SDF, weight and normal
 struct Voxel {
   float sdf;
   float weight;
   float3 normal;
 };
 
-// VoxelBlock構造体
+// VoxelBlock structure
 struct VoxelBlock {
   Voxel voxels[BLOCK_SIZE * BLOCK_SIZE * BLOCK_SIZE];
 };
 
-// ハッシュテーブルのエントリ構造体
+// Hash table entry structure
 struct HashEntry {
-  int3 pos;  // ボクセルブロック座標（ブロック単位）
-  int ptr;   // d_voxelBlocks 配列内のインデックス。未割当は -1
+  int3 pos;  // voxel block coordinates (in block units)
+  int ptr;   // index into the d_voxelBlocks array; -1 if unallocated
 };
 
 //
 // ---------------------
-// Marching Cubes テーブル（標準テーブル：完全な内容は省略）
+// Marching Cubes tables (standard tables; full contents omitted)
 // ---------------------
-// ※ 実装時は各テーブルの全要素を定義する必要があります。
+// NOTE: all table entries must be defined in a real implementation.
 //
 __device__ __constant__ int d_edgeTable[256] = {
     0x0,   0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c, 0x80c, 0x905, 0xa0f,
@@ -349,7 +349,7 @@ __device__ __constant__ int3 c_voxel_num;
 __device__ __constant__ float c_trunc;
 
 //
-// GPU内ユーティリティ関数
+// Device-side utility functions
 //
 __device__ inline float dot(const float3 a, const float3 b) {
   return a.x * b.x + a.y * b.y + a.z * b.z;
@@ -386,9 +386,9 @@ __device__ inline float3 voxel_idx2pos(int3 idx, float3 bb_min,
 
 __device__ inline int3 voxel_pos2voxel(const float3 pos, const float3 bb_min,
                                        const float3 resolution) {
-  // グリッド原点からのオフセット
+  // Offset from the grid origin
   float3 d = make_float3(pos.x - bb_min.x, pos.y - bb_min.y, pos.z - bb_min.z);
-  // 各軸ごとにセル長で割り、floor して含まれるセルを得る
+  // Divide by the cell length per axis and floor to get the containing cell
   int ix = floorf(d.x / resolution.x);
   int iy = floorf(d.y / resolution.y);
   int iz = floorf(d.z / resolution.z);
@@ -396,7 +396,7 @@ __device__ inline int3 voxel_pos2voxel(const float3 pos, const float3 bb_min,
 }
 
 //
-// ハッシュテーブル初期化カーネル（各エントリの ptr を -1 に設定）
+// Hash table initialization kernel (sets ptr of every entry to -1)
 //
 __global__ void initHashTable(HashEntry* hash_table, int hashTableSize) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -428,7 +428,7 @@ struct VoxelCudaNaive {
 };
 
 //
-// 法線付き点群からVoxel Hash FusionによるSDF更新を行うカーネル
+// Kernel that updates the SDF via voxel-hash fusion from an oriented point cloud
 //
 __global__ void fusePointCloudKernel(const float3* points,
                                      const float3* normals, int num_points,
@@ -439,17 +439,17 @@ __global__ void fusePointCloudKernel(const float3* points,
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= num_points) return;
 
-  // 入力点と法線を取得
+  // Fetch the input point and normal
   float3 pt = points[idx];
   float3 normal = normals[idx];
 
-  // 点の位置からグローバルVoxel座標を計算
+  // Compute the global voxel coordinates from the point position
   int vx = floorf(pt.x / voxel_size);
   int vy = floorf(pt.y / voxel_size);
   int vz = floorf(pt.z / voxel_size);
   int3 voxel_coord = make_int3(vx, vy, vz);
 
-  // ボクセルブロック座標およびブロック内ローカル座標を計算
+  // Compute the voxel block coordinates and the local coordinates in the block
   int bx = voxel_coord.x / BLOCK_SIZE;
   int by = voxel_coord.y / BLOCK_SIZE;
   int bz = voxel_coord.z / BLOCK_SIZE;
@@ -459,13 +459,13 @@ __global__ void fusePointCloudKernel(const float3* points,
   int ly = voxel_coord.y - by * BLOCK_SIZE;
   int lz = voxel_coord.z - bz * BLOCK_SIZE;
 
-  // ハッシュ関数（単純な組み合わせ）
+  // Hash function (simple combination)
   int h1 = (block_coord.x * 73856093) ^ (block_coord.y * 19349663) ^
            (block_coord.z * 83492791);
   h1 = h1 % hashTableSize;
   if (h1 < 0) h1 += hashTableSize;
 
-  // 二重ハッシュ法による探索
+  // Probe by double hashing
   int h2 = 1 + (h1 % (hashTableSize - 1));
   int found = -1;
   for (int i = 0; i < hashTableSize; i++) {
@@ -490,19 +490,19 @@ __global__ void fusePointCloudKernel(const float3* points,
   VoxelBlock* block = &d_voxel_blocks[block_idx];
   int voxel_index = lx + ly * BLOCK_SIZE + lz * BLOCK_SIZE * BLOCK_SIZE;
 
-  // 対象Voxelの中心座標（ワールド空間）
+  // Center of the target voxel (world space)
   float3 voxel_center;
   voxel_center.x = ((bx * BLOCK_SIZE + lx) + 0.5f) * voxel_size;
   voxel_center.y = ((by * BLOCK_SIZE + ly) + 0.5f) * voxel_size;
   voxel_center.z = ((bz * BLOCK_SIZE + lz) + 0.5f) * voxel_size;
 
-  // 点とVoxel中心との相対位置からSDFを計算（法線方向への射影距離）
+  // Compute the SDF from the point-to-voxel-center offset (projected onto the normal)
   float3 diff = voxel_center - pt;
   float dist = dot(diff, normal);
   if (dist < -mu) return;
   float sdf = fminf(1.0f, dist / mu);
 
-  // 更新：重み付き平均でSDFと法線を融合
+  // Update: fuse SDF and normal by weighted average
   Voxel* voxel = &block->voxels[voxel_index];
   float new_weight = 1.0f;
   float total_weight = voxel->weight + new_weight;
@@ -522,41 +522,41 @@ __global__ void fuseOrganizedPointCloudMultiKernelHashing(
   int totalPixels = width * height * num_images;
   if (idx >= totalPixels) return;
 
-  // 画像毎に連続して格納されているので、idx で直接アクセス
+  // Images are stored contiguously, so idx addresses the point directly
   float3 pt = d_points[idx];
   if (pt.x == 0.0f && pt.y == 0.0f && pt.z == 0.0f) {
-    return;  // 無効な点はスキップ
+    return;  // skip invalid points
   }
 
   float3 normal = d_normals[idx];
 
-  // 更新するステップ数: トランケーション幅 [-mu, mu] を voxel_size ごとに走査
+  // Number of update steps: sweep the truncation band [-mu, mu] in voxel_size steps
   int numSteps = (int)(2.0f * mu / voxel_size) +
-                 1;  // 例: mu=0.1, voxel_size=0.005 → 約41ステップ
+                 1;  // e.g. mu=0.1, voxel_size=0.005 -> about 41 steps
 
   for (int i = 0; i < numSteps; i++) {
-    // t を -mu から +mu の間で走査し、法線方向の候補点を計算
+    // Sweep t from -mu to +mu and compute candidate points along the normal
     float t = -mu + i * voxel_size;
     float3 candidate = pt + normal * t;
 
-    // candidate の位置からボクセル座標を計算
+    // Compute voxel coordinates from the candidate position
     int vx = floorf(candidate.x / voxel_size);
     int vy = floorf(candidate.y / voxel_size);
     int vz = floorf(candidate.z / voxel_size);
     int3 voxel_coord = make_int3(vx, vy, vz);
 
-    // 対応するボクセルブロックの座標（各ブロックは BLOCK_SIZE 個のVoxelを持つ）
+    // Coordinates of the containing voxel block (BLOCK_SIZE voxels per axis)
     int bx = voxel_coord.x / BLOCK_SIZE;
     int by = voxel_coord.y / BLOCK_SIZE;
     int bz = voxel_coord.z / BLOCK_SIZE;
     int3 block_coord = make_int3(bx, by, bz);
 
-    // ブロック内でのローカル座標
+    // Local coordinates within the block
     int lx = voxel_coord.x - bx * BLOCK_SIZE;
     int ly = voxel_coord.y - by * BLOCK_SIZE;
     int lz = voxel_coord.z - bz * BLOCK_SIZE;
 
-    // ハッシュ関数によるブロック探索（ブロック単位で管理）
+    // Find the block via the hash function (blocks are managed per block)
     int h1 = (block_coord.x * 73856093) ^ (block_coord.y * 19349663) ^
              (block_coord.z * 83492791);
     h1 = h1 % hashTableSize;
@@ -581,25 +581,25 @@ __global__ void fuseOrganizedPointCloudMultiKernelHashing(
       }
     }
     if (found == -1)
-      continue;  // ハッシュテーブルが満杯の場合、この候補はスキップ
+      continue;  // skip this candidate if the hash table is full
 
     int block_idx = d_hashTable[found].ptr;
     VoxelBlock* block = &d_voxel_blocks[block_idx];
     int voxel_index = lx + ly * BLOCK_SIZE + lz * BLOCK_SIZE * BLOCK_SIZE;
 
-    // 対象Voxelの中心座標（ワールド座標）を計算
+    // Compute the center of the target voxel (world coordinates)
     float3 voxel_center;
     voxel_center.x = ((bx * BLOCK_SIZE + lx) + 0.5f) * voxel_size;
     voxel_center.y = ((by * BLOCK_SIZE + ly) + 0.5f) * voxel_size;
     voxel_center.z = ((bz * BLOCK_SIZE + lz) + 0.5f) * voxel_size;
 
-    // pt からの法線方向距離（candidate ではなく voxel_center を使って再計算）
+    // Distance from pt along the normal (recomputed with voxel_center, not candidate)
     float3 diff = voxel_center - pt;
     float dist = dot(diff, normal);
-    if (fabsf(dist) > mu) continue;  // トランケーション幅外は更新しない
+    if (fabsf(dist) > mu) continue;  // no update outside the truncation band
     float sdf = fminf(1.0f, dist / mu);
 
-    // 重み付き平均による SDF と法線の融合更新
+    // Fuse SDF and normal by weighted average
     Voxel* voxel = &block->voxels[voxel_index];
     float new_weight = 1.0f;
     float total_weight = voxel->weight + new_weight;
@@ -823,7 +823,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
     VoxelCudaNaive* d_voxels, int totalPixels) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   // int lane = threadIdx.x;
-  //// 1) shared を初期化 (各スレッドで分担)
+  //// 1) Initialize shared memory (split across threads)
   // for (int i = lane; i < NAIVE_KERNEL_HASH_SIZE; i += blockDim.x) {
   //   s_keys[i] = -1;  // empty marker
   //   s_vals[i] = 0.0f;
@@ -836,7 +836,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
   float3 pt = d_pts[idx];
   if (pt.x == 0 && pt.y == 0 && pt.z == 0) return;
 
-  // 1) インデックス計算（乗算＋キャスト）
+  // 1) Index computation (multiply + cast)
   float3 diff = pt - c_bb_min;
   int xi = __float2int_rz(diff.x * c_inv_voxel_size.x);
   int yi = __float2int_rz(diff.y * c_inv_voxel_size.y);
@@ -846,13 +846,13 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
     return;
   }
 
-  // 2) オフセットループはアンロール済み
+  // 2) The offset loop is unrolled
   float3 normal = d_nml[idx];
-  constexpr int nn_range = 1;  // nn_range=1 なら 3×3×3 ブロック
+  constexpr int nn_range = 1;  // nn_range=1 means a 3x3x3 block
   constexpr int MAX_NEI =
       (2 * nn_range + 1) * (2 * nn_range + 1) * (2 * nn_range + 1);
-  float local_contribs[MAX_NEI];  // nn_range=1 なら 3×3 ブロック
-  int local_idxs[MAX_NEI];        // flatten したインデックス
+  float local_contribs[MAX_NEI];  // nn_range=1 means a 3x3 block
+  int local_idxs[MAX_NEI];        // flattened indices
   int cnt = 0;
 
 #pragma unroll
@@ -862,7 +862,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
         int xj = xi + dx;
         int yj = yi + dy;
         int zj = zi + dz;
-        // 範囲チェック
+        // Range check
         if (xj < 0 || xj >= c_voxel_num.x || yj < 0 || yj >= c_voxel_num.y ||
             zj < 0 || zj >= c_voxel_num.z) {
           continue;
@@ -873,7 +873,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
         vpos.y += yj * c_voxel_size.y;
         vpos.z += zj * c_voxel_size.z;
         float3 dff = vpos - pt;
-        // SDF の計算は sqrt を可能なら rsqrt で高速化
+        // Speed up the SDF sqrt with rsqrt where possible
         float sign = dot(dff, normal) < 0 ? -1.f : 1.f;
         float dist = sqrtf(dot(dff, dff)) * sign;
         dist = (dist >= -c_trunc) ? fminf(1.f, dist / c_trunc) : 0.f;
@@ -881,13 +881,13 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
         local_contribs[cnt] = dist;
         ++cnt;
 
-        //// 3) shared-hash にインサート＋集約
-        ////    simple linear‐probing
+        //// 3) Insert into the shared-memory hash and aggregate
+        ////    simple linear probing
         // int slot = vid & (NAIVE_KERNEL_HASH_SIZE - 1);
         // while (true) {
         //   int old = atomicCAS(&s_keys[slot], -1, vid);
         //   if (old == -1 || old == vid) {
-        //     // 同じ vid ならここで集約
+        //     // Aggregate here when the vid matches
         //     atomicAdd(&s_vals[slot], dist);
         //     atomicAdd(&s_counts[slot], 1);
         //     break;
@@ -898,7 +898,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
     }
   }
 
-  //// 3) スレッド内集約 → atomicAdd は cnt 回ではなく「有効な vid 数」回に
+  //// 3) In-thread aggregation: atomicAdd runs per unique vid, not per contribution
   for (int i = 0; i < cnt; ++i) {
     atomicAdd(&d_voxels[local_idxs[i]].sdf_sum, local_contribs[i]);
     atomicAdd(&d_voxels[local_idxs[i]].update_num, 1);
@@ -907,7 +907,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
   constexpr int sample_num = 2;
   constexpr int MAX_SAMPLE = sample_num * 2 + 1;
   float local_contribs_ray[MAX_SAMPLE];
-  int local_idxs_ray[MAX_SAMPLE];  // flatten したインデックス
+  int local_idxs_ray[MAX_SAMPLE];  // flattened indices
   int cnt_ray = 0;
 
 #pragma unroll
@@ -938,7 +938,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
     vpos.y += y_index * c_voxel_size.y;
     vpos.z += z_index * c_voxel_size.z;
     float3 dff = vpos - pt;
-    // SDF の計算は sqrt を可能なら rsqrt で高速化
+    // Speed up the SDF sqrt with rsqrt where possible
     float sign = dot(dff, normal) < 0 ? -1.f : 1.f;
     float dist = sqrtf(dot(dff, dff)) * sign;
     dist = (dist >= -c_trunc) ? fminf(1.f, dist / c_trunc) : 0.f;
@@ -950,7 +950,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
     // while (true) {
     //   int old = atomicCAS(&s_keys[slot], -1, vid);
     //   if (old == -1 || old == vid) {
-    //     // 同じ vid ならここで集約
+    //     // Aggregate here when the vid matches
     //     atomicAdd(&s_vals[slot], dist);
     //     atomicAdd(&s_counts[slot], 1);
     //     break;
@@ -967,7 +967,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
   //     if (vid >= 0) {
   //       float sum = s_vals[i];
   //       int cnt = s_counts[i];
-  //       // ここでグローバルにまとめて加算
+  //       // Accumulate into global memory here in one go
   //       atomicAdd(&d_voxels[vid].sdf_sum, sum);
   //       atomicAdd(&d_voxels[vid].update_num, cnt);
   //     }
@@ -975,7 +975,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
   // }
 
   // int uCnt = 0;
-  //  // ユニーク化バッファ（最大近傍数に合わせたサイズ）
+  //  // Dedup buffer (sized to the max neighbor count)
   // constexpr int MAX_BUF_NUM = MAX_NEI + MAX_SAMPLE;
   // int uidBuf[MAX_BUF_NUM];
   // float sumBuf[MAX_BUF_NUM];
@@ -984,17 +984,17 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
   // for (int i = 0; i < cnt; ++i) {
   //   int vid = local_idxs[i];
   //   float val = local_contribs[i];
-  //   // 既に登録済みか線形検索
+  //   // Linear search for an existing entry
   //   int j = 0;
   //   for (; j < uCnt; ++j) {
   //     if (uidBuf[j] == vid) {
   //       sumBuf[j] += val;
-  //       updBuf[j] += 1;  // update_num 用
+  //       updBuf[j] += 1;  // for update_num
   //       break;
   //     }
   //   }
   //   if (j == uCnt) {
-  //     // 新規エントリ
+  //     // New entry
   //     uidBuf[uCnt] = vid;
   //     sumBuf[uCnt] = val;
   //     updBuf[uCnt] = 1;
@@ -1005,17 +1005,17 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
   // for (int i = 0; i < cnt_ray; ++i) {
   //   int vid = local_idxs_ray[i];
   //   float val = local_contribs_ray[i];
-  //   // 既に登録済みか線形検索
+  //   // Linear search for an existing entry
   //   int j = 0;
   //   for (; j < uCnt; ++j) {
   //     if (uidBuf[j] == vid) {
   //       sumBuf[j] += val;
-  //       updBuf[j] += 1;  // update_num 用
+  //       updBuf[j] += 1;  // for update_num
   //       break;
   //     }
   //   }
   //   if (j == uCnt) {
-  //     // 新規エントリ
+  //     // New entry
   //     uidBuf[uCnt] = vid;
   //     sumBuf[uCnt] = val;
   //     updBuf[uCnt] = 1;
@@ -1023,7 +1023,7 @@ __global__ void FuseOrganizedPointCloudMultiKernelNaiveOptimized(
   //   }
   // }
 
-  // // ここで uCnt はユニークなボクセル数
+  // // uCnt is the number of unique voxels here
   // for (int j = 0; j < uCnt; ++j) {
   //   atomicAdd(&d_voxels[uidBuf[j]].sdf_sum, sumBuf[j]);
   //   atomicAdd(&d_voxels[uidBuf[j]].update_num, updBuf[j]);
@@ -1398,7 +1398,7 @@ __global__ void BuildOccupiedKernel(uint8_t* occupied,
   }
 }
 
-// occ=0/1 → label=scan[i] or -1
+// occ=0/1 -> label=scan[i] or -1
 __global__ void LabelFromScanKernel(const uint8_t* occ, const int* scan,
                                     int* labels, int N) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1406,33 +1406,33 @@ __global__ void LabelFromScanKernel(const uint8_t* occ, const int* scan,
   labels[i] = occ[i] ? scan[i] : -1;
 }
 
-__global__ void LabelPropagationOneIter(int* next_labels,         // 書き出し
-                                        const int* prev_labels,   // 読み出し
+__global__ void LabelPropagationOneIter(int* next_labels,         // output
+                                        const int* prev_labels,   // input
                                         const uint8_t* occupied,  // 0/1
                                         int nx, int ny, int nz,
                                         int neighbors_27,
-                                        int* d_changed)  // 変更総数（原子加算）
+                                        int* d_changed)  // total change count (atomic add)
 {
   const int idx = blockIdx.x * blockDim.x + threadIdx.x;
   const int N = nx * ny * nz;
   if (idx >= N) return;
 
-  if (!occupied[idx]) {  // 非占有は -1 のまま
+  if (!occupied[idx]) {  // unoccupied stays -1
     next_labels[idx] = -1;
     return;
   }
 
-  // 自身の3Dインデックス
+  // Own 3D index in the grid
   const int xys = nx * ny;
   int z = idx / xys;
   int rem = idx - z * xys;
   int y = rem / nx;
   int x = rem - y * nx;
 
-  int label = prev_labels[idx];  // 初期値は自分のラベル
+  int label = prev_labels[idx];  // starts from the own label
 
   if (neighbors_27) {
-    // 27近傍（中心を除く）
+    // 27-neighborhood (excluding the center)
 #pragma unroll
     for (int dz = -1; dz <= 1; ++dz) {
       int zz = z + dz;
@@ -1455,8 +1455,8 @@ __global__ void LabelPropagationOneIter(int* next_labels,         // 書き出�
       }
     }
   } else {
-    // 6近傍
-    // ±x
+    // 6-neighborhood
+    // +/-x
     if (x > 0) {
       int j = idx - 1;
       if (occupied[j]) {
@@ -1471,7 +1471,7 @@ __global__ void LabelPropagationOneIter(int* next_labels,         // 書き出�
         if (nn >= 0 && nn < label) label = nn;
       }
     }
-    // ±y
+    // +/-y
     if (y > 0) {
       int j = idx - nx;
       if (occupied[j]) {
@@ -1486,7 +1486,7 @@ __global__ void LabelPropagationOneIter(int* next_labels,         // 書き出�
         if (nn >= 0 && nn < label) label = nn;
       }
     }
-    // ±z
+    // +/-z
     if (z > 0) {
       int j = idx - xys;
       if (occupied[j]) {
@@ -1510,13 +1510,13 @@ __global__ void LabelPropagationOneIter(int* next_labels,         // 書き出�
 }
 
 void RunLabelPropagation(
-    int* d_labels,  // 入出力: 初期ラベル（占有は0..K-1, 非占有は-1
+    int* d_labels,  // in/out: initial labels (occupied 0..K-1, unoccupied -1)
     int* h_end_iter,
     const uint8_t* d_occupied,  // 0/1
     int nx, int ny, int nz, int max_iter, bool neighbors_27) {
   const int N = nx * ny * nz;
 
-  // バッファ確保：prev と next を分ける
+  // Allocate buffers: keep prev and next separate
   int *d_prev = nullptr, *d_next = nullptr;
   cudaMalloc(&d_prev, N * sizeof(int));
   cudaMalloc(&d_next, N * sizeof(int));
@@ -1540,17 +1540,17 @@ void RunLabelPropagation(
     int h_changed = 0;
     cudaMemcpy(&h_changed, d_changed, sizeof(int), cudaMemcpyDeviceToHost);
     if (h_changed == 0) {
-      // 収束：d_prev が最新なので d_labels に戻す
+      // Converged: d_prev is the latest, copy back to d_labels
       cudaMemcpy(d_labels, d_prev, N * sizeof(int), cudaMemcpyDeviceToDevice);
       break;
     }
 
     if (it == max_iter) {
-      // 最大反復に到達：最新の prev を返す
+      // Reached max iterations: return the latest prev
       cudaMemcpy(d_labels, d_prev, N * sizeof(int), cudaMemcpyDeviceToDevice);
     }
 
-    // 反復継続：prev/next を入れ替え
+    // Continue: swap prev/next
     std::swap(d_prev, d_next);
 
     it++;
@@ -1565,8 +1565,8 @@ void RunLabelPropagation(
 
 template <bool N27>
 __global__ void LabelPropagationOneIter3D(
-    int* __restrict__ next_labels,        // 書き出し
-    const int* __restrict__ prev_labels,  // 読み出し
+    int* __restrict__ next_labels,        // output
+    const int* __restrict__ prev_labels,  // input
     const int* __restrict__ occupied,     // 0/1
     int nx, int ny, int nz) {
   const int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1585,7 +1585,7 @@ __global__ void LabelPropagationOneIter3D(
   int label = prev_labels[idx];
 
   if constexpr (N27) {
-    // 27近傍（中心除外）
+    // 27-neighborhood (excluding the center)
 #pragma unroll
     for (int dz = -1; dz <= 1; ++dz) {
       const int zz = z + dz;
@@ -1608,8 +1608,8 @@ __global__ void LabelPropagationOneIter3D(
       }
     }
   } else {
-    // 6近傍
-    // ±x
+    // 6-neighborhood
+    // +/-x
     if (x > 0) {
       int j = idx - 1;
       if (occupied[j]) {
@@ -1624,7 +1624,7 @@ __global__ void LabelPropagationOneIter3D(
         if (nn >= 0 && nn < label) label = nn;
       }
     }
-    // ±y
+    // +/-y
     if (y > 0) {
       int j = idx - nx;
       if (occupied[j]) {
@@ -1639,7 +1639,7 @@ __global__ void LabelPropagationOneIter3D(
         if (nn >= 0 && nn < label) label = nn;
       }
     }
-    // ±z
+    // +/-z
     if (z > 0) {
       int j = idx - xys;
       if (occupied[j]) {
@@ -1659,7 +1659,7 @@ __global__ void LabelPropagationOneIter3D(
   next_labels[idx] = label;
 }
 
-// prev と next の差分フラグ（1:異なる, 0:同じ）
+// Difference flags between prev and next (1: different, 0: same)
 __global__ void DiffFlagKernel(const int* __restrict__ a,
                                const int* __restrict__ b, int N,
                                int* __restrict__ flags) {
@@ -1758,21 +1758,21 @@ __global__ void PropOneIter_BlockReduce(int* __restrict__ nextL,
   int old = prevL[idx];
   nextL[idx] = label;
 
-  // block内縮約（warp単位→block合成）
+  // In-block reduction (per warp, then across warps)
   int changed = (label != old);
-  // warp内和
+  // Sum within a warp
   unsigned mask = 0xffffffff;
   for (int offset = 16; offset > 0; offset >>= 1)
     changed += __shfl_down_sync(mask, changed, offset);
 
-  // warp leader が共有メモリに書く
+  // Warp leaders write to shared memory
   __shared__ int warpSums[(BX * BY * BZ + 31) / 32];
   int lane = threadIdx.x & 31;
   int warp = (threadIdx.z * BY * BX + threadIdx.y * BX + threadIdx.x) >> 5;
   if (lane == 0) warpSums[warp] = changed;
 
   __syncthreads();
-  // block内で和（warp個数は小さい）
+  // Sum within the block (the warp count is small)
   if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
     int blockSum = 0;
     int W = (BX * BY * BZ + 31) / 32;
@@ -1788,9 +1788,9 @@ __global__ void ConvertIntToU8(const int* src, uint8_t* dst, int N) {
 }
 
 // ------------------------------------------------------------
-// 最適化版ラベル伝播（①atomic除去＋CUB reduce, ②3Dグリッド, ③6/27テンプレ）
-// d_labels: 初期=占有0..K-1 / 非占有=-1, 終了時=伝播後
-// d_occupied: 0/1（int配列）
+// Optimized label propagation (1: no atomics + CUB reduce, 2: 3D grid, 3: 6/27-neighbor template)
+// d_labels: initially occupied 0..K-1 / unoccupied -1; propagated labels on return
+// d_occupied: 0/1 (int array)
 // ------------------------------------------------------------
 void RunLabelPropagationOptimized(int* d_labels, int* h_end_iter,
                                   const uint8_t* d_occ8, int nx, int ny, int nz,
@@ -1798,40 +1798,40 @@ void RunLabelPropagationOptimized(int* d_labels, int* h_end_iter,
   const int N = nx * ny * nz;
   const int TPB = 256;
 
-  // 3D起動構成（8^3 は多くの環境で無難）
+  // 3D launch configuration (8^3 is a safe default on most devices)
   const dim3 block3(8, 8, 8);
   const dim3 grid3((nx + block3.x - 1) / block3.x,
                    (ny + block3.y - 1) / block3.y,
                    (nz + block3.z - 1) / block3.z);
 
-  // 1D起動構成（差分フラグ用）
+  // 1D launch configuration (for the difference flags)
   const int blocks1 = (N + TPB - 1) / TPB;
 
-  // prev/next バッファ
+  // prev/next buffers
   int *d_prev = nullptr, *d_next = nullptr;
   checkCudaErrors(cudaMalloc(&d_prev, N * sizeof(int)));
   checkCudaErrors(cudaMalloc(&d_next, N * sizeof(int)));
   checkCudaErrors(
       cudaMemcpy(d_prev, d_labels, N * sizeof(int), cudaMemcpyDeviceToDevice));
 
-  // flags（変化フラグ）
+  // flags (change flags)
   int* d_flags = nullptr;
   checkCudaErrors(cudaMalloc(&d_flags, N * sizeof(int)));
 
-  // CUB reduce 用ワークスペース（再利用）
+  // Workspace for CUB reduce (reused)
   void* d_tmp = nullptr;
   size_t tmp_bytes = 0;
-  // サイズ問い合わせ
+  // Query the required size
   cub::DeviceReduce::Sum(d_tmp, tmp_bytes, d_flags, d_next /*dummy*/, N);
   checkCudaErrors(cudaMalloc(&d_tmp, tmp_bytes));
-  // reduce出力（changed数）
+  // Reduce output (changed count)
   int* d_changed = nullptr;
   checkCudaErrors(cudaMalloc(&d_changed, sizeof(int)));
 
   int h_changed = 0;
 
   // for (int it = 0; it <= max_iter; ++it) {
-  //   // 1反復：prev -> next
+  //   // One iteration: prev -> next
   //   if (neighbors_27) {
   //     LabelPropagationOneIter3D<true>
   //         <<<grid3, block3>>>(d_next, d_prev, d_occupied, nx, ny, nz);
@@ -1841,29 +1841,29 @@ void RunLabelPropagationOptimized(int* d_labels, int* h_end_iter,
   //   }
   //   checkCudaErrors(cudaGetLastError());
 
-  //  // prev/next の差分フラグを立てる
+  //  // Set the prev/next difference flags
   //  DiffFlagKernel<<<blocks1, TPB>>>(d_prev, d_next, N, d_flags);
   //  checkCudaErrors(cudaGetLastError());
 
   //  // sum(flags) -> d_changed
   //  cub::DeviceReduce::Sum(d_tmp, tmp_bytes, d_flags, d_changed, N);
 
-  //  // 収束判定
+  //  // Convergence check
   //  checkCudaErrors(
   //      cudaMemcpy(&h_changed, d_changed, sizeof(int),
   //      cudaMemcpyDeviceToHost));
   //  if (h_changed == 0) {
-  //    // 収束: d_prev が最新なので d_labels へ
+  //    // Converged: d_prev is the latest, copy to d_labels
   //    checkCudaErrors(cudaMemcpy(d_labels, d_prev, N * sizeof(int),
   //                          cudaMemcpyDeviceToDevice));
   //    break;
   //  }
 
-  //  // 続行: prev/next を入れ替え
+  //  // Continue: swap prev/next
   //  std::swap(d_prev, d_next);
 
   //  if (it == max_iter) {
-  //    // 打ち切り: 最新の prev を返す
+  //    // Cutoff: return the latest prev
   //    checkCudaErrors(cudaMemcpy(d_labels, d_prev, N * sizeof(int),
   //                          cudaMemcpyDeviceToDevice));
   //  }
@@ -1877,7 +1877,7 @@ void RunLabelPropagationOptimized(int* d_labels, int* h_end_iter,
   //   ConvertIntToU8<<<b, t>>>(d_occupied, d_occ8, N);
   //   checkCudaErrors(cudaGetLastError());
   // }
-  dim3 block(8, 8, 4);  // 256thread 程度からチューニング開始
+  dim3 block(8, 8, 4);  // start tuning from around 256 threads
   dim3 grid((nx + block.x - 1) / block.x, (ny + block.y - 1) / block.y,
             (nz + block.z - 1) / block.z);
 
@@ -1928,7 +1928,7 @@ __global__ void FillRunIdBySegments(int* runid_sorted, const int* offsets,
   }
 }
 
-// scatter: sorted→original
+// scatter: sorted -> original
 __global__ void ScatterRelabeled(const int* sorted_keys,
                                  const int* runid_sorted, const int* idx_sorted,
                                  int shift, int* out_labels, int N) {
@@ -2017,9 +2017,9 @@ void FinalizeLabelAndCount(int* d_labels, unsigned int** d_counts_new_, int N,
   }
   checkCudaErrors(cudaDeviceSynchronize());
 
-  // 5) decide mapping rule (CPUと同じ: -1→0, それ以外はユニーク順そのまま)
-  //    ※先頭ユニーク値が -1 なら new_id = runid、そうでなければ new_id =
-  //    runid+1（0 を空ラベルに確保）
+  // 5) decide mapping rule (same as the CPU version: -1 -> 0, others keep unique order)
+  //    If the first unique value is -1, new_id = runid; otherwise new_id =
+  //    runid+1 (0 is reserved for the empty label)
   int first_key = 0;
   cudaMemcpy(&first_key, d_unique, sizeof(int), cudaMemcpyDeviceToHost);
   const int shift = (first_key == -1) ? 0 : 1;
@@ -2030,10 +2030,10 @@ void FinalizeLabelAndCount(int* d_labels, unsigned int** d_counts_new_, int N,
   }
   checkCudaErrors(cudaDeviceSynchronize());
 
-  // 6) counts（新ラベル順）を作る
-  //    - 先頭が -1 のとき: counts_new[0..U-1] = d_counts[0..U-1]
-  //    - 先頭が -1 でないとき: counts_new のサイズを U+1 にして先頭0、以降に
-  //    d_counts をコピー
+  // 6) Build counts (in new-label order)
+  //    - if the first value is -1: counts_new[0..U-1] = d_counts[0..U-1]
+  //    - otherwise: size counts_new to U+1, set the head to 0, then copy
+  //    d_counts after it
   // unsigned int* d_counts_new = *d_counts_new_;
   int counts_size = (shift == 0) ? U : (U + 1);
   // std::cout << first_key << std::endl;
@@ -2101,14 +2101,14 @@ void FinalizeLabelAndCount(int* d_labels, unsigned int** d_counts_new_, int N,
 //   cub::DeviceScan::ExclusiveSum(d_temp, temp_bytes, d_occ, d_scan, N);
 //   cudaFree(d_temp);
 //
-//   // --- 総占有数を取得 ---
+//   // --- Get the total occupied count ---
 //   int last_scan, last_occ;
 //   cudaMemcpy(&last_scan, d_scan + N - 1, sizeof(int),
 //   cudaMemcpyDeviceToHost); cudaMemcpy(&last_occ, d_occ + N - 1, sizeof(int),
 //   cudaMemcpyDeviceToHost); int K = last_scan + last_occ; if (out_num_occ)
 //   *out_num_occ = K;
 //
-//   // --- ラベル付け ---
+//   // --- Labeling ---
 //   int threads = 256;
 //   int blocks = (N + threads - 1) / threads;
 //   LabelFromScanKernel<<<blocks, threads>>>(d_occ, d_scan, d_labels, N);
@@ -2126,11 +2126,11 @@ __device__ float3 VertexInterp(float3 p1, float3 p2, float valp1, float valp2,
 }
 
 //
-// Marching Cubes によるメッシュ生成カーネル
-// 各スレッドは有効なVoxelBlock内の1セル（(BLOCK_SIZE-1)^3個のセル）に対して処理を行う
-// isoLevel は 0 を想定（SDF=0 の面）、d_vertices, d_indices
-// は出力バッファ（d_indicesは connected==true の場合に書き出す）
-// d_vertexCount はグローバル出力頂点数カウンター（各三角形につき3頂点を出力）
+// Mesh generation kernel via Marching Cubes
+// Each thread processes one cell ((BLOCK_SIZE-1)^3 cells) in a valid VoxelBlock
+// isoLevel is assumed 0 (the SDF=0 surface); d_vertices and d_indices
+// are output buffers (d_indices is written when connected==true)
+// d_vertexCount is the global output vertex counter (3 vertices per triangle)
 //
 __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
                                     int validBlockCount, float voxelSize,
@@ -2145,23 +2145,23 @@ __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
   int cellIdxInBlock = globalCellIdx % cellsPerBlock;
   int blockIdxVoxel = globalCellIdx / cellsPerBlock;
 
-  // セル内のローカル座標（各セルは8個の頂点を持つ）
+  // Local coordinates within the cell (each cell has 8 corners)
   int cell_z = cellIdxInBlock / ((BLOCK_SIZE - 1) * (BLOCK_SIZE - 1));
   int rem = cellIdxInBlock % ((BLOCK_SIZE - 1) * (BLOCK_SIZE - 1));
   int cell_y = rem / (BLOCK_SIZE - 1);
   int cell_x = rem % (BLOCK_SIZE - 1);
 
-  // 現在のVoxelBlockを取得
+  // Fetch the current VoxelBlock
   VoxelBlock* curBlock = &d_voxelBlocks[blockIdxVoxel];
 
-  // 各セルの8頂点のオフセット
+  // Offsets of the 8 corners of the cell
   int3 offsets[8] = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0},
                      {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
 
   float sdf[8];
   float3 pos[8];
   float3 norm[8];
-  // 各頂点のSDF値、位置、法線を取得（セル内のVoxelはセルの左下奥のVoxelからのオフセット）
+  // Fetch SDF, position and normal of each corner (voxels are offsets from the lower-left-back voxel of the cell)
   for (int i = 0; i < 8; i++) {
     int vx = cell_x + offsets[i].x;
     int vy = cell_y + offsets[i].y;
@@ -2175,7 +2175,7 @@ __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
     norm[i] = v.normal;
   }
 
-  // Marching Cubes のキューブインデックスを計算（isoLevel=0）
+  // Compute the Marching Cubes cube index (isoLevel=0)
   int cubeIndex = 0;
   if (sdf[0] < 0) cubeIndex |= 1;
   if (sdf[1] < 0) cubeIndex |= 2;
@@ -2186,10 +2186,10 @@ __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
   if (sdf[6] < 0) cubeIndex |= 64;
   if (sdf[7] < 0) cubeIndex |= 128;
 
-  // 交差がなければ処理しない
+  // Nothing to do if there is no intersection
   if (d_edgeTable[cubeIndex] == 0) return;
 
-  // 各エッジでの交差点と法線を計算するための補助ラムダ
+  // Helper lambda that computes the intersection point and normal on each edge
   float3 edgeVertex[12];
   float3 edgeNormal[12];
   auto vertexInterp = [&](int edge, int a, int b) {
@@ -2211,7 +2211,7 @@ __global__ void marchingCubesKernel(VoxelBlock* d_voxelBlocks,
   if (d_edgeTable[cubeIndex] & 1024) vertexInterp(10, 2, 6);
   if (d_edgeTable[cubeIndex] & 2048) vertexInterp(11, 3, 7);
 
-  // triTable を参照して三角形を生成
+  // Generate triangles by looking up triTable
   for (int i = 0; d_triTable[cubeIndex][i] != -1; i += 3) {
     float3 v0 = edgeVertex[d_triTable[cubeIndex][i]];
     float3 v1 = edgeVertex[d_triTable[cubeIndex][i + 1]];
@@ -2249,20 +2249,20 @@ __global__ void InitVoxelsNaive(VoxelCudaNaive* voxels, size_t n,
 __global__ void MarchingCubesKernelNaive(
     const VoxelCudaNaive* __restrict__ voxels, float3 bb_min, float3 resolution,
     int3 voxel_num, float weight,
-    float3* __restrict__ out_vertices,  // 三角形頂点バッファ
-    int* __restrict__ out_counter       // 原子で増加させる頂点数
+    float3* __restrict__ out_vertices,  // triangle vertex buffer
+    int* __restrict__ out_counter       // vertex count, incremented atomically
 ) {
-  // 各スレッドは「セル」（voxel_num-1 の範囲）を担当
+  // Each thread handles one cell (within voxel_num-1 per axis)
   int ix = blockIdx.x * blockDim.x + threadIdx.x;
   int iy = blockIdx.y * blockDim.y + threadIdx.y;
   int iz = blockIdx.z * blockDim.z + threadIdx.z;
   if (ix >= voxel_num.x - 1 || iy >= voxel_num.y - 1 || iz >= voxel_num.z - 1)
     return;
 
-  // セル頂点の格子インデックス
+  // Grid indices of the cell corners
   int3 base = make_int3(ix, iy, iz);
 
-  // 1) 8 コーナーの SDF 値を読み込み
+  // 1) Read the SDF values of the 8 corners
   float sdf[8];
 #pragma unroll
   for (int k = 0; k < 8; ++k) {
@@ -2278,7 +2278,7 @@ __global__ void MarchingCubesKernelNaive(
   }
 
   const float iso_level = 0.0f;
-  // 2) ケースインデックスを計算
+  // 2) Compute the case index
   int cubeIndex = 0;
   if (sdf[0] < iso_level) cubeIndex |= 1;
   if (sdf[1] < iso_level) cubeIndex |= 2;
@@ -2289,11 +2289,11 @@ __global__ void MarchingCubesKernelNaive(
   if (sdf[6] < iso_level) cubeIndex |= 64;
   if (sdf[7] < iso_level) cubeIndex |= 128;
 
-  // 立方体が完全に内部 or 外部なら何もしない
+  // Nothing to do if the cube is fully inside or outside
   int edges = d_edgeTable[cubeIndex];
   if (edges == 0) return;
 
-  // 3) 8 頂点のワールド座標を計算
+  // 3) Compute the world coordinates of the 8 corners
   float3 cornerPos[8];
 #pragma unroll
   for (int k = 0; k < 8; ++k) {
@@ -2304,7 +2304,7 @@ __global__ void MarchingCubesKernelNaive(
     cornerPos[k] = gridPos;
   }
 
-  // 4) エッジ上の交点を線形補間で求める
+  // 4) Find the edge intersections by linear interpolation
   float3 vertList[12];
   if (edges & 1)
     vertList[0] = VertexInterp(cornerPos[0], cornerPos[1], sdf[0], sdf[1]);
@@ -2331,14 +2331,14 @@ __global__ void MarchingCubesKernelNaive(
   if (edges & 2048)
     vertList[11] = VertexInterp(cornerPos[3], cornerPos[7], sdf[3], sdf[7]);
 
-  // 5) triTable を見て三角形を出力
+  // 5) Emit triangles according to triTable
   for (int t = 0; t < 16; t += 3) {
     int e0 = d_triTable[cubeIndex][t + 0];
     int e1 = d_triTable[cubeIndex][t + 1];
     int e2 = d_triTable[cubeIndex][t + 2];
-    if (e0 < 0) break;  // テーブル終端
+    if (e0 < 0) break;  // end of table
 
-    // 出力バッファへ原子操作で書き込み
+    // Write to the output buffer atomically
     int triIdx = atomicAdd(out_counter, 3);
     out_vertices[triIdx + 0] = vertList[e0];
     out_vertices[triIdx + 1] = vertList[e1];
@@ -2347,46 +2347,46 @@ __global__ void MarchingCubesKernelNaive(
 }
 #endif
 
-// edgeId: 0〜11 (Marching Cubes の仕様準拠)
+// edgeId: 0-11 (follows the Marching Cubes convention)
 __device__ int computeEdgeKey(int ix, int iy, int iz, int edgeId, int nx,
                               int ny, int nz) {
   int xCount = (nx - 1) * ny * nz;
   int yCount = nx * (ny - 1) * nz;
-  // zCount = nx*ny*(nz-1)  // 使うのは後述のケース
+  // zCount = nx*ny*(nz-1)  // used by the cases below
 
   switch (edgeId) {
-    // --- 底面 (z) の X, Y エッジ ---
-    case 0:  // corner 0–1, X edge at (ix, iy, iz)
+    // --- X and Y edges on the bottom face (z) ---
+    case 0:  // corner 0-1, X edge at (ix, iy, iz)
       return ix + iy * (nx - 1) + iz * (nx - 1) * ny;
-    case 1:  // corner 1–2, Y edge at (ix+1, iy, iz)
+    case 1:  // corner 1-2, Y edge at (ix+1, iy, iz)
       return xCount + (ix + 1) + iy * nx + iz * nx * (ny - 1);
-    case 2:  // corner 2–3, X edge at (ix, iy+1, iz)
+    case 2:  // corner 2-3, X edge at (ix, iy+1, iz)
       return ix + (iy + 1) * (nx - 1) + iz * (nx - 1) * ny;
-    case 3:  // corner 3–0, Y edge at (ix, iy, iz)
+    case 3:  // corner 3-0, Y edge at (ix, iy, iz)
       return xCount + ix + iy * nx + iz * nx * (ny - 1);
 
-    // --- 上面 (z+1) の X, Y エッジ ---
-    case 4:  // corner 4–5, X edge at (ix, iy, iz+1)
+    // --- X and Y edges on the top face (z+1) ---
+    case 4:  // corner 4-5, X edge at (ix, iy, iz+1)
       return ix + iy * (nx - 1) + (iz + 1) * (nx - 1) * ny;
-    case 5:  // corner 5–6, Y edge at (ix+1, iy, iz+1)
+    case 5:  // corner 5-6, Y edge at (ix+1, iy, iz+1)
       return xCount + (ix + 1) + iy * nx + (iz + 1) * nx * (ny - 1);
-    case 6:  // corner 6–7, X edge at (ix, iy+1, iz+1)
+    case 6:  // corner 6-7, X edge at (ix, iy+1, iz+1)
       return ix + (iy + 1) * (nx - 1) + (iz + 1) * (nx - 1) * ny;
-    case 7:  // corner 7–4, Y edge at (ix, iy, iz+1)
+    case 7:  // corner 7-4, Y edge at (ix, iy, iz+1)
       return xCount + ix + iy * nx + (iz + 1) * nx * (ny - 1);
 
-    // --- 垂直方向 (Z) のエッジ ---
-    // Z-edge 数は nx*ny*(nz-1) ですが、Yオフセットの後ろに続くと考えます。
-    case 8:  // corner 0–4, Z edge at (ix, iy, iz)
+    // --- Vertical (Z) edges ---
+    // There are nx*ny*(nz-1) Z edges; they follow after the Y-edge offsets.
+    case 8:  // corner 0-4, Z edge at (ix, iy, iz)
       return xCount + yCount + ix + iy * nx + iz * nx * ny;
-    case 9:  // corner 1–5, Z edge at (ix+1, iy, iz)
+    case 9:  // corner 1-5, Z edge at (ix+1, iy, iz)
       return xCount + yCount + (ix + 1) + iy * nx + iz * nx * ny;
-    case 10:  // corner 2–6, Z edge at (ix+1, iy+1, iz)
+    case 10:  // corner 2-6, Z edge at (ix+1, iy+1, iz)
       return xCount + yCount + (ix + 1) + (iy + 1) * nx + iz * nx * ny;
-    case 11:  // corner 3–7, Z edge at (ix, iy+1, iz)
+    case 11:  // corner 3-7, Z edge at (ix, iy+1, iz)
       return xCount + yCount + ix + (iy + 1) * nx + iz * nx * ny;
   }
-  return -1;  // 不正な edgeId
+  return -1;  // invalid edgeId
 }
 
 // Compute cube index based on iso threshold
@@ -2394,7 +2394,7 @@ __device__ int calcCubeIndex(const VoxelCudaNaive* voxels, int ix, int iy,
                              int iz, int3 vn, float3 bb_min, float3 res,
                              float iso_level, float weight) {
   // TODO: Use size_t for cube/voxel index
-  // int32 index cannot handle over 1290 × 1290 × 1290 voxels
+  // int32 index cannot handle over 1290 x 1290 x 1290 voxels
 
   float sdf[8];
   // int ids[8];
@@ -2421,11 +2421,11 @@ __device__ const int cornerOffset[8][3] = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0},
                                            {0, 1, 0}, {0, 0, 1}, {1, 0, 1},
                                            {1, 1, 1}, {0, 1, 1}};
 
-// edgeId 0～11 に対して、エッジを構成する２つのコーナー番号
+// For edgeId 0-11, the two corner ids that form the edge
 __device__ const int edgeCorners[12][2] = {
-    {0, 1}, {1, 2}, {2, 3}, {3, 0},  // 底面
-    {4, 5}, {5, 6}, {6, 7}, {7, 4},  // 上面
-    {0, 4}, {1, 5}, {2, 6}, {3, 7}   // 垂直エッジ
+    {0, 1}, {1, 2}, {2, 3}, {3, 0},  // bottom face
+    {4, 5}, {5, 6}, {6, 7}, {7, 4},  // top face
+    {0, 4}, {1, 5}, {2, 6}, {3, 7}   // vertical edges
 };
 
 __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
@@ -2632,7 +2632,7 @@ __global__ void NormalizeVertexNormalsKernel(
 __global__ void SmoothFaceNormalsKernel(
     const int* __restrict__ faces,              // [numFaces*3]
     const float3* __restrict__ vertex_normals,  // [numVertices]
-    float3* smooth_face_normals,                // [numFaces]  出力
+    float3* smooth_face_normals,                // [numFaces]  output
     int numFaces) {
   int fid = blockIdx.x * blockDim.x + threadIdx.x;
   if (fid >= numFaces) {
@@ -2697,7 +2697,7 @@ class VoxelGridCudaHashing::Impl {
  public:
   Impl() {};
 
-  // コンストラクタ：ハッシュテーブルサイズ、VoxelBlock配列の最大個数、トランケーション幅mu、1ボクセルの大きさを指定
+  // Constructor: takes the hash table size, max VoxelBlock count, truncation band mu, and voxel size
   Impl(int hashTableSize, int voxelBlockCount, float mu, float voxelSize)
       : m_hashTableSize(hashTableSize),
         m_voxelBlockCount(voxelBlockCount),
@@ -2706,21 +2706,21 @@ class VoxelGridCudaHashing::Impl {
         d_hashTable(nullptr),
         d_voxelBlocks(nullptr),
         d_globalVoxelBlockCounter(nullptr) {
-    // GPU上に各データ構造を確保
+    // Allocate each data structure on the GPU
     cudaMalloc(&d_hashTable, m_hashTableSize * sizeof(HashEntry));
     cudaMalloc(&d_voxelBlocks, m_voxelBlockCount * sizeof(VoxelBlock));
     cudaMalloc(&d_globalVoxelBlockCounter, sizeof(int));
 
-    // ハッシュテーブル初期化（ptrを -1 に設定）
+    // Initialize the hash table (set ptr to -1)
     {
       int threads = 256;
       int blocks = (m_hashTableSize + threads - 1) / threads;
       initHashTable<<<blocks, threads>>>(d_hashTable, m_hashTableSize);
     }
-    // グローバルカウンター初期化
+    // Initialize the global counters
     cudaMemset(d_globalVoxelBlockCounter, 0, sizeof(int));
 
-    // ※ 必要に応じてVoxelBlockの初期化カーネルを追加してください
+    // NOTE: add a VoxelBlock initialization kernel here if needed
     {
       int threads = 256;
       int blocks = (m_voxelBlockCount + threads - 1) / threads;
@@ -2774,18 +2774,18 @@ class VoxelGridCudaHashing::Impl {
     }
   }
 
-  // generateMesh(): Marching Cubesによりメッシュ生成を行う関数
-  // connected が true
-  // の場合、インデックスバッファを生成（各三角形は独立頂点ですが、インデックスで接続した状態とする）
+  // generateMesh(): generates a mesh via Marching Cubes
+  // When connected is true, an index buffer is generated (triangles keep
+  // independent vertices but are stitched together via indices)
   void GenerateMesh(MeshHostDevice& mesh, bool connected) {
-    // デバイス上に割り当てられたVoxelBlock数（有効なブロック数）を取得
+    // Get the number of VoxelBlocks allocated on the device (valid blocks)
     int validBlockCount;
     cudaMemcpy(&validBlockCount, d_globalVoxelBlockCounter, sizeof(int),
                cudaMemcpyDeviceToHost);
 
     int cellsPerBlock = (BLOCK_SIZE - 1) * (BLOCK_SIZE - 1) * (BLOCK_SIZE - 1);
     int totalCells = validBlockCount * cellsPerBlock;
-    // 各セルから最大5個の三角形が生成されると仮定（worst-case）
+    // Assume up to 5 triangles per cell (worst case)
     int current_max_triangles = validBlockCount * cellsPerBlock * 5;
     int current_max_vertices = current_max_triangles * 3;
 
@@ -2820,7 +2820,7 @@ class VoxelGridCudaHashing::Impl {
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
-    // 出力頂点数を取得
+    // Get the output vertex count
     int h_vertexCount;
     cudaMemcpy(&h_vertexCount, d_vertexCount, sizeof(int),
                cudaMemcpyDeviceToHost);
@@ -2841,8 +2841,8 @@ class VoxelGridCudaHashing::Impl {
     }
   }
 
-  // ※
-  // ここに、メッシュのリセットやホスト側への転送処理等、必要な関数を追加してください
+  // NOTE:
+  // Add mesh reset, host-side transfer and other helpers here as needed
 
  private:
   int m_hashTableSize;
@@ -2962,17 +2962,17 @@ class VoxelGridCudaNaive::Impl {
     cudaMalloc(&d_vtxCounter, sizeof(int));
     cudaMemset(d_vtxCounter, 0, sizeof(int));
 
-    // グリッドのサイズ
+    // Grid size
     int nx = voxel_num_.x;
     int ny = voxel_num_.y;
     int nz = voxel_num_.z;
 
-    // 各方向のエッジ数
-    size_t xCount = (nx - 1) * ny * nz;  // X 方向エッジ
-    size_t yCount = nx * (ny - 1) * nz;  // Y 方向エッジ
-    size_t zCount = nx * ny * (nz - 1);  // Z 方向エッジ
+    // Edge counts per direction
+    size_t xCount = (nx - 1) * ny * nz;  // X-direction edges
+    size_t yCount = nx * (ny - 1) * nz;  // Y-direction edges
+    size_t zCount = nx * ny * (nz - 1);  // Z-direction edges
 
-    // 全エッジ数
+    // Total edge count
     numEdges = xCount + yCount + zCount;
 
     cudaMalloc(&d_edgeVertexIds, sizeof(int) * numEdges);
@@ -3199,7 +3199,7 @@ class VoxelGridCudaNaive::Impl {
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
-    // --- 総占有数を取得 ---
+    // --- Get the total occupied count ---
     int last_scan;
     uint8_t last_occ;
     cudaMemcpy(&last_scan, d_scan + N - 1, sizeof(int), cudaMemcpyDeviceToHost);
@@ -3208,7 +3208,7 @@ class VoxelGridCudaNaive::Impl {
     int K = last_scan + last_occ;
     // if (out_num_occ) *out_num_occ = K;
 
-    // --- ラベル付け ---
+    // --- Labeling ---
     int threads = 256;
     int blocks = (N + threads - 1) / threads;
     LabelFromScanKernel<<<blocks, threads>>>(d_occ8, d_scan, d_labels, N);
