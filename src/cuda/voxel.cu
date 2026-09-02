@@ -2348,10 +2348,20 @@ __global__ void MarchingCubesKernelNaive(
 #endif
 
 // edgeId: 0-11 (follows the Marching Cubes convention)
-__device__ int computeEdgeKey(int ix, int iy, int iz, int edgeId, int nx,
-                              int ny, int nz) {
-  int xCount = (nx - 1) * ny * nz;
-  int yCount = nx * (ny - 1) * nz;
+// The edge table has ~3N entries, which exceeds int32 for room-scale grids
+// around 5 mm voxels (N ~ 7e8). UGU_LARGE_GRID widens the edge key; the
+// default build keeps the int arithmetic unchanged.
+#ifdef UGU_LARGE_GRID
+typedef long long EdgeKey;
+#else
+typedef int EdgeKey;
+#endif
+
+__device__ EdgeKey computeEdgeKey(int ix, int iy, int iz, int edgeId, int nx_,
+                                  int ny_, int nz_) {
+  const EdgeKey nx = nx_, ny = ny_, nz = nz_;
+  EdgeKey xCount = (nx - 1) * ny * nz;
+  EdgeKey yCount = nx * (ny - 1) * nz;
   // zCount = nx*ny*(nz-1)  // used by the cases below
 
   switch (edgeId) {
@@ -2447,7 +2457,7 @@ __global__ void BuildVerticesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
   for (int e = 0; e < 12; e++) {
     if (!(edges & (1 << e))) continue;
 
-    int key = computeEdgeKey(ix, iy, iz, e, vn.x, vn.y, vn.z);
+    EdgeKey key = computeEdgeKey(ix, iy, iz, e, vn.x, vn.y, vn.z);
 
     // Acquire ownership of this edge.
     int old = atomicCAS(&d_edgeVertexIds[key], -1, 0);
@@ -2518,9 +2528,9 @@ __global__ void BuildFacesKernel(const VoxelCudaNaive* voxels, float3 bb_min,
   for (int i = 0; tri[i] != -1; i += 3) {
     int e0 = tri[i], e1 = tri[i + 1], e2 = tri[i + 2];
 
-    int k0 = computeEdgeKey(ix, iy, iz, e0, vn.x, vn.y, vn.z);
-    int k1 = computeEdgeKey(ix, iy, iz, e1, vn.x, vn.y, vn.z);
-    int k2 = computeEdgeKey(ix, iy, iz, e2, vn.x, vn.y, vn.z);
+    EdgeKey k0 = computeEdgeKey(ix, iy, iz, e0, vn.x, vn.y, vn.z);
+    EdgeKey k1 = computeEdgeKey(ix, iy, iz, e1, vn.x, vn.y, vn.z);
+    EdgeKey k2 = computeEdgeKey(ix, iy, iz, e2, vn.x, vn.y, vn.z);
 
     int v0 = d_edgeVertexIds[k0];
     int v1 = d_edgeVertexIds[k1];
@@ -2561,9 +2571,9 @@ __global__ void BuildFacesKernelWithNormal(
   int* tri = (int*)(&d_triTable[cubeIndex][0]);
   for (int i = 0; tri[i] != -1; i += 3) {
     int e0 = tri[i], e1 = tri[i + 1], e2 = tri[i + 2];
-    int k0 = computeEdgeKey(ix, iy, iz, e0, vn.x, vn.y, vn.z);
-    int k1 = computeEdgeKey(ix, iy, iz, e1, vn.x, vn.y, vn.z);
-    int k2 = computeEdgeKey(ix, iy, iz, e2, vn.x, vn.y, vn.z);
+    EdgeKey k0 = computeEdgeKey(ix, iy, iz, e0, vn.x, vn.y, vn.z);
+    EdgeKey k1 = computeEdgeKey(ix, iy, iz, e1, vn.x, vn.y, vn.z);
+    EdgeKey k2 = computeEdgeKey(ix, iy, iz, e2, vn.x, vn.y, vn.z);
     int v0 = d_edgeVertexIds[k0];
     int v1 = d_edgeVertexIds[k1];
     int v2 = d_edgeVertexIds[k2];
